@@ -2,7 +2,9 @@ import type { CSSProperties, ReactNode } from 'react'
 import type { Card } from '../model'
 import { parseCloze } from '../logic/cloze'
 import { blankColor, ClozeText } from './ClozeText'
+import { IconButton } from './IconButton'
 import { PencilIcon } from './Icons'
+import { Thumb } from './Thumb'
 
 type Props = {
   card: Card
@@ -15,9 +17,6 @@ type Props = {
   onEdit: () => void
 }
 
-/** A card side's image as a small square preview, to go next to its text wherever that text shows. */
-export const thumb = (src: string | undefined) => src && <img className="thumb" src={src} alt="Image" />
-
 /**
  * One card in a `.card-rows` list (quiz page, study results): the term and definition with their images and the
  * explanation under the definition, or a fill-in-the-blank statement; a pencil that opens the card dialog.
@@ -25,9 +24,9 @@ export const thumb = (src: string | undefined) => src && <img className="thumb" 
 export function CardRow({ card, lead, blank, note, onEdit }: Props) {
   // The pencil comes before the note, so the note takes a row of its own under the text.
   const edit = (
-    <button type="button" className="icon-btn row-edit" aria-label="Edit card" title="Edit card" onClick={onEdit}>
+    <IconButton className="row-edit" label="Edit card" onClick={onEdit}>
       <PencilIcon />
-    </button>
+    </IconButton>
   )
   const extra = note && <div className="row-extra">{note}</div>
 
@@ -46,7 +45,7 @@ export function CardRow({ card, lead, blank, note, onEdit }: Props) {
           ) : (
             <ClozeText text={text} ranges={ranges} mode="reveal" index={only} />
           )}
-          {thumb(card.image)}
+          <Thumb src={card.image} alt={text || 'Image for the card'} />
           {card.explanation.map(
             (explanation, i) =>
               explanation &&
@@ -72,11 +71,11 @@ export function CardRow({ card, lead, blank, note, onEdit }: Props) {
       {lead}
       <strong className="row-term">
         {card.term || <span className="missing">No term</span>}
-        {thumb(card.termImage)}
+        <Thumb src={card.termImage} alt={card.term || 'Image for the term'} />
       </strong>
       <div className="row-def">
         {card.definition || <span className="missing">No definition</span>}
-        {thumb(card.definitionImage)}
+        <Thumb src={card.definitionImage} alt={card.definition || 'Image for the definition'} />
         {card.explanation && <p className="row-note">{card.explanation}</p>}
       </div>
       {edit}

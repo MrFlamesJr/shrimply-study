@@ -1,25 +1,32 @@
-import { useEffect, useRef, useState, type KeyboardEvent } from 'react'
-import { GROUP_NAME_MAX, newId, SIDE_IMAGE, type Card, type Group, type TermCard } from '../model'
+import { Fragment, useEffect, useRef, useState } from 'react'
+import { newId, type Card, type ClozeCard, type Group, type TermCard } from '../model'
 import { go, takeCreated } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import type { ParsedCard } from '../logic/parseCards'
-import { isBlank, missingPart, unfinishedMessage } from '../logic/cardStatus'
-import { inGroupOrder, nextColor } from '../logic/groups'
+import { isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
+import { inGroupOrder, nextColor, sections, withCollapsed } from '../logic/groups'
 import { plural } from '../logic/plural'
+import { nameTaken } from '../logic/names'
 import { AutoText } from '../components/AutoText'
-import { ClozeField } from '../components/ClozeField'
-import { ColorPicker } from '../components/ColorPicker'
-import { GroupIcon, PlusIcon, TrashIcon } from '../components/Icons'
-import { ImageSlot } from '../components/ImageSlot'
+import { GroupIcon, PlusIcon } from '../components/Icons'
 import { ImportDialog } from '../components/ImportDialog'
+import { DangerZone, PageHead } from '../components/Page'
 import type { Notify } from '../components/Toasts'
+import { EditCard, type Field } from './edit/EditCard'
+import { GroupHead } from './edit/GroupHead'
 
-type Field = 'term' | 'definition' | 'explanation'
-const LABEL: Record<Field, string> = { term: 'Term', definition: 'Definition', explanation: 'Explanation' }
 // What to focus after the next write: a card's field (or its group select) by card id, or a group's name by group id.
 type Focus = { card: string; field: Field | 'blank' | 'group' } | { groupName: string }
 
-export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: string; notify: Notify }) {
+type Props = {
+  lib: LibraryApi
+  quizId: string
+  notify: Notify
+  collapsed: ReadonlySet<string>
+  setCollapsed: (collapsed: ReadonlySet<string>) => void
+}
+
+export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Props) {
   const found = lib.findQuiz(quizId)
   const [importOpen, setImportOpen] = useState(false)
   // Half-filled cards are only marked after a blocked Done.
@@ -36,6 +43,16 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
   const focusCell = (id: string, field: Field | 'blank' | 'group') =>
     listRef.current?.querySelector<HTMLElement>(`[data-card="${id}"][data-field="${field}"]`)?.focus()
 
+  // Focus never goes into a collapsed group: its group opens first, and the focus follows once it shows.
+  const focusCard = (card: Card, field: Field | 'blank' | 'group') => {
+    if (card.group && collapsed.has(card.group)) {
+      pendingFocus.current = { card: card.id, field }
+      setCollapsed(withCollapsed(collapsed, [card.group], false))
+    } else {
+      focusCell(card.id, field)
+    }
+  }
+
   // The field a card starts with.
   const firstField = (card: Card) => (card.type === 'cloze' ? 'blank' : 'term')
 
@@ -50,7 +67,7 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
     } else {
       focusCell(target.card, target.field)
     }
-  }, [cards, groups])
+  }, [cards, groups, collapsed])
 
   if (!found || !cards || !groups) return null
   const { course, quiz } = found
@@ -58,18 +75,10 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
   // The one write path: keeps the cards in group order, so the list always matches the screen.
   const put = (next: Card[], nextGroups: Group[] = groups) =>
     lib.setCards(quiz.id, inGroupOrder(next, nextGroups), nextGroups)
-  const change = (id: string, patch: Partial<TermCard>) =>
+  const patchCard = (id: string, patch: Partial<TermCard> | Partial<ClozeCard>) =>
     put(cards.map((c) => (c.id === id ? ({ ...c, ...patch } as Card) : c)))
-
-  const edit = (id: string, field: Field, value: string) => change(id, { [field]: value })
-  const editCloze = (id: string, statement: string, explanation: (string | null)[]) =>
-    put(cards.map((c) => (c.id === id ? { ...c, statement, explanation } as Card : c)))
-
-  // Leaving a field drops spaces and empty lines at its start and end (the ones in between stay).
-  const trim = (card: TermCard, field: Field) => {
-    const value = card[field]
-    if (value !== undefined && value !== value.trim()) edit(card.id, field, value.trim())
-  }
+  const patchGroup = (id: string, patch: Partial<Group>) =>
+    put(cards, groups.map((g) => (g.id === id ? { ...g, ...patch } : g)))
 
   const addCard = (group?: string, kind: 'term' | 'cloze' = 'term') => {
     const card: Card =
@@ -83,7 +92,7 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
   // Focuses the first card of a section, or adds one when it is empty.
   const enterSection = (group?: string) => {
     const first = cards.find((c) => c.group === group)
-    if (first) focusCell(first.id, firstField(first))
+    if (first) focusCard(first, firstField(first))
     else addCard(group)
   }
 
@@ -102,6 +111,7 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
   // The moved card goes to the end of its new section and keeps the focus.
   const move = (card: Card, group: string) => {
     pendingFocus.current = { card: card.id, field: 'group' }
+    if (group) setCollapsed(withCollapsed(collapsed, [group], false))
     put([...cards.filter((c) => c.id !== card.id), { ...card, group: group || undefined }])
   }
 
@@ -116,46 +126,30 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
       else addCard(card.group, card.type === 'cloze' ? 'cloze' : 'term')
     }
   }
-  const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>, card: Card, field: Field) => {
-    if (e.key !== 'Enter' || e.shiftKey) return
-    e.preventDefault()
-    advance(card, field)
-  }
 
   // Blank cards are dropped and empty explanation fields closed, then groups left without cards.
   // Half-filled cards keep you here, with every error shown.
   const done = () => {
-    let tidied = false
-    const kept = cards
-      .filter((c) => !isBlank(c))
-      .map((c): Card => {
-        if (c.type === 'cloze') {
-          const statement = c.statement.trim()
-          // An opened explanation left empty closes, like a term card's.
-          const explanation = c.explanation.map((x) => x?.trim() || null)
-          if (statement === c.statement && explanation.every((x, i) => x === c.explanation[i])) return c
-          tidied = true
-          return { ...c, statement, explanation }
-        }
-        if (c.explanation === undefined || c.explanation.trim()) return c
-        tidied = true
-        return { ...c, explanation: undefined }
-      })
-    const keptGroups = groups.filter((g) => kept.some((c) => c.group === g.id))
-    if (kept.length !== cards.length || keptGroups.length !== groups.length) tidied = true
+    const { cards: kept, groups: keptGroups, changed: tidied } = tidyCards(cards, groups)
     const firstBad = kept.findIndex((c) => missingPart(c))
     if (firstBad === -1) {
       if (tidied) put(kept, keptGroups)
-      go({ name: 'quiz', id: quiz.id })
+      go({ name: 'quiz', course: course.name, quiz: quiz.name })
       return
     }
     setTriedDone(true)
     setNudge((n) => n + 1)
     notify('error', unfinishedMessage(kept)!)
+    // Open every group that holds a half-filled card, so the red marks show.
+    const flaggedGroups = kept.flatMap((c) => (c.group && missingPart(c) ? [c.group] : []))
     const target = { card: kept[firstBad].id, field: missingPart(kept[firstBad])! }
     if (tidied) {
       pendingFocus.current = target
+      setCollapsed(withCollapsed(collapsed, flaggedGroups, false))
       put(kept, keptGroups)
+    } else if (flaggedGroups.some((id) => collapsed.has(id))) {
+      pendingFocus.current = target
+      setCollapsed(withCollapsed(collapsed, flaggedGroups, false))
     } else {
       focusCell(target.card, target.field)
     }
@@ -165,135 +159,28 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
   const importCards = (parsed: ParsedCard[], group?: Group) => {
     const kept = cards.filter((c) => !isBlank(c))
     const added: Card[] = parsed.map((p) => ({ id: newId(), ...p, ...(group && { group: group.id }) }))
+    if (group) setCollapsed(withCollapsed(collapsed, [group.id], false))
     put([...kept, ...added], group && !groups.some((g) => g.id === group.id) ? [...groups, group] : groups)
   }
 
-  const renderCard = (card: Card) => {
-    const i = cards.indexOf(card)
-    const flagged = triedDone ? missingPart(card) : null
-    return (
-      <div key={card.id} className="pair">
-        <div className="pair-head">
-          <span>
-            #{i + 1}
-            <span className="pair-kind muted small">{card.type === 'cloze' ? 'Fill in the blank' : 'Term and definition'}</span>
-          </span>
-          <span className="pair-tools">
-            {groups.length > 0 && (
-              <select
-                aria-label={`Group of card ${i + 1}`}
-                title="Move this card to another group"
-                data-card={card.id}
-                data-field="group"
-                value={card.group ?? ''}
-                onChange={(e) => move(card, e.target.value)}
-              >
-                <option value="">No group</option>
-                {groups.map((g) => (
-                  <option key={g.id} value={g.id} data-color={g.color}>
-                    {g.name}
-                  </option>
-                ))}
-              </select>
-            )}
-            {card.type !== 'cloze' && card.explanation === undefined && (
-              <button
-                type="button"
-                className="quiet small"
-                onClick={() => {
-                  pendingFocus.current = { card: card.id, field: 'explanation' }
-                  change(card.id, { explanation: '' })
-                }}
-              >
-                <PlusIcon /> Explanation
-              </button>
-            )}
-            <button
-              type="button"
-              className="icon-btn"
-              aria-label={`Delete card ${i + 1}`}
-              title="Delete card"
-              onClick={() => put(cards.filter((c) => c.id !== card.id))}
-            >
-              <TrashIcon />
-            </button>
-          </span>
-        </div>
-        {card.type === 'cloze' ? (
-          <div className="pair-fields">
-            <div className="pair-field is-wide">
-              <ClozeField
-                aria-label={`Statement ${i + 1}`}
-                aria-invalid={flagged === 'blank' || undefined}
-                data-card={card.id}
-                data-field="blank"
-                statement={card.statement}
-                explanation={card.explanation}
-                onChange={(statement, explanation) => editCloze(card.id, statement, explanation)}
-                image={{
-                  src: card.image,
-                  label: `card ${i + 1}`,
-                  onChange: (image) => put(cards.map((c) => (c.id === card.id ? { ...c, image } : c))),
-                }}
-                onEnter={() => advance(card, 'blank')}
-                hint={
-                  <span
-                    key={flagged === 'blank' ? `bad-${nudge}` : 'ok'}
-                    className={flagged !== 'blank' ? 'field-hint' : nudge > 0 ? 'field-hint is-bad is-nudged' : 'field-hint is-bad'}
-                  >
-                    {flagged === 'blank' ? 'Add a blank' : 'Statement'}
-                  </span>
-                }
-              />
-            </div>
-          </div>
-        ) : (
-        <div className="pair-fields">
-          {(['term', 'definition'] as const).map((field) => (
-            <label key={field} className="pair-field">
-              <ImageSlot
-                src={card[SIDE_IMAGE[field]]}
-                label={`${field} ${i + 1}`}
-                onChange={(src) => change(card.id, { [SIDE_IMAGE[field]]: src })}
-              >
-                <AutoText
-                  aria-label={`${LABEL[field]} ${i + 1}`}
-                  aria-invalid={flagged === field || undefined}
-                  data-card={card.id}
-                  data-field={field}
-                  value={card[field]}
-                  onChange={(value) => edit(card.id, field, value)}
-                  onBlur={() => trim(card, field)}
-                  onKeyDown={(e) => onKeyDown(e, card, field)}
-                />
-              </ImageSlot>
-              <span
-                key={flagged === field ? `bad-${nudge}` : 'ok'}
-                className={flagged !== field ? 'field-hint' : nudge > 0 ? 'field-hint is-bad is-nudged' : 'field-hint is-bad'}
-              >
-                {flagged === field ? `Add a ${field}` : LABEL[field]}
-              </span>
-            </label>
-          ))}
-          {card.explanation !== undefined && (
-            <label className="pair-field is-wide">
-              <AutoText
-                aria-label={`Explanation ${i + 1}`}
-                data-card={card.id}
-                data-field="explanation"
-                value={card.explanation}
-                onChange={(value) => edit(card.id, 'explanation', value)}
-                onBlur={() => trim(card, 'explanation')}
-                onKeyDown={(e) => onKeyDown(e, card, 'explanation')}
-              />
-              <span className="field-hint">Explanation</span>
-            </label>
-          )}
-        </div>
-        )}
-      </div>
-    )
-  }
+  const renderCard = (card: Card) => (
+    <EditCard
+      key={card.id}
+      card={card}
+      index={cards.indexOf(card)}
+      groups={groups}
+      flagged={triedDone ? missingPart(card) : null}
+      nudge={nudge}
+      onPatch={(patch) => patchCard(card.id, patch)}
+      onMove={(group) => move(card, group)}
+      onDelete={() => put(cards.filter((c) => c.id !== card.id))}
+      onAddExplanation={() => {
+        pendingFocus.current = { card: card.id, field: 'explanation' }
+        patchCard(card.id, { explanation: '' })
+      }}
+      onAdvance={(field) => advance(card, field)}
+    />
+  )
 
   const addRow = (group?: string) => (
     <div className="add-rows">
@@ -308,111 +195,86 @@ export function EditScreen({ lib, quizId, notify }: { lib: LibraryApi; quizId: s
 
   return (
     <>
-      <header className="page-head">
-        <div>
-          <h1>
+      <div className="page-body">
+        <PageHead
+          title={
             <AutoText
               className="title-input"
               aria-label="Quiz name"
               required
               value={quiz.name}
               selectOnMount={created}
+              check={(name) => nameTaken(name, course.quizzes.filter((q) => q.id !== quiz.id).map((q) => q.name), 'quiz in this course')}
               onChange={(name) => lib.renameQuiz(quiz.id, name)}
               onEnter={() => (cards.length > 0 ? focusCell(cards[0].id, firstField(cards[0])) : addCard())}
             />
-          </h1>
-          <p className="muted">
-            {course.name} · {plural(cards.length, 'card')}
-          </p>
-        </div>
-        <div className="actions">
-          <button
-            type="button"
-            aria-haspopup="dialog"
-            title="Paste cards from Quizlet or a spreadsheet"
-            onClick={() => setImportOpen(true)}
-          >
-            Import
-          </button>
-          <button type="button" className="primary" title="Back to the quiz. Empty cards are removed." onClick={done}>
-            Done
-          </button>
-        </div>
-      </header>
-
-      {importOpen && (
-        <ImportDialog
-          groups={groups}
-          onImport={importCards}
-          onClose={() => setImportOpen(false)}
+          }
+          sub={`${course.name} · ${plural(cards.length, 'card')}`}
+          actions={
+            <>
+              <button
+                type="button"
+                aria-haspopup="dialog"
+                title="Paste cards from Quizlet or a spreadsheet"
+                onClick={() => setImportOpen(true)}
+              >
+                Import
+              </button>
+              <button type="button" className="primary" title="Back to the quiz. Empty cards are removed." onClick={done}>
+                Done
+              </button>
+            </>
+          }
         />
-      )}
 
-      <div ref={listRef} className="pairs">
-        {cards.filter((c) => !c.group).map(renderCard)}
-        {addRow()}
-        {groups.map((g) => {
-          const members = cards.filter((c) => c.group === g.id)
-          return (
-            <section key={g.id} className="group-box" data-color={g.color}>
-              <div className="group-head">
-                <ColorPicker
-                  value={g.color}
-                  onChange={(color) => put(cards, groups.map((x) => (x.id === g.id ? { ...x, color } : x)))}
+        {importOpen && <ImportDialog groups={groups} onImport={importCards} onClose={() => setImportOpen(false)} />}
+
+        <div ref={listRef} className="pairs">
+          {sections(cards, groups).map(({ group, cards: members }) =>
+            group ? (
+              <section key={group.id} className={collapsed.has(group.id) ? 'group-box is-collapsed' : 'group-box'} data-color={group.color}>
+                <GroupHead
+                  group={group}
+                  count={members.length}
+                  collapsed={collapsed.has(group.id)}
+                  onToggle={() => setCollapsed(withCollapsed(collapsed, [group.id], !collapsed.has(group.id)))}
+                  onPatch={(patch) => patchGroup(group.id, patch)}
+                  onUngroup={() => ungroup(group.id)}
+                  onEnter={() => enterSection(group.id)}
                 />
-                <AutoText
-                  className="group-name"
-                  aria-label="Group name"
-                  required
-                  data-group-name={g.id}
-                  maxLength={GROUP_NAME_MAX}
-                  counter
-                  value={g.name}
-                  onChange={(name) => put(cards, groups.map((x) => (x.id === g.id ? { ...x, name } : x)))}
-                  onEnter={() => enterSection(g.id)}
-                />
-                <span className="muted">{plural(members.length, 'card')}</span>
-                <button
-                  type="button"
-                  className="quiet small"
-                  title="Remove the group. Its cards stay in the quiz."
-                  onClick={() => {
-                    if (confirm(`Remove the group "${g.name}"? Its cards stay in the quiz.`)) {
-                      ungroup(g.id)
-                    }
-                  }}
-                >
-                  Ungroup
-                </button>
-              </div>
-              {members.map(renderCard)}
-              {addRow(g.id)}
-            </section>
-          )
-        })}
-        <div className="new-group">
-          <button type="button" onClick={addGroup}>
-            <GroupIcon />
-            New group
-          </button>
-          <span className="muted">Multiple choice takes wrong answers from the same group first.</span>
+                <div className="group-body">
+                  <div>
+                    {members.map(renderCard)}
+                    {addRow(group.id)}
+                  </div>
+                </div>
+              </section>
+            ) : (
+              <Fragment key="ungrouped">
+                {members.map(renderCard)}
+                {addRow()}
+              </Fragment>
+            ),
+          )}
+          <div className="new-group">
+            <button type="button" onClick={addGroup}>
+              <GroupIcon />
+              New group
+            </button>
+            <span className="muted">Multiple choice takes wrong answers from the same group first.</span>
+          </div>
         </div>
       </div>
 
-      <div className="page-foot">
-        <button
-          type="button"
-          className="danger"
-          onClick={() => {
-            if (confirm(`Delete "${quiz.name}" and its ${plural(cards.length, 'card')}?`)) {
-              lib.deleteQuiz(quiz.id)
-              go({ name: 'course', id: course.id })
-            }
-          }}
-        >
-          Delete quiz
-        </button>
-      </div>
+      <DangerZone
+        label="Delete quiz"
+        detail={`Deletes this quiz and its ${plural(cards.length, 'card')}. You can't undo this.`}
+        question={`Delete "${quiz.name}" and its ${plural(cards.length, 'card')}?`}
+        onDelete={() => {
+          lib.deleteQuiz(quiz.id)
+          go({ name: 'course', course: course.name })
+        }}
+      />
     </>
   )
 }

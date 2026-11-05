@@ -9,11 +9,14 @@ export function parseCards(text: string): ParsedCard[] {
   for (const line of lines) {
     if (!line.trim()) continue
     const at = line.indexOf(separator)
-    if (at > 0) {
+    // In tab mode a line starting with a tab is a card with an empty term.
+    if (at > 0 || (at === 0 && separator === '\t')) {
       cards.push({ term: line.slice(0, at).trim(), definition: line.slice(at + separator.length).trim() })
     } else if (cards.length > 0) {
       // Quizlet exports multi-line definitions as extra lines without a separator.
       cards[cards.length - 1].definition += '\n' + line.trim()
+    } else {
+      cards.push({ term: line.trim(), definition: '' })
     }
   }
 

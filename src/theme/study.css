@@ -1,0 +1,391 @@
+/* Study session and flip card. */
+/* Study session: exactly one screen high. The page never scrolls (so nothing sliding in can flash a
+   scrollbar); .session-body scrolls inside .session-main, and the feedback sheet sits below it. */
+.session {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  /* clip, not hidden: nothing (like focusing a button) can scroll it. */
+  overflow: clip;
+}
+/* A multiple choice or typing question with really long visible text (StudyScreen's WIDE_TEXT) gets a wider
+   column, card and sheet alike. Flashcards never do, so their size gives nothing away.
+   No media query needed: the column's padding already shrinks it to the screen on smaller windows. */
+.session.is-wide {
+  --session-w: var(--session-wide-w);
+}
+.session-head {
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--topbar-h);
+  padding: 0 var(--space-4);
+}
+.session-head button {
+  justify-self: start;
+}
+.session-title {
+  max-width: 50vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-count {
+  justify-self: end;
+  white-space: nowrap;
+}
+.progress {
+  flex: none;
+  height: 4px;
+  background: var(--surface-2);
+}
+.progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur) var(--ease);
+  box-shadow: var(--glow-accent);
+}
+/* The question column, the feedback sheet (when there is one) at its bottom. Its height is 100cqh for the
+   question's .session-stack. */
+.session-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  container-type: size;
+  /* Hides the sheet while it slides in from below. */
+  overflow: clip;
+}
+/* A centered --session-w column and its own scroll box. The scrollbar's space is always kept (on both sides,
+   so the column stays centered over the sheet), so the scrollbar coming and going never shifts it. */
+.session-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  padding: var(--space-6) max(var(--space-4), calc((100% - var(--session-w)) / 2)) var(--sheet-room);
+}
+/* With the sheet there, the column ends where the sheet starts, so its scrollbar is only as long as what
+   shows: above the closed sheet while it is closed or moving (the sheet then lies over the room the column
+   kept free), above the open sheet once it has settled open (is-split: the sheet is then in the layout), so
+   the two scroll apart. */
+.session-main:has(> .sheet) > .session-body {
+  margin-bottom: var(--sheet-peek, 0px);
+  padding-bottom: max(0px, var(--sheet-room) - var(--sheet-peek, 0px));
+}
+.session-main:has(> .sheet.is-split) > .session-body {
+  margin-bottom: 0;
+}
+/* A question's content, centered vertically in a fixed height: the column without the sheet, less
+   --sheet-room. The sheet coming, opening, closing or being dragged only changes how much of the column
+   shows (it scrolls to the rest), never this, so the content never moves or resizes. Long text never
+   stretches the screen: the card shrinks to this height (down to its min-height) and its .prompt-text scrolls
+   inside it, so the column only scrolls past this when even the card's smallest size doesn't fit or the
+   choices are taller. */
+.session-stack {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  gap: var(--space-5);
+  height: calc(100cqh - var(--space-6) - var(--sheet-room));
+}
+/* With the sheet there, an empty box hanging below the last item (out of flow, so it takes no room) lets the
+   column scroll that item clear of the round button above the sheet (--space-8). */
+.session-main:has(> .sheet) .session-stack > :last-child {
+  position: relative;
+}
+.session-main:has(> .sheet) .session-stack > :last-child::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 1px;
+  height: var(--space-8);
+  pointer-events: none;
+}
+/* The pencil in the card's top right corner; the flip card's sits beside it in .card-wrap.
+   The flip card always has the same size (--card-h, the plain column), whatever its text: a card that grows
+   would give away a long answer before it is flipped. Long text scrolls inside the face. */
+.card-wrap {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: var(--card-h);
+}
+.card-edit {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+}
+/* The flip card's pencils turn with it: a see-through layer over the card turns the same way, one pencil
+   per face, so each stays in its face's corner. Same perspective and origin (the center) as the card. */
+.flip-edit,
+.flip-edit-face {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.flip-edit {
+  transform: perspective(var(--flip-depth)) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform var(--dur-flip) var(--ease);
+}
+.is-flipped .flip-edit {
+  transform: perspective(var(--flip-depth)) rotateY(180deg);
+}
+.flip-edit-face {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+/* The layer's boxes are hidden too, only the pencils show: turned over, Chrome sends the wheel to a see-through
+   3D layer (pointer-events or not), so the back face's text wouldn't scroll. */
+.flip-edit,
+.flip-edit-face {
+  visibility: hidden;
+}
+.flip-edit .card-edit {
+  visibility: visible;
+  pointer-events: auto;
+}
+/* Auto margins center the content and fall to 0 when it is taller than the space, so nothing is cut off. */
+.session-stack > :first-child {
+  margin-top: auto;
+}
+.session-stack > :last-child {
+  margin-bottom: auto;
+}
+/* Shrinks like the flip card (its min-height is the floor), so the choices or answer box stay in view. */
+/* A card with an image keeps its size instead (the column scrolls), so the sheet opening never resizes the
+   image or cuts off the text under it. */
+.prompt-card:has(.card-img) {
+  flex-shrink: 0;
+}
+.prompt-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: var(--prompt-card-h);
+  padding: var(--space-7) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius);
+  box-shadow: var(--glow-card);
+  white-space: normal;
+  text-align: center;
+}
+.side-label {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-4);
+  font-size: var(--text-sm);
+}
+/* Scrolls inside its card when the card can't grow any more. The scrollbar's space is always kept (both
+   sides, so centered text stays centered): the card shrinking as the sheet opens never rewraps the text. */
+.prompt-text {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  font-size: var(--prompt-size);
+  white-space: pre-wrap;
+}
+/* Long text reads as a paragraph: smaller and left-aligned. */
+.prompt-text.is-long {
+  font-size: var(--prompt-size-long);
+  text-align: start;
+}
+/* A side's image, above its text: whole, at most --card-img-h tall, and a fixed size: neither long text nor the
+   sheet opening ever resizes it. */
+.card-img {
+  flex: none;
+  max-width: 100%;
+  max-height: var(--card-img-h);
+  object-fit: contain;
+  border-radius: var(--radius);
+}
+
+/* A flashcard is always --card-h tall, so its image takes at most half the room inside the face (after its
+   padding and the gap) and the text keeps the other half. */
+.flip-face .card-img {
+  max-height: min(var(--card-img-h), calc((var(--card-h) - 2 * var(--space-7) - var(--space-4)) / 2));
+}
+
+/* Flashcard: both faces share one grid cell; the inner layer turns over. Each level fills .card-wrap and can
+   shrink (min-height: 0), so the faces' text scrolls instead of growing the card. */
+.flip-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  perspective: var(--flip-depth);
+  white-space: normal;
+  text-align: center;
+}
+.flip-card:hover:not(:disabled) {
+  background: none;
+}
+.flip-card:focus-visible {
+  outline-offset: 4px;
+}
+.flip-inner {
+  display: grid;
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  transform-style: preserve-3d;
+  transition: transform var(--dur-flip) var(--ease);
+}
+.is-flipped .flip-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  position: relative;
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-7) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  box-shadow: var(--glow-card);
+  /* The dashed line inside the edge, shown on hover. */
+  outline: var(--line) dashed transparent;
+  outline-offset: calc(-1 * var(--space-2));
+  transition:
+    outline-color var(--dur-fast) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+/* The turned-away face shows no scrollbar and takes no wheel. */
+.flip-face[aria-hidden='true'] .prompt-text {
+  overflow-y: hidden;
+}
+/* Hovered, the flashcard's shadow or glow grows and a dashed line shows inside its edge. On the wrap, not the
+   button: the pencil sits on a layer above the card, so hovering it keeps the card lit. Not on touch, where a
+   tap would leave it lit. */
+@media (hover: hover) {
+  .card-wrap:hover .flip-face {
+    outline-color: var(--border-strong);
+    box-shadow: var(--glow-card-hover);
+  }
+}
+.flip-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bad-outline {
+  --zone: var(--bad);
+  background: var(--bad-rest);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.ok-outline {
+  --zone: var(--ok);
+  background: var(--ok-rest);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.bad-outline:hover:not(:disabled) {
+  background: var(--bad-soft);
+  border-color: var(--bad);
+}
+.ok-outline:hover:not(:disabled) {
+  background: var(--ok-soft);
+  border-color: var(--ok);
+}
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.choice {
+  justify-content: flex-start;
+  height: auto;
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  text-align: left;
+  white-space: pre-wrap;
+}
+/* Text with its image's square preview in front (an answer in the sheet, the statement under More info). */
+.with-thumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.with-thumb > :not(.thumb) {
+  min-width: 0;
+}
+.with-thumb .thumb,
+.choice .thumb {
+  flex: none;
+}
+.choice-key {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.choice.is-correct {
+  --zone: var(--ok);
+  background: var(--ok-tint);
+  border-color: var(--ok);
+  color: var(--ok);
+  box-shadow: var(--glow-ok);
+}
+.choice.is-wrong {
+  --zone: var(--bad);
+  background: var(--bad-tint);
+  border-color: var(--bad);
+  color: var(--bad);
+  box-shadow: var(--glow-bad);
+}
+.choice.is-dim {
+  opacity: var(--dim-soft);
+}
+.choice:disabled.is-correct,
+.choice:disabled.is-wrong {
+  opacity: 1;
+}
+.type-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.type-answer textarea {
+  flex: 1 1 100%;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  font-size: var(--text-xl);
+}

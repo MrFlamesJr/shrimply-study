@@ -3,7 +3,9 @@ import { go, takeCreated } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { QuizTiles } from '../components/QuizTiles'
 import { AutoText } from '../components/AutoText'
+import { DangerZone, PageHead } from '../components/Page'
 import { plural } from '../logic/plural'
+import { nameTaken } from '../logic/names'
 
 export function CourseScreen({ lib, courseId }: { lib: LibraryApi; courseId: string }) {
   // Only right after "+ New course" is the name selected, never on a later visit.
@@ -12,37 +14,33 @@ export function CourseScreen({ lib, courseId }: { lib: LibraryApi; courseId: str
   if (!course) return null
   return (
     <>
-      <header className="page-head">
-        <div>
-          <h1>
+      <div className="page-body">
+        <PageHead
+          title={
             <AutoText
               className="title-input"
               aria-label="Course name"
               required
               value={course.name}
               selectOnMount={created}
+              check={(name) => nameTaken(name, lib.library.courses.filter((c) => c.id !== course.id).map((c) => c.name), 'course')}
               onChange={(name) => lib.renameCourse(course.id, name)}
               onEnter={() => (document.activeElement as HTMLElement | null)?.blur()}
             />
-          </h1>
-          <p className="muted">{plural(course.quizzes.length, 'quiz', 'quizzes')}</p>
-        </div>
-      </header>
-      <QuizTiles lib={lib} course={course} />
-      <div className="page-foot">
-        <button
-          type="button"
-          className="danger"
-          onClick={() => {
-            if (confirm(`Delete "${course.name}" and its ${plural(course.quizzes.length, 'quiz', 'quizzes')}?`)) {
-              lib.deleteCourse(course.id)
-              go({ name: 'home' })
-            }
-          }}
-        >
-          Delete course
-        </button>
+          }
+          sub={plural(course.quizzes.length, 'quiz', 'quizzes')}
+        />
+        <QuizTiles lib={lib} course={course} />
       </div>
+      <DangerZone
+        label="Delete course"
+        detail={`Deletes this course and its ${plural(course.quizzes.length, 'quiz', 'quizzes')}. You can't undo this.`}
+        question={`Delete "${course.name}" and its ${plural(course.quizzes.length, 'quiz', 'quizzes')}?`}
+        onDelete={() => {
+          lib.deleteCourse(course.id)
+          go({ name: 'home' })
+        }}
+      />
     </>
   )
 }

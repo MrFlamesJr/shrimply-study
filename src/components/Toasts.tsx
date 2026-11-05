@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react'
 import { newId } from '../model'
 import { pushToast, type Toast, type ToastKind } from '../logic/pushToast'
 import { CrossIcon } from './Icons'
+import { IconButton } from './IconButton'
 
 export type Notify = (kind: ToastKind, text: string, ms?: number) => void
 
@@ -57,9 +58,9 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
             {GLYPH[t.kind]}
           </span>
           <p>{t.text}</p>
-          <button type="button" className="icon-btn" aria-label="Dismiss" onClick={() => dismiss(t.id)}>
+          <IconButton label="Dismiss" onClick={() => dismiss(t.id)}>
             <CrossIcon />
-          </button>
+          </IconButton>
           <div className="toast-track">
             <div className="toast-life" style={{ animationDuration: `${t.ms}ms` }} onAnimationEnd={() => dismiss(t.id)} />
           </div>

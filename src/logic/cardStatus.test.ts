@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { isBlank, missingPart, unfinishedMessage } from './cardStatus'
+import { isBlank, missingPart, sameCard, tidyCard, tidyCards, unfinishedMessage } from './cardStatus'
 
 const card = (term: string, definition: string) => ({ id: 'x', term, definition })
 const cloze = (statement: string) => ({ id: 'x', type: 'cloze' as const, statement, explanation: [] })
@@ -92,5 +92,70 @@ describe('fill-in-the-blank cards', () => {
     expect(missingPart(cloze(''))).toBeNull()
     expect(unfinishedMessage([cloze('Water boils')])).toBe('Card #1 needs a blank.')
     expect(unfinishedMessage([cloze('a'), card('a', '')])).toBe('Cards #1 and #2 need a term, definition or blank.')
+  })
+})
+
+describe('tidyCard', () => {
+  it('returns the same object when nothing changes', () => {
+    const tidy = { ...card('a', 'b'), explanation: 'why' }
+    expect(tidyCard(tidy)).toBe(tidy)
+    expect(tidyCard(card('a', 'b'))).toEqual(card('a', 'b'))
+    const c = cloze('The {x}')
+    expect(tidyCard(c)).toBe(c)
+  })
+
+  it('trims both sides and the explanation', () => {
+    expect(tidyCard({ ...card(' a ', '\nb '), explanation: ' why ' })).toEqual({ ...card('a', 'b'), explanation: 'why' })
+  })
+
+  it('turns an empty explanation into undefined', () => {
+    expect(tidyCard({ ...card('a', 'b'), explanation: '  ' }).explanation).toBeUndefined()
+  })
+
+  it('tidies a fill-in-the-blank card', () => {
+    const c = { ...cloze(' The {x} {y} '), explanation: [' why ', '', null, '  '] }
+    expect(tidyCard(c)).toEqual({ ...c, statement: 'The {x} {y}', explanation: ['why', null, null, null] })
+  })
+})
+
+describe('sameCard', () => {
+  it('compares every field, lists element by element', () => {
+    expect(sameCard(card('a', 'b'), card('a', 'b'))).toBe(true)
+    expect(sameCard(card('a', 'b'), card('a', 'c'))).toBe(false)
+    const c = { ...cloze('{x}'), explanation: ['a', null] }
+    expect(sameCard(c, { ...c, explanation: ['a', null] })).toBe(true)
+    expect(sameCard(c, { ...c, explanation: ['a', 'b'] })).toBe(false)
+    expect(sameCard(c, { ...c, explanation: ['a'] })).toBe(false)
+  })
+
+  it('sees an added key', () => {
+    expect(sameCard(card('a', 'b'), { ...card('a', 'b'), explanation: 'x' })).toBe(false)
+    expect(sameCard({ ...card('a', 'b'), explanation: 'x' }, card('a', 'b'))).toBe(false)
+  })
+})
+
+describe('tidyCards', () => {
+  const groups = [
+    { id: 'g1', name: 'One', color: 'lagoon' as const },
+    { id: 'g2', name: 'Two', color: 'coral' as const },
+  ]
+
+  it('reports no change for tidy cards', () => {
+    const cards = [{ ...card('a', 'b'), group: 'g1' }]
+    const out = tidyCards(cards, [groups[0]])
+    expect(out.changed).toBe(false)
+    expect(out.cards[0]).toBe(cards[0])
+  })
+
+  it('drops blank cards and groups left without cards', () => {
+    const cards = [card('a', 'b'), { ...card('', ''), group: 'g2' }, { ...card('c', 'd'), group: 'g1' }]
+    const out = tidyCards(cards, groups)
+    expect(out.cards).toEqual([cards[0], cards[2]])
+    expect(out.groups).toEqual([groups[0]])
+    expect(out.changed).toBe(true)
+  })
+
+  it('reports a tidied card as a change', () => {
+    expect(tidyCards([card(' a', 'b')], []).changed).toBe(true)
   })
 })

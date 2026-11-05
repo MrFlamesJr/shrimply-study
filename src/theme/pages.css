@@ -1,0 +1,392 @@
+/* Page content: title input, empty state, course tiles, quiz page options and card rows. */
+/* Title input (looks like an h1) */
+.title-input {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: var(--line-thick) solid transparent;
+  border-radius: 0;
+  font: inherit;
+  font-family: var(--font-display);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-text);
+}
+.title-input:hover {
+  border-bottom-color: var(--border);
+}
+.title-input:focus {
+  border-bottom-color: var(--accent);
+}
+
+/* Empty / onboarding: plain centered text, no box. Alone on the page, it sits mid-screen. */
+.empty {
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  padding-block: var(--space-7);
+  text-align: center;
+}
+.page > .empty:only-child {
+  margin-block: auto;
+}
+.empty > * + * {
+  margin-top: var(--space-4);
+}
+.empty .actions {
+  justify-content: center;
+}
+/* First visit (HomeScreen): the shrimp, the title, three numbered step tiles side by side (a list, number
+   beside the text, when the page is narrow), the actions. Numbers stay in the body font and take the theme's
+   corners; no accent here but the one gold button. */
+.welcome {
+  max-width: 760px;
+  container: welcome / inline-size;
+}
+.welcome > svg {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin-inline: auto;
+}
+.welcome h1 {
+  text-wrap: balance;
+}
+.welcome > .welcome-lead {
+  margin-top: var(--space-2);
+  font-size: var(--text-lg);
+}
+.welcome > .steps {
+  margin-top: var(--space-5);
+}
+.welcome > .actions {
+  margin-top: var(--space-6);
+}
+.steps {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: left;
+}
+.steps li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: start;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius);
+  font-weight: var(--weight-bold);
+}
+.steps strong {
+  font-weight: var(--weight-bold);
+}
+@container welcome (min-width: 600px) {
+  .steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .steps li {
+    grid-template-columns: 1fr;
+    padding: var(--space-5);
+  }
+  .steps li::before {
+    grid-row: auto;
+    margin-bottom: var(--space-2);
+  }
+}
+
+/* Courses and tiles. Each course is its own band, set apart by space. */
+.page > .course-block + .course-block {
+  margin-top: var(--space-8);
+}
+.course-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.course-row h2 a:hover {
+  text-decoration: underline;
+  text-underline-offset: var(--underline-offset);
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  height: auto;
+  min-height: 112px;
+  padding: var(--space-5);
+  background: var(--surface);
+  border-radius: var(--radius);
+  white-space: normal;
+  text-align: left;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.tiles .tile:hover {
+  background: var(--surface-2);
+}
+.tile-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: var(--weight-bold);
+}
+/* New quiz: a dashed outline (like the other create buttons) around a plus badge and its label, so it reads as
+   a tile of its own, not an empty slot. Frosted glass (asked for): faint and lightly blurred at rest, never fully
+   clear; hovered, it frosts over (denser and more blurred), its edge turns solid like the back-to-top glass and
+   the plus takes the accent. Alone (a course with no quizzes) it spans the row, with a line on what comes next. */
+.tiles .tile-new {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-4);
+  background: var(--glass-tile);
+  backdrop-filter: blur(var(--glass-tile-blur));
+  border: var(--line) dashed var(--border-strong);
+  color: var(--text-muted);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    backdrop-filter var(--dur-fast) var(--ease);
+}
+.tiles .tile-new:hover {
+  background: var(--glass-tile-hover);
+  backdrop-filter: blur(var(--glass-tile-blur-hover));
+  border-style: solid;
+  border-color: var(--glass-line);
+}
+.tiles .tile-new:only-child {
+  grid-column: 1 / -1;
+}
+.tile-new-plus {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  background: var(--surface);
+  border-radius: var(--radius);
+  color: var(--text);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.tile-new-plus svg {
+  width: 22px;
+  height: 22px;
+}
+.tile-new:hover .tile-new-plus {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.tile-new-text {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+.tile-new-text strong {
+  color: var(--text);
+  font-weight: var(--weight-bold);
+}
+
+/* Quiz page: study options, kept compact. Narrow: each option stacks its name, bar and hint. With room
+   (a container query on the section): one row per option, and the rows share columns (subgrid), so the
+   bars are one width and the hints line up. */
+.study-options {
+  container-type: inline-size;
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--sunken);
+  border-radius: var(--radius);
+}
+.options .segmented-label {
+  margin-bottom: var(--space-1);
+}
+.options .segmented-hints {
+  margin-top: var(--space-1);
+}
+@container (min-width: 840px) {
+  .options {
+    display: grid;
+    grid-template-columns: max-content max-content minmax(0, 1fr);
+    gap: var(--space-3) var(--space-5);
+  }
+  .options .segmented-field {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+  /* The hint cell is as tall as the longest hint; the chosen one sits centered on the bar. */
+  .options .segmented-hint {
+    align-self: center;
+  }
+  .options .segmented-label,
+  .options .segmented-hints {
+    margin: 0;
+  }
+}
+section > h3 {
+  margin-top: var(--space-6);
+  font-size: var(--text-lg);
+}
+/* One box per card, set apart by space (the editor's gap), so no divider lines. In a group box the boxes turn
+   see-through (the swapped --surface), like the editor's cards there. */
+.card-list {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.card-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+}
+/* Quiz page: the card lists (ungrouped, then each group box) stack with the editor's room between them
+   (its card gap plus its space above a group box). */
+section > div + .group-box,
+section > .group-box + div {
+  margin-top: calc(var(--space-3) + var(--space-4));
+}
+.missing {
+  color: var(--bad);
+  font-weight: var(--weight);
+}
+@media (max-width: 799px) {
+  .options {
+    padding: var(--space-4);
+  }
+  .card-list li {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
+
+/* Card rows (CardRow: quiz page, study results): a lead column (the card number, or right / missed; --lead-w),
+   term, definition with its explanation under it, and a pencil that shows on hover or focus. A fill-in-the-blank
+   statement takes both text columns. Text lines up on the first line. */
+.card-rows li {
+  grid-template-columns: var(--lead-w) minmax(0, 2fr) minmax(0, 3fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-4);
+  padding-right: var(--space-3);
+}
+.row-num {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.row-statement {
+  grid-column: 2 / 4;
+}
+.row-note {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+/* A side's image under its text, a square preview like the editor's. */
+.card-rows .thumb {
+  width: var(--thumb-list-h);
+  height: var(--thumb-list-h);
+}
+.card-rows .zoom-img {
+  margin-top: var(--space-1);
+}
+.row-blank {
+  border-bottom: var(--blank-line) dashed var(--mark);
+  color: var(--text);
+}
+/* The pencil takes no more height than a line of text, so it never makes a row taller. */
+.row-edit {
+  align-self: start;
+  margin-block: calc(-1 * var(--space-2));
+}
+@media (hover: hover) {
+  .row-edit {
+    opacity: 0;
+    transition:
+      opacity var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease);
+  }
+  .card-rows li:hover .row-edit,
+  .row-edit:focus-visible {
+    opacity: 1;
+  }
+}
+.group-count {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight);
+}
+/* Narrow: the definition goes under the term, the pencil stays top right. */
+@media (max-width: 799px) {
+  .card-rows li {
+    grid-template-columns: var(--lead-w) minmax(0, 1fr) auto;
+    column-gap: var(--space-3);
+  }
+  .row-def,
+  .row-statement {
+    grid-column: 2;
+  }
+  .row-edit {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+
+/* Danger zone (Page.tsx), at the bottom of the course page and the editor: what gets deleted, and the button. */
+.danger-zone {
+  --zone: var(--danger);
+  padding: var(--space-4) var(--space-5);
+  background: var(--danger-soft);
+  border: var(--line) solid var(--danger);
+  border-radius: var(--radius);
+}
+.page .danger-zone > h2 {
+  margin-bottom: var(--space-3);
+  color: var(--danger);
+}
+.danger-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+}
+.danger-row p {
+  flex: 1 1 16rem;
+}

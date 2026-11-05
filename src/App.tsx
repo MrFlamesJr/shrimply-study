@@ -1,48 +1,55 @@
-import { useEffect, useRef, useState } from 'react'
-import { parseHash, redirect, useRoute, type Route } from './route'
-import type { StudyOptions } from './model'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { redirect, usePlace, useRoute } from './route'
+import type { StudyOptions, ThemeId } from './model'
 import { useLibrary } from './state/useLibrary'
-import { fileStorage } from './storage/fileStorage'
+import { fileStorage, loadGuide } from './storage/fileStorage'
+import { loadTheme, saveTheme } from './storage/themePref'
 import { TopBar } from './layout/TopBar'
-import { Sidebar } from './layout/Sidebar'
+import { Sidebar, useSidebarOpen } from './layout/Sidebar'
+import { useKeydown } from './hooks/useKeydown'
 import { HomeScreen } from './screens/HomeScreen'
 import { CourseScreen } from './screens/CourseScreen'
 import { QuizScreen } from './screens/QuizScreen'
 import { EditScreen } from './screens/EditScreen'
 import { StudyScreen } from './screens/StudyScreen'
 import { DebugScreen } from './screens/DebugScreen'
+import { DebugBar } from './screens/debug/DebugBar'
 import { Toasts, useToasts } from './components/Toasts'
-
-/** The last study options, preselected the next time a round starts. */
-export type Prefs = StudyOptions
+import { BackToTop } from './components/BackToTop'
+import { askConfirm } from './components/ConfirmDialog'
 
 export function App() {
   const toasts = useToasts()
-  const lib = useLibrary(fileStorage, toasts.notify)
+  const lib = useLibrary(fileStorage, toasts.notify, askConfirm)
   const route = useRoute()
-  const [prefs, setPrefs] = useState<Prefs>({ format: 'flashcards', side: 'term', shuffle: true })
-  const [sidebarOpen, setSidebarOpen] = useState(() => matchMedia('(min-width: 800px)').matches)
-  // Crossing the breakpoint (resizing or zooming the window) gives the sidebar that size's default: open beside
-  // the page on wide screens, closed on small ones, where it covers the page.
-  useEffect(() => {
-    const wide = matchMedia('(min-width: 800px)')
-    const onChange = () => setSidebarOpen(wide.matches)
-    wide.addEventListener('change', onChange)
-    return () => wide.removeEventListener('change', onChange)
-  }, [])
+  const [prefs, setPrefs] = useState<StudyOptions>({ format: 'flashcards', side: 'term', shuffle: true })
+  // Ids of the groups folded shut, for this visit only (not in the file). Kept here so they survive Edit and Done.
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(() => new Set())
+  const [sidebarOpen, setSidebarOpen] = useSidebarOpen()
+  const [debugBar, setDebugBar] = useState(false)
+  // The theme is `data-theme` on <html> (set from the remembered one in main.tsx). Set before the re-render,
+  // so anything that reads computed styles while rendering (the debug page's tokens) sees the new theme.
+  const [theme, setTheme] = useState(loadTheme)
+  const chooseTheme = (id: ThemeId) => {
+    document.documentElement.dataset.theme = id
+    saveTheme(id)
+    setTheme(id)
+  }
 
-  const isMissing = (r: Route) =>
-    (r.name === 'course' && !lib.findCourse(r.id)) ||
-    ((r.name === 'quiz' || r.name === 'edit' || r.name === 'study') && !lib.findQuiz(r.id))
-  const missing = lib.ready && isMissing(route)
+  // The course and quiz the address names (renames followed). One that is gone (deleted, an old link) leads to the nearest
+  // page that still exists, its course or home, with a note saying what was not found.
+  const { course, quiz, missing } = usePlace(lib.library, route)
+  const lost = lib.ready ? missing : undefined
   useEffect(() => {
-    // Re-check the live hash: after a delete, go() may already point somewhere valid.
-    if (missing && isMissing(parseHash(location.hash))) redirect({ name: 'home' })
-  }, [missing])
+    if (!lost || !('course' in route)) return
+    const name = lost === 'quiz' && 'quiz' in route ? route.quiz : route.course
+    toasts.notify('info', `Couldn't find the ${lost} "${name}"`)
+    redirect(course ? { name: 'course', course: course.name } : { name: 'home' })
+  }, [lost])
 
   // Leaving a course page drops the course if it is a never-edited draft. A ref, not an effect cleanup,
   // so StrictMode's mount-unmount-mount doesn't drop it on arrival.
-  const courseId = route.name === 'course' ? route.id : undefined
+  const courseId = route.name === 'course' ? course?.id : undefined
   const lastCourseId = useRef(courseId)
   useEffect(() => {
     const left = lastCourseId.current
@@ -50,41 +57,60 @@ export function App() {
     if (left && left !== courseId) lib.leaveCourse(left)
   }, [courseId])
 
+  // The page scrolls the window, so a new page would open at the last one's scroll position. A layout
+  // effect, so the new page never paints scrolled down. By id, so renaming the page's course or quiz keeps it.
+  const page = [route.name, course?.id, quiz?.id].join('/')
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0)
+  }, [page])
+
   useEffect(() => {
     document.title = lib.hasChanges ? '* Shrimply Study' : 'Shrimply Study'
   }, [lib.hasChanges])
 
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
-        e.preventDefault()
-        void lib.download()
-      }
+  useKeydown((e) => {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault()
+      void lib.download()
     }
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
   })
 
   if (!lib.ready) return null
   return (
     <>
       {route.name === 'study' ? (
-        <StudyScreen key={route.id + route.format} lib={lib} quizId={route.id} format={route.format} prefs={prefs} />
+        quiz && <StudyScreen key={quiz.id + route.format} lib={lib} notify={toasts.notify} quizId={quiz.id} format={route.format} prefs={prefs} />
       ) : (
         <div className="app">
-          <Sidebar lib={lib} route={route} open={sidebarOpen} setOpen={setSidebarOpen} />
-          <TopBar lib={lib} route={route} />
+          <Sidebar
+            lib={lib}
+            current={quiz?.id ?? course?.id}
+            open={sidebarOpen}
+            setOpen={setSidebarOpen}
+            theme={theme}
+            setTheme={chooseTheme}
+          />
+          <TopBar lib={lib} page={route.name} course={course} quiz={quiz} />
           <main className="page">
-            {route.name === 'home' && <HomeScreen lib={lib} />}
-            {route.name === 'course' && <CourseScreen key={route.id} lib={lib} courseId={route.id} />}
-            {route.name === 'quiz' && <QuizScreen lib={lib} quizId={route.id} prefs={prefs} setPrefs={setPrefs} />}
-            {route.name === 'edit' && <EditScreen key={route.id} lib={lib} quizId={route.id} notify={toasts.notify} />}
-            {route.name === 'debug' && <DebugScreen notify={toasts.notify} />}
+            {/* Keyed by id, not the address, so a rename keeps the screen (and the name field's focus). */}
+            {route.name === 'home' && <HomeScreen lib={lib} guide={loadGuide} />}
+            {route.name === 'course' && course && <CourseScreen key={course.id} lib={lib} courseId={course.id} />}
+            {route.name === 'quiz' && quiz && (
+              <QuizScreen lib={lib} quizId={quiz.id} prefs={prefs} setPrefs={setPrefs} collapsed={collapsed} setCollapsed={setCollapsed} />
+            )}
+            {route.name === 'edit' && quiz && (
+              <EditScreen key={quiz.id} lib={lib} quizId={quiz.id} notify={toasts.notify} collapsed={collapsed} setCollapsed={setCollapsed} />
+            )}
+            {route.name === 'debug' && (
+              <DebugScreen lib={lib} notify={toasts.notify} debugBar={debugBar} setDebugBar={setDebugBar} />
+            )}
           </main>
+          <BackToTop scroller={window} />
         </div>
       )}
       {/* Outside the route switch so running timers survive navigation. */}
       <Toasts toasts={toasts.toasts} dismiss={toasts.dismiss} />
+      {debugBar && <DebugBar onClose={() => setDebugBar(false)} />}
     </>
   )
 }

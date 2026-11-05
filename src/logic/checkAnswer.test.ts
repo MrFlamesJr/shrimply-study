@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { checkAnswer } from './checkAnswer'
+import { checkAnswer, sameAnswer } from './checkAnswer'
 
 describe('checkAnswer', () => {
   it('ignores case', () => expect(checkAnswer('PARIS', 'paris')).toBe(true))
@@ -12,5 +12,20 @@ describe('checkAnswer', () => {
     expect(checkAnswer('?', '?')).toBe(true)
     expect(checkAnswer('!', '?')).toBe(false)
     expect(checkAnswer(' ', '?')).toBe(false)
+  })
+
+  it('keeps symbols that change the answer', () => {
+    expect(checkAnswer('C++', 'C#')).toBe(false)
+    expect(checkAnswer('C', 'C++')).toBe(false)
+    expect(checkAnswer('50', '50%')).toBe(false)
+    expect(checkAnswer('か', 'が')).toBe(false)
+  })
+
+  it('sameAnswer compares normalized text', () => {
+    expect(sameAnswer('café', 'cafe')).toBe(true)
+    expect(sameAnswer('mother-in-law', 'mother in law')).toBe(true)
+    expect(sameAnswer('C++', 'C#')).toBe(false)
+    expect(sameAnswer('が', 'か')).toBe(false)
+    expect(sameAnswer('?', '?')).toBe(false)
   })
 })

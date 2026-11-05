@@ -1,0 +1,215 @@
+/* Feedback sheet. */
+/* Feedback sheet (FeedbackSheet.tsx), at the bottom of .session-main. It is always laid out at its open size
+   and only ever moves by translate: closed, it sits that much lower, so only the summary (--sheet-peek tall)
+   shows; opening, it slides up over the question column. Once settled open (is-split) it joins the layout,
+   so the column ends above it and each scrolls on its own; closing, it leaves the layout again at once and
+   slides down. The question's content has a fixed height (.session-stack), so none of this moves it. Open,
+   it takes at most --sheet-max-h (half the screen) and the whole panel (.sheet-scroll: summary and more
+   info) scrolls as one; a closed sheet already near that tall (a long answer) still opens by a few lines. Once its top line has been dragged, it takes exactly the dragged size
+   (--sheet-h, set on the sheet by FeedbackSheet until it closes), up to --sheet-drag-max-h and never less
+   than the closed sheet. The
+   summary's answer box is capped and scrolls, so the buttons always stay in view. */
+.sheet {
+  --tone: var(--border-strong);
+  position: absolute;
+  right: 0;
+  bottom: 0;
+  left: 0;
+  z-index: 2;
+  display: grid;
+  grid-template-rows: minmax(0, 1fr);
+  translate: 0 calc(100% - var(--sheet-peek, 0px));
+  max-height: max(
+    var(--sheet-peek, 0px),
+    min(
+      var(--sheet-h, max(var(--sheet-max-h), calc(var(--sheet-peek, 0px) + 2 * var(--space-8)))),
+      var(--sheet-drag-max-h)
+    )
+  );
+  background: var(--surface);
+  border-top: 3px solid var(--tone);
+  animation: sheet-in var(--dur) var(--ease);
+  transition: translate var(--dur) var(--ease);
+}
+.sheet.is-open {
+  translate: 0 0;
+}
+.sheet.is-split {
+  position: relative;
+  flex: none;
+}
+/* Going to the next question, it slides out first. Out of view means below the bottom edge with the round
+   button above it too (--space-8), here and where it slides in from. */
+.sheet.is-leaving {
+  translate: 0 calc(100% + var(--space-8));
+}
+@keyframes sheet-in {
+  from {
+    translate: 0 calc(100% + var(--space-8));
+  }
+}
+.sheet.is-ok {
+  --tone: var(--ok);
+}
+.sheet.is-bad {
+  --tone: var(--bad);
+}
+/* The panel's one scroll box (the round button and the drag line stay outside it, so it never clips them).
+   Closed, it doesn't scroll, so the summary stays in view. The scrollbar's space is always kept (both
+   sides, like the question column), so the text never rewraps. */
+.sheet-scroll {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+}
+.sheet:not(.is-open) .sheet-scroll {
+  overflow-y: hidden;
+}
+.sheet-summary,
+.sheet-more {
+  padding-inline: max(var(--space-4), calc((100% - var(--session-w)) / 2));
+}
+.sheet-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-4);
+}
+/* Flashcards: "Did you know it?" with two big, roomy grade buttons, so the closed sheet is a bit taller. */
+.sheet-summary:has(.grade) {
+  padding-block: var(--space-5);
+  font-size: var(--text-lg);
+}
+/* Two equal columns, so both buttons take the wider one's width. */
+.sheet-summary .actions:has(.grade) {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+}
+button.grade {
+  min-width: 10rem;
+  height: 52px;
+  padding: 0 var(--space-6);
+}
+.sheet-result {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-height: var(--sheet-answer-h);
+  overflow-y: auto;
+}
+.sheet-result p {
+  white-space: pre-wrap;
+}
+/* Labels in their own muted column, so each answer starts clearly apart from its label. */
+.sheet-answers {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-5);
+  margin: var(--space-2) 0;
+}
+.sheet-answers dt {
+  color: var(--text-muted);
+}
+.sheet-answers dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+/* One line with an ellipsis; when it is cut off, the whole text shows as a tooltip on hover. */
+.sheet-answers .is-clipped {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-result .ok {
+  color: var(--ok);
+}
+.sheet-result .bad {
+  color: var(--bad);
+}
+/* "Marked by you": beside the result after "I was right". Tinted fill, thin border. */
+.marked-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  background: var(--ok-soft);
+  border: var(--line) solid var(--ok);
+  border-radius: var(--radius);
+  color: var(--ok);
+  font-size: var(--text-sm);
+  font-weight: var(--weight);
+  vertical-align: middle;
+}
+/* After a drag it is at least the dragged size, so the sheet keeps that size even when the text is shorter. */
+.sheet-more {
+  min-height: max(0px, min(var(--sheet-h, 0px), var(--sheet-drag-max-h)) - var(--sheet-peek, 0px));
+  padding-block: var(--space-2) var(--space-6);
+}
+/* While the sheet moves (sliding in, opening, closing, dragged), the session's scroll boxes show no
+   scrollbar; once it has settled they come back where still needed. Their space is kept, so nothing shifts. */
+.session-main:has(> .sheet.is-moving) * {
+  scrollbar-color: transparent transparent;
+}
+.session-main:has(> .sheet.is-moving) ::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.sheet-more > * + * {
+  margin-top: var(--space-4);
+}
+.sheet-more h3 {
+  margin-bottom: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+.sheet-more p {
+  white-space: pre-wrap;
+}
+/* The round button that opens and closes the sheet, sitting centered just above it. The chevron points
+   the way the sheet will go: up while closed, down while open. */
+.round-btn {
+  width: 40px;
+  padding: 0;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-muted);
+}
+.round-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.round-btn svg {
+  transition: transform var(--dur) var(--ease);
+}
+.round-btn[aria-expanded='false'] svg {
+  transform: rotate(180deg);
+}
+.sheet-toggle {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  translate: -50% 0;
+}
+/* The sheet's top line is a resize handle (dragging a closed sheet opens it): a hit area a bit taller than
+   the line, centered on it, ending just below the round button. Taller for touch. */
+.sheet-resize {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: 0;
+  left: 0;
+  height: var(--space-3);
+  cursor: ns-resize;
+  touch-action: none;
+}
+@media (max-width: 799px) {
+  .sheet-resize {
+    top: calc(-1 * var(--space-3));
+    height: var(--space-5);
+  }
+}
+@media (max-width: 799px) {
+  .round-btn {
+    width: var(--tap);
+  }
+}

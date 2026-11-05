@@ -1,0 +1,115 @@
+/* Toast stack. */
+/* Toasts. Newest at the bottom. Older ones are clipped at the top, never dropped.
+   Hovering a visible toast opens the whole stack (scrollable). It then stays open while the pointer is anywhere inside,
+   because only the toasts take the pointer until the stack is open. */
+.toasts {
+  /* A popover in the top layer (Toasts.tsx), always in the same corner: nothing on the page moves or covers it.
+     The rest undoes the browser's popover box (centered, bordered, filled). */
+  position: fixed;
+  inset: auto var(--space-4) var(--space-4) auto;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-4);
+  /* Left: room for the badge that overhangs each toast's corner. Top: the fade zone (--space-7) plus that overhang. */
+  padding: var(--space-8) 0 0 var(--space-2);
+  width: min(calc(var(--toast-w) + var(--space-2)), calc(100vw - 2 * var(--space-4)));
+  max-height: var(--toasts-peek);
+  overflow: hidden;
+  /* Smooth falloff at the top edge. With no overflow only the empty top padding sits under it; once toasts
+     overflow, the clipped ones fill that edge and fade out. A mask (only alpha matters), not a visible gradient. */
+  mask-image: linear-gradient(transparent, black var(--space-7));
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  pointer-events: none;
+  transition: max-height var(--dur) var(--ease);
+}
+.toasts:hover,
+.toasts:focus-within {
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.toast {
+  --kind: var(--info);
+  flex: none;
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-1) var(--space-2) var(--space-5);
+  background: var(--surface-2);
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+}
+.toast.is-warning {
+  --kind: var(--warn);
+}
+.toast.is-error {
+  --kind: var(--bad);
+}
+/* Centered on the bar (both are placed inside the border): half the bar height minus half the badge. */
+.toast-kind {
+  position: absolute;
+  top: calc(var(--space-1) / 2 - var(--toast-badge) / 2);
+  left: calc(-1 * var(--space-2));
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--toast-badge);
+  height: var(--toast-badge);
+  background: var(--kind);
+  color: var(--bg);
+  border-radius: 50%;
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+  line-height: 1;
+}
+/* A triangle's visual center sits at 2/3 of its height, so that point goes on the bar and the glyph moves down to it. */
+.toast.is-warning .toast-kind {
+  top: calc(var(--space-1) / 2 - var(--toast-badge) * 2 / 3);
+  padding-top: calc(var(--toast-badge) / 3);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.toast.is-error .toast-kind {
+  border-radius: 0;
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+.toast p {
+  flex: 1;
+  margin: 0;
+}
+.toast .icon-btn {
+  flex: none;
+}
+.toast-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.toast-life {
+  height: 100%;
+  background: var(--kind);
+  transform-origin: left;
+  animation: toast-life linear forwards;
+}
+/* Nothing expires while you are reading the stack. */
+.toasts:hover .toast-life,
+.toasts:focus-within .toast-life {
+  animation-play-state: paused;
+}
+@keyframes toast-life {
+  to {
+    transform: scaleX(0);
+  }
+}
+

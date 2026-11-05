@@ -9,16 +9,21 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChan
   selectOnMount?: boolean
   /** With `maxLength`: a live "12/50" counter right after the box, shown while it has focus. */
   counter?: boolean
+  /** Says why the text can not be saved (a name that is taken), or undefined when it can. */
+  check?: (value: string) => string | undefined
 }
 
 /**
  * A text box that starts one line high and grows to fit any amount of text. With `required`, empty or
  * spaces-only text stays in the box and is not passed on; leaving the box shows the saved value again.
+ * So does text `check` objects to, with its message under the box.
  */
-export function AutoText({ value, onChange, onEnter, selectOnMount, counter, onKeyDown, onBlur, className, ...rest }: Props) {
+export function AutoText({ value, onChange, onEnter, selectOnMount, counter, check, onKeyDown, onBlur, className, ...rest }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null)
-  const [blank, setBlank] = useState<string | null>(null)
-  const text = blank ?? value
+  // Text that is not passed on (blank or checked out), shown until it is fixed or the box is left.
+  const [held, setHeld] = useState<string | null>(null)
+  const text = held ?? value
+  const problem = held === null ? undefined : check?.(held)
   const fit = () => {
     const el = ref.current
     if (!el) return
@@ -64,16 +69,17 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, onK
         value={text}
         onChange={(e) => {
           const next = onEnter ? e.target.value.replace(/\s*\n\s*/g, ' ') : e.target.value
-          if (rest.required && !next.trim()) return setBlank(next)
-          setBlank(null)
+          if ((rest.required && !next.trim()) || check?.(next)) return setHeld(next)
+          setHeld(null)
           onChange(next)
         }}
         onBlur={(e) => {
-          setBlank(null)
+          setHeld(null)
           onBlur?.(e)
         }}
+        aria-invalid={problem ? true : undefined}
         onKeyDown={(e) => {
-          if (onEnter && e.key === 'Enter') {
+          if (onEnter && e.key === 'Enter' && !e.nativeEvent.isComposing) {
             e.preventDefault()
             onEnter()
           }
@@ -84,6 +90,11 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, onK
       {counter && max !== undefined && (
         <span className={text.length >= max ? 'char-count is-full' : 'char-count'}>
           {text.length}/{max}
+        </span>
+      )}
+      {problem && (
+        <span className="auto-text-error" role="alert">
+          {problem}
         </span>
       )}
     </>

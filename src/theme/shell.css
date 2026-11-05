@@ -1,0 +1,458 @@
+/* App shell: corner, top row, sidebar and page column. */
+/* Where the page ground begins, for a backdrop image placed beside the open sidebar (--backdrop-position): on
+   :root, so the theme tokens there can use it. Below 800px the sidebar covers the page instead of pushing it. */
+:root {
+  --ground-x: 0px;
+}
+@media (min-width: 800px) {
+  :root:has(.sidebar:not(.is-closed)) {
+    --ground-x: var(--sidebar-w);
+  }
+}
+/* App shell: a 2x2 grid. Corner (brand + sidebar toggle) | top row, then sidebar | page. Areas are set
+   apart by tone (sidebar --surface, page --bg) and space, not divider lines. The first column is --side,
+   the sidebar's width; closed it is 0, the corner shrinks to brand + toggle and the page has the full width.
+   --side snaps (the page is laid out once, not every frame): the sidebar slides by transform, and its toggle
+   glides the page and crumbs from where they were (Sidebar.tsx). */
+.app {
+  --side: var(--sidebar-w);
+  --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
+  display: grid;
+  grid-template-columns: var(--side) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  /* The page sticks out to the right while it glides back after a close; no sideways scrollbar for that. */
+  overflow-x: clip;
+}
+.app:has(.sidebar.is-closed) {
+  --side: 0px;
+}
+
+/* Corner: heads the open sidebar (same width; its tone is the sidebar's top, under it), the brand left and
+   the toggle right. */
+.corner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: var(--sidebar-w);
+  height: var(--topbar-h);
+  padding: 0 var(--space-2) 0 var(--space-5);
+  transition: width var(--dur-slide) var(--ease);
+}
+.corner.is-closed {
+  width: var(--corner-w);
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--text-brand);
+  font-family: var(--font-display);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-text);
+  font-weight: var(--weight-bold);
+  white-space: nowrap;
+}
+.sidebar-toggle {
+  flex: none;
+  width: var(--toggle-size);
+  height: var(--toggle-size);
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+/* One double chevron: points left to collapse, turned to point right once closed, turning with the slide. */
+.sidebar-toggle svg {
+  transition:
+    width var(--dur) var(--spring),
+    height var(--dur) var(--spring),
+    rotate var(--dur-slide) var(--ease);
+}
+.corner.is-closed .sidebar-toggle svg {
+  rotate: 180deg;
+}
+
+/* Top row: breadcrumbs and file actions, on the page background. It sits above the page in the same column
+   with the same --page-pad, so the crumbs start where the page content does, but never under the corner. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: var(--topbar-h);
+  /* The file actions sit at the window's right edge. */
+  padding-inline: max(var(--page-pad), var(--corner-w) + var(--space-3) - var(--side)) var(--space-3);
+  white-space: nowrap;
+}
+/* Frosted glass (asked for): what scrolls under the top row (and the phone corner) fogs away, blurred and tinted
+   with the ground so the crumbs stay crisp, and the fog fades out a little below the edge, so the page eases into
+   it instead of meeting a hard line. A layer behind the content, so the mask fades the glass, not the crumbs.
+   The corner has it only on phones (below), where the page scrolls under it too. */
+.topbar::before {
+  content: '';
+}
+.topbar::before,
+.corner::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 calc(-1 * var(--glass-bar-fade));
+  background: var(--glass-bar);
+  backdrop-filter: blur(var(--glass-bar-blur));
+  mask-image: linear-gradient(var(--bg) calc(100% - var(--glass-bar-fade)), transparent);
+  pointer-events: none;
+}
+.crumbs {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+}
+.crumbs li {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs li + li::before {
+  content: '›';
+  margin: 0 var(--space-2);
+}
+.crumbs li:not(:last-child) {
+  flex-shrink: 0;
+  max-width: 14rem;
+}
+.crumbs li:last-child {
+  flex-shrink: 1;
+  color: var(--text);
+}
+.parent {
+  display: none;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+}
+.topbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+/* Sidebar: the course > quiz tree, the full height of the window with the corner over its top, so the head and
+   the tree are one piece. It keeps its width and slides out of the (then 0 wide) first column by transform. */
+.sidebar {
+  position: sticky;
+  top: 0;
+  z-index: 4;
+  grid-column: 1;
+  grid-row: 1 / -1;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  width: var(--sidebar-w);
+  height: 100dvh;
+  padding-top: var(--topbar-h);
+  overflow: hidden;
+  background: var(--surface);
+  transition: translate var(--dur-slide) var(--ease);
+}
+.sidebar.is-closed {
+  translate: -100%;
+}
+.sidebar-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+.sidebar-label {
+  padding: var(--space-2) var(--space-5) var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.tree,
+.tree ul {
+  padding: 0;
+  list-style: none;
+}
+/* Courses are set apart by space; their quizzes are indented underneath. */
+.tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-2) var(--space-4);
+}
+.tree-course + .tree-course {
+  margin-top: var(--space-4);
+}
+.tree a {
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.tree-course > a {
+  font-weight: var(--weight-bold);
+}
+.tree-quizzes {
+  margin-left: var(--space-4);
+}
+.tree-quizzes a {
+  padding-block: var(--space-1);
+  border-left: var(--line-thick) solid transparent;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  font-size: var(--text-sm-plus);
+  color: var(--text-muted);
+}
+.tree a:hover,
+.tree a[aria-current='page'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tree-quizzes a[aria-current='page'] {
+  border-left-color: var(--accent);
+}
+.sidebar-foot {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-2) var(--space-4);
+}
+.sidebar-foot button {
+  width: 100%;
+}
+/* Theme picker under "+ New course": its name on the left, the quiet select on the right. */
+.theme-pick {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-left: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.scrim {
+  display: none;
+}
+/* A short window (or a zoomed-in one): the tree and "+ New course" scroll together, so the tree never gets
+   squeezed to nothing by the button under it. */
+@media (max-height: 480px) {
+  .sidebar-body {
+    overflow-y: auto;
+  }
+  .tree {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* Small phones: the name would squeeze the "‹ parent" link and push Download off the edge, so the shrimp alone
+   links home. */
+@media (max-width: 399px) {
+  .brand-name {
+    display: none;
+  }
+}
+
+/* The narrowest windows (zoomed far in): the toggle alone heads the sidebar, so the top row still fits, and
+   pick-one bars break long words and the editor's add buttons stack instead of pushing the page sideways. */
+@media (max-width: 319px) {
+  .brand {
+    display: none;
+  }
+  .add-rows {
+    flex-wrap: wrap;
+  }
+  .segmented {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .segmented label {
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 799px) {
+  .app {
+    --page-pad: var(--space-4);
+    --drawer-w: min(85vw, var(--sidebar-w));
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  /* Phones: the corner is always just brand + toggle, and the open sidebar slides over the page. */
+  .corner,
+  .corner.is-closed {
+    width: auto;
+    padding-left: var(--space-4);
+  }
+  .corner::before {
+    content: '';
+  }
+  /* The corner keeps one width here, so the top row simply follows it. */
+  .topbar {
+    gap: var(--space-3);
+    padding-left: var(--space-2);
+  }
+  .crumbs,
+  .load {
+    display: none;
+  }
+  .parent {
+    display: block;
+  }
+  /* The open sidebar is a drawer the full height of the window: the corner (brand + toggle) stays where it is
+     and heads it; outside it, a click closes it.
+     stretch: Chrome applies align-self to fixed boxes, and start would shrink it to its content. */
+  .sidebar {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    align-self: stretch;
+    width: var(--drawer-w);
+    height: auto;
+  }
+  .corner:not(.is-closed) {
+    background: transparent;
+  }
+  /* A see-through layer over the rest (the page is not darkened; the drawer's tone sets it apart): a click
+     anywhere outside the drawer closes it. A button, but without the buttons' hover fill or pointer. */
+  .scrim,
+  .scrim:hover:not(:disabled) {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    display: block;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    cursor: default;
+  }
+  .tree a {
+    padding-block: var(--space-2);
+  }
+}
+
+/* Page: a centered column (the top row repeats this math, so the crumbs line up with the content).
+   A flex column, so .page-foot (the danger zone) sits at the bottom of the page. */
+.page {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-6) var(--page-pad) var(--space-6);
+}
+.page > * + *,
+.page-body > * + * {
+  margin-top: var(--space-7);
+}
+/* What comes before a page's danger zone is at least a screen tall, so the danger zone always starts off
+   screen and takes a scroll to reach. A flex column with the page's spacing, so it lays out like the page. */
+.page-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 100dvh;
+}
+.page > .page-foot {
+  margin-top: auto;
+  padding-top: var(--space-8);
+}
+.page section > h2 {
+  margin-bottom: var(--space-4);
+}
+/* Back to top (BackToTop.tsx): glass, bottom right, over the page but under the drawer. It fades and rises
+   in; visibility waits for the fade out. The arrow is full text color and springs up like any icon button. */
+.back-to-top {
+  position: fixed;
+  right: var(--space-5);
+  bottom: var(--space-5);
+  z-index: 2;
+  width: var(--tap);
+  height: var(--tap);
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
+  border: var(--line) solid var(--glass-line);
+  border-radius: 50%;
+  color: var(--text);
+  opacity: 0;
+  transform: translateY(var(--space-2));
+  visibility: hidden;
+  transition:
+    opacity var(--dur) var(--ease),
+    transform var(--dur) var(--ease),
+    visibility 0s var(--dur),
+    color var(--dur-fast) var(--ease);
+}
+.back-to-top.is-shown {
+  opacity: 1;
+  transform: none;
+  visibility: visible;
+  transition-delay: 0s;
+}
+.back-to-top:hover:not(:disabled) {
+  background: var(--glass);
+}
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+}
+.page-head > div:first-child {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.page-head > div:first-child > p {
+  margin-top: var(--space-2);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.note {
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+}
+@media (max-width: 799px) {
+  .page {
+    grid-column: 1 / -1;
+    padding-block: var(--space-4) var(--space-5);
+  }
+  .page > * + *,
+  .page-body > * + * {
+    margin-top: var(--space-5);
+  }
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* In the stacked column layout a 20rem flex-basis becomes 20rem of height. */
+  .page-head > div:first-child {
+    flex: none;
+  }
+}
+@media (min-width: 800px) {
+  .mobile-only {
+    display: none;
+  }
+}
+

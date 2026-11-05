@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Card, StudyOptions } from '../model'
-import { buildRound, usableCards } from './buildRound'
+import { buildRound, refreshQuestions, usableCards } from './buildRound'
 
 const card = (n: number): Card => ({ id: `c${n}`, term: `term${n}`, definition: `def${n}` })
 const cards = (count: number): Card[] => Array.from({ length: count }, (_, i) => card(i + 1))
@@ -19,7 +19,7 @@ describe('buildRound', () => {
   })
 
   it('uses the term as prompt for side term', () => {
-    expect(buildRound([card(1)], options())[0]).toEqual({ cardId: 'c1', prompt: 'term1', answer: 'def1' })
+    expect(buildRound([card(1)], options())[0]).toEqual({ cardId: 'c1', prompt: 'term1', answer: 'def1', side: 'term' })
   })
 
   it('uses the definition as prompt for side definition', () => {
@@ -27,6 +27,7 @@ describe('buildRound', () => {
       cardId: 'c1',
       prompt: 'def1',
       answer: 'term1',
+      side: 'definition',
     })
   })
 
@@ -110,5 +111,81 @@ describe('buildRound with fill-in-the-blank cards', () => {
     expect(q.choices).not.toContain('def1')
     const t = round.find((q) => q.cardId === 'c1')!
     expect(t.choices).toEqual(['def1'])
+  })
+})
+
+describe('question side', () => {
+  it('matches the prompt', () => {
+    expect(buildRound(cards(2), options({ side: 'term' })).map((q) => q.side)).toEqual(['term', 'term'])
+    const defs = buildRound(cards(2), options({ side: 'definition' }))
+    expect(defs.map((q) => q.side)).toEqual(['definition', 'definition'])
+    for (const q of buildRound(cards(30), options({ side: 'mixed' }))) {
+      expect(q.prompt).toBe(q.side === 'term' ? `term${q.cardId.slice(1)}` : `def${q.cardId.slice(1)}`)
+    }
+  })
+})
+
+describe('refreshQuestions', () => {
+  const edited: Card = { id: 'c1', term: ' new term ', definition: 'new def' }
+
+  it('updates a question prompted from the term', () => {
+    const [q] = refreshQuestions(buildRound(cards(1), options({ side: 'term' })), edited)
+    expect(q).toMatchObject({ prompt: 'new term', answer: 'new def', side: 'term' })
+  })
+
+  it('updates a question prompted from the definition', () => {
+    const [q] = refreshQuestions(buildRound(cards(1), options({ side: 'definition' })), edited)
+    expect(q).toMatchObject({ prompt: 'new def', answer: 'new term', side: 'definition' })
+  })
+
+  it('leaves other cards alone', () => {
+    const round = buildRound(cards(2), options())
+    expect(refreshQuestions(round, edited)[1]).toBe(round[1])
+  })
+
+  it('swaps the old answer in the choices', () => {
+    const round = buildRound(cards(3), options({ format: 'choice' }))
+    const [q] = refreshQuestions(round, edited)
+    expect(q.choices).toContain('new def')
+    expect(q.choices).not.toContain('def1')
+    expect(q.choices).toHaveLength(round[0].choices!.length)
+  })
+
+  it('follows the prompt side when the term equals the definition', () => {
+    const same: Card = { id: 'c1', term: 'x', definition: 'x' }
+    const round = buildRound([same], options({ side: 'definition' }))
+    const [q] = refreshQuestions(round, { ...same, term: 'a', definition: 'b' })
+    expect(q).toMatchObject({ prompt: 'b', answer: 'a', side: 'definition' })
+  })
+
+  it('updates a fill-in-the-blank question', () => {
+    const cloze: Card = { id: 'z', type: 'cloze', statement: 'The {cat} sat', explanation: [null] }
+    const round = buildRound([cloze], options())
+    const [q] = refreshQuestions(round, { ...cloze, statement: 'The {dog} sat' })
+    expect(q.answer).toBe('dog')
+    expect(q.blank).toBe(0)
+  })
+
+  it('leaves a question whose blank was removed', () => {
+    const cloze: Card = { id: 'z', type: 'cloze', statement: 'A {b} and {c}', explanation: [null, null] }
+    const round = buildRound([cloze], options())
+    const out = refreshQuestions(round, { ...cloze, statement: 'A {b} and c' })
+    expect(out[0]).not.toBe(round[0])
+    expect(out[1]).toBe(round[1])
+  })
+
+  it('never offers answers that read the same as the right one, or as each other', () => {
+    const list: Card[] = ['cell', 'Cell', 'cell.', 'nucleus', 'ribosome'].map((definition, i) => ({
+      id: `k${i}`,
+      term: `t${i}`,
+      definition,
+    }))
+    for (let run = 0; run < 30; run++) {
+      const q = buildRound(list, options({ format: 'choice' })).find((x) => x.cardId === 'k0')!
+      expect(q.choices).not.toContain('Cell')
+      expect(q.choices).not.toContain('cell.')
+      const normalized = q.choices!.map((c) => c.toLowerCase().replace(/\./g, ''))
+      expect(new Set(normalized).size).toBe(normalized.length)
+    }
   })
 })

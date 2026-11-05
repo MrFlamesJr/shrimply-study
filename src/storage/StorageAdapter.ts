@@ -9,5 +9,6 @@ export interface StorageAdapter {
   saveHint: string // button tooltip
   /** Resolves null when the user cancels. Throws on unreadable data. */
   load(): Promise<Library | null>
-  save(library: Library): Promise<void>
+  /** Resolves false when the user cancelled, so nothing was saved. */
+  save(library: Library): Promise<boolean>
 }

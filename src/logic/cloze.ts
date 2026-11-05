@@ -115,3 +115,9 @@ export function clozeQuestion(text: string, ranges: Range[], i: number): { promp
   const { start, end } = ranges[i]
   return { prompt: text.slice(0, start) + '_____' + text.slice(end), answer: text.slice(start, end).trim() }
 }
+
+/** The answer of each blank of a statement. */
+export function blankAnswers(statement: string): string[] {
+  const { text, ranges } = parseCloze(statement)
+  return ranges.map((_, i) => clozeQuestion(text, ranges, i).answer)
+}

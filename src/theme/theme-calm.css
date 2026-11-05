@@ -1,0 +1,120 @@
+/* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
+   CLAUDE.md, Themes; themes.test.ts checks it). */
+
+/* Calm, the default (on plain :root too, so a missing or unknown data-theme gets it): dark and high contrast,
+   a gold accent, warm rose-brown surfaces on a cool ground, no glow. */
+:root,
+:root[data-theme="calm"] {
+  color-scheme: dark;
+
+  /* Ground and text. Main text is a near-neutral white; muted text gets its lightness and color amount here and the
+     surfaces' hue (--lift-hue), so it is never cooler or warmer than what it sits on. */
+  --bg: #121417;
+  --text: #ebebeb;
+  --muted-l: 0.742;
+  --muted-c: 0.012;
+
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
+     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
+     --ink is the black of scrims and the sunken well. */
+  --accent: #e3b65b;
+  --selection-color: var(--accent);
+  --ok: #7fcf8e;
+  --bad: #f2877e;
+  --danger: #f2554a;
+  --warn: #f0a35e;
+  --info: #8fb8de;
+  --ink: #000;
+
+  /* The brand mark (shrimp): shell and head; its outline is the text color. */
+  --brand-shell: #ea5b2c;
+  --brand-head: #e1757b;
+
+  /* Fill-in-the-blank underlines, told apart when stacked; the first is the accent. */
+  --blank-1: var(--accent);
+  --blank-2: #6cc4b8;
+  --blank-3: #82b4e8;
+  --blank-4: #b9bfc8;
+
+  /* Group colors, a touch softer than the accent so they never compete with it. */
+  --group-lagoon: #66bcb0;
+  --group-coral: #e8877e;
+  --group-sky: #7eaee0;
+  --group-sand: #d9b46a;
+  --group-moss: #94c17f;
+  --group-rose: #dc93ad;
+  --group-clay: #d99a6c;
+  --group-slate: #9ba4ae;
+
+  /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
+     --lift-chroma color per step, in the hue --lift-hue. */
+  --lift-hue: 0;
+  --lift-chroma: 0.05;
+  --lift-sunken: -0.033;
+  --lift-1: 0.039;
+  --lift-2: 0.076;
+  --lift-3: 0.112;
+  --lift-border: 0.18;
+  --lift-border-strong: 0.297;
+
+  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  --hover-lift: 0.045;
+  --hover-chroma: 0.89;
+
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
+     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
+     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  --tint-soft: 12%;
+  --tint: 14%;
+  --tint-line: 55%;
+  --tint-select: 35%;
+  --tint-danger: 16%;
+  --tint-muted: 30%;
+  --tint-rest: 0%;
+  --group-fill: 6%;
+  --group-line: 40%;
+  --group-chip: 22%;
+  --scrim-alpha: 55%;
+  --viewer-scrim-alpha: 88%;
+
+  /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
+     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
+     their own shadow or glow, more while hovered. */
+  --glow-size: 0px;
+  --glow-accent: none;
+  --glow-focus: none;
+  --glow-ok: none;
+  --glow-bad: none;
+  --glow-text: none;
+  --glow-card:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent),
+    0 6px 20px color-mix(in srgb, var(--ink) 70%, transparent);
+  --glow-card-hover:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 9%, transparent),
+    0 16px 40px color-mix(in srgb, var(--ink) 90%, transparent);
+
+  /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
+     background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
+     themselves very slightly (still under reduced motion), all sliding sideways together by one
+     --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
+  --backdrop: none;
+  --backdrop-drift: none;
+  --backdrop-drift-w: 0px;
+  --backdrop-drift-time: 0s;
+
+  /* Backdrop placement, one value per --backdrop layer (or one for all): position, size and repeat. A position can
+     start from --ground-x, where the open page ground begins (right of the open sidebar on wide screens). */
+  --backdrop-position: 0 0;
+  --backdrop-size: auto;
+  --backdrop-repeat: repeat;
+
+  /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
+     Atkinson). */
+  --font-display: var(--font-body);
+  --display-tracking: normal;
+  --display-case: none;
+  --title-size: 2rem;
+  --text-brand: 1.0625rem;
+  --text-score: 3rem;
+  --radius: 6px;
+}
