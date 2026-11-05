@@ -25,10 +25,9 @@
   border-radius: var(--radius);
 }
 /* The page ground: --bg, then two layers fixed to the window behind everything: ::before the backdrop, ::after
-   the moving layer over it (--backdrop-drift). Every element that paints the ground (the sticky top row, the phone
-   corner) has the same two, clipped to its box, so they line up seamlessly; main.tsx keeps every slide on one
-   clock. The moving layer is one tile wider than the window and slides one tile by transform, so it loops
-   seamlessly and the backdrop is never painted again while it moves. */
+   the moving layer over it (--backdrop-drift). The top row is frosted glass over it (shell.css). The moving layer
+   is one tile wider than the window and slides one tile by transform, so it loops seamlessly and the backdrop is
+   never painted again while it moves. */
 body {
   background: var(--bg);
   color: var(--text);
@@ -37,28 +36,20 @@ body {
   overflow-wrap: anywhere;
 }
 body::before,
-body::after,
-.topbar::before,
-.topbar::after,
-.corner::before,
-.corner::after {
+body::after {
   content: '';
   position: fixed;
   z-index: -1;
   inset: 0;
   pointer-events: none;
 }
-body::before,
-.topbar::before,
-.corner::before {
+body::before {
   background-image: var(--backdrop);
   background-position: var(--backdrop-position);
   background-size: var(--backdrop-size);
   background-repeat: var(--backdrop-repeat);
 }
-body::after,
-.topbar::after,
-.corner::after {
+body::after {
   left: calc(-1 * var(--backdrop-drift-w));
   background-image: var(--backdrop-drift);
   animation: drift var(--backdrop-drift-time) linear infinite;
@@ -224,7 +215,7 @@ button.start {
 button.start:hover:not(:disabled) {
   outline-offset: 0;
   transform: scale(1.06);
-  animation: start-ping 900ms var(--ease) infinite;
+  animation: start-ping var(--dur-start-ping) var(--ease) infinite;
 }
 button.start:active:not(:disabled) {
   transform: scale(0.95);
@@ -235,7 +226,7 @@ button.start svg {
   height: 20px;
 }
 button.start:hover:not(:disabled) svg {
-  animation: start-push 600ms var(--ease) infinite;
+  animation: start-push var(--dur-start-push) var(--ease) infinite;
 }
 @keyframes start-ping {
   from {

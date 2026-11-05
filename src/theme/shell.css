@@ -48,11 +48,6 @@
 .corner.is-closed {
   width: var(--corner-w);
 }
-/* Only the phone corner paints the page ground (see the phone rule below); here it sits over the sidebar's top. */
-.corner::before,
-.corner::after {
-  content: none;
-}
 .brand {
   display: flex;
   align-items: center;
@@ -98,11 +93,24 @@
   height: var(--topbar-h);
   /* The file actions sit at the window's right edge. */
   padding-inline: max(var(--page-pad), var(--corner-w) + var(--space-3) - var(--side)) var(--space-3);
-  /* The page ground (see body in base.css), so it hides what scrolls under it without cutting the backdrop. The
-     clip keeps its window-fixed backdrop layers inside it. */
-  background: var(--bg);
-  clip-path: inset(0);
   white-space: nowrap;
+}
+/* Frosted glass (asked for): what scrolls under the top row (and the phone corner) fogs away, blurred and tinted
+   with the ground so the crumbs stay crisp, and the fog fades out a little below the edge, so the page eases into
+   it instead of meeting a hard line. A layer behind the content, so the mask fades the glass, not the crumbs.
+   The corner has it only on phones (below), where the page scrolls under it too. */
+.topbar::before {
+  content: '';
+}
+.topbar::before,
+.corner::before {
+  position: absolute;
+  z-index: -1;
+  inset: 0 0 calc(-1 * var(--glass-bar-fade));
+  background: var(--glass-bar);
+  backdrop-filter: blur(var(--glass-bar-blur));
+  mask-image: linear-gradient(var(--bg) calc(100% - var(--glass-bar-fade)), transparent);
+  pointer-events: none;
 }
 .crumbs {
   display: flex;
@@ -288,11 +296,8 @@
   .corner.is-closed {
     width: auto;
     padding-left: var(--space-4);
-    background: var(--bg);
-    clip-path: inset(0);
   }
-  .corner::before,
-  .corner::after {
+  .corner::before {
     content: '';
   }
   /* The corner keeps one width here, so the top row simply follows it. */

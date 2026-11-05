@@ -79,7 +79,7 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, che
         }}
         aria-invalid={problem ? true : undefined}
         onKeyDown={(e) => {
-          if (onEnter && e.key === 'Enter') {
+          if (onEnter && e.key === 'Enter' && !e.nativeEvent.isComposing) {
             e.preventDefault()
             onEnter()
           }

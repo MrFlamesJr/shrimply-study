@@ -72,7 +72,7 @@
   border-radius: var(--radius);
   font-size: var(--text-sm);
 }
-/* Frosted glass in diagonal stripes (asked for; the app's one blur): a light layer under the whole bar, and a denser,
+/* Frosted glass in diagonal stripes (asked for): a light layer under the whole bar, and a denser,
    more blurred one masked into every other stripe. Both sit behind the bar's content. */
 .debug-bar::before,
 .debug-bar::after {

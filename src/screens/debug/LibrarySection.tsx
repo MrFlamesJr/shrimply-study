@@ -3,7 +3,7 @@ import { emptyLibrary } from '../../model'
 import { fakeQuiz, libraryProblems, libraryStats } from '../../logic/debugData'
 import { freeName } from '../../logic/names'
 import { plural } from '../../logic/plural'
-import { backupSize, storageUse } from '../../storage/browserBackup'
+import { backupSize, readBrokenBackup, storageUse } from '../../storage/browserBackup'
 import { fetchLibrary } from '../../storage/fileStorage'
 import { checkLibrary, decodeLibrary, libraryToJson } from '../../storage/format'
 import type { LibraryApi } from '../../state/useLibrary'
@@ -39,6 +39,22 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
     }, 500)
     return () => clearTimeout(timer)
   }, [lib.library])
+
+  const [broken, setBroken] = useState<string | null>(null)
+  useEffect(() => {
+    void readBrokenBackup().then(setBroken)
+  }, [])
+  const downloadBroken = () => {
+    if (broken === null) return
+    const url = URL.createObjectURL(new Blob([broken], { type: 'application/json' }))
+    const link = document.createElement('a')
+    link.href = url
+    link.download = 'unreadable-backup.json'
+    document.body.append(link)
+    link.click()
+    link.remove()
+    setTimeout(() => URL.revokeObjectURL(url), 1000)
+  }
 
   const load = async (url: string, message: string) => {
     if (await lib.open(() => fetchLibrary(url))) notify('info', message)
@@ -158,6 +174,11 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
         <button type="button" title="Check the library for broken ids, groups, order and names" onClick={check}>
           Check library
         </button>
+        {broken !== null && (
+          <button type="button" title="The backup the browser could not read at startup, kept as it was" onClick={downloadBroken}>
+            Download unreadable backup
+          </button>
+        )}
       </div>
     </section>
   )

@@ -7,7 +7,6 @@ import { loadTheme, saveTheme } from './storage/themePref'
 import { TopBar } from './layout/TopBar'
 import { Sidebar, useSidebarOpen } from './layout/Sidebar'
 import { useKeydown } from './hooks/useKeydown'
-import { syncDrift } from './theme/drift'
 import { HomeScreen } from './screens/HomeScreen'
 import { CourseScreen } from './screens/CourseScreen'
 import { QuizScreen } from './screens/QuizScreen'
@@ -17,9 +16,11 @@ import { DebugScreen } from './screens/DebugScreen'
 import { DebugBar } from './screens/debug/DebugBar'
 import { Toasts, useToasts } from './components/Toasts'
 import { BackToTop } from './components/BackToTop'
+import { askConfirm } from './components/ConfirmDialog'
+
 export function App() {
   const toasts = useToasts()
-  const lib = useLibrary(fileStorage, toasts.notify)
+  const lib = useLibrary(fileStorage, toasts.notify, askConfirm)
   const route = useRoute()
   const [prefs, setPrefs] = useState<StudyOptions>({ format: 'flashcards', side: 'term', shuffle: true })
   // Ids of the groups folded shut, for this visit only (not in the file). Kept here so they survive Edit and Done.
@@ -63,13 +64,6 @@ export function App() {
     window.scrollTo(0, 0)
   }, [page])
 
-  // The top row and the corner come back after a study session: their copies of the backdrop's moving layer join
-  // the page's clock before they first paint, so they never start a step behind.
-  const shell = lib.ready && route.name !== 'study'
-  useLayoutEffect(() => {
-    if (shell) syncDrift()
-  }, [shell])
-
   useEffect(() => {
     document.title = lib.hasChanges ? '* Shrimply Study' : 'Shrimply Study'
   }, [lib.hasChanges])
@@ -85,7 +79,7 @@ export function App() {
   return (
     <>
       {route.name === 'study' ? (
-        quiz && <StudyScreen key={quiz.id + route.format} lib={lib} quizId={quiz.id} format={route.format} prefs={prefs} />
+        quiz && <StudyScreen key={quiz.id + route.format} lib={lib} notify={toasts.notify} quizId={quiz.id} format={route.format} prefs={prefs} />
       ) : (
         <div className="app">
           <Sidebar

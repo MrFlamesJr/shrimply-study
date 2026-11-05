@@ -21,7 +21,13 @@ export function QuizTiles({ lib, course }: { lib: LibraryApi; course: Course }) 
           goToNew(quiz.id, { name: 'edit', course: course.name, quiz: quiz.name })
         }}
       >
-        <PlusIcon /> New quiz
+        <span className="tile-new-plus">
+          <PlusIcon />
+        </span>
+        <span className="tile-new-text">
+          <strong>New quiz</strong>
+          {course.quizzes.length === 0 && <span>No quizzes yet. Make one, then type or paste your cards.</span>}
+        </span>
       </button>
     </div>
   )

@@ -56,19 +56,57 @@
    field that grows keeps them on its first line. The button and the thumbnail take the exact same square and the
    badge is positioned over it (it takes no room), so adding or removing an image never moves anything. */
 .image-slot {
+  display: block;
+  position: relative;
+}
+.image-slot-in {
   display: flex;
   align-items: flex-start;
   gap: var(--space-2);
+  transition: transform var(--dur) var(--ease);
 }
-.image-slot > :first-child {
+.image-slot-in > :first-child {
   flex: 1;
   min-width: 0;
+}
+/* Files dragged over the slot (they can be dropped on the field or its image), asked for: what is inside shrinks a
+   little while the slot keeps its size, so nothing around it moves, and a see-through dashed accent outline grows
+   out of the slot's edge to the same gap around it on every side, then slowly fades in and out. The shrink is a
+   uniform scale (text keeps its shape) that takes --drop-shrink px off each side whatever the width (ImageSlot
+   writes --slot-w); the outline's insets are percentages of each axis, so they follow it. Under reduced motion it
+   stays still. */
+.image-slot.is-drop {
+  --drop-scale: calc(1 - 2 * var(--drop-shrink) / var(--slot-w));
+}
+.image-slot.is-drop > .image-slot-in {
+  transform: scale(var(--drop-scale));
+}
+.image-slot::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border: var(--line-thick) dashed transparent;
+  border-radius: var(--radius);
+  pointer-events: none;
+  transition:
+    inset var(--dur) var(--ease),
+    border-color var(--dur) var(--ease);
+}
+.image-slot.is-drop::after {
+  inset: calc((1 - var(--drop-scale)) * 50% - var(--space-2));
+  border-color: var(--accent-line);
+  animation: drop-pulse var(--dur-drop-pulse) ease-in-out var(--dur) infinite alternate;
+}
+@keyframes drop-pulse {
+  to {
+    border-color: var(--accent-faint);
+  }
 }
 .image-set {
   position: relative;
   flex: none;
 }
-.image-slot > .icon-btn,
+.image-slot-in > .icon-btn,
 .thumb-btn,
 .image-loading {
   flex: none;
@@ -128,15 +166,23 @@
      but on a solid fill so it reads over the image. */
   background: var(--popup);
   color: var(--text-muted);
-  font-size: var(--text-2xs);
 }
 /* Keeps --popup (not the button hover's --surface-3): inside a group box the surfaces turn see-through. */
 .image-remove:hover:not(:disabled) {
   background: var(--popup);
   color: var(--text);
 }
+/* A small cross inside the small badge; it springs up a size on hover like other icon buttons. */
+.image-remove svg {
+  width: 10px;
+  height: 10px;
+}
+.image-remove:hover:not(:disabled) svg {
+  width: 12px;
+  height: 12px;
+}
 @media (max-width: 799px) {
-  .image-slot > .icon-btn,
+  .image-slot-in > .icon-btn,
   .thumb-btn,
   .image-loading {
     width: var(--tap);

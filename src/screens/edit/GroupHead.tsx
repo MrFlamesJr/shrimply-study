@@ -1,6 +1,7 @@
 import { GROUP_NAME_MAX, type Group } from '../../model'
 import { plural } from '../../logic/plural'
 import { AutoText } from '../../components/AutoText'
+import { askConfirm } from '../../components/ConfirmDialog'
 import { ColorPicker } from '../../components/ColorPicker'
 import { ChevronDownIcon } from '../../components/Icons'
 import { IconButton } from '../../components/IconButton'
@@ -46,8 +47,8 @@ export function GroupHead({ group, count, collapsed, onToggle, onPatch, onUngrou
         type="button"
         className="quiet small"
         title="Remove the group. Its cards stay in the quiz."
-        onClick={() => {
-          if (confirm(`Remove the group "${group.name}"? Its cards stay in the quiz.`)) onUngroup()
+        onClick={async () => {
+          if (await askConfirm(`Remove the group "${group.name}"? Its cards stay in the quiz.`, 'Ungroup')) onUngroup()
         }}
       >
         Ungroup

@@ -1,4 +1,5 @@
 import { useRef } from 'react'
+import { askConfirm } from '../components/ConfirmDialog'
 import { PageHead } from '../components/Page'
 import type { Notify } from '../components/Toasts'
 import type { ToastKind } from '../logic/pushToast'
@@ -20,7 +21,7 @@ export function DebugScreen({ lib, notify, debugBar, setDebugBar }: Props) {
   const count = useRef(0)
   const fire = (kind: ToastKind) => notify(kind, `Test ${kind} ${++count.current}.`)
   const changeBackup = async (question: string, change: () => Promise<void>) => {
-    if (!confirm(question)) return
+    if (!(await askConfirm(question, 'Continue'))) return
     await change()
     location.reload()
   }

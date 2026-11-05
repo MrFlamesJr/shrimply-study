@@ -446,5 +446,18 @@ describe('library format', () => {
       expect(checkLibrary(JSON.parse(JSON.stringify(lib)), 'stored')).toEqual(lib)
     })
   })
+
+describe('encodeLibrary and decodeLibrary', () => {
+  it('rejects two courses whose names have the same slug, naming the spot', () => {
+    const lib: Library = {
+      version: 1,
+      courses: [
+        { id: 'a', name: 'Les vers (2)', quizzes: [] },
+        { id: 'b', name: 'les vers 2', quizzes: [] },
+      ],
+    }
+    expect(() => decodeLibrary(encodeLibrary(lib))).toThrow(/courses\[1\]|course/i)
+  })
+})
 })
 

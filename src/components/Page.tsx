@@ -1,5 +1,6 @@
 import type { ReactNode } from 'react'
 import { TrashIcon } from './Icons'
+import { askConfirm } from './ConfirmDialog'
 
 /** A page's title row: the title with a muted line under it, and the page's actions on the right. */
 export function PageHead({ title, sub, actions }: { title: ReactNode; sub?: ReactNode; actions?: ReactNode }) {
@@ -22,7 +23,7 @@ export function DangerZone({ label, detail, question, onDelete }: { label: strin
         <h2>Danger zone</h2>
         <div className="danger-row">
           <p className="muted">{detail}</p>
-          <button type="button" className="danger" onClick={() => confirm(question) && onDelete()}>
+          <button type="button" className="danger" onClick={async () => (await askConfirm(question, label, { danger: true })) && onDelete()}>
             <TrashIcon /> {label}
           </button>
         </div>

@@ -57,7 +57,7 @@ export function Results({ questions, results, cards, usable, format, onExit, onB
       <div ref={setBody} className="session-body results">
         <section className="results-summary" aria-label="Score">
           <div>
-            <p className="score">{Math.round((right / total) * 100)}%</p>
+            <p className="score">{total ? Math.round((right / total) * 100) : 0}%</p>
             <p className="muted">
               {missed.length === 0 ? `All ${total} right. Nice work.` : `${right} of ${total} right`}
               {markedCount > 0 && ` · ${markedCount} marked by you`}
@@ -77,7 +77,7 @@ export function Results({ questions, results, cards, usable, format, onExit, onB
             )}
           </div>
           <div className="score-bar" aria-hidden="true">
-            <div style={{ width: `${(right / total) * 100}%` }} />
+            <div style={{ width: `${total ? (right / total) * 100 : 0}%` }} />
           </div>
         </section>
 

@@ -2,9 +2,12 @@ import { useEffect, useRef, useState } from 'react'
 import { emptyLibrary, newId } from '../model'
 import type { Card, Course, Group, Library, Quiz } from '../model'
 import { freeName } from '../logic/names'
-import { readBackup, writeBackup } from '../storage/browserBackup'
+import { keepBrokenBackup, readBackup, writeBackup } from '../storage/browserBackup'
 import type { StorageAdapter } from '../storage/StorageAdapter'
 import type { Notify } from '../components/Toasts'
+
+/** Shows a question with a confirm button; resolves true when confirmed. */
+export type Ask = (question: string, confirmLabel: string) => Promise<boolean>
 
 // Everything the UI can read or do with the library. Screens only use this.
 export type LibraryApi = {
@@ -71,13 +74,18 @@ async function startFromBackup(): Promise<Startup> {
       message: ['info', `Loaded your library from this browser.${unsaved}`],
     }
   } catch {
-    return { state: empty, message: ['warning', 'The browser backup could not be read, so the library starts empty.'] }
+    // Keep the unreadable text: the next backup write would overwrite it.
+    await keepBrokenBackup().catch(() => undefined)
+    return {
+      state: empty,
+      message: ['warning', 'The browser backup could not be read, so the library starts empty. A copy was kept.'],
+    }
   }
 }
 
 const errorText = (err: unknown) => (err instanceof Error ? ` ${err.message}` : '')
 
-export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi {
+export function useLibrary(adapter: StorageAdapter, notify: Notify, ask: Ask): LibraryApi {
   const [state, setState] = useState<State>(emptyState)
   const [ready, setReady] = useState(false)
   const { library, changedIds } = state
@@ -200,7 +208,7 @@ export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi 
     },
 
     async open(from = adapter.load) {
-      if (hasChanges && !confirm('You have unsaved changes. Opening a file replaces them. Continue?')) return false
+      if (hasChanges && !(await ask('You have unsaved changes. Opening a file replaces them.', 'Open file'))) return false
       try {
         const loaded = await from()
         if (!loaded) return false
@@ -213,10 +221,9 @@ export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi 
     },
     async download() {
       try {
-        await adapter.save(library)
-        setState((s) => ({ ...s, changedIds: new Set() }))
+        if (await adapter.save(library)) setState((s) => ({ ...s, changedIds: new Set() }))
       } catch (err) {
-        notify('error', `The download failed.${errorText(err)}`)
+        notify('error', `Download stopped.${errorText(err)}`)
       }
     },
   }

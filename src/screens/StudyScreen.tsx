@@ -4,12 +4,14 @@ import { redirect } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { useKeydown } from '../hooks/useKeydown'
 import { buildRound, refreshQuestions, usableCards } from '../logic/buildRound'
+import { CrossIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
+import type { Notify } from '../components/Toasts'
 import { CardDialog } from '../components/CardDialog'
 import { StudyQuestion, type Result } from './study/Question'
 import { Results } from './study/Results'
 
-type Props = { lib: LibraryApi; quizId: string; format: Format; prefs: StudyOptions }
+type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions }
 
 const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 'Multiple choice', typing: 'Typing' }
 
@@ -17,7 +19,7 @@ const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 
 // Never flashcards and never the hidden answer: a card's size must not give its answer away.
 const WIDE_TEXT = 400
 
-export function StudyScreen({ lib, quizId, format, prefs }: Props) {
+export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
   const found = lib.findQuiz(quizId)
   const usable = found ? usableCards(found.quiz.cards) : []
   const canStudy = usable.length > 0 && (format !== 'choice' || usable.length >= 2)
@@ -36,6 +38,14 @@ export function StudyScreen({ lib, quizId, format, prefs }: Props) {
   useEffect(() => {
     if (!canStudy) exit()
   }, [canStudy])
+
+  // A round that came out empty goes back to the quiz.
+  const empty = canStudy && questions.length === 0 && phase === 'session'
+  useEffect(() => {
+    if (!empty) return
+    exit()
+    notify('info', 'Nothing to study in this round.')
+  }, [empty])
 
   // `only` keeps just those questions of the round (a cloze card is asked once per blank).
   const begin = (cards: Card[], only?: Question[]) => {
@@ -79,14 +89,14 @@ export function StudyScreen({ lib, quizId, format, prefs }: Props) {
     <>
       <div className="session-head">
         <button type="button" className="quiet" onClick={exit}>
-          ✕ Exit <Shortcut keys="Esc" />
+          <CrossIcon /> Exit <Shortcut keys="Esc" />
         </button>
         <span className="session-title">
           {quiz.name} · {phase === 'summary' ? 'Results' : FORMAT_NAME[format]}
         </span>
         <span className="session-count">{phase === 'summary' ? '' : `${index + 1} / ${total}`}</span>
       </div>
-      <div className="progress" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={phase === 'summary' ? total : index}>
+      <div className="progress" role="progressbar" aria-label="Round progress" aria-valuemin={0} aria-valuemax={total} aria-valuenow={phase === 'summary' ? total : index}>
         <div style={{ width: `${progress}%` }} />
       </div>
     </>

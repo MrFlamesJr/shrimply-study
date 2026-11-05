@@ -20,13 +20,9 @@ import './theme/cloze.css'
 import './theme/debug.css'
 import { App } from './App'
 import { loadTheme } from './storage/themePref'
-import { syncDrift } from './theme/drift'
 
 // Before the first render, so the page never paints in the wrong theme.
 document.documentElement.dataset.theme = loadTheme()
-
-// A copy of the backdrop's moving layer that appears on its own (the phone corner, crossing 800px) joins the clock.
-document.addEventListener('animationstart', (e) => e.animationName === 'drift' && syncDrift())
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>

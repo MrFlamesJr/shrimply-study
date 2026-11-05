@@ -31,7 +31,7 @@ export function AnswerSummary({ ok, marked, format, answer, answerImage, typed, 
         <dt>Answer</dt>
         {/* Multiple choice already highlights the right answer above, so here it keeps to one line. */}
         <dd className="with-thumb">
-          <Thumb src={answerImage} />
+          <Thumb src={answerImage} alt={answer || 'Image for the answer'} />
           {format === 'choice' ? (
             <span
               className="is-clipped"
@@ -62,7 +62,7 @@ export function AnswerSummary({ ok, marked, format, answer, answerImage, typed, 
 type MoreProps = {
   explanation?: string
   // Choice and typing show the whole statement afterwards; a flashcard's back already does.
-  statement?: { image?: string; text: ReactNode }
+  statement?: { image?: string; alt: string; text: ReactNode }
 }
 
 /** The sheet's "more info" blocks. The caller only renders it when at least one of them is set. */
@@ -79,7 +79,7 @@ export function MoreInfo({ explanation, statement }: MoreProps) {
         <div>
           <h3>Statement</h3>
           <p className="with-thumb">
-            <Thumb src={statement.image} />
+            <Thumb src={statement.image} alt={statement.alt || 'Image for the card'} />
             {/* One flex item, so the statement's text and marks flow as one paragraph. */}
             <span>{statement.text}</span>
           </p>

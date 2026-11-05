@@ -9,7 +9,7 @@ import { IconButton } from './IconButton'
  * a border traces around it first (CSS, so leaving early cancels it) and the viewer opens when it closes.
  * The viewer closes with its ✕, Esc or a click anywhere. Use it for every image.
  */
-export function ZoomImage({ src, className, hover }: { src: string; className: string; hover?: boolean }) {
+export function ZoomImage({ src, alt, className, hover }: { src: string; alt: string; className: string; hover?: boolean }) {
   const [open, setOpen] = useState(false)
   // Hover: no trace after a click, or while the pointer is still on the image after the viewer closed, until
   // the pointer leaves it, so the image doesn't open again on its own.
@@ -32,7 +32,7 @@ export function ZoomImage({ src, className, hover }: { src: string; className: s
     setHeld(!!box && x >= box.left && x <= box.right && y >= box.top && y <= box.bottom)
   }
 
-  const image = <img ref={imgRef} className={className} src={src} alt="Image" />
+  const image = <img ref={imgRef} className={className} src={src} alt={alt} />
   return (
     <>
       {hover ? (
@@ -55,7 +55,7 @@ export function ZoomImage({ src, className, hover }: { src: string; className: s
         </button>
       )}
       {/* In the body, as a button around the image can't hold the viewer's ✕. */}
-      {open && createPortal(<ImageViewer src={src} onClose={closed} onPointerMove={track} />, document.body)}
+      {open && createPortal(<ImageViewer src={src} alt={alt} onClose={closed} onPointerMove={track} />, document.body)}
     </>
   )
 }
@@ -64,10 +64,12 @@ const stop = (e: SyntheticEvent) => e.stopPropagation()
 
 function ImageViewer({
   src,
+  alt,
   onClose,
   onPointerMove,
 }: {
   src: string
+  alt: string
   onClose: () => void
   onPointerMove: (e: PointerEvent) => void
 }) {
@@ -101,7 +103,7 @@ function ImageViewer({
       <IconButton label="Close" className="viewer-close">
         <CrossIcon />
       </IconButton>
-      <img src={src} alt="Image" />
+      <img src={src} alt={alt} />
     </dialog>
   )
 }

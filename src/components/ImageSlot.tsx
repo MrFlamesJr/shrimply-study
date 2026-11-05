@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 import { IMAGE_TYPES } from '../model'
 import { IconButton } from './IconButton'
-import { ImageIcon } from './Icons'
+import { CrossIcon, ImageIcon } from './Icons'
 import { ZoomImage } from './ZoomImage'
 
 const TYPES = Object.values(IMAGE_TYPES)
@@ -66,59 +66,80 @@ export function ImageSlot({ src, label, onChange, children }: Props) {
       .then((s) => latest.current(s), () => {})
       .finally(() => setLoading((n) => n - 1))
   }
+  const hasFiles = (e: DragEvent) => e.dataTransfer.types.includes('Files')
+  // While files are dragged over the slot it shows it takes them (`is-drop`). A count, as moving onto a child
+  // enters it before leaving the one it was on. The slot's width meanwhile (0 when no files are over it) lets CSS
+  // shrink its content by the same few pixels whatever its width.
+  const drags = useRef(0)
+  const [dropWidth, setDropWidth] = useState(0)
   const onDrop = (e: DragEvent) => {
-    if (!e.dataTransfer.types.includes('Files')) return
+    if (!hasFiles(e)) return
     e.preventDefault() // a dropped file would otherwise open in the tab
+    drags.current = 0
+    setDropWidth(0)
     use(imageIn(e.dataTransfer))
   }
 
   return (
     <span
-      className="image-slot"
+      className={dropWidth ? 'image-slot is-drop' : 'image-slot'}
+      style={dropWidth ? ({ '--slot-w': dropWidth } as CSSProperties) : undefined}
       onPaste={(e) => {
         const file = e.clipboardData.getData('text/plain') ? undefined : imageIn(e.clipboardData)
         if (!file) return
         e.preventDefault()
         use(file)
       }}
-      onDragOver={(e) => e.dataTransfer.types.includes('Files') && e.preventDefault()}
+      onDragEnter={(e) => {
+        if (!hasFiles(e)) return
+        drags.current++
+        setDropWidth(e.currentTarget.offsetWidth)
+      }}
+      onDragOver={(e) => hasFiles(e) && e.preventDefault()}
+      onDragLeave={(e) => {
+        if (!hasFiles(e)) return
+        drags.current = Math.max(0, drags.current - 1)
+        if (!drags.current) setDropWidth(0)
+      }}
       onDrop={onDrop}
     >
-      {children}
-      {loading > 0 ? (
-        <span className="image-loading" role="status" aria-label="Loading image" title="Loading image">
-          <span className="spinner" />
-        </span>
-      ) : src ? (
-        <span className="image-set">
-          <button
-            type="button"
-            className="thumb-btn"
-            title="Replace image"
-            aria-label={`Replace the image of ${label}`}
+      {/* What a drop shrinks a little, inside the slot that keeps its size. */}
+      <span className="image-slot-in">
+        {children}
+        {loading > 0 ? (
+          <span className="image-loading" role="status" aria-label="Loading image" title="Loading image">
+            <span className="spinner" />
+          </span>
+        ) : src ? (
+          <span className="image-set">
+            <button
+              type="button"
+              className="thumb-btn"
+              title="Replace image"
+              aria-label={`Replace the image of ${label}`}
+              onClick={() => input.current?.click()}
+            >
+              <ZoomImage src={src} alt={`Image of ${label}`} className="thumb" hover />
+            </button>
+            <IconButton
+              label={`Remove the image of ${label}`}
+              title="Remove image"
+              className="image-remove"
+              onClick={() => onChange(undefined)}
+            >
+              <CrossIcon />
+            </IconButton>
+          </span>
+        ) : (
+          <IconButton
+            label={`Add an image to ${label}`}
+            title="Add an image (or paste or drop one on the field)"
             onClick={() => input.current?.click()}
           >
-            <ZoomImage src={src} className="thumb" hover />
-          </button>
-          <button
-            type="button"
-            className="image-remove"
-            title="Remove image"
-            aria-label={`Remove the image of ${label}`}
-            onClick={() => onChange(undefined)}
-          >
-            ✕
-          </button>
-        </span>
-      ) : (
-        <IconButton
-          label={`Add an image to ${label}`}
-          title="Add an image (or paste or drop one on the field)"
-          onClick={() => input.current?.click()}
-        >
-          <ImageIcon />
-        </IconButton>
-      )}
+            <ImageIcon />
+          </IconButton>
+        )}
+      </span>
       <input
         ref={input}
         type="file"

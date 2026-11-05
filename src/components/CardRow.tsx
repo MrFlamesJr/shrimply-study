@@ -45,7 +45,7 @@ export function CardRow({ card, lead, blank, note, onEdit }: Props) {
           ) : (
             <ClozeText text={text} ranges={ranges} mode="reveal" index={only} />
           )}
-          <Thumb src={card.image} />
+          <Thumb src={card.image} alt={text || 'Image for the card'} />
           {card.explanation.map(
             (explanation, i) =>
               explanation &&
@@ -71,11 +71,11 @@ export function CardRow({ card, lead, blank, note, onEdit }: Props) {
       {lead}
       <strong className="row-term">
         {card.term || <span className="missing">No term</span>}
-        <Thumb src={card.termImage} />
+        <Thumb src={card.termImage} alt={card.term || 'Image for the term'} />
       </strong>
       <div className="row-def">
         {card.definition || <span className="missing">No definition</span>}
-        <Thumb src={card.definitionImage} />
+        <Thumb src={card.definitionImage} alt={card.definition || 'Image for the definition'} />
         {card.explanation && <p className="row-note">{card.explanation}</p>}
       </div>
       {edit}

@@ -173,4 +173,19 @@ describe('refreshQuestions', () => {
     expect(out[0]).not.toBe(round[0])
     expect(out[1]).toBe(round[1])
   })
+
+  it('never offers answers that read the same as the right one, or as each other', () => {
+    const list: Card[] = ['cell', 'Cell', 'cell.', 'nucleus', 'ribosome'].map((definition, i) => ({
+      id: `k${i}`,
+      term: `t${i}`,
+      definition,
+    }))
+    for (let run = 0; run < 30; run++) {
+      const q = buildRound(list, options({ format: 'choice' })).find((x) => x.cardId === 'k0')!
+      expect(q.choices).not.toContain('Cell')
+      expect(q.choices).not.toContain('cell.')
+      const normalized = q.choices!.map((c) => c.toLowerCase().replace(/\./g, ''))
+      expect(new Set(normalized).size).toBe(normalized.length)
+    }
+  })
 })

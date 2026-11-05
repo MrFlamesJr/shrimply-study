@@ -1,4 +1,5 @@
 import type { Card, Question, StudyOptions } from '../model'
+import { sameAnswer } from './checkAnswer'
 import { blankAnswers, clozeQuestion, parseCloze } from './cloze'
 
 function shuffled<T>(items: T[]): T[] {
@@ -17,12 +18,21 @@ export function usableCards(cards: Card[]): Card[] {
   )
 }
 
+const dedupe = (kept: string[], a: string): string[] => (kept.some((k) => sameAnswer(k, a)) ? kept : [...kept, a])
+
+/** The choices with the old answer swapped for the new one, minus any that now read the same as it. */
+function swapAnswer(choices: string[] | undefined, old: string, fresh: string): string[] | undefined {
+  const swapped = choices?.map((c) => (c === old ? fresh : c))
+  return swapped?.filter((c) => c === fresh || !sameAnswer(c, fresh)).reduce(dedupe, [])
+}
+
 /** Adds the answer plus up to 3 other answers from `pool`, the card's own group first. */
 function withChoices(question: Question, card: Card, pool: Card[], answersOf: (c: Card) => string[]): Question {
   const answers = (from: Card[]) => [...new Set(from.flatMap(answersOf))]
   const inGroup = card.group ? answers(pool.filter((c) => c.group === card.group)) : []
   const distractors = [...new Set([...shuffled(inGroup), ...shuffled(answers(pool))])]
-    .filter((a) => a !== question.answer)
+    .filter((a) => !sameAnswer(a, question.answer))
+    .reduce(dedupe, [])
     .slice(0, 3)
   return { ...question, choices: shuffled([question.answer, ...distractors]) }
 }
@@ -35,11 +45,11 @@ export function refreshQuestions(questions: Question[], edited: Card): Question[
       const { text, ranges } = parseCloze(edited.statement)
       if (q.blank === undefined || q.blank >= ranges.length) return q
       const fresh = clozeQuestion(text, ranges, q.blank)
-      return { ...q, ...fresh, choices: q.choices?.map((c) => (c === q.answer ? fresh.answer : c)) }
+      return { ...q, ...fresh, choices: swapAnswer(q.choices, q.answer, fresh.answer) }
     }
     if (!q.side) return q
     const answer = edited[q.side === 'term' ? 'definition' : 'term'].trim()
-    return { ...q, prompt: edited[q.side].trim(), answer, choices: q.choices?.map((c) => (c === q.answer ? answer : c)) }
+    return { ...q, prompt: edited[q.side].trim(), answer, choices: swapAnswer(q.choices, q.answer, answer) }
   })
 }
 

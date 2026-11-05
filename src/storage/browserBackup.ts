@@ -7,6 +7,7 @@ type Backup = { library: Library; changedIds: string[] }
 const DB = 'studyquiz'
 const STORE = 'backup'
 const KEY = 'library.v1'
+const BROKEN_KEY = 'broken.v1'
 
 let opened: Promise<IDBDatabase> | undefined
 
@@ -39,6 +40,18 @@ export async function readBackup(): Promise<Backup | null> {
     throw new Error('The backup data is malformed.')
   }
   return { library: checkLibrary(data.library, 'stored'), changedIds }
+}
+
+/** Copies the stored backup text aside, so an unreadable backup survives the next backup write. */
+export async function keepBrokenBackup(): Promise<void> {
+  const raw: unknown = await run('readonly', (store) => store.get(KEY))
+  if (typeof raw === 'string') await run('readwrite', (store) => store.put(raw, BROKEN_KEY))
+}
+
+/** The text kept by `keepBrokenBackup`, null when there is none. */
+export async function readBrokenBackup(): Promise<string | null> {
+  const raw: unknown = await run('readonly', (store) => store.get(BROKEN_KEY))
+  return typeof raw === 'string' ? raw : null
 }
 
 /** Resolves false when the browser refused to store it (for example, storage is full). */

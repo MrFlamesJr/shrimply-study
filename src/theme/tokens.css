@@ -27,6 +27,8 @@
   --accent-hover: oklch(from var(--accent) calc(l + var(--hover-lift)) calc(c * var(--hover-chroma)) h);
   --accent-soft: color-mix(in srgb, var(--accent) var(--tint), transparent);
   --accent-line: color-mix(in srgb, var(--accent) var(--tint-line), transparent);
+  /* The faint end of the pulse of a drop target's outline (it fades between --accent-line and this). */
+  --accent-faint: color-mix(in srgb, var(--accent) 20%, transparent);
   --ok-soft: color-mix(in srgb, var(--ok) var(--tint-soft), transparent);
   --ok-tint: color-mix(in srgb, var(--ok) var(--tint), transparent);
   --bad-soft: color-mix(in srgb, var(--bad) var(--tint-soft), transparent);
@@ -50,6 +52,8 @@
   --glass: color-mix(in srgb, var(--popup) 45%, transparent);
   --glass-line: color-mix(in srgb, var(--text) 16%, transparent);
   --glass-dense: color-mix(in srgb, var(--popup) 78%, transparent);
+  /* The top row's frosted glass: the ground, see-through enough to show that something is under it. */
+  --glass-bar: color-mix(in srgb, var(--bg) 72%, transparent);
 }
 
 /* 2. Theme-independent tokens. */
@@ -82,6 +86,10 @@
   --glass-blur: 4px;
   --glass-blur-dense: 14px;
   --glass-stripe: 10px;
+  /* The top row's glass: blurred enough that nothing under it competes with the crumbs, and the fog fading out
+     over this much below its edge. */
+  --glass-bar-blur: 18px;
+  --glass-bar-fade: 20px;
   /* Touch target size on small screens. */
   --tap: 44px;
   --space-1: 4px;
@@ -102,6 +110,13 @@
   /* How long the pointer rests on an image whose click does something else before it opens big (a border
      traces around it meanwhile). */
   --dur-zoom: 700ms;
+  /* Half a pulse of the outline around a field that files are dragged over (it pulses back and forth), asked for. */
+  --dur-drop-pulse: 1.2s;
+  /* How many px a drop target's content shrinks by at its sides (a number: it divides the slot's width). */
+  --drop-shrink: 3;
+  /* The Start button's hover pulse, asked for. */
+  --dur-start-ping: 900ms;
+  --dur-start-push: 600ms;
   --flip-depth: 1400px;
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
   --spring: cubic-bezier(0.34, 1.56, 0.64, 1);

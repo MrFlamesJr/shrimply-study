@@ -151,7 +151,8 @@ export function StudyQuestion({ question, card, format, usable, result, paused, 
   const imageOf = (side: 'term' | 'definition') => (card?.type === 'cloze' ? card.image : card?.[SIDE_IMAGE[side]])
   const picture = (side: 'term' | 'definition') => {
     const src = imageOf(side)
-    return src && <ZoomImage src={src} className="card-img" hover={format === 'flashcards'} />
+    const text = card?.type === 'cloze' ? cloze?.text : card?.[side]
+    return src && <ZoomImage src={src} alt={text || (card?.type === 'cloze' ? 'Image for the card' : `Image for the ${side}`)} className="card-img" hover={format === 'flashcards'} />
   }
   const promptText = (
     <span className={textClass(question.prompt, imageOf(promptSide))}>
@@ -198,6 +199,7 @@ export function StudyQuestion({ question, card, format, usable, result, paused, 
     cloze && format !== 'flashcards'
       ? {
           image: imageOf('term'),
+          alt: cloze.text,
           text: <ClozeText text={cloze.text} ranges={cloze.ranges} mode="reveal" index={cloze.blank} />,
         }
       : undefined
@@ -270,7 +272,7 @@ export function StudyQuestion({ question, card, format, usable, result, paused, 
                   onClick={() => pick(choice)}
                 >
                   <span className="choice-key">{i + 1}</span>
-                  <Thumb src={choiceImage(choice)} hover />
+                  <Thumb src={choiceImage(choice)} alt={choice || `Image for the ${answerSide}`} hover />
                   {choice}
                 </button>
               ))}

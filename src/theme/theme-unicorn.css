@@ -7,7 +7,8 @@
    (the coral leans orange, far from the bubblegum); butter yellow is the warning, baby blue info. The shrimp is pink
    with a lavender head. Group colors are a pastel rainbow, softer than the pink. Behind the open ground: a large,
    very faint plush watercolor unicorn in the bottom-left corner beside the sidebar (unicorn.webp, at the back), a faint iridescent haze,
-   a small pastel rainbow in the bottom-right corner, and pastel sparkles and tiny hearts that twinkle and
+   a pastel rainbow in the bottom-right corner, as big as the unicorn so the two balance (each at most 45% of the
+   open ground, so they never meet), and pastel sparkles and tiny hearts that twinkle and
    drift slowly sideways (still under reduced motion; cards, the sidebar and dialogs cover it). Lobster Two, a sassy
    bold script, is the title font. */
 :root[data-theme="unicorn"] {
@@ -106,7 +107,7 @@
   --backdrop:
     radial-gradient(ellipse 60% 45% at 85% -5%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
     radial-gradient(ellipse 55% 45% at 5% 105%, color-mix(in srgb, var(--selection-color) 9%, transparent), transparent 70%),
-    radial-gradient(circle 340px at 100% 100%,
+    radial-gradient(circle farthest-side at 100% 100%,
       transparent 64%,
       color-mix(in srgb, var(--accent) 7%, transparent) 66% 71%,
       color-mix(in srgb, var(--warn) 6%, transparent) 71% 76%,
@@ -121,8 +122,10 @@
 
   /* Backdrop placement, one value per --backdrop layer (or one for all): position, size and repeat. A position can
      start from --ground-x, where the open page ground begins (right of the open sidebar on wide screens). */
-  --backdrop-position: 0 0, 0 0, 0 0, left calc(var(--ground-x) + 12px) bottom 8px;
-  --backdrop-size: auto, auto, auto, min(560px, 60vw) auto;
+  --backdrop-position: 0 0, 0 0, right bottom, left calc(var(--ground-x) + 12px) bottom 8px;
+  --backdrop-size: auto, auto,
+    min(560px, (100vw - var(--ground-x)) * 0.45) min(560px, (100vw - var(--ground-x)) * 0.45),
+    min(560px, (100vw - var(--ground-x)) * 0.45) auto;
   --backdrop-repeat: no-repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay

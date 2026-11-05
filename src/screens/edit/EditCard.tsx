@@ -49,7 +49,7 @@ export function EditCard({ card, index, groups, flagged, nudge, onPatch, onMove,
     if (value !== undefined && value !== value.trim()) onPatch({ [field]: value.trim() })
   }
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>, field: Field) => {
-    if (e.key !== 'Enter' || e.shiftKey) return
+    if (e.key !== 'Enter' || e.shiftKey || e.nativeEvent.isComposing) return
     e.preventDefault()
     onAdvance(field)
   }
