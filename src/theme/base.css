@@ -1,0 +1,2633 @@
+/* Reset */
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+* {
+  margin: 0;
+}
+/* Thin, quiet scrollbars. The standard properties cover Firefox and Chrome; the -webkit rules cover Safari. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border-strong) transparent;
+}
+::-webkit-scrollbar {
+  width: var(--space-2);
+  height: var(--space-2);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+  border-radius: var(--radius);
+}
+body {
+  background: var(--bg);
+  color: var(--text);
+  font: var(--font-size) / 1.6 var(--font-body);
+  /* Long words and pasted links wrap instead of pushing the layout wider. */
+  overflow-wrap: anywhere;
+}
+::selection {
+  background: var(--selection);
+  color: var(--text);
+}
+
+/* Typography */
+h1 {
+  font-size: 2rem;
+  line-height: 1.2;
+  font-weight: 700;
+}
+h2 {
+  font-size: 1.25rem;
+  line-height: 1.3;
+  font-weight: 700;
+}
+.muted {
+  color: var(--text-muted);
+}
+small,
+.small {
+  font-size: 0.875rem;
+}
+button.small svg {
+  width: 16px;
+  height: 16px;
+}
+/* Shortcut hint (Shortcut.tsx): one keycap box holding the keys. Only where there is a keyboard to press. */
+.shortcut {
+  display: none;
+  align-items: center;
+  gap: var(--space-1);
+  margin-left: var(--space-1);
+  padding: 0 var(--space-1);
+  border: 1px solid var(--border-strong);
+  border-bottom-width: 2px;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-weight: 400;
+  line-height: 1.4;
+}
+.shortcut kbd {
+  font: inherit;
+}
+@media (min-width: 800px) and (hover: hover) {
+  .shortcut {
+    display: inline-flex;
+  }
+}
+
+/* Links */
+a {
+  color: inherit;
+  text-decoration: none;
+  transition: color var(--dur-fast) var(--ease);
+}
+p a,
+.crumbs a {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition: text-decoration-color var(--dur-fast) var(--ease);
+}
+p a:hover,
+.crumbs a:hover {
+  text-decoration-color: currentColor;
+}
+
+/* Buttons. One gold (primary or start) button per screen; everything else stays neutral. */
+button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: 40px;
+  padding: 0 var(--space-4);
+  background: var(--surface-2);
+  /* Fill only; the transparent border keeps sizes equal to the outlined variants. */
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  white-space: nowrap;
+  cursor: pointer;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+button:hover:not(:disabled) {
+  background: var(--surface-3);
+}
+button svg {
+  flex-shrink: 0;
+}
+/* Gold buttons: on hover they lift and an accent ring grows out around them (no glow or shadow). */
+button.primary,
+button.start {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-text);
+  font-weight: 700;
+  outline: 2px solid transparent;
+  outline-offset: 0;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    transform var(--dur-fast) var(--ease),
+    outline-color var(--dur-fast) var(--ease),
+    outline-offset var(--dur-fast) var(--ease);
+}
+button.primary:hover:not(:disabled),
+button.start:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  outline-color: var(--accent-line);
+  outline-offset: 3px;
+  transform: translateY(-2px);
+}
+button.primary:active:not(:disabled),
+button.start:active:not(:disabled) {
+  transform: translateY(0) scale(0.98);
+}
+button.primary .shortcut {
+  border-color: currentColor;
+  color: inherit;
+  opacity: 0.7;
+}
+/* The one big action of the quiz page. On hover it springs up in size, a ring keeps pinging
+   out from it and the play icon keeps pushing forward; pressing squashes it. */
+button.start {
+  min-width: 10rem;
+  height: 56px;
+  padding: 0 var(--space-6);
+  font-size: 1.25rem;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    transform var(--dur) var(--spring);
+}
+button.start:hover:not(:disabled) {
+  outline-offset: 0;
+  transform: scale(1.06);
+  animation: start-ping 900ms var(--ease) infinite;
+}
+button.start:active:not(:disabled) {
+  transform: scale(0.95);
+  transition-duration: var(--dur-fast);
+}
+button.start svg {
+  width: 20px;
+  height: 20px;
+}
+button.start:hover:not(:disabled) svg {
+  animation: start-push 600ms var(--ease) infinite;
+}
+@keyframes start-ping {
+  from {
+    outline-color: var(--accent);
+    outline-offset: 0;
+  }
+  to {
+    outline-color: transparent;
+    outline-offset: 10px;
+  }
+}
+@keyframes start-push {
+  50% {
+    transform: translateX(4px);
+  }
+}
+button.quiet,
+.icon-btn {
+  background: transparent;
+  border-color: transparent;
+  color: var(--text-muted);
+}
+button.quiet:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: transparent;
+  color: var(--text);
+}
+/* Icon buttons never fill on hover: the icon brightens and springs up a size. The icon's own width and height
+   grow (not a transform), so it stays sharp and centered the whole way. */
+.icon-btn:hover:not(:disabled),
+.sidebar-toggle:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+}
+.icon-btn svg,
+.sidebar-toggle svg {
+  transition:
+    width var(--dur) var(--spring),
+    height var(--dur) var(--spring);
+}
+.icon-btn:hover:not(:disabled) svg,
+.sidebar-toggle:hover:not(:disabled) svg {
+  width: 22px;
+  height: 22px;
+}
+/* Link buttons (top row Open and Download): small muted text, underlined on hover like the crumbs. */
+button.link {
+  height: auto;
+  padding: var(--space-1);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: 3px;
+  transition:
+    color var(--dur-fast) var(--ease),
+    text-decoration-color var(--dur-fast) var(--ease);
+}
+button.link:hover:not(:disabled) {
+  background: transparent;
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+/* Danger: bright red outline that fills solid red on hover. */
+button.danger {
+  background: transparent;
+  border-color: var(--bad);
+  color: var(--bad);
+  font-weight: 700;
+}
+button.danger:hover:not(:disabled) {
+  background: var(--bad);
+  border-color: var(--bad);
+  color: var(--bg);
+}
+/* Create buttons (+ New course, + New quiz): dashed outline, like the "+ Add card" row and the new-quiz tile. */
+button.add {
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  color: var(--text-muted);
+}
+button.add:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+/* Quiz page Edit: as tall as Start beside it, outlined so Start stays the one gold button. */
+button.edit {
+  height: 56px;
+  padding: 0 var(--space-5);
+  background: transparent;
+  border-color: var(--border-strong);
+  font-size: 1.125rem;
+}
+button.edit:hover:not(:disabled) {
+  background: var(--surface-2);
+  border-color: var(--text-muted);
+}
+button.edit svg {
+  width: 20px;
+  height: 20px;
+}
+.icon-btn,
+.sidebar-toggle {
+  transition: color var(--dur-fast) var(--ease);
+}
+.icon-btn {
+  width: 40px;
+  padding: 0;
+}
+button:disabled,
+textarea:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 799px) {
+  button {
+    min-height: 44px;
+  }
+  .icon-btn {
+    width: 44px;
+  }
+}
+
+/* Inputs: focus shows on the border, so no extra ring. */
+input,
+textarea {
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  transition: border-color var(--dur-fast) var(--ease);
+}
+input:focus,
+textarea:focus {
+  border-color: var(--accent);
+  outline: none;
+}
+:focus-visible {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+/* AutoText: one line high, grows with its content (height set in AutoText.tsx). */
+.auto-text {
+  display: block;
+  width: 100%;
+  overflow: hidden;
+  resize: none;
+}
+
+/* Segmented: equal segments, a tinted indicator slides to the chosen one (--i of --n, set inline). */
+.segmented-field {
+  min-width: 0;
+}
+.segmented-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+/* Every option's hint shares one cell and only the chosen one shows, so the cell is as tall as the
+   longest hint and switching never changes the height. */
+.segmented-hints {
+  display: grid;
+  margin-top: var(--space-2);
+}
+.segmented-hint {
+  grid-area: 1 / 1;
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  visibility: hidden;
+}
+.segmented-hint.is-chosen {
+  visibility: visible;
+}
+/* A thin outline (no fill) encloses the bar so the choices read as one control; only the chosen segment is
+   filled, inset by --pad so its border never doubles up with the outline. */
+.segmented {
+  --pad: calc(var(--space-1) / 2);
+  position: relative;
+  display: inline-grid;
+  grid-auto-columns: 1fr;
+  grid-auto-flow: column;
+  padding: var(--pad);
+  border: 1px solid var(--border);
+  border-radius: calc(var(--radius) + var(--pad));
+}
+.segmented::before {
+  content: '';
+  position: absolute;
+  top: var(--pad);
+  bottom: var(--pad);
+  left: var(--pad);
+  width: calc((100% - 2 * var(--pad)) / var(--n));
+  background: var(--accent-soft);
+  border: 1px solid var(--accent-line);
+  border-radius: var(--radius);
+  transform: translateX(calc(var(--i) * 100%));
+  transition: transform var(--dur) var(--ease);
+}
+.segmented label {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 32px;
+  padding: 0 var(--space-4);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  overflow-wrap: normal;
+  text-align: center;
+  cursor: pointer;
+  transition: color var(--dur-fast) var(--ease);
+}
+.segmented input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.segmented label:hover,
+.segmented label:has(:checked) {
+  color: var(--text);
+}
+.segmented label:has(:focus-visible) {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+.segmented label:has(:disabled) {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+@media (max-width: 799px) {
+  .segmented {
+    display: grid;
+  }
+  .segmented label {
+    min-height: 44px;
+    padding: var(--space-1) var(--space-2);
+  }
+}
+
+/* App shell: a 2x2 grid. Corner (brand + sidebar toggle) | top row, then sidebar | page. Areas are set
+   apart by tone (sidebar --surface, page --bg) and space, not divider lines. The first column is --side,
+   the sidebar's width; closed it is 0, the corner shrinks to brand + toggle and the page has the full width.
+   --side is registered so it can animate: the sidebar, corner, page and crumbs all follow it in step. */
+@property --side {
+  syntax: '<length>';
+  inherits: true;
+  initial-value: 0px;
+}
+.app {
+  --side: var(--sidebar-w);
+  --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
+  display: grid;
+  grid-template-columns: var(--side) minmax(0, 1fr);
+  grid-template-rows: auto 1fr;
+  min-height: 100dvh;
+  transition: --side var(--dur) var(--ease);
+}
+.app:has(.sidebar.is-closed) {
+  --side: 0px;
+}
+
+/* Corner: heads the open sidebar (same width and tone), the brand left and the toggle right. */
+.corner {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  grid-column: 1;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  width: max(var(--side), var(--corner-w));
+  height: var(--topbar-h);
+  padding: 0 var(--space-2) 0 var(--space-5);
+  background: var(--surface);
+  transition: background-color var(--dur) var(--ease);
+}
+.corner.is-closed {
+  background: transparent;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: 1.0625rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.sidebar-toggle {
+  flex: none;
+  width: var(--toggle-size);
+  height: var(--toggle-size);
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+/* One double chevron: points left to collapse, turned to point right once closed. */
+.corner.is-closed .sidebar-toggle svg {
+  rotate: 180deg;
+}
+
+/* Top row: breadcrumbs and file actions, on the page background. It sits above the page in the same column
+   with the same --page-pad, so the crumbs start where the page content does, but never under the corner. */
+.topbar {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  grid-column: 2;
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  height: var(--topbar-h);
+  /* The file actions sit at the window's right edge. */
+  padding-inline: max(var(--page-pad), var(--corner-w) + var(--space-3) - var(--side)) var(--space-3);
+  background: var(--bg);
+  white-space: nowrap;
+}
+.crumbs {
+  display: flex;
+  flex: 1 1 0;
+  min-width: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+}
+.crumbs li {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.crumbs li + li::before {
+  content: '›';
+  margin: 0 var(--space-2);
+}
+.crumbs li:not(:last-child) {
+  flex-shrink: 0;
+  max-width: 14rem;
+}
+.crumbs li:last-child {
+  flex-shrink: 1;
+  color: var(--text);
+}
+.parent {
+  display: none;
+  flex: 1 1 0;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--text-muted);
+}
+.topbar-actions {
+  display: flex;
+  flex-shrink: 0;
+  gap: var(--space-3);
+  margin-left: auto;
+}
+
+/* Sidebar: the course > quiz tree under the corner. It fills the first column, so it closes with --side. */
+.sidebar {
+  position: sticky;
+  top: var(--topbar-h);
+  z-index: 4;
+  grid-column: 1;
+  grid-row: 2;
+  align-self: start;
+  display: flex;
+  flex-direction: column;
+  height: calc(100dvh - var(--topbar-h));
+  overflow: hidden;
+  background: var(--surface);
+}
+.sidebar-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  width: var(--sidebar-w);
+  min-height: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.is-closed .sidebar-body {
+  opacity: 0;
+}
+.sidebar-label {
+  padding: var(--space-2) var(--space-5) var(--space-1);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.tree,
+.tree ul {
+  padding: 0;
+  list-style: none;
+}
+/* Courses are set apart by space; their quizzes are indented underneath. */
+.tree {
+  flex: 1;
+  overflow-y: auto;
+  padding: 0 var(--space-2) var(--space-4);
+}
+.tree-course + .tree-course {
+  margin-top: var(--space-4);
+}
+.tree a {
+  display: block;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--radius);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.tree-course > a {
+  font-weight: 700;
+}
+.tree-quizzes {
+  margin-left: var(--space-4);
+}
+.tree-quizzes a {
+  padding-block: var(--space-1);
+  border-left: 2px solid transparent;
+  border-radius: 0 var(--radius) var(--radius) 0;
+  color: var(--text-muted);
+  font-size: 0.9375rem;
+}
+.tree a:hover,
+.tree a[aria-current='page'] {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.tree-quizzes a[aria-current='page'] {
+  border-left-color: var(--accent);
+}
+.sidebar-foot {
+  flex-shrink: 0;
+  padding: var(--space-3) var(--space-2) var(--space-4);
+}
+.sidebar-foot button {
+  width: 100%;
+}
+.scrim {
+  display: none;
+}
+/* A short window (or a zoomed-in one): the tree and "+ New course" scroll together, so the tree never gets
+   squeezed to nothing by the button under it. */
+@media (max-height: 480px) {
+  .sidebar-body {
+    overflow-y: auto;
+  }
+  .tree {
+    flex: none;
+    overflow: visible;
+  }
+}
+
+/* Small phones: the name would squeeze the "‹ parent" link and push Download off the edge, so the shrimp alone
+   links home. */
+@media (max-width: 399px) {
+  .brand-name {
+    display: none;
+  }
+}
+
+/* The narrowest windows (zoomed far in): the toggle alone heads the sidebar, so the top row still fits, and
+   pick-one bars break long words and the editor's add buttons stack instead of pushing the page sideways. */
+@media (max-width: 319px) {
+  .brand {
+    display: none;
+  }
+  .add-rows {
+    flex-wrap: wrap;
+  }
+  .segmented {
+    grid-auto-columns: minmax(0, 1fr);
+  }
+  .segmented label {
+    overflow-wrap: anywhere;
+  }
+}
+@media (max-width: 799px) {
+  .app {
+    --page-pad: var(--space-4);
+    --drawer-w: min(85vw, var(--sidebar-w));
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+  /* Phones: the corner is always just brand + toggle, and the open sidebar slides over the page. */
+  .corner,
+  .corner.is-closed {
+    width: auto;
+    padding-left: var(--space-4);
+    background: var(--bg);
+  }
+  /* The corner keeps one width here, so the top row simply follows it. */
+  .topbar {
+    gap: var(--space-3);
+    padding-left: var(--space-2);
+  }
+  .crumbs,
+  .load {
+    display: none;
+  }
+  .parent {
+    display: block;
+  }
+  /* The open sidebar is a drawer the full height of the window: the corner (brand + toggle) stays where it is
+     and heads it; outside it, a click closes it.
+     stretch: Chrome applies align-self to fixed boxes, and start would shrink it to its content. */
+  .sidebar {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    align-self: stretch;
+    width: 0;
+    height: auto;
+    padding-top: var(--topbar-h);
+    transition: width var(--dur) var(--ease);
+  }
+  .sidebar:not(.is-closed) {
+    width: var(--drawer-w);
+  }
+  .corner:not(.is-closed) {
+    background: transparent;
+  }
+  /* Its content keeps the drawer's open width while it slides, so the text never rewraps. */
+  .sidebar-body {
+    width: var(--drawer-w);
+  }
+  /* A see-through layer over the rest (the page is not darkened; the drawer's tone sets it apart): a click
+     anywhere outside the drawer closes it. A button, but without the buttons' hover fill or pointer. */
+  .scrim,
+  .scrim:hover:not(:disabled) {
+    position: fixed;
+    inset: 0;
+    z-index: 3;
+    display: block;
+    height: auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    cursor: default;
+  }
+  .tree a {
+    padding-block: var(--space-2);
+  }
+}
+
+/* Page: a centered column (the top row repeats this math, so the crumbs line up with the content).
+   A flex column, so .page-foot (delete buttons) sits at the bottom of the visible page. */
+.page {
+  grid-column: 2;
+  grid-row: 2;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: var(--space-6) var(--page-pad) var(--space-6);
+}
+.page > * + * {
+  margin-top: var(--space-7);
+}
+.page > .page-foot {
+  margin-top: auto;
+  padding-top: var(--space-8);
+}
+.page section > h2 {
+  margin-bottom: var(--space-4);
+}
+.page-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-4) var(--space-6);
+}
+.page-head > div:first-child {
+  flex: 1 1 20rem;
+  min-width: 0;
+}
+.page-head > div:first-child > p {
+  margin-top: var(--space-2);
+}
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+.note {
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-left: 3px solid var(--warn);
+  border-radius: var(--radius);
+}
+@media (max-width: 799px) {
+  .page {
+    grid-column: 1 / -1;
+    padding-block: var(--space-4) var(--space-5);
+  }
+  .page > * + * {
+    margin-top: var(--space-5);
+  }
+  .page-head {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  /* In the stacked column layout a 20rem flex-basis becomes 20rem of height. */
+  .page-head > div:first-child {
+    flex: none;
+  }
+}
+@media (min-width: 800px) {
+  .mobile-only {
+    display: none;
+  }
+}
+
+/* Title input (looks like an h1) */
+.title-input {
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font: inherit;
+}
+.title-input:hover {
+  border-bottom-color: var(--border);
+}
+.title-input:focus {
+  border-bottom-color: var(--accent);
+}
+
+/* Empty / onboarding: plain centered text, no box. Alone on the page, it sits mid-screen. */
+.empty {
+  width: 100%;
+  max-width: 560px;
+  margin-inline: auto;
+  padding-block: var(--space-7);
+  text-align: center;
+}
+.page > .empty:only-child {
+  margin-block: auto;
+}
+.empty > * + * {
+  margin-top: var(--space-4);
+}
+.empty .actions {
+  justify-content: center;
+}
+.steps {
+  padding-left: var(--space-5);
+  text-align: left;
+}
+
+/* Courses and tiles. Each course is its own band, set apart by space. */
+.page > .course-block + .course-block {
+  margin-top: var(--space-8);
+}
+.course-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.course-row h2 a:hover {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.tiles {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+.tile {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  height: auto;
+  min-height: 112px;
+  padding: var(--space-5);
+  background: var(--surface);
+  border-radius: var(--radius);
+  white-space: normal;
+  text-align: left;
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.tiles .tile:hover {
+  background: var(--surface-2);
+}
+.tile-name {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  font-weight: 700;
+}
+.tiles .tile-new {
+  flex-direction: row;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+
+/* Quiz page: study options, kept compact. Narrow: each option stacks its name, bar and hint. With room
+   (a container query on the section): one row per option, and the rows share columns (subgrid), so the
+   bars are one width and the hints line up. */
+.study-options {
+  container-type: inline-size;
+}
+.options {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  background: var(--sunken);
+  border-radius: var(--radius);
+}
+.options .segmented-label {
+  margin-bottom: var(--space-1);
+}
+.options .segmented-hints {
+  margin-top: var(--space-1);
+}
+@container (min-width: 840px) {
+  .options {
+    display: grid;
+    grid-template-columns: max-content max-content minmax(0, 1fr);
+    gap: var(--space-3) var(--space-5);
+  }
+  .options .segmented-field {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: subgrid;
+    align-items: center;
+  }
+  /* The hint cell is as tall as the longest hint; the chosen one sits centered on the bar. */
+  .options .segmented-hint {
+    align-self: center;
+  }
+  .options .segmented-label,
+  .options .segmented-hints {
+    margin: 0;
+  }
+}
+section > h3 {
+  margin-top: var(--space-6);
+  font-size: 1.125rem;
+}
+/* One box per card, set apart by space (the editor's gap), so no divider lines. In a group box the boxes turn
+   see-through (the swapped --surface), like the editor's cards there. */
+.card-list {
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+}
+.card-list li {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  gap: var(--space-5);
+  padding: var(--space-3) var(--space-5);
+  background: var(--surface);
+  border-radius: var(--radius);
+  white-space: pre-wrap;
+}
+/* Quiz page: the card lists (ungrouped, then each group box) stack with the editor's room between them
+   (its card gap plus its space above a group box). */
+section > div + .group-box,
+section > .group-box + div {
+  margin-top: calc(var(--space-3) + var(--space-4));
+}
+.missing {
+  color: var(--bad);
+  font-weight: 400;
+}
+@media (max-width: 799px) {
+  .options {
+    padding: var(--space-4);
+  }
+  .card-list li {
+    grid-template-columns: 1fr;
+    gap: var(--space-1);
+  }
+}
+
+/* Card rows (CardRow: quiz page, study results): a lead column (the card number, or right / missed; --lead-w),
+   term, definition with its explanation under it, and a pencil that shows on hover or focus. A fill-in-the-blank
+   statement takes both text columns. Text lines up on the first line. */
+.card-rows li {
+  grid-template-columns: var(--lead-w) minmax(0, 2fr) minmax(0, 3fr) auto;
+  align-items: baseline;
+  column-gap: var(--space-4);
+  padding-right: var(--space-3);
+}
+.row-num {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+.row-statement {
+  grid-column: 2 / 4;
+}
+.row-note {
+  margin-top: var(--space-1);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+/* A side's image under its text, a square preview like the editor's. */
+.card-rows .thumb {
+  width: var(--thumb-list-h);
+  height: var(--thumb-list-h);
+  margin-top: var(--space-1);
+}
+.row-blank {
+  border-bottom: var(--blank-line) dashed var(--mark);
+  color: var(--text);
+}
+/* The pencil takes no more height than a line of text, so it never makes a row taller. */
+.row-edit {
+  align-self: start;
+  margin-block: calc(-1 * var(--space-2));
+}
+@media (hover: hover) {
+  .row-edit {
+    opacity: 0;
+    transition:
+      opacity var(--dur-fast) var(--ease),
+      color var(--dur-fast) var(--ease);
+  }
+  .card-rows li:hover .row-edit,
+  .row-edit:focus-visible {
+    opacity: 1;
+  }
+}
+.group-count {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 400;
+}
+/* Narrow: the definition goes under the term, the pencil stays top right. */
+@media (max-width: 799px) {
+  .card-rows li {
+    grid-template-columns: var(--lead-w) minmax(0, 1fr) auto;
+    column-gap: var(--space-3);
+  }
+  .row-def,
+  .row-statement {
+    grid-column: 2;
+  }
+  .row-edit {
+    grid-column: 3;
+    grid-row: 1;
+  }
+}
+
+/* Edit: import dialog (native <dialog>, so focus trap and Escape come from the browser). A flex column
+   capped at the window height: the paste box and the preview share the room left and scroll on their
+   own, so the dialog itself only scrolls when even their smallest size does not fit. */
+.dialog {
+  /* The reset's margin: 0 would pin it top left; auto centers it again. */
+  margin: auto;
+  width: min(var(--dialog-w), calc(100vw - 2 * var(--space-4)));
+  max-width: none;
+  max-height: calc(100dvh - 2 * var(--space-4));
+  overflow: auto;
+  padding: var(--space-5);
+  background: var(--surface);
+  color: var(--text);
+  border: 0;
+  border-radius: var(--radius);
+  animation: appear var(--dur) var(--ease);
+}
+/* Only while open: a display value on a closed dialog would show it. */
+.dialog[open] {
+  display: flex;
+  flex-direction: column;
+}
+.dialog > * {
+  flex: none;
+}
+.dialog::backdrop {
+  background: var(--scrim);
+}
+.dialog > * + * {
+  margin-top: var(--space-4);
+}
+/* The page behind stays still while a dialog is open. The scrollbar's room is always kept (not only while a
+   dialog is open), so hiding the scrollbar never shifts the page, and neither does adding a gutter to a page
+   that had no scrollbar. A study session fills the window and scrolls inside, so it never needs the room. */
+html {
+  scrollbar-gutter: stable;
+}
+html:has(.session) {
+  scrollbar-gutter: auto;
+}
+html:has(.dialog[open]) {
+  overflow: hidden;
+}
+.dialog-warn {
+  color: var(--warn);
+}
+.dialog.is-narrow {
+  width: min(var(--dialog-narrow-w), calc(100vw - 2 * var(--space-4)));
+}
+.dialog-field {
+  display: grid;
+  gap: var(--space-1);
+}
+/* Title with the close button in the top right corner. */
+.dialog-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+.dialog-head .icon-btn {
+  flex: none;
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
+}
+.import-grid {
+  display: grid;
+  flex: 0 1 22rem;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: minmax(0, 1fr);
+  gap: var(--space-4);
+  min-height: 10rem;
+}
+.import-text {
+  width: 100%;
+  height: 100%;
+  resize: none;
+}
+/* Where the imported cards go: every choice in view as a chip (radio), only the chosen one filled. */
+.chips-label {
+  display: block;
+  margin-bottom: var(--space-2);
+  font-weight: 700;
+}
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+}
+.chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-3);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
+}
+.chip input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.chip:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.chip:has(:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+.chip:has(:focus-visible) {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+/* "No group": an empty ring where a group's color would be. */
+.chip:not([data-color]) .swatch {
+  background: none;
+  border: 1px solid var(--border-strong);
+}
+.import-group-name {
+  flex: 1 1 10rem;
+  width: auto;
+}
+/* "Add 12 cards to <group>" fits on one line on a wide screen (names are capped). On a phone it may wrap
+   to a second line instead of pushing the dialog wider. */
+.import-add {
+  max-width: 100%;
+  height: auto;
+  min-height: 40px;
+  padding-block: var(--space-1);
+  white-space: normal;
+}
+/* Live "12/50" after a capped field, only while you type in it; the warning color once it is full. */
+.char-count {
+  display: none;
+  flex: none;
+  color: var(--text-muted);
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+}
+.auto-text:focus + .char-count {
+  display: inline;
+}
+.char-count.is-full {
+  color: var(--warn);
+}
+@media (max-width: 799px) {
+  .chip {
+    min-height: 44px;
+  }
+}
+.preview {
+  min-height: 0;
+  overflow: auto;
+}
+table {
+  width: 100%;
+  border-collapse: collapse;
+}
+/* Fixed columns, so a short term is never squeezed into one letter per line. */
+.preview table {
+  table-layout: fixed;
+}
+.preview th:first-child {
+  width: 40%;
+}
+th,
+td {
+  padding: var(--space-1) var(--space-2);
+  border-bottom: 1px solid var(--border);
+  overflow-wrap: break-word;
+  text-align: left;
+  vertical-align: top;
+  white-space: pre-wrap;
+}
+th {
+  position: sticky;
+  top: 0;
+  background: var(--surface);
+  color: var(--text-muted);
+  font-weight: 400;
+}
+
+/* Edit: one box per card, term and definition side by side on underlined fields */
+.pairs {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+/* One box per card, set off by its fill. Fields inside are not boxes: just a quiet underline that
+   turns accent while typing, or red when it still needs text after Done. */
+.pair {
+  background: var(--surface);
+  border: 1px solid transparent;
+  border-radius: var(--radius);
+  transition: border-color var(--dur-fast) var(--ease);
+}
+.pair:focus-within {
+  border-color: var(--border-strong);
+}
+.pair-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-1) var(--space-1) 0 var(--space-5);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+/* Delete card (trash): the icon turns red on hover. */
+.pair-head .icon-btn:hover:not(:disabled) {
+  color: var(--bad);
+}
+.pair-fields {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  padding: 0 var(--space-5) var(--space-4);
+}
+.pair-field {
+  display: block;
+  min-width: 0;
+}
+.pair-field.is-wide {
+  grid-column: 1 / -1;
+}
+.pair-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.pair-tools .quiet {
+  height: 32px;
+  font-weight: 400;
+}
+/* A field with its image beside it (ImageSlot): an image button, or the thumbnail (click to replace) with a
+   remove badge hanging over its corner, so the ✕ reads as "remove this image", not the card. Top-aligned, so a
+   field that grows keeps them on its first line. The button and the thumbnail take the exact same square and the
+   badge is positioned over it (it takes no room), so adding or removing an image never moves anything. */
+.image-slot {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+}
+.image-slot > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+.image-set {
+  position: relative;
+  flex: none;
+}
+.image-slot > .icon-btn,
+.thumb-btn,
+.image-loading {
+  flex: none;
+  width: var(--thumb-h);
+  height: var(--thumb-h);
+}
+/* While a picked, pasted or dropped image is read (and scaled down), a spinner takes the same square. */
+.image-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.spinner {
+  width: 18px;
+  height: 18px;
+  border: 2px solid var(--border);
+  border-top-color: var(--text-muted);
+  border-radius: 50%;
+  animation: spin var(--dur-spin) linear infinite;
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.thumb-btn {
+  display: block;
+  padding: 0;
+  overflow: hidden;
+  background: none;
+}
+.thumb-btn .thumb {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+.thumb-btn:hover:not(:disabled) {
+  background: none;
+  border-color: var(--border-strong);
+}
+/* Previews are always square, cropped to fill. */
+.thumb {
+  display: block;
+  width: var(--thumb-h);
+  height: var(--thumb-h);
+  object-fit: cover;
+  border-radius: var(--radius);
+}
+.image-remove {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: calc(-1 * var(--space-2));
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  /* Styled like the app's other quiet ✕ buttons (no outline, muted, only the ✕ brightens on hover; never red),
+     but on a solid fill so it reads over the image. */
+  background: var(--popup);
+  color: var(--text-muted);
+  font-size: 0.6875rem;
+}
+/* Keeps --popup (not the button hover's --surface-3): inside a group box the surfaces turn see-through. */
+.image-remove:hover:not(:disabled) {
+  background: var(--popup);
+  color: var(--text);
+}
+@media (max-width: 799px) {
+  .image-slot > .icon-btn,
+  .thumb-btn,
+  .image-loading {
+    width: 44px;
+    height: 44px;
+  }
+  /* The badge stays small; a see-through ring around it makes the 44px touch target. */
+  .image-remove {
+    min-height: 0;
+  }
+  .image-remove::after {
+    content: '';
+    position: absolute;
+    inset: -12px;
+  }
+}
+/* Quiet like the small tool buttons next to it: text and chevron, filled only on hover. */
+select {
+  height: 32px;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.875rem;
+  font-weight: 400;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+select:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+/* Customizable select (Chrome, Edge). Other browsers keep the native control with a dark popup. */
+@supports (appearance: base-select) {
+  select,
+  ::picker(select) {
+    appearance: base-select;
+  }
+  /* Set out explicitly: the UA defaults put the chevron at the top edge. */
+  select {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-2);
+    padding: 0 var(--space-3);
+  }
+  select::picker-icon {
+    display: block;
+    flex: none;
+    box-sizing: content-box;
+    width: 5px;
+    height: 5px;
+    border: solid currentColor;
+    border-width: 0 2px 2px 0;
+    content: "";
+    transform: translateY(-2px) rotate(45deg);
+    transition: transform var(--dur) var(--ease);
+  }
+  select:open::picker-icon {
+    transform: translateY(2px) rotate(225deg);
+  }
+  ::picker(select) {
+    /* Open below and flip up only when it doesn't fit (the UA default picks the bigger side). */
+    position-try-order: normal;
+    margin: var(--space-1) 0;
+    padding: var(--space-1);
+    background: var(--popup);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: none;
+  }
+  option {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    min-height: 32px;
+    padding: 0 var(--space-2);
+    border-radius: var(--radius);
+    color: var(--text);
+    cursor: pointer;
+  }
+  option:hover,
+  option:focus {
+    background: var(--surface-3);
+  }
+  option:checked {
+    background: var(--accent-soft);
+  }
+  /* A thin inset line instead of the thick focus ring, so the open list stays calm. */
+  option:focus-visible {
+    outline: 1px solid var(--accent-line);
+    outline-offset: -1px;
+  }
+  option::checkmark {
+    order: 1;
+    margin-left: auto;
+  }
+  option::before {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    content: "";
+  }
+  option[data-color]::before {
+    background: var(--group);
+  }
+  option:not([data-color])::before {
+    border: 1px solid var(--border-strong);
+  }
+}
+[data-color="lagoon"] { --group: var(--group-lagoon); }
+[data-color="coral"] { --group: var(--group-coral); }
+[data-color="sky"] { --group: var(--group-sky); }
+[data-color="sand"] { --group: var(--group-sand); }
+[data-color="moss"] { --group: var(--group-moss); }
+[data-color="rose"] { --group: var(--group-rose); }
+[data-color="clay"] { --group: var(--group-clay); }
+[data-color="slate"] { --group: var(--group-slate); }
+.swatch {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--group);
+}
+.group-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4) var(--space-4);
+  background: color-mix(in srgb, var(--group) 6%, var(--bg));
+  border: 1px solid color-mix(in srgb, var(--group) 40%, transparent);
+  border-radius: var(--radius);
+  /* See-through fills inside, so cards, fields and hovers keep the group's tint. */
+  --surface: var(--surface-clear);
+  --surface-2: var(--surface-2-clear);
+  --surface-3: var(--surface-3-clear);
+}
+.pairs > .group-box {
+  margin-top: var(--space-4);
+}
+.group-box .add-row {
+  border-color: color-mix(in srgb, var(--group) 40%, transparent);
+}
+/* Quiz page group header, laid out like the editor's (.group-head): the dot centered in a cell as wide as the
+   editor's color dot button, the name at the editor's size, the card count on the right. As tall as the
+   editor's header (its name field's line), so the first card starts at the same height. */
+.group-box h3 {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 40px;
+  margin-top: 0;
+  font-size: 1.25rem;
+}
+.group-box h3 .swatch {
+  width: 14px;
+  height: 14px;
+  margin-inline: 9px;
+}
+.group-box h3 .group-count {
+  margin-left: auto;
+  font-size: 1rem;
+}
+.group-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  /* Each group's palette anchors to its own dot. */
+  anchor-scope: --color-dot;
+}
+/* The group's color dot pops out the palette to its left, or below when there is no room. */
+.color-dot {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  margin-right: calc(-1 * var(--space-2));
+  padding: 0;
+  background: transparent;
+  border-radius: 50%;
+  anchor-name: --color-dot;
+}
+.color-dot::before {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--group);
+  content: "";
+}
+.color-dot:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--group) 22%, transparent);
+}
+.palette {
+  padding: var(--space-2);
+  background: var(--popup);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.palette:popover-open {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+@supports (position-area: left) {
+  .palette {
+    inset: auto;
+    margin: 0 var(--space-2) 0 0;
+    position-anchor: --color-dot;
+    position-area: left;
+    align-self: anchor-center;
+    position-try-fallbacks: --palette-below;
+  }
+}
+@position-try --palette-below {
+  position-area: bottom span-right;
+  align-self: start;
+  margin: var(--space-1) 0 0;
+}
+.palette label {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  background: var(--group);
+  color: var(--bg);
+  cursor: pointer;
+}
+.palette input {
+  position: absolute;
+  opacity: 0;
+  pointer-events: none;
+}
+.palette label:hover {
+  outline: 2px solid var(--border-strong);
+  outline-offset: 2px;
+}
+.palette label:has(:focus-visible) {
+  outline: 2px solid var(--accent-line);
+  outline-offset: 2px;
+}
+.group-head .group-name {
+  flex: 1;
+  min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid transparent;
+  border-radius: 0;
+  font: inherit;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.group-head .group-name:hover {
+  border-bottom-color: var(--border);
+}
+.group-head .group-name:focus {
+  border-bottom-color: var(--accent);
+}
+/* "New group" under the groups: a solid outline (not dashed like the add rows, not gold) with its hint beside it. */
+.pairs > .new-group {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-4);
+  margin-top: var(--space-4);
+}
+.new-group button {
+  background: transparent;
+  border-color: var(--border-strong);
+}
+.new-group button:hover:not(:disabled) {
+  background: var(--surface-2);
+}
+.pair-field textarea {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 0;
+  border-bottom: 2px solid var(--border);
+  border-radius: 0;
+}
+.pair-field textarea:focus {
+  border-bottom-color: var(--accent);
+}
+.pair-field textarea[aria-invalid='true'] {
+  border-bottom-color: var(--bad);
+}
+.field-hint {
+  display: block;
+  margin-top: var(--space-1);
+  padding-left: var(--space-3);
+  color: var(--text-muted);
+  font-size: 0.8125rem;
+}
+.field-hint.is-bad {
+  color: var(--bad);
+}
+/* Replayed on every blocked Done (the hint is re-keyed) to point at what still needs fixing. */
+.field-hint.is-nudged {
+  animation: nudge 300ms var(--ease);
+}
+@keyframes nudge {
+  20% {
+    transform: translateX(-5px);
+  }
+  40% {
+    transform: translateX(5px);
+  }
+  60% {
+    transform: translateX(-3px);
+  }
+  80% {
+    transform: translateX(3px);
+  }
+}
+.page > .add-row {
+  margin-top: var(--space-4);
+}
+.add-row {
+  width: 100%;
+  height: 48px;
+  background: transparent;
+  border: 1px dashed var(--border);
+  color: var(--text-muted);
+}
+@media (max-width: 799px) {
+  .import-grid,
+  .pair-fields {
+    grid-template-columns: 1fr;
+  }
+  .import-grid {
+    flex-basis: 30rem;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    min-height: 16rem;
+  }
+  .dialog .actions > * {
+    flex: 1 1 auto;
+  }
+  .pair-fields {
+    gap: var(--space-4);
+    padding: var(--space-3) var(--space-4) var(--space-4);
+  }
+  .pair-head {
+    padding-left: var(--space-4);
+  }
+  select {
+    height: 44px;
+  }
+  @supports (appearance: base-select) {
+    option {
+      min-height: 44px;
+    }
+  }
+  .group-box {
+    padding: var(--space-3);
+  }
+  /* The editor's color dot button is a 44px touch target here, so the quiz page's dot cell grows with it. */
+  .group-box h3 {
+    min-height: 44px;
+  }
+  .group-box h3 .swatch {
+    margin-inline: 15px;
+  }
+  .palette:popover-open {
+    display: grid;
+    grid-template-columns: repeat(4, auto);
+  }
+  .color-dot,
+  .palette label {
+    width: 44px;
+    height: 44px;
+  }
+}
+
+/* Study session: exactly one screen high. The page never scrolls (so nothing sliding in can flash a
+   scrollbar); .session-body scrolls inside .session-main, and the feedback sheet sits below it. */
+.session {
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  /* clip, not hidden: nothing (like focusing a button) can scroll it. */
+  overflow: clip;
+}
+/* A multiple choice or typing question with really long visible text (StudyScreen's WIDE_TEXT) gets a wider
+   column, card and sheet alike. Flashcards never do, so their size gives nothing away.
+   No media query needed: the column's padding already shrinks it to the screen on smaller windows. */
+.session.is-wide {
+  --session-w: var(--session-wide-w);
+}
+.session-head {
+  display: grid;
+  flex: none;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  gap: var(--space-3);
+  height: var(--topbar-h);
+  padding: 0 var(--space-4);
+}
+.session-head button {
+  justify-self: start;
+}
+.session-title {
+  max-width: 50vw;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-count {
+  justify-self: end;
+  white-space: nowrap;
+}
+.progress {
+  flex: none;
+  height: 4px;
+  background: var(--surface-2);
+}
+.progress > div {
+  height: 100%;
+  background: var(--accent);
+  transition: width var(--dur) var(--ease);
+}
+/* The question column on top, the feedback sheet below it (when there is one), pushing it up. */
+.session-main {
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  /* Hides the sheet while it slides in from below. */
+  overflow: clip;
+}
+/* A centered --session-w column, its content centered vertically. Long text never stretches the screen:
+   the card shrinks to the room left (down to its min-height) and its .prompt-text scrolls inside it, so this
+   column only scrolls when even the card's smallest size doesn't fit or the choices are taller than the room.
+   It ends where the sheet starts, so its scrollbar is only as long as what shows. Before the sheet comes, the
+   bottom padding keeps --sheet-room free; with the sheet there, the padding gives back the closed sheet's
+   height (--sheet-peek, set by FeedbackSheet), down to --space-8 for the round button above the sheet, so a
+   closed sheet up to that tall never moves the content. The scrollbar's space is always kept (on both
+   sides, so the column stays centered over the sheet), so the scrollbar coming and going never shifts it. */
+.session-body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: var(--space-5);
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  padding: var(--space-6) max(var(--space-4), calc((100% - var(--session-w)) / 2))
+    max(var(--space-8), calc(var(--sheet-room) - var(--sheet-peek, 0px)));
+}
+/* The pencil in the card's top right corner; the flip card's sits beside it in .card-wrap.
+   The flip card always has the same size (--card-h, the plain column), whatever its text: a card that grows
+   would give away a long answer before it is flipped. Long text scrolls inside the face. */
+.card-wrap {
+  position: relative;
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  height: var(--card-h);
+}
+.card-edit {
+  position: absolute;
+  top: var(--space-2);
+  right: var(--space-2);
+  z-index: 1;
+}
+/* The flip card's pencils turn with it: a see-through layer over the card turns the same way, one pencil
+   per face, so each stays in its face's corner. Same perspective and origin (the center) as the card. */
+.flip-edit,
+.flip-edit-face {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.flip-edit {
+  transform: perspective(var(--flip-depth)) rotateY(0deg);
+  transform-style: preserve-3d;
+  transition: transform var(--dur-flip) var(--ease);
+}
+.is-flipped .flip-edit {
+  transform: perspective(var(--flip-depth)) rotateY(180deg);
+}
+.flip-edit-face {
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+}
+.flip-edit .card-edit {
+  pointer-events: auto;
+}
+/* Auto margins center the content and fall to 0 when it is taller than the space, so nothing is cut off. */
+.session-body > :first-child {
+  margin-top: auto;
+}
+.session-body > :last-child {
+  margin-bottom: auto;
+}
+/* Shrinks like the flip card (its min-height is the floor), so the choices or answer box stay in view. */
+/* A card with an image keeps its size instead (the column scrolls), so the sheet opening never resizes the
+   image or cuts off the text under it. */
+.prompt-card:has(.card-img) {
+  flex-shrink: 0;
+}
+.prompt-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  position: relative;
+  width: 100%;
+  height: auto;
+  min-height: var(--prompt-card-h);
+  padding: var(--space-7) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius);
+  white-space: normal;
+  text-align: center;
+}
+.side-label {
+  position: absolute;
+  top: var(--space-3);
+  left: var(--space-4);
+  font-size: 0.875rem;
+}
+/* Scrolls inside its card when the card can't grow any more. The scrollbar's space is always kept (both
+   sides, so centered text stays centered): the card shrinking as the sheet opens never rewraps the text. */
+.prompt-text {
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-gutter: stable both-edges;
+  font-size: var(--prompt-size);
+  white-space: pre-wrap;
+}
+/* Long text reads as a paragraph: smaller and left-aligned. */
+.prompt-text.is-long {
+  font-size: var(--prompt-size-long);
+  text-align: start;
+}
+/* A side's image, above its text: whole, at most --card-img-h tall, and a fixed size: neither long text nor the
+   sheet opening ever resizes it. */
+.card-img {
+  flex: none;
+  max-width: 100%;
+  max-height: var(--card-img-h);
+  object-fit: contain;
+  border-radius: var(--radius);
+}
+
+/* A flashcard is always --card-h tall, so its image takes at most half the room inside the face (after its
+   padding and the gap) and the text keeps the other half. */
+.flip-face .card-img {
+  max-height: min(var(--card-img-h), calc((var(--card-h) - 2 * var(--space-7) - var(--space-4)) / 2));
+}
+
+/* Flashcard: both faces share one grid cell; the inner layer turns over. Each level fills .card-wrap and can
+   shrink (min-height: 0), so the faces' text scrolls instead of growing the card. */
+.flip-card {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: stretch;
+  width: 100%;
+  height: auto;
+  min-height: 0;
+  padding: 0;
+  background: none;
+  border: 0;
+  perspective: var(--flip-depth);
+  white-space: normal;
+  text-align: center;
+}
+.flip-card:hover:not(:disabled) {
+  background: none;
+}
+.flip-card:focus-visible {
+  outline-offset: 4px;
+}
+.flip-inner {
+  display: grid;
+  flex: 1;
+  grid-template-rows: minmax(0, 1fr);
+  min-height: 0;
+  transform-style: preserve-3d;
+  transition: transform var(--dur-flip) var(--ease);
+}
+.is-flipped .flip-inner {
+  transform: rotateY(180deg);
+}
+.flip-face {
+  position: relative;
+  grid-area: 1 / 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-4);
+  min-height: 0;
+  padding: var(--space-7) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius);
+  -webkit-backface-visibility: hidden;
+  backface-visibility: hidden;
+  transition: background-color var(--dur-fast) var(--ease);
+}
+.flip-back {
+  transform: rotateY(180deg);
+}
+/* The turned-away face shows no scrollbar and takes no wheel. */
+.flip-face[aria-hidden='true'] .prompt-text {
+  overflow-y: hidden;
+}
+/* On the wrap, not the button: the pencil sits on a layer above the card, so hovering it keeps the card lit. */
+.card-wrap:hover .flip-face {
+  background: var(--surface-2);
+}
+.flip-hint {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.bad-outline {
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.ok-outline {
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.bad-outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--bad) 12%, transparent);
+  border-color: var(--bad);
+}
+.ok-outline:hover:not(:disabled) {
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border-color: var(--ok);
+}
+.choices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+}
+.choice {
+  justify-content: flex-start;
+  height: auto;
+  min-height: 72px;
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  text-align: left;
+  white-space: pre-wrap;
+}
+/* Text with its image's square preview in front (an answer in the sheet, the statement under More info). */
+.with-thumb {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.with-thumb > :not(.thumb) {
+  min-width: 0;
+}
+.with-thumb .thumb,
+.choice .thumb {
+  flex: none;
+}
+.choice-key {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+}
+.choice.is-correct {
+  background: color-mix(in srgb, var(--ok) 14%, transparent);
+  border-color: var(--ok);
+  color: var(--ok);
+}
+.choice.is-wrong {
+  background: color-mix(in srgb, var(--bad) 14%, transparent);
+  border-color: var(--bad);
+  color: var(--bad);
+}
+.choice.is-dim {
+  opacity: 0.5;
+}
+.choice:disabled.is-correct,
+.choice:disabled.is-wrong {
+  opacity: 1;
+}
+.type-answer {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+.type-answer textarea {
+  flex: 1 1 100%;
+  min-height: 56px;
+  padding: var(--space-3) var(--space-4);
+  font-size: 1.25rem;
+}
+/* Feedback sheet (FeedbackSheet.tsx), at the bottom of .session-main: the question column above shrinks by
+   its height. Closed, only the summary shows; the round button opens .sheet-more by growing its row from 0fr
+   to 1fr (minmax 0, so its padding takes no room while closed). Open, it takes at most --sheet-max-h (half
+   the screen) and a long .sheet-more scrolls; a closed sheet already near that tall (a long answer)
+   still opens by a few lines. Once its top line has been dragged, it takes exactly the dragged size
+   (--sheet-h, set on the sheet by FeedbackSheet until it closes), up to --sheet-drag-max-h and never less
+   than the closed sheet. The
+   summary's answer box is capped and scrolls, so the buttons always stay in view. */
+.sheet {
+  --tone: var(--border-strong);
+  position: relative;
+  z-index: 2;
+  display: grid;
+  flex: none;
+  grid-template-rows: auto minmax(0, 0fr);
+  max-height: max(
+    var(--sheet-peek, 0px),
+    min(
+      var(--sheet-h, max(var(--sheet-max-h), calc(var(--sheet-peek, 0px) + 2 * var(--space-8)))),
+      var(--sheet-drag-max-h)
+    )
+  );
+  background: var(--surface);
+  border-top: 3px solid var(--tone);
+  animation: sheet-in var(--dur) var(--ease);
+  transition: grid-template-rows var(--dur) var(--ease);
+}
+.sheet.is-open {
+  grid-template-rows: auto minmax(0, 1fr);
+}
+@keyframes sheet-in {
+  from {
+    transform: translateY(100%);
+  }
+}
+.sheet.is-ok {
+  --tone: var(--ok);
+}
+.sheet.is-bad {
+  --tone: var(--bad);
+}
+.sheet-summary,
+.sheet-more {
+  padding-inline: max(var(--space-4), calc((100% - var(--session-w)) / 2));
+}
+.sheet-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  padding-block: var(--space-4);
+}
+.sheet-result {
+  flex: 1 1 16rem;
+  min-width: 0;
+  max-height: var(--sheet-answer-h);
+  overflow-y: auto;
+}
+.sheet-result p {
+  white-space: pre-wrap;
+}
+/* Labels in their own muted column, so each answer starts clearly apart from its label. */
+.sheet-answers {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-1) var(--space-5);
+  margin: var(--space-2) 0;
+}
+.sheet-answers dt {
+  color: var(--text-muted);
+}
+.sheet-answers dd {
+  margin: 0;
+  white-space: pre-wrap;
+}
+/* One line with an ellipsis; when it is cut off, the whole text shows as a tooltip on hover. */
+.sheet-answers .is-clipped {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sheet-result .ok {
+  color: var(--ok);
+}
+.sheet-result .bad {
+  color: var(--bad);
+}
+/* "Marked by you": beside the result after "I was right". Tinted fill, thin border. */
+.marked-badge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  background: color-mix(in srgb, var(--ok) 12%, transparent);
+  border: 1px solid var(--ok);
+  border-radius: var(--radius);
+  color: var(--ok);
+  font-size: 0.875rem;
+  font-weight: 400;
+  vertical-align: middle;
+}
+/* After a drag it is at least the dragged size, so the sheet keeps that size even when the text is shorter
+   (closed, its row is 0 anyway). The scrollbar's space is always kept, so the text never rewraps. */
+.sheet-more {
+  min-height: max(0px, min(var(--sheet-h, 0px), var(--sheet-drag-max-h)) - var(--sheet-peek, 0px));
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+  padding-block: var(--space-2) var(--space-6);
+}
+/* While the sheet moves (sliding in, opening, closing, dragged), the scroll boxes it resizes show no
+   scrollbar; once it has settled they come back where still needed. Their space is kept, so nothing shifts. */
+.session-main:has(> .sheet.is-moving) * {
+  scrollbar-color: transparent transparent;
+}
+.session-main:has(> .sheet.is-moving) ::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+.sheet-more > * + * {
+  margin-top: var(--space-4);
+}
+.sheet-more h3 {
+  margin-bottom: var(--space-1);
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  font-weight: 700;
+}
+.sheet-more p {
+  white-space: pre-wrap;
+}
+.sheet-img {
+  display: block;
+  max-width: 100%;
+  max-height: var(--card-img-h);
+  border-radius: var(--radius);
+}
+/* The round button that opens and closes the sheet, sitting centered just above it. The chevron points
+   the way the sheet will go: up while closed, down while open. */
+.round-btn {
+  width: 40px;
+  padding: 0;
+  background: var(--surface);
+  border-color: var(--border-strong);
+  border-radius: 50%;
+  color: var(--text-muted);
+}
+.round-btn:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.round-btn svg {
+  transition: transform var(--dur) var(--ease);
+}
+.round-btn[aria-expanded='false'] svg {
+  transform: rotate(180deg);
+}
+.sheet-toggle {
+  position: absolute;
+  bottom: calc(100% + var(--space-3));
+  left: 50%;
+  translate: -50% 0;
+}
+/* The sheet's top line is a resize handle (dragging a closed sheet opens it): a hit area a bit taller than
+   the line, centered on it, ending just below the round button. Taller for touch. */
+.sheet-resize {
+  position: absolute;
+  top: calc(-1 * var(--space-2));
+  right: 0;
+  left: 0;
+  height: var(--space-3);
+  cursor: ns-resize;
+  touch-action: none;
+}
+@media (max-width: 799px) {
+  .sheet-resize {
+    top: calc(-1 * var(--space-3));
+    height: var(--space-5);
+  }
+}
+@media (max-width: 799px) {
+  .round-btn {
+    width: 44px;
+  }
+}
+/* Results: the score with the round's actions, then every question of the round as a card list (CardRow).
+   The page column, as wide as the quiz page's card list. Top-aligned, not centered, so switching the list's
+   filter never moves what is above it. No feedback sheet here, so no room kept for it. */
+.session.is-results {
+  --session-w: var(--content-w);
+}
+.results {
+  gap: var(--space-6);
+  padding-bottom: var(--space-7);
+}
+.session-body.results > :first-child {
+  margin-top: 0;
+}
+.session-body.results > :last-child {
+  margin-bottom: 0;
+}
+/* Score on the left, the actions on the right (the gold one last), the bar across the bottom. Narrow: stacked. */
+.results-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.results-summary .score-bar {
+  grid-column: 1 / -1;
+}
+.score {
+  font-size: 3rem;
+  font-weight: 700;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.results-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+/* The heading already names the list; the filter's own label is for screen readers only. */
+.results-head .segmented-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* The first column says how each question went, its icon centered on the first line of text. */
+.result-rows {
+  --lead-w: var(--space-5);
+}
+.result-rows li {
+  row-gap: var(--space-1);
+}
+.row-mark {
+  display: flex;
+  align-self: start;
+  align-items: center;
+  height: 1lh;
+  color: var(--ok);
+}
+.row-mark.is-missed {
+  color: var(--bad);
+}
+/* What was picked or typed: its own row under the text columns, the answer itself in the text color. */
+.row-extra {
+  grid-column: 2 / -2;
+}
+.row-given {
+  color: var(--text);
+}
+/* Narrow: score, bar, then the gold action across the full width above the others. */
+@media (max-width: 799px) {
+  .results-summary {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-4);
+  }
+  .results-summary .actions {
+    order: 1;
+  }
+  .results-summary .actions button {
+    flex: 1 1 auto;
+  }
+  .results-summary .actions .primary {
+    order: -1;
+    flex-basis: 100%;
+  }
+}
+.score-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bad);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.score-bar > div {
+  height: 100%;
+  background: var(--ok);
+}
+@media (max-width: 799px) {
+  .choices {
+    grid-template-columns: 1fr;
+  }
+  .flip-face {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+
+/* Small functional motion */
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+/* The toast lifetime bar and the loading spinner keep moving: they tell time and progress, not decoration. */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.toast-life, .spinner),
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Toasts. Newest at the bottom. Older ones are clipped at the top, never dropped.
+   Hovering a visible toast opens the whole stack (scrollable). It then stays open while the pointer is anywhere inside,
+   because only the toasts take the pointer until the stack is open. */
+.toasts {
+  /* A popover in the top layer (Toasts.tsx), always in the same corner: nothing on the page moves or covers it.
+     The rest undoes the browser's popover box (centered, bordered, filled). */
+  position: fixed;
+  inset: auto var(--space-4) var(--space-4) auto;
+  margin: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: var(--space-4);
+  /* Left: room for the badge that overhangs each toast's corner. Top: the fade zone (--space-7) plus that overhang. */
+  padding: var(--space-8) 0 0 var(--space-2);
+  width: min(calc(var(--toast-w) + var(--space-2)), calc(100vw - 2 * var(--space-4)));
+  max-height: var(--toasts-peek);
+  overflow: hidden;
+  /* Smooth falloff at the top edge. With no overflow only the empty top padding sits under it; once toasts
+     overflow, the clipped ones fill that edge and fade out. A mask (only alpha matters), not a visible gradient. */
+  mask-image: linear-gradient(transparent, black var(--space-7));
+  overscroll-behavior: contain;
+  scrollbar-width: none;
+  pointer-events: none;
+  transition: max-height var(--dur) var(--ease);
+}
+.toasts:hover,
+.toasts:focus-within {
+  max-height: calc(100vh - 2 * var(--space-4));
+  overflow-y: auto;
+  pointer-events: auto;
+}
+.toast {
+  --kind: var(--info);
+  flex: none;
+  pointer-events: auto;
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-1) var(--space-2) var(--space-5);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+.toast.is-warning {
+  --kind: var(--warn);
+}
+.toast.is-error {
+  --kind: var(--bad);
+}
+/* Centered on the bar (both are placed inside the border): half the bar height minus half the badge. */
+.toast-kind {
+  position: absolute;
+  top: calc(var(--space-1) / 2 - var(--toast-badge) / 2);
+  left: calc(-1 * var(--space-2));
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: var(--toast-badge);
+  height: var(--toast-badge);
+  background: var(--kind);
+  color: var(--bg);
+  border-radius: 50%;
+  font-size: 0.875rem;
+  font-weight: 700;
+  line-height: 1;
+}
+/* A triangle's visual center sits at 2/3 of its height, so that point goes on the bar and the glyph moves down to it. */
+.toast.is-warning .toast-kind {
+  top: calc(var(--space-1) / 2 - var(--toast-badge) * 2 / 3);
+  padding-top: calc(var(--toast-badge) / 3);
+  border-radius: 0;
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.toast.is-error .toast-kind {
+  border-radius: 0;
+  clip-path: polygon(30% 0, 70% 0, 100% 30%, 100% 70%, 70% 100%, 30% 100%, 0 70%, 0 30%);
+}
+.toast p {
+  flex: 1;
+  margin: 0;
+}
+.toast .icon-btn {
+  flex: none;
+}
+.toast-track {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: var(--space-1);
+  overflow: hidden;
+  border-radius: var(--radius) var(--radius) 0 0;
+}
+.toast-life {
+  height: 100%;
+  background: var(--kind);
+  transform-origin: left;
+  animation: toast-life linear forwards;
+}
+/* Nothing expires while you are reading the stack. */
+.toasts:hover .toast-life,
+.toasts:focus-within .toast-life {
+  animation-play-state: paused;
+}
+@keyframes toast-life {
+  to {
+    transform: scaleX(0);
+  }
+}
+
+/* Fill in the blank */
+.cloze-mark,
+.cloze-reveal {
+  border-bottom: var(--blank-line) dashed var(--mark);
+}
+.cloze-mark {
+  padding-bottom: calc(var(--lane) * var(--blank-gap));
+}
+.cloze-mark.is-highlighted {
+  background: var(--accent-soft);
+}
+.cloze-gap {
+  display: inline-block;
+  width: 4em;
+  /* Same color as the blank's dashed line once revealed. */
+  border-bottom: var(--blank-line) solid var(--mark);
+}
+.cloze-reveal {
+  background: none;
+  color: inherit;
+}
+.cloze-field {
+  display: grid;
+  gap: var(--space-2);
+}
+.cloze-box {
+  position: relative;
+}
+.cloze-box textarea,
+.cloze-overlay {
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: 2px solid transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: calc(1.5em + var(--lanes) * var(--blank-gap));
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.cloze-box textarea {
+  background: transparent;
+  border-bottom-color: var(--border);
+  border-radius: 0;
+}
+.cloze-box textarea:focus {
+  border-bottom-color: var(--accent);
+}
+.cloze-box textarea[aria-invalid='true'] {
+  border-bottom-color: var(--bad);
+}
+.cloze-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent;
+}
+.cloze-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.cloze-tools .field-hint {
+  margin-top: 0;
+  padding-left: 0;
+}
+.cloze-blanks {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One row per blank: swatch, text, + Explanation, remove; an opened explanation sits below the text. */
+.cloze-blanks li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+}
+.cloze-swatch {
+  width: var(--space-4);
+  height: 1.5em;
+  border-bottom: var(--blank-line) dashed var(--mark);
+}
+.cloze-blank-text {
+  overflow-wrap: anywhere;
+}
+.cloze-blanks li > .icon-btn {
+  grid-column: 4;
+}
+.cloze-blanks textarea {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  padding: var(--space-2) var(--space-3);
+}
+/* The card's type, next to its number in the editor. */
+.pair-kind {
+  margin-left: var(--space-2);
+}
+/* The statement's label sits above its box. */
+.cloze-statement > .field-hint {
+  margin: 0 0 var(--space-1);
+}
+.add-rows {
+  display: flex;
+  gap: var(--space-3);
+}
+.add-rows .add-row {
+  flex: 1;
+}

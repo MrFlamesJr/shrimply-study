@@ -1,0 +1,92 @@
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #121417;
+  /* A well set into the page, darker than it (study options). */
+  --sunken: #0b0d0f;
+  --surface: #1a1d21;
+  --surface-2: #22262b;
+  --surface-3: #2a2f35;
+  /* See-through surfaces for a tinted ground (group boxes): about the same step up, but the tint shows. */
+  --surface-clear: color-mix(in srgb, var(--text) 4%, transparent);
+  --surface-2-clear: color-mix(in srgb, var(--text) 5%, transparent);
+  --surface-3-clear: color-mix(in srgb, var(--text) 9%, transparent);
+  /* Popups always stay solid. Resolved here, so a box that swaps --surface-2 doesn't change it. */
+  --popup: var(--surface-2);
+  --border: #3b4048;
+  --border-strong: #59606b;
+  --text: #ebebeb;
+  --text-muted: #a6acb4;
+  --accent: #e3b65b;
+  --accent-text: #121417;
+  --accent-hover: #edc677;
+  --accent-soft: color-mix(in srgb, var(--accent) 14%, transparent);
+  --accent-line: color-mix(in srgb, var(--accent) 55%, transparent);
+  /* The brand mark (shrimp): shell and head; its outline is the text color. */
+  --brand-shell: #ea5b2c;
+  --brand-head: #e1757b;
+  --blank-1: #e3b65b;
+  --blank-2: #6cc4b8;
+  --blank-3: #82b4e8;
+  --blank-4: #b9bfc8;
+  --group-lagoon: #66bcb0;
+  --group-coral: #e8877e;
+  --group-sky: #7eaee0;
+  --group-sand: #d9b46a;
+  --group-moss: #94c17f;
+  --group-rose: #dc93ad;
+  --group-clay: #d99a6c;
+  --group-slate: #9ba4ae;
+  --blank-line: 2px;
+  --blank-gap: 4px;
+  --selection: color-mix(in srgb, var(--accent) 35%, transparent);
+  --scrim: rgb(0 0 0 / 0.55);
+  --ok: #7fcf8e;
+  --bad: #f2877e;
+  --warn: #f0a35e;
+  --info: #8fb8de;
+  --font-body: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-size: 17px;
+  --radius: 6px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --dur-fast: 70ms;
+  --dur: 140ms;
+  --dur-flip: 300ms;
+  /* One turn of a loading spinner. */
+  --dur-spin: 700ms;
+  --flip-depth: 1400px;
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --content-w: 1040px;
+  --session-w: 760px;
+  --session-wide-w: 1120px;
+  --card-h: clamp(320px, 50vh, 520px);
+  --prompt-card-h: clamp(240px, 32vh, 400px);
+  /* Card images: at most this tall in study, thumbnails in the editor and on the quiz page. */
+  --card-img-h: clamp(96px, 22vh, 260px);
+  --thumb-h: 40px;
+  --thumb-list-h: 56px;
+  --sheet-room: 160px;
+  --topbar-h: 56px;
+  --sidebar-w: 280px;
+  /* The corner (brand + toggle) while the sidebar is closed. */
+  --corner-w: 256px;
+  --toggle-size: 48px;
+  --read-w: 70ch;
+  --dialog-w: 880px;
+  --dialog-narrow-w: 560px;
+  --toast-w: 360px;
+  --toast-badge: 1.5rem;
+  --toasts-peek: 40vh;
+  --prompt-size: clamp(1.5rem, 3vw, 2.5rem);
+  --prompt-size-long: clamp(1.125rem, 1.6vw, 1.375rem);
+  --sheet-answer-h: 30dvh;
+  --sheet-max-h: calc(100dvh / 2);
+  --sheet-drag-max-h: calc(200dvh / 3);
+}
