@@ -1,6 +1,7 @@
 import type { Library } from '../model'
 import { decodeLibrary, encodeLibrary } from './format'
 import type { StorageAdapter } from './StorageAdapter'
+import guideUrl from '../../samples/how-to-use.shrimp?url'
 
 function pickFile(): Promise<File | null> {
   return new Promise((resolve) => {
@@ -25,6 +26,9 @@ export async function fetchLibrary(url: string): Promise<Library> {
   if (!response.ok) throw new Error(`The file could not be fetched (${response.status}).`)
   return decodeLibrary(new Uint8Array(await response.arrayBuffer()))
 }
+
+/** The bundled guide (samples/how-to-use.shrimp), offered on the first visit. */
+export const loadGuide = () => fetchLibrary(guideUrl)
 
 // Not in TypeScript's DOM types yet (Chromium browsers only).
 declare global {

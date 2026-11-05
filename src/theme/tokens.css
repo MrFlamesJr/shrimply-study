@@ -54,6 +54,9 @@
   --glass-dense: color-mix(in srgb, var(--popup) 78%, transparent);
   /* The top row's frosted glass: the ground, see-through enough to show that something is under it. */
   --glass-bar: color-mix(in srgb, var(--bg) 72%, transparent);
+  /* The new-quiz tile's glass: a faint frost at rest (never fully clear), denser once hovered. */
+  --glass-tile: color-mix(in srgb, var(--surface) 30%, transparent);
+  --glass-tile-hover: color-mix(in srgb, var(--surface-2) 35%, transparent);
 }
 
 /* 2. Theme-independent tokens. */
@@ -90,6 +93,9 @@
      over this much below its edge. */
   --glass-bar-blur: 18px;
   --glass-bar-fade: 20px;
+  /* The new-quiz tile's blur: a light fog at rest, thicker once hovered. */
+  --glass-tile-blur: 6px;
+  --glass-tile-blur-hover: 16px;
   /* Touch target size on small screens. */
   --tap: 44px;
   --space-1: 4px;

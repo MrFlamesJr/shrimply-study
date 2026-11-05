@@ -36,9 +36,76 @@
 .empty .actions {
   justify-content: center;
 }
+/* First visit (HomeScreen): the shrimp, the title, three numbered step tiles side by side (a list, number
+   beside the text, when the page is narrow), the actions. Numbers stay in the body font and take the theme's
+   corners; no accent here but the one gold button. */
+.welcome {
+  max-width: 760px;
+  container: welcome / inline-size;
+}
+.welcome > svg {
+  display: block;
+  width: 56px;
+  height: 56px;
+  margin-inline: auto;
+}
+.welcome h1 {
+  text-wrap: balance;
+}
+.welcome > .welcome-lead {
+  margin-top: var(--space-2);
+  font-size: var(--text-lg);
+}
+.welcome > .steps {
+  margin-top: var(--space-5);
+}
+.welcome > .actions {
+  margin-top: var(--space-6);
+}
 .steps {
-  padding-left: var(--space-5);
+  display: grid;
+  gap: var(--space-3);
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
   text-align: left;
+}
+.steps li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  align-content: start;
+  gap: var(--space-1) var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.steps li::before {
+  counter-increment: step;
+  content: counter(step);
+  grid-row: span 2;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius);
+  font-weight: var(--weight-bold);
+}
+.steps strong {
+  font-weight: var(--weight-bold);
+}
+@container welcome (min-width: 600px) {
+  .steps {
+    grid-template-columns: repeat(3, 1fr);
+  }
+  .steps li {
+    grid-template-columns: 1fr;
+    padding: var(--space-5);
+  }
+  .steps li::before {
+    grid-row: auto;
+    margin-bottom: var(--space-2);
+  }
 }
 
 /* Courses and tiles. Each course is its own band, set apart by space. */
@@ -89,19 +156,27 @@
   font-weight: var(--weight-bold);
 }
 /* New quiz: a dashed outline (like the other create buttons) around a plus badge and its label, so it reads as
-   a tile of its own, not an empty slot. Hovered, it fills like a tile and the plus takes the accent. Alone (a
-   course with no quizzes) it spans the row, with a line on what comes next. */
+   a tile of its own, not an empty slot. Frosted glass (asked for): faint and lightly blurred at rest, never fully
+   clear; hovered, it frosts over (denser and more blurred), its edge turns solid like the back-to-top glass and
+   the plus takes the accent. Alone (a course with no quizzes) it spans the row, with a line on what comes next. */
 .tiles .tile-new {
   flex-direction: row;
   align-items: center;
   gap: var(--space-4);
-  background: transparent;
+  background: var(--glass-tile);
+  backdrop-filter: blur(var(--glass-tile-blur));
   border: var(--line) dashed var(--border-strong);
   color: var(--text-muted);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    backdrop-filter var(--dur-fast) var(--ease);
 }
 .tiles .tile-new:hover {
-  background: var(--surface);
-  border-color: var(--text-muted);
+  background: var(--glass-tile-hover);
+  backdrop-filter: blur(var(--glass-tile-blur-hover));
+  border-style: solid;
+  border-color: var(--glass-line);
 }
 .tiles .tile-new:only-child {
   grid-column: 1 / -1;

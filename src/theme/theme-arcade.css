@@ -1,9 +1,9 @@
 /* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
    CLAUDE.md, Themes; themes.test.ts checks it). */
 
-/* Neon arcade: near black, sharp corners, glow, the pixel font Silkscreen for titles. Behind the open ground, a
+/* Neon arcade: near black, sharp corners, glow, the pixel font Jersey 15 for titles. Behind the open ground, a
    synthwave floor: a violet perspective grid running to a hot pink horizon low on the window, a few cyan and pink
-   stars above, and CRT scanlines that only show where something glows (cards, the sidebar and dialogs cover it). Hot pink is the action, the
+   stars above (cards, the sidebar and dialogs cover it). Hot pink is the action, the
    chosen option and the focus ring (a cyan ring beside pink clashes); violet is the structure (surfaces, borders,
    muted text and the text selection; never a control); cyan is info and the shrimp's head; neon green and red
    only mean right and wrong, and their outline buttons keep a faint fill so they never sit straight on violet. */
@@ -102,7 +102,6 @@
      themselves very slightly (still under reduced motion), all sliding sideways together by one
      --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
   --backdrop:
-    repeating-linear-gradient(to bottom, color-mix(in srgb, var(--ink) 35%, transparent) 0 1px, transparent 1px 3px),
     linear-gradient(transparent calc(70% - 1px), color-mix(in srgb, var(--accent) 70%, transparent) 70%, transparent calc(70% + 1px)),
     radial-gradient(ellipse 55% 22% at 50% 70%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
     linear-gradient(to bottom, var(--bg) 70%, color-mix(in srgb, var(--bg) 75%, transparent) 76%, transparent),
@@ -127,11 +126,11 @@
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
      Atkinson). */
-  --font-display: "Silkscreen", var(--font-body);
+  --font-display: "Jersey 15", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
-  --title-size: 1.5rem;
-  --text-brand: 0.875rem;
-  --text-score: 2.25rem;
+  --title-size: 2.25rem;
+  --text-brand: 1.25rem;
+  --text-score: 3.5rem;
   --radius: 2px;
 }

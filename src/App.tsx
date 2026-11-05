@@ -2,7 +2,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { redirect, usePlace, useRoute } from './route'
 import type { StudyOptions, ThemeId } from './model'
 import { useLibrary } from './state/useLibrary'
-import { fileStorage } from './storage/fileStorage'
+import { fileStorage, loadGuide } from './storage/fileStorage'
 import { loadTheme, saveTheme } from './storage/themePref'
 import { TopBar } from './layout/TopBar'
 import { Sidebar, useSidebarOpen } from './layout/Sidebar'
@@ -93,7 +93,7 @@ export function App() {
           <TopBar lib={lib} page={route.name} course={course} quiz={quiz} />
           <main className="page">
             {/* Keyed by id, not the address, so a rename keeps the screen (and the name field's focus). */}
-            {route.name === 'home' && <HomeScreen lib={lib} />}
+            {route.name === 'home' && <HomeScreen lib={lib} guide={loadGuide} />}
             {route.name === 'course' && course && <CourseScreen key={course.id} lib={lib} courseId={course.id} />}
             {route.name === 'quiz' && quiz && (
               <QuizScreen lib={lib} quizId={quiz.id} prefs={prefs} setPrefs={setPrefs} collapsed={collapsed} setCollapsed={setCollapsed} />

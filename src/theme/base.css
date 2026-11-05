@@ -32,6 +32,8 @@ body {
   background: var(--bg);
   color: var(--text);
   font: var(--font-size) / 1.6 var(--font-body);
+  /* A display font with one weight (Neon arcade's pixel font) shows as drawn, never a smeared fake bold. */
+  font-synthesis-weight: none;
   /* Long words and pasted links wrap instead of pushing the layout wider. */
   overflow-wrap: anywhere;
 }

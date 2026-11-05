@@ -5,26 +5,48 @@
       "name": "Shrimply Study guide",
       "quizzes": [
         {
-          "name": "1. Using the app",
+          "name": "1. Get started",
           "cards": [
-            { "term": "Open a file", "definition": "Open file, top right", "explanation": "Pick a .shrimp file. It replaces what is open, so download first if you have changes." },
-            { "term": "Save your work", "definition": "Download, top right (or Ctrl+S)", "explanation": "Saves everything as one .shrimp file. A * in the tab title means there are changes you have not downloaded yet. The browser keeps a backup between visits, but the file is your real copy." },
-            { "term": "Make a course", "definition": "+ New course, in the sidebar", "explanation": "A course holds quizzes, a quiz holds cards. Type the name right after creating it." },
-            { "term": "Make a quiz", "definition": "+ New quiz, on a course page" },
-            { "term": "Add cards", "definition": "Edit quiz, on the quiz page", "explanation": "A card is a term and a definition, or a fill-in-the-blank statement. Import adds many at once from pasted text: one card per line, with a tab or \" - \" between term and definition." },
-            { "term": "Make a blank", "definition": "Select text, then Mark as blank", "explanation": "In a fill-in-the-blank card, each blank is asked as its own question. Blanks can sit inside each other." },
-            { "term": "Explanation", "definition": "Optional text under More info", "explanation": "Shows after you answer, when you open the sheet at the bottom. A fill-in-the-blank card has one per blank." },
-            { "term": "Add an image", "definition": "The image button on a field, or paste or drop one", "explanation": "Each side of a term card can have an image, and a fill-in-the-blank card can have one. A side still needs its text." },
-            { "term": "Groups", "definition": "New group, in Edit quiz", "explanation": "A group is a named, colored part of a quiz. In multiple choice, wrong answers come from the same group first." },
-            { "term": "Study", "definition": "Start, on the quiz page", "explanation": "First pick the mode, which side you see first, and the order." },
-            { "term": "Study modes", "definition": "Flashcards, Multiple choice, Typing", "explanation": "Flashcards: flip and rate yourself. Multiple choice: pick one of four. Typing: type the answer. Case, accents, punctuation and extra spaces are ignored, and I was right counts a near miss." },
-            { "term": "Keys while studying", "definition": "Space, 1 to 4, Enter, Esc", "explanation": "Space flips a flashcard, 1 and 2 rate it. 1 to 4 pick a choice. Enter goes on. Esc leaves the session." },
-            { "term": "Fix a card while studying", "definition": "The pencil on the card", "explanation": "The change shows in the round right away. The pencil on each row of the quiz page does the same." },
-            { "term": "Retry missed cards", "definition": "Retry, on the results screen", "explanation": "After a round you see your score and the cards you missed." }
+            { "term": "How it fits together", "definition": "Courses hold quizzes, quizzes hold cards", "explanation": "Make a course for each class, like Biology, and a quiz for each chapter. The sidebar lists them all." },
+            { "term": "Make a course", "definition": "New course, in the sidebar", "explanation": "Type its name right away, or rename it later on its page. Two courses can not have the same name." },
+            { "term": "Make a quiz", "definition": "New quiz, on a course page", "explanation": "It opens in Edit quiz, where you name it and add cards." },
+            { "term": "Find your way", "definition": "The sidebar and the top row", "explanation": "The button beside Shrimply Study hides or shows the sidebar. The top row shows where you are: click a part of it to go back. Every page has its own address you can bookmark." },
+            { "term": "Save your work", "definition": "Download, top right (or Ctrl+S)", "explanation": "Saves everything as one .shrimp file. A * in the tab title means changes you have not downloaded yet. This browser keeps a copy between visits, but the file is your real copy." },
+            { "term": "Open a file", "definition": "Open file, top right", "explanation": "It replaces what is in the app, and asks first if you have changes you have not downloaded. Open your file on another device, a phone too, to study there. Your cards are never uploaded anywhere." },
+            { "term": "Delete a course or quiz", "definition": "Danger zone, at the bottom of the page", "explanation": "For a course, on its page. For a quiz, in Edit quiz. It asks first and can not be undone." },
+            { "term": "Change the look", "definition": "Theme, at the bottom of the sidebar", "explanation": "Pick one of five dark themes. This browser remembers it; it is not saved in your file." }
           ]
         },
         {
-          "name": "2. File format examples",
+          "name": "2. Make cards",
+          "cards": [
+            { "term": "Add a card", "definition": "Add card, in Edit quiz", "explanation": "Edit quiz is on the quiz page. Fill in the term and the definition. Enter goes to the next field, then to a new card; Shift+Enter starts a new line. The trash icon deletes a card." },
+            { "term": "Add many cards at once", "definition": "Import, in Edit quiz", "explanation": "Paste one card per line, with a tab or \" - \" between term and definition. A Quizlet export or spreadsheet rows work. Check the preview, pick where the cards go, then add them." },
+            { "term": "Fill-in-the-blank card", "definition": "Add fill in the blank, in Edit quiz", "explanation": "Type a sentence, select a word, then Mark as blank (Ctrl+B). Each blank is asked as its own question. Blanks can sit inside each other." },
+            { "term": "Add an explanation", "definition": "The Explanation button on a card", "explanation": "Optional background, shown after you answer under More info. A fill-in-the-blank card has one per blank." },
+            { "term": "Add an image", "definition": "The image button beside a field", "explanation": "Or paste or drop an image on the field. The term, the definition and a fill-in-the-blank card can each have one. Click the thumbnail to replace it, its ✕ to remove it. A side still needs its text." },
+            { "term": "See an image big", "definition": "Click it", "explanation": "Where a click already does something, like on a flashcard, rest the pointer on the image until its border closes. Esc or any click closes it." },
+            { "term": "Groups", "definition": "New group, in Edit quiz", "explanation": "A named, colored part of a quiz. Multiple choice takes wrong answers from the same group first, so they are harder to tell apart. Click its dot for another color, its arrow to fold it shut." },
+            { "term": "Put a card in a group", "definition": "The group menu on the card", "explanation": "Import can also add cards straight to a group. Ungroup removes a group but keeps its cards." },
+            { "term": "Finish editing", "definition": "Done, beside Import", "explanation": "Back to the quiz page. Empty cards and groups are removed. A half-filled card turns red and keeps you here until you fix it." }
+          ]
+        },
+        {
+          "name": "3. Study",
+          "cards": [
+            { "term": "Start studying", "definition": "Start, on the quiz page", "explanation": "First pick the mode, the side you see and the order. Your picks stay for the next round." },
+            { "term": "Flashcards", "definition": "Flip, then rate yourself", "explanation": "Click the card or press Space to flip it. Then pick Didn't know (1) or Knew it (2)." },
+            { "term": "Multiple choice", "definition": "Pick one of four", "explanation": "Press 1 to 4 to pick. A quiz needs at least 2 cards for it." },
+            { "term": "Typing", "definition": "Type the answer", "explanation": "Case, accents, punctuation and extra spaces don't count. For a typo or another right wording, I was right counts it as right." },
+            { "term": "Question side", "definition": "Term, Definition or Mixed", "explanation": "Term shows the term and asks for the definition, Definition does the opposite, Mixed picks one for each card. A fill-in-the-blank card always asks its blanks." },
+            { "term": "After each answer", "definition": "The sheet at the bottom", "explanation": "It shows the right answer, and which card a wrong answer belongs to. If the card has an explanation, the round button above the sheet opens More info. Continue (Enter) goes on." },
+            { "term": "Keys while studying", "definition": "Space, 1 to 4, Enter, Esc", "explanation": "Space flips a flashcard. 1 and 2 rate it, 1 to 4 pick a choice. Enter checks and goes on. The arrow keys scroll long text. Esc leaves the round." },
+            { "term": "Fix a card", "definition": "The pencil on the card", "explanation": "Works while studying, in the results and on the quiz page. The change shows right away." },
+            { "term": "After the round", "definition": "Retry missed, on the results screen", "explanation": "You see your score and every question, with filters for Missed, Right and Marked (where you used I was right). Study again asks every card again." }
+          ]
+        },
+        {
+          "name": "4. File format examples",
           "cards": [
             { "term": "Minimal card", "definition": "Only a term and a definition" },
             { "term": "Card with an explanation", "definition": "Three fields", "explanation": "The explanation is optional plain text.\nLine breaks are kept, like this one." },
@@ -56,7 +78,7 @@
           ]
         },
         {
-          "name": "3. Rules for writing a file",
+          "name": "5. Rules for writing a file",
           "cards": [
             { "term": "The file", "definition": "A zip renamed to .shrimp", "explanation": "library.json at the top of the zip, plus an images folder when cards have images. Zip the files themselves, not a folder around them." },
             { "term": "Top level", "definition": "\"version\": 1 and \"courses\"", "explanation": "version is always 1. Nothing else goes at the top." },
@@ -65,12 +87,13 @@
             { "term": "Group", "definition": "\"name\" and \"cards\", optional \"color\"", "explanation": "color is one of lagoon, coral, sky, sand, moss, rose, clay, slate. The name can not be empty or only spaces, and up to 50 characters fit the editor." },
             { "term": "Term card", "definition": "\"term\" and \"definition\", optional \"termImage\", \"definitionImage\", \"explanation\"", "explanation": "A card with an empty term or definition is skipped while studying." },
             { "term": "Fill-in-the-blank card", "definition": "\"type\": \"cloze\" and \"statement\", optional \"image\", \"explanation\"", "explanation": "type is always \"cloze\". A statement needs at least one blank to be studied." },
-            { "term": "Blanks", "definition": "Text inside { }", "explanation": "Each blank is one question, and its text is the answer. Blanks can sit inside each other but not cross. A blank can not be empty, and the same text can not be marked twice. A backslash before a brace makes it a plain brace." },
+            { "term": "Blanks", "definition": "Text inside { }", "explanation": "Each blank is one question, and its text is the answer. Blanks can sit inside each other. A blank can not be empty, and the same text can not be marked twice. A backslash before a brace makes it a plain brace." },
             { "term": "Blank explanations", "definition": "Text for one blank, a list for several", "explanation": "The list has exactly one entry per blank, in the order of their {. Use \"\" for a blank without one." },
             { "term": "Images", "definition": "A file name from the images folder", "explanation": "png, jpg, jpeg, gif, webp, avif or svg. \"1.svg\" means images/1.svg, and that file must be in the zip." },
             { "term": "Text", "definition": "Plain text, no markup", "explanation": "No HTML or Markdown. Line breaks are kept. Spaces and empty lines at the start and end are dropped." },
             { "term": "Not allowed", "definition": "Ids and any other field", "explanation": "A field that is not listed in these rules stops the file from opening. The error names the spot, like courses[0].quizzes[1].cards[3]." },
-            { "term": "Good cards", "definition": "Short answers, one fact each", "explanation": "Keep answers short enough to type and put background in the explanation. Use groups for the parts of a topic, so multiple choice offers close wrong answers. Multiple choice needs at least 2 cards." }
+            { "term": "Good cards", "definition": "Short answers, one fact each", "explanation": "Keep answers short enough to type and put background in the explanation. Use groups for the parts of a topic, so multiple choice offers close wrong answers. Multiple choice needs at least 2 cards." },
+            { "term": "Write your own file", "definition": "Start from this guide's library.json", "explanation": "Download this guide, rename it to .zip and unzip it. Replace Your course with your own cards, by hand or with an AI, following these rules. Zip it again, rename it to .shrimp and open it. If it does not open, the error names the spot." }
           ]
         }
       ]
