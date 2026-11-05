@@ -10,7 +10,7 @@ React study app (flashcards, multiple choice, typing) hosted on GitHub Pages. Th
 ## Commands
 - `npm run dev`, `npm run build`, `npm run preview`
 - `npm test` (vitest), `npm run typecheck`
-- Deploy: push to `main` and `.github/workflows/deploy.yml` publishes. One-time setup: repo Settings > Pages > Source: GitHub Actions.
+- Deploy: push to `main` and `.github/workflows/deploy.yml` publishes to https://mrflamesjr.github.io/shrimply-study/ (repo `MrFlamesJr/shrimply-study`, Pages source: GitHub Actions, already set).
 
 ## Architecture rules
 - Storage only goes through `src/storage/`. Screens and state never touch files, zip, IndexedDB or localStorage directly (reading an image the user picks into a data URL, in `ImageSlot`, is input, not storage). A new backend is a new `StorageAdapter`, swapped in at the single `useLibrary(fileStorage)` line in `App.tsx`.

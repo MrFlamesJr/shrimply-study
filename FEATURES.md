@@ -24,7 +24,7 @@ Ranked backlog. The ranking is by how much each feature helps exam studying (act
 | Calmer, roomier styling: one gold action per screen, tinted selections, small functional animations, delete buttons at the page bottom | 2 | |
 | Dark high-contrast theme built from tokens | 1 | |
 | Shrimp logo: favicon (outline turns light in a dark browser) and beside the brand name (outline in the text color) | fixes | |
-| GitHub Pages deploy | 1 | |
+| GitHub Pages deploy, live at https://mrflamesjr.github.io/shrimply-study/ (repo MrFlamesJr/shrimply-study, public) | 1, release | |
 | Study options with a title per option and a hint under each that follows the choice; pencil-only Edit | 3 | |
 | Shortcut hints with a keyboard icon (one component), hidden on touch | 3 | GitHub Primer |
 | Explanation per card (optional, in the editor and the file; an empty one closes on Done), shown in a feedback sheet that snaps up for more info in every mode, with the mix-up for wrong answers and both sides | 3 | Quizizz, Kahoot |
