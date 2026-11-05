@@ -28,10 +28,19 @@ export const IMAGE_TYPES: Record<string, string> = {
   avif: 'image/avif',
   svg: 'image/svg+xml',
 }
-// Group colors, in the order new groups take them. Each is a theme token --group-<name> (theme/themes.css).
+// Group colors, in the order new groups take them. Each is a theme token --group-<name> (theme/theme-<id>.css).
 export const GROUP_COLORS = ['lagoon', 'coral', 'sky', 'sand', 'moss', 'rose', 'clay', 'slate'] as const
 export type GroupColor = (typeof GROUP_COLORS)[number]
 export type Group = { id: string; name: string; color: GroupColor }
+// Themes, the first is the default. Each is a `data-theme` value on <html> (theme/theme-<id>.css).
+export const THEMES = [
+  { id: 'calm', name: 'Calm' },
+  { id: 'arcade', name: 'Neon arcade' },
+  { id: 'underwater', name: 'Underwater' },
+  { id: 'forest', name: 'Enchanted forest' },
+  { id: 'unicorn', name: 'Sassy unicorn' },
+] as const
+export type ThemeId = (typeof THEMES)[number]['id']
 // Longest group name you can type (a file may hold a longer one; it opens as is).
 export const GROUP_NAME_MAX = 50
 export type Quiz = { id: string; name: string; groups: Group[]; cards: Card[] }
@@ -43,9 +52,18 @@ export const emptyLibrary = (): Library => ({ version: 1, courses: [] })
 
 // Study options. `side` is the side shown as the prompt.
 export type Side = 'term' | 'definition' | 'mixed'
-export type Format = 'flashcards' | 'choice' | 'typing'
+export const FORMATS = ['flashcards', 'choice', 'typing'] as const
+export type Format = (typeof FORMATS)[number]
 export type StudyOptions = { side: Side; format: Format; shuffle: boolean }
 
 // One question in a round. `choices` is only set for the 'choice' format and always contains `answer`.
+// `side` is the side of a term card shown as the prompt (unset for blanks).
 // `blank` is set for fill-in-the-blank cards: the index of the blank being asked.
-export type Question = { cardId: string; prompt: string; answer: string; choices?: string[]; blank?: number }
+export type Question = {
+  cardId: string
+  prompt: string
+  answer: string
+  choices?: string[]
+  side?: 'term' | 'definition'
+  blank?: number
+}

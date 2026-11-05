@@ -1,0 +1,15 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="color-scheme" content="dark" />
+    <title>Shrimply Study</title>
+    <script>
+      // GitHub Pages serves this for any path that is not a file. The app only uses #/ addresses, so send the
+      // visitor to the app, at the first path segment (the repo), keeping any #/ part. The check stops a loop
+      // when the app is not there either.
+      var root = '/' + location.pathname.split('/')[1] + '/'
+      if (location.pathname !== root) location.replace(root + location.hash)
+    </script>
+  </head>
+</html>

@@ -1,0 +1,32 @@
+/* Small functional motion and reduced-motion overrides. */
+/* Small functional motion */
+@keyframes appear {
+  from {
+    opacity: 0;
+    transform: translateY(-6px);
+  }
+}
+@keyframes fade-in {
+  from {
+    opacity: 0;
+  }
+}
+/* The backdrop's moving layer sliding sideways (base.css), ambient motion that was asked for. Still under reduced
+   motion (below). */
+@keyframes drift {
+  to {
+    transform: translateX(var(--backdrop-drift-w));
+  }
+}
+/* The toast lifetime bar and the loading spinner keep moving: they tell time and progress, not decoration. So
+   does the border around an image, which times the wait before it opens (shown whole, see dialogs.css). */
+@media (prefers-reduced-motion: reduce) {
+  *:not(.toast-life, .spinner),
+  *::before,
+  *:not(.zoom-img)::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+

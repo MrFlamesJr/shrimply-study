@@ -1,0 +1,143 @@
+/* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
+   CLAUDE.md, Themes; themes.test.ts checks it). */
+
+/* Underwater: the deep sea looking up toward the surface. A near-black abyss whose surfaces lift in the water's
+   blue, with soft light beams fanning down from the surface and a very faint caustic net drifting slowly sideways
+   with the current, both fading into the
+   dark further down and only on the open water (cards, the sidebar and dialogs stay clean to read). Luminous aqua is
+   the action, the chosen option and the focus ring: it sits next to the water's blue, so its tints stay clean over
+   it (a warm coral tint over blue turns to mud). Coral is the shrimp, the one warm spot. Kelp lime and anemone pink
+   only mean right and wrong (the lime leans yellow so it never reads as the aqua); sky blue is info. A faint
+   bioluminescent glow on the action, the focus, right and wrong answers and titles. Fredoka, round, for titles. */
+:root[data-theme="underwater"] {
+  color-scheme: dark;
+
+  /* Ground and text. Main text is a near-neutral white; muted text gets its lightness and color amount here and the
+     surfaces' hue (--lift-hue), so it is never cooler or warmer than what it sits on. */
+  --bg: #00090f;
+  --text: #f0f6f9;
+  --muted-l: 0.79;
+  --muted-c: 0.03;
+
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
+     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
+     --ink is the black of scrims and the sunken well. */
+  --accent: #44e7d1;
+  --selection-color: var(--accent);
+  --ok: #a6e86b;
+  --bad: #f7758a;
+  --danger: #f84a54;
+  --warn: #f9ba5f;
+  --info: #7dc7f7;
+  --ink: #000;
+
+  /* The brand mark (shrimp): shell and head; its outline is the text color. */
+  --brand-shell: #ff7a59;
+  --brand-head: #ffb199;
+
+  /* Fill-in-the-blank underlines, told apart when stacked; the first is the accent. */
+  --blank-1: var(--accent);
+  --blank-2: #ff9a7a;
+  --blank-3: #a8b8ff;
+  --blank-4: #c8d6dc;
+
+  /* Group colors, a touch softer than the accent so they never compete with it. */
+  --group-lagoon: #4fc4b4;
+  --group-coral: #e38e7c;
+  --group-sky: #79aee6;
+  --group-sand: #d8bd84;
+  --group-moss: #8cc48a;
+  --group-rose: #d99ab8;
+  --group-clay: #d6a07a;
+  --group-slate: #8ea7b6;
+
+  /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
+     --lift-chroma color per step, in the hue --lift-hue. */
+  --lift-hue: 228;
+  --lift-chroma: 0.16;
+  --lift-sunken: -0.03;
+  --lift-1: 0.05;
+  --lift-2: 0.09;
+  --lift-3: 0.13;
+  --lift-border: 0.21;
+  --lift-border-strong: 0.33;
+
+  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  --hover-lift: 0.05;
+  --hover-chroma: 0.9;
+
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
+     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
+     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  --tint-soft: 12%;
+  --tint: 14%;
+  --tint-line: 55%;
+  --tint-select: 35%;
+  --tint-danger: 16%;
+  --tint-muted: 30%;
+  --tint-rest: 8%;
+  --group-fill: 7%;
+  --group-line: 40%;
+  --group-chip: 22%;
+  --scrim-alpha: 60%;
+  --viewer-scrim-alpha: 90%;
+
+  /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
+     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
+     their own shadow or glow, more while hovered. */
+  --glow-size: 12px;
+  --glow-accent: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 35%, transparent);
+  --glow-focus: var(--glow-accent);
+  --glow-ok: 0 0 var(--glow-size) color-mix(in srgb, var(--ok) 25%, transparent);
+  --glow-bad: 0 0 var(--glow-size) color-mix(in srgb, var(--bad) 25%, transparent);
+  --glow-text: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 30%, transparent);
+  --glow-card:
+    inset 0 1px 0 color-mix(in srgb, var(--info) 30%, transparent),
+    0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--info) 26%, transparent);
+  --glow-card-hover:
+    inset 0 1px 0 color-mix(in srgb, var(--accent) 45%, transparent),
+    0 0 var(--glow-size) color-mix(in srgb, var(--accent) 30%, transparent),
+    0 0 calc(var(--glow-size) * 3) color-mix(in srgb, var(--accent) 14%, transparent);
+
+  /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
+     background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
+     themselves very slightly (still under reduced motion), all sliding sideways together by one
+     --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
+  --backdrop:
+    radial-gradient(ellipse 70% 45% at 62% -12%, color-mix(in srgb, var(--accent) 12%, transparent), transparent 70%),
+    conic-gradient(
+      from 152deg at 64% -38%,
+      transparent 0deg,
+      color-mix(in srgb, var(--text) 9%, transparent) 4deg,
+      transparent 9deg 13deg,
+      color-mix(in srgb, var(--text) 12%, transparent) 15deg,
+      transparent 18deg 24deg,
+      color-mix(in srgb, var(--text) 7%, transparent) 27deg,
+      transparent 33deg 36deg,
+      color-mix(in srgb, var(--text) 10%, transparent) 39deg,
+      transparent 42deg 47deg,
+      color-mix(in srgb, var(--text) 7%, transparent) 51deg,
+      transparent 56deg
+    );
+  --backdrop-drift:
+    linear-gradient(to bottom, transparent, var(--bg) 82%),
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640' width='960' height='960'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.008 0.012' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 1 0 0 0 0 0.95 -3 0 0 0 1'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='gamma' exponent='7'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)' opacity='0.05'/%3E%3C/svg%3E");
+  --backdrop-drift-w: 960px;
+  --backdrop-drift-time: 90s;
+
+  /* Backdrop placement, one value per --backdrop layer (or one for all): position, size and repeat. A position can
+     start from --ground-x, where the open page ground begins (right of the open sidebar on wide screens). */
+  --backdrop-position: 0 0;
+  --backdrop-size: auto;
+  --backdrop-repeat: repeat;
+
+  /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
+     Atkinson). */
+  --font-display: "Fredoka", var(--font-body);
+  --display-tracking: normal;
+  --display-case: none;
+  --title-size: 2.125rem;
+  --text-brand: 1.25rem;
+  --text-score: 3.25rem;
+  --radius: 9px;
+}

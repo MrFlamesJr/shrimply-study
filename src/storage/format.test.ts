@@ -113,6 +113,15 @@ describe('library format', () => {
     expect(() => fromData(group)).toThrow('courses[0].quizzes[0].groups[0]: "name" can not be empty.')
   })
 
+  it('rejects two courses, or two quizzes in one course, with the same name', () => {
+    const courses = { version: 1, courses: [{ name: 'Bio', quizzes: [] }, { name: 'bio!', quizzes: [] }] }
+    expect(() => fromData(courses)).toThrow('courses[1]: "name" is already used by courses[0] (case, spaces and punctuation do not count).')
+    const quizzes = { version: 1, courses: [{ name: 'c', quizzes: [{ name: 'Les vers', cards: [] }, { name: 'les-vers', cards: [] }] }] }
+    expect(() => fromData(quizzes)).toThrow('courses[0].quizzes[1]: "name" is already used by courses[0].quizzes[0]')
+    const q = { name: 'Same', cards: [] }
+    expect(() => fromData({ version: 1, courses: [{ name: 'a', quizzes: [q] }, { name: 'b', quizzes: [q] }] })).not.toThrow()
+  })
+
   it('rejects a non-string term', () => {
     expect(() => fromData(withCard({ term: 1, definition: 'd' }))).toThrow(
       'courses[0].quizzes[0].cards[0]: "term" must be text.',

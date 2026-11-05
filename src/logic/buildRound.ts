@@ -1,5 +1,5 @@
 import type { Card, Question, StudyOptions } from '../model'
-import { clozeQuestion, parseCloze } from './cloze'
+import { blankAnswers, clozeQuestion, parseCloze } from './cloze'
 
 function shuffled<T>(items: T[]): T[] {
   const result = [...items]
@@ -17,12 +17,6 @@ export function usableCards(cards: Card[]): Card[] {
   )
 }
 
-/** The answer of each blank of a fill-in-the-blank card. */
-function blankAnswers(statement: string): string[] {
-  const { text, ranges } = parseCloze(statement)
-  return ranges.map((_, i) => clozeQuestion(text, ranges, i).answer)
-}
-
 /** Adds the answer plus up to 3 other answers from `pool`, the card's own group first. */
 function withChoices(question: Question, card: Card, pool: Card[], answersOf: (c: Card) => string[]): Question {
   const answers = (from: Card[]) => [...new Set(from.flatMap(answersOf))]
@@ -31,6 +25,22 @@ function withChoices(question: Question, card: Card, pool: Card[], answersOf: (c
     .filter((a) => a !== question.answer)
     .slice(0, 3)
   return { ...question, choices: shuffled([question.answer, ...distractors]) }
+}
+
+/** The round's questions after `edited` changed: its questions show the new text, and choices swap the old answer for the new one. */
+export function refreshQuestions(questions: Question[], edited: Card): Question[] {
+  return questions.map((q) => {
+    if (q.cardId !== edited.id) return q
+    if (edited.type === 'cloze') {
+      const { text, ranges } = parseCloze(edited.statement)
+      if (q.blank === undefined || q.blank >= ranges.length) return q
+      const fresh = clozeQuestion(text, ranges, q.blank)
+      return { ...q, ...fresh, choices: q.choices?.map((c) => (c === q.answer ? fresh.answer : c)) }
+    }
+    if (!q.side) return q
+    const answer = edited[q.side === 'term' ? 'definition' : 'term'].trim()
+    return { ...q, prompt: edited[q.side].trim(), answer, choices: q.choices?.map((c) => (c === q.answer ? answer : c)) }
+  })
 }
 
 /**
@@ -56,7 +66,7 @@ export function buildRound(cards: Card[], options: StudyOptions, pool: Card[] = 
     const side = options.side === 'mixed' ? (Math.random() < 0.5 ? 'term' : 'definition') : options.side
     const [promptSide, answerSide] =
       side === 'term' ? (['term', 'definition'] as const) : (['definition', 'term'] as const)
-    const question = { cardId: card.id, prompt: card[promptSide].trim(), answer: card[answerSide].trim() }
+    const question: Question = { cardId: card.id, prompt: card[promptSide].trim(), answer: card[answerSide].trim(), side: promptSide }
     if (!choice) return [question]
     return [withChoices(question, card, usablePool, (c) => (c.type !== 'cloze' && c.id !== card.id ? [c[answerSide].trim()] : []))]
   })

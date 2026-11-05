@@ -1,28 +1,25 @@
 import { go, href, type Route } from '../route'
+import type { Course, Quiz } from '../model'
 import type { LibraryApi } from '../state/useLibrary'
 
 type Crumb = { label: string; to?: Route }
 
-function crumbsFor(lib: LibraryApi, route: Route): Crumb[] {
-  if (route.name === 'debug') return [{ label: 'Debug' }]
-  if (route.name === 'course') {
-    const course = lib.findCourse(route.id)
-    return course ? [{ label: course.name }] : []
-  }
-  if (route.name === 'quiz' || route.name === 'edit') {
-    const found = lib.findQuiz(route.id)
-    if (!found) return []
-    const course: Crumb = { label: found.course.name, to: { name: 'course', id: found.course.id } }
-    return route.name === 'quiz'
-      ? [course, { label: found.quiz.name }]
-      : [course, { label: found.quiz.name, to: { name: 'quiz', id: found.quiz.id } }, { label: 'Edit' }]
-  }
-  return []
+function crumbsFor(page: Route['name'], course?: Course, quiz?: Quiz): Crumb[] {
+  if (page === 'debug') return [{ label: 'Debug' }]
+  if (!course) return []
+  if (page === 'course') return [{ label: course.name }]
+  if (!quiz) return []
+  const up: Crumb = { label: course.name, to: { name: 'course', course: course.name } }
+  return page === 'quiz'
+    ? [up, { label: quiz.name }]
+    : [up, { label: quiz.name, to: { name: 'quiz', course: course.name, quiz: quiz.name } }, { label: 'Edit' }]
 }
 
-export function TopBar({ lib, route }: { lib: LibraryApi; route: Route }) {
+type Props = { lib: LibraryApi; page: Route['name']; course?: Course; quiz?: Quiz }
+
+export function TopBar({ lib, page: name, course, quiz }: Props) {
   // Home leads the trail: the brand link is hidden while the sidebar is closed.
-  const page = crumbsFor(lib, route)
+  const page = crumbsFor(name, course, quiz)
   const crumbs: Crumb[] = page.length > 0 ? [{ label: 'Home', to: { name: 'home' } }, ...page] : []
   const parent = crumbs[crumbs.length - 2]
   return (

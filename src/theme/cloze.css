@@ -1,0 +1,114 @@
+/* Fill in the blank. */
+/* Fill in the blank */
+.cloze-mark,
+.cloze-reveal {
+  border-bottom: var(--blank-line) dashed var(--mark);
+}
+.cloze-mark {
+  padding-bottom: calc(var(--lane) * var(--blank-gap));
+}
+.cloze-mark.is-highlighted {
+  background: var(--accent-soft);
+}
+.cloze-gap {
+  display: inline-block;
+  width: 4em;
+  /* Same color as the blank's dashed line once revealed. */
+  border-bottom: var(--blank-line) solid var(--mark);
+}
+.cloze-reveal {
+  background: none;
+  color: inherit;
+}
+.cloze-field {
+  display: grid;
+  gap: var(--space-2);
+}
+.cloze-box {
+  position: relative;
+}
+.cloze-box textarea,
+.cloze-overlay {
+  box-sizing: border-box;
+  padding: var(--space-2) var(--space-3);
+  border: 0;
+  border-bottom: var(--line-thick) solid transparent;
+  font: inherit;
+  letter-spacing: inherit;
+  line-height: calc(1.5em + var(--lanes) * var(--blank-gap));
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+.cloze-box textarea {
+  background: transparent;
+  border-bottom-color: var(--border);
+  border-radius: 0;
+}
+.cloze-box textarea:focus {
+  border-bottom-color: var(--accent);
+}
+.cloze-box textarea[aria-invalid='true'] {
+  border-bottom-color: var(--bad);
+}
+.cloze-overlay {
+  position: absolute;
+  inset: 0;
+  overflow: hidden;
+  pointer-events: none;
+  color: transparent;
+}
+.cloze-tools {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+.cloze-tools .field-hint {
+  margin-top: 0;
+  padding-left: 0;
+}
+.cloze-blanks {
+  display: grid;
+  gap: var(--space-2);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+/* One row per blank: swatch, text, + Explanation, remove; an opened explanation sits below the text. */
+.cloze-blanks li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: var(--space-1);
+}
+.cloze-swatch {
+  width: var(--space-4);
+  height: 1.5em;
+  border-bottom: var(--blank-line) dashed var(--mark);
+}
+.cloze-blank-text {
+  overflow-wrap: anywhere;
+}
+.cloze-blanks li > .icon-btn {
+  grid-column: 4;
+}
+.cloze-blanks textarea {
+  grid-column: 2 / -1;
+  grid-row: 2;
+  padding: var(--space-2) var(--space-3);
+}
+/* The card's type, next to its number in the editor. */
+.pair-kind {
+  margin-left: var(--space-2);
+}
+/* The statement's label sits above its box. */
+.cloze-statement > .field-hint {
+  margin: 0 0 var(--space-1);
+}
+.add-rows {
+  display: flex;
+  gap: var(--space-3);
+}
+.add-rows .add-row {
+  flex: 1;
+}

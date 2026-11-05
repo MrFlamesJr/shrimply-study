@@ -60,8 +60,8 @@
           "cards": [
             { "term": "The file", "definition": "A zip renamed to .shrimp", "explanation": "library.json at the top of the zip, plus an images folder when cards have images. Zip the files themselves, not a folder around them." },
             { "term": "Top level", "definition": "\"version\": 1 and \"courses\"", "explanation": "version is always 1. Nothing else goes at the top." },
-            { "term": "Course", "definition": "\"name\" and \"quizzes\"", "explanation": "Both are required. The name can not be empty or only spaces, and \"quizzes\" can be an empty list." },
-            { "term": "Quiz", "definition": "\"name\" and \"cards\", optional \"groups\"", "explanation": "The name can not be empty or only spaces. \"cards\" holds the cards that are not in a group and can be an empty list." },
+            { "term": "Course", "definition": "\"name\" and \"quizzes\"", "explanation": "Both are required. The name can not be empty or only spaces, or the same as another course's (case, spaces and punctuation do not count). \"quizzes\" can be an empty list." },
+            { "term": "Quiz", "definition": "\"name\" and \"cards\", optional \"groups\"", "explanation": "The name can not be empty or only spaces, or the same as another quiz's in its course (case, spaces and punctuation do not count). \"cards\" holds the cards that are not in a group and can be an empty list." },
             { "term": "Group", "definition": "\"name\" and \"cards\", optional \"color\"", "explanation": "color is one of lagoon, coral, sky, sand, moss, rose, clay, slate. The name can not be empty or only spaces, and up to 50 characters fit the editor." },
             { "term": "Term card", "definition": "\"term\" and \"definition\", optional \"termImage\", \"definitionImage\", \"explanation\"", "explanation": "A card with an empty term or definition is skipped while studying." },
             { "term": "Fill-in-the-blank card", "definition": "\"type\": \"cloze\" and \"statement\", optional \"image\", \"explanation\"", "explanation": "type is always \"cloze\". A statement needs at least one blank to be studied." },

@@ -5,4 +5,6 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   base: './',
   plugins: [react()],
+  // Vitest empties CSS imports; the theme files are read as text by themes.test.ts.
+  test: { css: { include: [/src\/theme\/.*\.css/] } },
 })

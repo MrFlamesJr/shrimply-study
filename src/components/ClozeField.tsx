@@ -2,6 +2,7 @@ import { useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNo
 import { blankDepth, markBlank, readCloze, shiftBlanks, writeCloze, type Blank } from '../logic/cloze'
 import { AutoText } from './AutoText'
 import { blankColor, ClozeText } from './ClozeText'
+import { IconButton } from './IconButton'
 import { CrossIcon, PlusIcon } from './Icons'
 import { ImageSlot } from './ImageSlot'
 import { Shortcut } from './Shortcut'
@@ -114,15 +115,9 @@ export function ClozeField({ statement, explanation, onChange, hint, image, ...r
                   <PlusIcon /> Explanation
                 </button>
               )}
-              <button
-                type="button"
-                className="icon-btn"
-                title="Remove blank"
-                aria-label={`Remove blank ${i + 1}`}
-                onClick={() => remove(i)}
-              >
+              <IconButton label={`Remove blank ${i + 1}`} title="Remove blank" onClick={() => remove(i)}>
                 <CrossIcon />
-              </button>
+              </IconButton>
               {b.explanation !== null && (
                 <AutoText
                   aria-label={`Explanation for blank ${i + 1}`}

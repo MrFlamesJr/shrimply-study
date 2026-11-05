@@ -24,6 +24,13 @@ export const ChevronDownIcon = () => (
   </svg>
 )
 
+// Thicker than the others (back to top).
+export const ArrowUpIcon = () => (
+  <svg {...svg} strokeWidth={3}>
+    <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
+  </svg>
+)
+
 export const CheckIcon = () => (
   <svg {...svg}>
     <path d="m5 12.5 4.5 4.5L19 7.5" />

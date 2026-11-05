@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { emptyLibrary, newId } from '../model'
 import type { Card, Course, Group, Library, Quiz } from '../model'
+import { freeName } from '../logic/names'
 import { readBackup, writeBackup } from '../storage/browserBackup'
 import type { StorageAdapter } from '../storage/StorageAdapter'
 import type { Notify } from '../components/Toasts'
@@ -18,19 +19,24 @@ export type LibraryApi = {
   saveHint: string
   findCourse(id: string): Course | undefined
   findQuiz(id: string): { course: Course; quiz: Quiz } | undefined
-  /** Creates "New course" and returns its id. It stays a draft until renamed or given a quiz. */
-  addCourse(): string
+  /** Creates "New course" (or "New course 2" and so on: names are unique) and returns it. It stays a draft until renamed or given a quiz. */
+  addCourse(): Course
   /** Call when leaving a course page: a draft course is dropped as if it was never created. */
   leaveCourse(id: string): void
   renameCourse(id: string, name: string): void
   deleteCourse(id: string): void
-  /** Creates "New quiz" in the course and returns its id. */
-  addQuiz(courseId: string): string
+  /** Creates "New quiz" (or "New quiz 2" and so on) in the course and returns it. */
+  addQuiz(courseId: string): Quiz
   renameQuiz(id: string, name: string): void
   deleteQuiz(id: string): void
   setCards(quizId: string, cards: Card[], groups?: Group[]): void
-  /** Asks to confirm when there are unsaved changes. Resolves true when a library was loaded. */
-  open(): Promise<boolean>
+  /** Replaces the card with the same id. */
+  updateCard(quizId: string, card: Card): void
+  /**
+   * Asks to confirm when there are unsaved changes. `from` loads the library (default: the adapter's picker; null
+   * means nothing was picked). Resolves true when a library was loaded.
+   */
+  open(from?: () => Promise<Library | null>): Promise<boolean>
   download(): Promise<void>
 }
 
@@ -100,9 +106,12 @@ export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi 
 
   useEffect(() => {
     if (!hasChanges) return
+    // Browsers show their own text in this prompt and ignore ours. The timer only runs if the page is still
+    // open, so the reminder comes as a toast once the user chooses to stay (or behind the prompt in some browsers).
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
+      setTimeout(() => notify('warning', "Don't forget to download your .shrimp file to save your changes."))
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
@@ -147,10 +156,10 @@ export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi 
     findQuiz,
 
     addCourse() {
-      const id = newId()
-      drafts.current.add(id)
-      change([id], (lib) => ({ ...lib, courses: [...lib.courses, { id, name: 'New course', quizzes: [] }] }))
-      return id
+      const course: Course = { id: newId(), name: freeName('New course', library.courses.map((c) => c.name)), quizzes: [] }
+      drafts.current.add(course.id)
+      change([course.id], (lib) => ({ ...lib, courses: [...lib.courses, course] }))
+      return course
     },
     leaveCourse(id) {
       if (drafts.current.has(id)) dropDraft(id)
@@ -165,13 +174,12 @@ export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi 
     },
     addQuiz(courseId) {
       drafts.current.delete(courseId)
-      const id = newId()
-      change([id, courseId], (lib) =>
-        mapCourses(lib, (c) =>
-          c.id === courseId ? { ...c, quizzes: [...c.quizzes, { id, name: 'New quiz', groups: [], cards: [] }] } : c,
-        ),
+      const taken = findCourse(courseId)?.quizzes.map((q) => q.name) ?? []
+      const quiz: Quiz = { id: newId(), name: freeName('New quiz', taken), groups: [], cards: [] }
+      change([quiz.id, courseId], (lib) =>
+        mapCourses(lib, (c) => (c.id === courseId ? { ...c, quizzes: [...c.quizzes, quiz] } : c)),
       )
-      return id
+      return quiz
     },
     renameQuiz(id, name) {
       change(quizIds(id), (lib) => mapQuiz(lib, id, (q) => ({ ...q, name })))
@@ -185,11 +193,16 @@ export function useLibrary(adapter: StorageAdapter, notify: Notify): LibraryApi 
     setCards(quizId, cards, groups) {
       change(quizIds(quizId), (lib) => mapQuiz(lib, quizId, (q) => ({ ...q, cards, ...(groups && { groups }) })))
     },
+    updateCard(quizId, card) {
+      change(quizIds(quizId), (lib) =>
+        mapQuiz(lib, quizId, (q) => ({ ...q, cards: q.cards.map((c) => (c.id === card.id ? card : c)) })),
+      )
+    },
 
-    async open() {
+    async open(from = adapter.load) {
       if (hasChanges && !confirm('You have unsaved changes. Opening a file replaces them. Continue?')) return false
       try {
-        const loaded = await adapter.load()
+        const loaded = await from()
         if (!loaded) return false
         setState({ library: loaded, changedIds: new Set() })
         return true

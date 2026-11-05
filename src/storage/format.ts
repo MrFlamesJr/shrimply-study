@@ -21,7 +21,8 @@
 //   ]
 // }
 //
-// Course, quiz and group names can not be empty or only spaces.
+// Course, quiz and group names can not be empty or only spaces. Two courses, or two quizzes in one course, can not
+// have the same name (case, spaces and punctuation do not count): the page address is made from it.
 // A group's "color" is optional when reading (a missing one gets the next unused color) and always written.
 // A cloze (fill in the blank) card marks its blanks with { } in "statement"; \{ \} \\ are a literal { } \.
 // Its "explanation" is optional: plain text when there is one blank, otherwise a list with one entry per blank.
@@ -32,6 +33,7 @@ import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
 import { parseCloze } from '../logic/cloze'
 import { plural } from '../logic/plural'
 import { nextColor } from '../logic/groups'
+import { slug } from '../logic/names'
 import { GROUP_COLORS, IMAGE_TYPES, newId } from '../model'
 import type { Card, ClozeCard, Course, Group, GroupColor, Library, Quiz, TermCard } from '../model'
 
@@ -118,24 +120,26 @@ export function libraryFromJson(text: string, files: Record<string, Uint8Array> 
   return checkLibrary(data, 'new', files)
 }
 
+// The "path: " that starts an error message (nothing at the top).
+const at = (path: string) => (path ? `${path}: ` : '')
+
 // Checks that `v` is an object with exactly these fields (plus `id` when ids are stored); `optional` fields may be absent.
 function exactFields(v: unknown, path: string, names: string[], ids: Ids, optional: string[] = []): Record<string, unknown> {
-  const at = path ? `${path}: ` : ''
-  if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error(`${at}must be an object.`)
+  if (typeof v !== 'object' || v === null || Array.isArray(v)) throw new Error(`${at(path)}must be an object.`)
   const required = ids === 'stored' ? ['id', ...names] : names
   const allowed = [...required, ...optional]
   for (const key of Object.keys(v)) {
-    if (!allowed.includes(key)) throw new Error(`${at}unknown field "${key}".`)
+    if (!allowed.includes(key)) throw new Error(`${at(path)}unknown field "${key}".`)
   }
   for (const key of required) {
-    if (!(key in v)) throw new Error(`${at}"${key}" is missing.`)
+    if (!(key in v)) throw new Error(`${at(path)}"${key}" is missing.`)
   }
   return v as Record<string, unknown>
 }
 
 function text(o: Record<string, unknown>, key: string, path: string): string {
   const v = o[key]
-  if (typeof v !== 'string') throw new Error(`${path ? `${path}: ` : ''}"${key}" must be text.`)
+  if (typeof v !== 'string') throw new Error(`${at(path)}"${key}" must be text.`)
   return v
 }
 
@@ -143,13 +147,26 @@ function text(o: Record<string, unknown>, key: string, path: string): string {
 // left by an older version still loads (a backup that fails to load is lost).
 function name(o: Record<string, unknown>, path: string, ids: Ids): string {
   const v = text(o, 'name', path)
-  if (ids === 'new' && !v.trim()) throw new Error(`${path ? `${path}: ` : ''}"name" can not be empty.`)
+  if (ids === 'new' && !v.trim()) throw new Error(`${at(path)}"name" can not be empty.`)
   return v
+}
+
+// Two courses, or two quizzes in one course, can not share a name (see `slug`). Only files are checked, like `name`.
+function uniqueNames(list: { name: string }[], path: (i: number) => string, ids: Ids): void {
+  if (ids === 'stored') return
+  const seen = new Map<string, number>()
+  list.forEach(({ name }, i) => {
+    const first = seen.get(slug(name))
+    if (first !== undefined) {
+      throw new Error(`${at(path(i))}"name" is already used by ${path(first)} (case, spaces and punctuation do not count).`)
+    }
+    seen.set(slug(name), i)
+  })
 }
 
 function items(o: Record<string, unknown>, key: string, path: string): unknown[] {
   const v = o[key]
-  if (!Array.isArray(v)) throw new Error(`${path ? `${path}: ` : ''}"${key}" must be a list.`)
+  if (!Array.isArray(v)) throw new Error(`${at(path)}"${key}" must be a list.`)
   return v
 }
 
@@ -273,11 +290,13 @@ function checkQuiz(v: unknown, path: string, ids: Ids, image: ImageRead): Quiz {
 
 function checkCourse(v: unknown, path: string, ids: Ids, image: ImageRead): Course {
   const o = exactFields(v, path, ['name', 'quizzes'], ids)
-  return {
+  const course = {
     id: idOf(o, path, ids),
     name: name(o, path, ids),
     quizzes: items(o, 'quizzes', path).map((q, i) => checkQuiz(q, `${path}.quizzes[${i}]`, ids, image)),
   }
+  uniqueNames(course.quizzes, (i) => `${path}.quizzes[${i}]`, ids)
+  return course
 }
 
 /**
@@ -290,10 +309,9 @@ export function checkLibrary(data: unknown, ids: Ids, files: Record<string, Uint
   const o = exactFields(data, '', ['version', 'courses'], 'new')
   if (o.version !== 1) throw new Error('"version" must be 1.')
   const image = imageReader(ids, files)
-  return {
-    version: 1,
-    courses: items(o, 'courses', '').map((c, i) => checkCourse(c, `courses[${i}]`, ids, image)),
-  }
+  const courses = items(o, 'courses', '').map((c, i) => checkCourse(c, `courses[${i}]`, ids, image))
+  uniqueNames(courses, (i) => `courses[${i}]`, ids)
+  return { version: 1, courses }
 }
 
 export function encodeLibrary(library: Library): Uint8Array {

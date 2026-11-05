@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GROUP_COLORS } from '../model'
 import type { Card, Group } from '../model'
-import { inGroupOrder, nextColor } from './groups'
+import { inGroupOrder, nextColor, sections, withCollapsed } from './groups'
 
 const card = (id: string, group?: string): Card => ({ id, term: id, definition: id, group })
 const groups: Group[] = [
@@ -32,5 +32,35 @@ describe('inGroupOrder', () => {
   it('treats a card with an unknown group as ungrouped', () => {
     const cards = [card('a', 'g1'), card('b', 'gone')]
     expect(inGroupOrder(cards, groups).map((c) => c.id)).toEqual(['b', 'a'])
+  })
+})
+
+describe('sections', () => {
+  it('lists ungrouped cards first, then each group, empty ones included', () => {
+    const list = [card('a', 'g2'), card('b'), card('c', 'gone'), card('d', 'g2')]
+    expect(sections(list, groups)).toEqual([
+      { cards: [list[1], list[2]] },
+      { group: groups[0], cards: [] },
+      { group: groups[1], cards: [list[0], list[3]] },
+    ])
+  })
+
+  it('has one empty ungrouped section for no cards', () => {
+    expect(sections([], [])).toEqual([{ cards: [] }])
+  })
+})
+
+describe('withCollapsed', () => {
+  it('adds and removes ids', () => {
+    const shut = withCollapsed(new Set(['a']), ['b'], true)
+    expect([...shut]).toEqual(['a', 'b'])
+    expect([...withCollapsed(shut, ['a'], false)]).toEqual(['b'])
+  })
+
+  it('returns the same set when nothing changes', () => {
+    const set: ReadonlySet<string> = new Set(['a'])
+    expect(withCollapsed(set, ['a'], true)).toBe(set)
+    expect(withCollapsed(set, ['b'], false)).toBe(set)
+    expect(withCollapsed(set, [], true)).toBe(set)
   })
 })

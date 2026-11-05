@@ -1,0 +1,137 @@
+/* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
+   CLAUDE.md, Themes; themes.test.ts checks it). */
+
+/* Sassy unicorn: a midnight plum sky full of sparkles, very girly and still easy to study on. Bubblegum pink is
+   the action, the chosen option and the focus ring, with a sparkly pink glow; plum is the structure (surfaces,
+   borders and muted text lean pink-lilac); lavender is the text selection; mint and coral only mean right and wrong
+   (the coral leans orange, far from the bubblegum); butter yellow is the warning, baby blue info. The shrimp is pink
+   with a lavender head. Group colors are a pastel rainbow, softer than the pink. Behind the open ground: a large,
+   very faint plush watercolor unicorn in the bottom-left corner beside the sidebar (unicorn.webp, at the back), a faint iridescent haze,
+   a small pastel rainbow in the bottom-right corner, and pastel sparkles and tiny hearts that twinkle and
+   drift slowly sideways (still under reduced motion; cards, the sidebar and dialogs cover it). Lobster Two, a sassy
+   bold script, is the title font. */
+:root[data-theme="unicorn"] {
+  color-scheme: dark;
+
+  /* Ground and text. Main text is a near-neutral white; muted text gets its lightness and color amount here and the
+     surfaces' hue (--lift-hue), so it is never cooler or warmer than what it sits on. */
+  --bg: #1d081c;
+  --text: #faf3f7;
+  --muted-l: 0.8;
+  --muted-c: 0.045;
+
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
+     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
+     --ink is the black of scrims and the sunken well. */
+  --accent: #ff8cc1;
+  --selection-color: #bd9ff2;
+  --ok: #7ceec5;
+  --bad: #fb836d;
+  --danger: #f65a62;
+  --warn: #f1da84;
+  --info: #94d0f4;
+  --ink: #000;
+
+  /* The brand mark (shrimp): shell and head; its outline is the text color. */
+  --brand-shell: var(--accent);
+  --brand-head: var(--selection-color);
+
+  /* Fill-in-the-blank underlines, told apart when stacked; the first is the accent. */
+  --blank-1: var(--accent);
+  --blank-2: #c3a5f9;
+  --blank-3: #eed780;
+  --blank-4: #82e0e5;
+
+  /* Group colors, a touch softer than the accent so they never compete with it. */
+  --group-lagoon: #7ed8c6;
+  --group-coral: #f7a597;
+  --group-sky: #8cc4f4;
+  --group-sand: #e8cf8c;
+  --group-moss: #afda97;
+  --group-rose: #d7a0e3;
+  --group-clay: #eeae7b;
+  --group-slate: #b0accf;
+
+  /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
+     --lift-chroma color per step, in the hue --lift-hue. */
+  --lift-hue: 330;
+  --lift-chroma: 0.12;
+  --lift-sunken: -0.03;
+  --lift-1: 0.045;
+  --lift-2: 0.085;
+  --lift-3: 0.125;
+  --lift-border: 0.2;
+  --lift-border-strong: 0.32;
+
+  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  --hover-lift: 0.05;
+  --hover-chroma: 0.95;
+
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
+     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
+     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  --tint-soft: 12%;
+  --tint: 16%;
+  --tint-line: 55%;
+  --tint-select: 40%;
+  --tint-danger: 16%;
+  --tint-muted: 30%;
+  --tint-rest: 8%;
+  --group-fill: 8%;
+  --group-line: 45%;
+  --group-chip: 24%;
+  --scrim-alpha: 60%;
+  --viewer-scrim-alpha: 90%;
+
+  /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
+     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
+     their own shadow or glow, more while hovered. */
+  --glow-size: 14px;
+  --glow-accent: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 45%, transparent);
+  --glow-focus: var(--glow-accent);
+  --glow-ok: 0 0 var(--glow-size) color-mix(in srgb, var(--ok) 30%, transparent);
+  --glow-bad: 0 0 var(--glow-size) color-mix(in srgb, var(--bad) 30%, transparent);
+  --glow-text: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 40%, transparent);
+  --glow-card:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent),
+    0 0 var(--glow-size) color-mix(in srgb, var(--selection-color) 22%, transparent);
+  --glow-card-hover:
+    inset 0 1px 0 color-mix(in srgb, var(--text) 12%, transparent),
+    0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--accent) 35%, transparent);
+
+  /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
+     background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
+     themselves very slightly (still under reduced motion), all sliding sideways together by one
+     --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
+  --backdrop:
+    radial-gradient(ellipse 60% 45% at 85% -5%, color-mix(in srgb, var(--accent) 10%, transparent), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 5% 105%, color-mix(in srgb, var(--selection-color) 9%, transparent), transparent 70%),
+    radial-gradient(circle 340px at 100% 100%,
+      transparent 64%,
+      color-mix(in srgb, var(--accent) 7%, transparent) 66% 71%,
+      color-mix(in srgb, var(--warn) 6%, transparent) 71% 76%,
+      color-mix(in srgb, var(--ok) 6%, transparent) 76% 81%,
+      color-mix(in srgb, var(--info) 6%, transparent) 81% 86%,
+      color-mix(in srgb, var(--selection-color) 7%, transparent) 86% 91%,
+      transparent 93%),
+    url("./unicorn.webp");
+  --backdrop-drift: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480'%3E%3Cstyle%3Epath%7Btransform-box:fill-box;transform-origin:center;animation:t 7s ease-in-out infinite%7D@keyframes t%7B0%25,100%25%7Bopacity:1;transform:scale(1)%7D50%25%7Bopacity:.25;transform:scale(.55)%7D%7D@media (prefers-reduced-motion: reduce)%7B*%7Banimation:none%7D%7D%3C/style%3E%3Cg opacity='.26'%3E%3Cg transform='translate(40 60)'%3E%3Cpath d='M0 -5C0.7000000000000001 -0.7000000000000001 0.7000000000000001 -0.7000000000000001 5 0C0.7000000000000001 0.7000000000000001 0.7000000000000001 0.7000000000000001 0 5C-0.7000000000000001 0.7000000000000001 -0.7000000000000001 0.7000000000000001 -5 0C-0.7000000000000001 -0.7000000000000001 -0.7000000000000001 -0.7000000000000001 0 -5Z' fill='%23fff4fb' style='animation-duration:5s;animation-delay:-0.0s'/%3E%3C/g%3E%3Cg transform='translate(300 40)'%3E%3Cpath d='M0 -3C0.42000000000000004 -0.42000000000000004 0.42000000000000004 -0.42000000000000004 3 0C0.42000000000000004 0.42000000000000004 0.42000000000000004 0.42000000000000004 0 3C-0.42000000000000004 0.42000000000000004 -0.42000000000000004 0.42000000000000004 -3 0C-0.42000000000000004 -0.42000000000000004 -0.42000000000000004 -0.42000000000000004 0 -3Z' fill='%23ff8cc1' style='animation-duration:6.5s;animation-delay:-1.3s'/%3E%3C/g%3E%3Cg transform='translate(420 150)'%3E%3Cpath d='M0 2.7C-4.800000000000001 -0.6000000000000001 -2.4000000000000004 -4.5 0 -1.7999999999999998C2.4000000000000004 -4.5 4.800000000000001 -0.6000000000000001 0 2.7Z' fill='%23ff8cc1' style='animation-duration:8s;animation-delay:-2.6s'/%3E%3C/g%3E%3Cg transform='translate(130 230)'%3E%3Cpath d='M0 -4C0.56 -0.56 0.56 -0.56 4 0C0.56 0.56 0.56 0.56 0 4C-0.56 0.56 -0.56 0.56 -4 0C-0.56 -0.56 -0.56 -0.56 0 -4Z' fill='%23c3a5f9' style='animation-duration:9.5s;animation-delay:-3.9s'/%3E%3C/g%3E%3Cg transform='translate(360 300)'%3E%3Cpath d='M0 -6C0.8400000000000001 -0.8400000000000001 0.8400000000000001 -0.8400000000000001 6 0C0.8400000000000001 0.8400000000000001 0.8400000000000001 0.8400000000000001 0 6C-0.8400000000000001 0.8400000000000001 -0.8400000000000001 0.8400000000000001 -6 0C-0.8400000000000001 -0.8400000000000001 -0.8400000000000001 -0.8400000000000001 0 -6Z' fill='%23fff4fb' style='animation-duration:11s;animation-delay:-5.2s'/%3E%3C/g%3E%3Cg transform='translate(60 380)'%3E%3Cpath d='M0 2.7C-4.800000000000001 -0.6000000000000001 -2.4000000000000004 -4.5 0 -1.7999999999999998C2.4000000000000004 -4.5 4.800000000000001 -0.6000000000000001 0 2.7Z' fill='%23c3a5f9' style='animation-duration:5s;animation-delay:-6.5s'/%3E%3C/g%3E%3Cg transform='translate(230 440)'%3E%3Cpath d='M0 -3C0.42000000000000004 -0.42000000000000004 0.42000000000000004 -0.42000000000000004 3 0C0.42000000000000004 0.42000000000000004 0.42000000000000004 0.42000000000000004 0 3C-0.42000000000000004 0.42000000000000004 -0.42000000000000004 0.42000000000000004 -3 0C-0.42000000000000004 -0.42000000000000004 -0.42000000000000004 -0.42000000000000004 0 -3Z' fill='%23f1da84' style='animation-duration:6.5s;animation-delay:-7.8s'/%3E%3C/g%3E%3Cg transform='translate(450 420)'%3E%3Cpath d='M0 -4C0.56 -0.56 0.56 -0.56 4 0C0.56 0.56 0.56 0.56 0 4C-0.56 0.56 -0.56 0.56 -4 0C-0.56 -0.56 -0.56 -0.56 0 -4Z' fill='%237ceec5' style='animation-duration:8s;animation-delay:-9.1s'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --backdrop-drift-w: 480px;
+  --backdrop-drift-time: 140s;
+
+  /* Backdrop placement, one value per --backdrop layer (or one for all): position, size and repeat. A position can
+     start from --ground-x, where the open page ground begins (right of the open sidebar on wide screens). */
+  --backdrop-position: 0 0, 0 0, 0 0, left calc(var(--ground-x) + 12px) bottom 8px;
+  --backdrop-size: auto, auto, auto, min(560px, 60vw) auto;
+  --backdrop-repeat: no-repeat;
+
+  /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
+     Atkinson). */
+  --font-display: "Lobster Two", var(--font-body);
+  --display-tracking: 0.01em;
+  --display-case: none;
+  --title-size: 2.375rem;
+  --text-brand: 1.375rem;
+  --text-score: 3.5rem;
+  --radius: 10px;
+}

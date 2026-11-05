@@ -1,0 +1,121 @@
+/* The debug page (#/_debug) and the debug bar. */
+.page section.debug-section > .muted {
+  margin-bottom: var(--space-4);
+}
+.debug-section > .actions > .muted {
+  flex: 1 1 20rem;
+}
+/* Two label/value pairs per row; one when narrow. */
+.debug-stats {
+  display: grid;
+  grid-template-columns: max-content minmax(0, 1fr) max-content minmax(0, 1fr);
+  gap: var(--space-1) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+@media (max-width: 799px) {
+  .debug-stats {
+    grid-template-columns: max-content minmax(0, 1fr);
+  }
+}
+.debug-stats dt {
+  color: var(--text-muted);
+}
+.debug-stats dd {
+  overflow-wrap: anywhere;
+}
+.debug-tokens {
+  list-style: none;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(18rem, 1fr));
+  gap: var(--space-2) var(--space-4);
+}
+.debug-tokens li {
+  display: grid;
+  grid-template-columns: var(--space-5) auto 1fr;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--text-sm);
+}
+.debug-tokens .swatch {
+  width: var(--space-5);
+  height: var(--space-5);
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius);
+}
+.debug-tokens li > :last-child {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.debug-json {
+  display: block;
+  width: 100%;
+  height: calc(16lh);
+  margin-bottom: var(--space-4);
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  white-space: pre;
+  overflow: auto;
+}
+.debug-bar {
+  position: fixed;
+  left: var(--space-3);
+  bottom: var(--space-3);
+  z-index: 1000;
+  /* Its own width wherever it is moved, so it doesn't squeeze against the right edge. */
+  width: max-content;
+  max-width: calc(100vw - 2 * var(--space-3));
+  padding: var(--space-2) var(--space-3);
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+/* Frosted glass in diagonal stripes (asked for; the app's one blur): a light layer under the whole bar, and a denser,
+   more blurred one masked into every other stripe. Both sit behind the bar's content. */
+.debug-bar::before,
+.debug-bar::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  border-radius: inherit;
+  pointer-events: none;
+}
+.debug-bar::before {
+  background: var(--glass);
+  backdrop-filter: blur(var(--glass-blur));
+}
+.debug-bar::after {
+  background: var(--glass-dense);
+  backdrop-filter: blur(var(--glass-blur-dense));
+  mask-image: repeating-linear-gradient(
+    135deg,
+    var(--bg) 0 var(--glass-stripe),
+    transparent var(--glass-stripe) calc(2 * var(--glass-stripe))
+  );
+}
+.debug-bar .actions {
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+/* The size line is the bar's drag handle. */
+.debug-handle {
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.debug-handle:active {
+  cursor: grabbing;
+}
+.debug-bar button[aria-pressed="true"] {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.debug-outlines * {
+  outline: var(--line) solid var(--info);
+}
+[data-debug-small] {
+  outline: var(--line-thick) solid var(--warn) !important;
+}

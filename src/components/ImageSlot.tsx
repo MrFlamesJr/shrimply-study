@@ -1,6 +1,8 @@
 import { useEffect, useRef, useState, type DragEvent, type ReactNode } from 'react'
 import { IMAGE_TYPES } from '../model'
+import { IconButton } from './IconButton'
 import { ImageIcon } from './Icons'
+import { ZoomImage } from './ZoomImage'
 
 const TYPES = Object.values(IMAGE_TYPES)
 // Longest side of a stored image: bigger ones are scaled down. Text in a diagram still reads at this size.
@@ -96,7 +98,7 @@ export function ImageSlot({ src, label, onChange, children }: Props) {
             aria-label={`Replace the image of ${label}`}
             onClick={() => input.current?.click()}
           >
-            <img className="thumb" src={src} alt="" />
+            <ZoomImage src={src} className="thumb" hover />
           </button>
           <button
             type="button"
@@ -109,15 +111,13 @@ export function ImageSlot({ src, label, onChange, children }: Props) {
           </button>
         </span>
       ) : (
-        <button
-          type="button"
-          className="icon-btn"
+        <IconButton
+          label={`Add an image to ${label}`}
           title="Add an image (or paste or drop one on the field)"
-          aria-label={`Add an image to ${label}`}
           onClick={() => input.current?.click()}
         >
           <ImageIcon />
-        </button>
+        </IconButton>
       )}
       <input
         ref={input}

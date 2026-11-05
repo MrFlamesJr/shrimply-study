@@ -1,0 +1,133 @@
+/* Tokens shared by every theme, in two blocks:
+   1. Derived colors: surfaces, borders, tints, scrims and focus, computed from the theme's base colors and knobs.
+   2. Theme-independent tokens: fonts, type sizes, weights, lines, spacing, motion, layout.
+   The themes are one file each, theme-<id>.css (Calm is the default), every one setting the same template of base
+   colors and knobs in the same order (CLAUDE.md, Themes; themes.test.ts checks it). Derived colors are declared on
+   :root like the theme tokens, so they follow whichever theme is set on <html>. */
+
+/* 1. Derived colors. Themes never override these: a look the formulas can not give is a new template knob. */
+:root {
+  /* The hue is the --lift-hue knob, never the ground's own `h`: a near-grey's hue is powerless, browsers drop it. */
+  /* A well set into the page, darker than it (study options). */
+  --sunken: oklch(from var(--bg) calc(l + var(--lift-sunken)) calc(c + var(--lift-sunken) * var(--lift-chroma)) var(--lift-hue));
+  --surface: oklch(from var(--bg) calc(l + var(--lift-1)) calc(c + var(--lift-1) * var(--lift-chroma)) var(--lift-hue));
+  --surface-2: oklch(from var(--bg) calc(l + var(--lift-2)) calc(c + var(--lift-2) * var(--lift-chroma)) var(--lift-hue));
+  --surface-3: oklch(from var(--bg) calc(l + var(--lift-3)) calc(c + var(--lift-3) * var(--lift-chroma)) var(--lift-hue));
+  --border: oklch(from var(--bg) calc(l + var(--lift-border)) calc(c + var(--lift-border) * var(--lift-chroma)) var(--lift-hue));
+  --border-strong: oklch(
+    from var(--bg) calc(l + var(--lift-border-strong)) calc(c + var(--lift-border-strong) * var(--lift-chroma)) var(--lift-hue)
+  );
+  /* See-through surfaces for a tinted ground (group boxes): about the same step up, but the tint shows. */
+  --surface-clear: color-mix(in srgb, var(--text) 4%, transparent);
+  --surface-2-clear: color-mix(in srgb, var(--text) 5%, transparent);
+  --surface-3-clear: color-mix(in srgb, var(--text) 9%, transparent);
+  /* Popups always stay solid. Resolved here, so a box that swaps --surface-2 doesn't change it. */
+  --popup: var(--surface-2);
+  --accent-text: var(--bg);
+  --accent-hover: oklch(from var(--accent) calc(l + var(--hover-lift)) calc(c * var(--hover-chroma)) h);
+  --accent-soft: color-mix(in srgb, var(--accent) var(--tint), transparent);
+  --accent-line: color-mix(in srgb, var(--accent) var(--tint-line), transparent);
+  --ok-soft: color-mix(in srgb, var(--ok) var(--tint-soft), transparent);
+  --ok-tint: color-mix(in srgb, var(--ok) var(--tint), transparent);
+  --bad-soft: color-mix(in srgb, var(--bad) var(--tint-soft), transparent);
+  --bad-tint: color-mix(in srgb, var(--bad) var(--tint), transparent);
+  --danger-soft: color-mix(in srgb, var(--danger) var(--tint-danger), transparent);
+  --ok-rest: color-mix(in srgb, var(--ok) var(--tint-rest), transparent);
+  --bad-rest: color-mix(in srgb, var(--bad) var(--tint-rest), transparent);
+  --text-muted: oklch(var(--muted-l) var(--muted-c) var(--lift-hue));
+  /* Resolved here, so a tinted zone can lean --text-muted and the borders toward its color starting from these. */
+  --text-muted-plain: var(--text-muted);
+  --border-plain: var(--border);
+  --border-strong-plain: var(--border-strong);
+  /* The keyboard focus ring. */
+  --focus: var(--accent-line);
+  --selection: color-mix(in srgb, var(--selection-color) var(--tint-select), transparent);
+  --scrim: color-mix(in srgb, var(--ink) var(--scrim-alpha), transparent);
+  /* Behind a full-screen image: darker, so the image stands out. */
+  --viewer-scrim: color-mix(in srgb, var(--ink) var(--viewer-scrim-alpha), transparent);
+  /* The debug bar's striped glass: a light frosted layer and a denser one in every other diagonal stripe.
+     The light layer is also the back-to-top button, with a thin edge. */
+  --glass: color-mix(in srgb, var(--popup) 45%, transparent);
+  --glass-line: color-mix(in srgb, var(--text) 16%, transparent);
+  --glass-dense: color-mix(in srgb, var(--popup) 78%, transparent);
+}
+
+/* 2. Theme-independent tokens. */
+:root {
+  --font-body: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  --font-size: 17px;
+  --weight: 400;
+  --weight-bold: 700;
+  /* Repeated text sizes. */
+  --text-2xs: 0.6875rem;
+  --text-xs: 0.75rem;
+  --text-xs-plus: 0.8125rem;
+  --text-sm: 0.875rem;
+  --text-sm-plus: 0.9375rem;
+  --text-md: 1rem;
+  --text-lg: 1.125rem;
+  --text-xl: 1.25rem;
+  /* Line widths: borders, outlines, underlines. */
+  --line: 1px;
+  --line-thick: 2px;
+  --focus-offset: 2px;
+  --underline-offset: 3px;
+  /* Faded: disabled controls, then lighter fades. */
+  --dim: 0.45;
+  --dim-soft: 0.5;
+  --dim-light: 0.7;
+  --blank-line: 2px;
+  --blank-gap: 4px;
+  --glass-blur: 4px;
+  --glass-blur-dense: 14px;
+  --glass-stripe: 10px;
+  /* Touch target size on small screens. */
+  --tap: 44px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 24px;
+  --space-6: 32px;
+  --space-7: 48px;
+  --space-8: 64px;
+  --dur-fast: 70ms;
+  --dur: 140ms;
+  --dur-flip: 300ms;
+  /* The sidebar's slide: a long way to go, so longer than a UI change, shorter than the card flip. */
+  --dur-slide: 220ms;
+  /* One turn of a loading spinner. */
+  --dur-spin: 700ms;
+  /* How long the pointer rests on an image whose click does something else before it opens big (a border
+     traces around it meanwhile). */
+  --dur-zoom: 700ms;
+  --flip-depth: 1400px;
+  --ease: cubic-bezier(0.25, 1, 0.5, 1);
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --content-w: 1040px;
+  --session-w: 760px;
+  --session-wide-w: 1120px;
+  --card-h: clamp(320px, 50vh, 520px);
+  --prompt-card-h: clamp(240px, 32vh, 400px);
+  /* Card images: at most this tall in study, thumbnails in the editor and on the quiz page. */
+  --card-img-h: clamp(96px, 22vh, 260px);
+  --thumb-h: 40px;
+  --thumb-list-h: 56px;
+  --sheet-room: 160px;
+  --topbar-h: 56px;
+  --sidebar-w: 280px;
+  /* The corner (brand + toggle) while the sidebar is closed. */
+  --corner-w: 256px;
+  --toggle-size: 48px;
+  --dialog-w: 880px;
+  --dialog-narrow-w: 560px;
+  --toast-w: 360px;
+  --toast-badge: 1.5rem;
+  --toasts-peek: 40vh;
+  --prompt-size: clamp(1.5rem, 3vw, 2.5rem);
+  --prompt-size-long: clamp(1.125rem, 1.6vw, 1.375rem);
+  --sheet-answer-h: 30dvh;
+  --sheet-max-h: calc(100dvh / 2);
+  --sheet-drag-max-h: calc(200dvh / 3);
+}

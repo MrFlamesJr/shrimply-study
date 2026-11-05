@@ -20,6 +20,12 @@ async function load(): Promise<Library | null> {
   return decodeLibrary(new Uint8Array(await file.arrayBuffer()))
 }
 
+export async function fetchLibrary(url: string): Promise<Library> {
+  const response = await fetch(url)
+  if (!response.ok) throw new Error(`The file could not be fetched (${response.status}).`)
+  return decodeLibrary(new Uint8Array(await response.arrayBuffer()))
+}
+
 async function save(library: Library): Promise<void> {
   const url = URL.createObjectURL(new Blob([encodeLibrary(library).slice()], { type: 'application/zip' }))
   const now = new Date()

@@ -1,0 +1,112 @@
+/* Study results screen. */
+/* Results: the score with the round's actions, then every question of the round as a card list (CardRow).
+   The page column, as wide as the quiz page's card list. Top-aligned, not centered, so switching the list's
+   filter never moves what is above it. No feedback sheet here, so no room kept for it. */
+.session.is-results {
+  --session-w: var(--content-w);
+}
+.results {
+  gap: var(--space-6);
+  padding-bottom: var(--space-7);
+}
+/* Score on the left, the actions on the right (the gold one last), the bar across the bottom. Narrow: stacked. */
+.results-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-4) var(--space-6);
+  padding: var(--space-5) var(--space-6);
+  background: var(--surface);
+  border-radius: var(--radius);
+}
+.results-summary .score-bar {
+  grid-column: 1 / -1;
+}
+.score {
+  font-size: var(--text-score);
+  font-family: var(--font-display);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-text);
+  font-weight: var(--weight-bold);
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.results-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3) var(--space-5);
+  margin-bottom: var(--space-4);
+}
+/* The heading already names the list; the filter's own label is for screen readers only. */
+.results-head .segmented-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+/* The first column says how each question went, its icon centered on the first line of text. */
+.result-rows {
+  --lead-w: var(--space-5);
+}
+.result-rows li {
+  row-gap: var(--space-1);
+}
+.row-mark {
+  display: flex;
+  align-self: start;
+  align-items: center;
+  height: 1lh;
+  color: var(--ok);
+}
+.row-mark.is-missed {
+  color: var(--bad);
+}
+/* What was picked or typed: its own row under the text columns, the answer itself in the text color. */
+.row-extra {
+  grid-column: 2 / -2;
+}
+.row-given {
+  color: var(--text);
+}
+/* Narrow: score, bar, then the gold action across the full width above the others. */
+@media (max-width: 799px) {
+  .results-summary {
+    grid-template-columns: minmax(0, 1fr);
+    padding: var(--space-4);
+  }
+  .results-summary .actions {
+    order: 1;
+  }
+  .results-summary .actions button {
+    flex: 1 1 auto;
+  }
+  .results-summary .actions .primary {
+    order: -1;
+    flex-basis: 100%;
+  }
+}
+.score-bar {
+  width: 100%;
+  height: 8px;
+  background: var(--bad);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.score-bar > div {
+  height: 100%;
+  background: var(--ok);
+}
+@media (max-width: 799px) {
+  .choices {
+    grid-template-columns: 1fr;
+  }
+  .flip-face {
+    padding: var(--space-6) var(--space-4);
+  }
+}
+

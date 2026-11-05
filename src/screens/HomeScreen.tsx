@@ -1,6 +1,7 @@
 import { go, goToNew, href } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { QuizTiles } from '../components/QuizTiles'
+import { PageHead } from '../components/Page'
 import { PlusIcon } from '../components/Icons'
 import { plural } from '../logic/plural'
 
@@ -8,6 +9,10 @@ export function HomeScreen({ lib }: { lib: LibraryApi }) {
   const { courses } = lib.library
   const open = async () => {
     if (await lib.open()) go({ name: 'home' })
+  }
+  const newCourse = () => {
+    const course = lib.addCourse()
+    goToNew(course.id, { name: 'course', course: course.name })
   }
   if (courses.length === 0) {
     return (
@@ -19,7 +24,7 @@ export function HomeScreen({ lib }: { lib: LibraryApi }) {
           <li>Pick a study mode: flashcards, multiple choice or typing.</li>
         </ol>
         <div className="actions">
-          <button type="button" className="primary" onClick={() => goToNew({ name: 'course', id: lib.addCourse() })}>
+          <button type="button" className="primary" onClick={newCourse}>
             Create your first course
           </button>
           <button type="button" title={lib.loadHint} onClick={open}>
@@ -33,27 +38,25 @@ export function HomeScreen({ lib }: { lib: LibraryApi }) {
   const quizCount = courses.reduce((n, c) => n + c.quizzes.length, 0)
   return (
     <>
-      <header className="page-head">
-        <div>
-          <h1>Your courses</h1>
-          <p className="muted">
-            {plural(courses.length, 'course')} · {plural(quizCount, 'quiz', 'quizzes')}
-          </p>
-        </div>
-        <div className="actions">
-          <button type="button" className="mobile-only" title={lib.loadHint} onClick={open}>
-            {lib.loadLabel}
-          </button>
-          <button type="button" className="add" onClick={() => goToNew({ name: 'course', id: lib.addCourse() })}>
-            <PlusIcon /> New course
-          </button>
-        </div>
-      </header>
+      <PageHead
+        title="Your courses"
+        sub={`${plural(courses.length, 'course')} · ${plural(quizCount, 'quiz', 'quizzes')}`}
+        actions={
+          <>
+            <button type="button" className="mobile-only" title={lib.loadHint} onClick={open}>
+              {lib.loadLabel}
+            </button>
+            <button type="button" className="add" onClick={newCourse}>
+              <PlusIcon /> New course
+            </button>
+          </>
+        }
+      />
       {courses.map((course) => (
         <section key={course.id} className="course-block">
           <div className="course-row">
             <h2>
-              <a href={href({ name: 'course', id: course.id })}>{course.name}</a>
+              <a href={href({ name: 'course', course: course.name })}>{course.name}</a>
             </h2>
             <span className="muted">{plural(course.quizzes.length, 'quiz', 'quizzes')}</span>
           </div>
