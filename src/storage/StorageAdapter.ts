@@ -7,8 +7,11 @@ export interface StorageAdapter {
   saveLabel: string // button text, e.g. "Download"
   loadHint: string // button tooltip
   saveHint: string // button tooltip
-  /** Resolves null when the user cancels. Throws on unreadable data. */
-  load(): Promise<Library | null>
-  /** Resolves false when the user cancelled, so nothing was saved. */
-  save(library: Library): Promise<boolean>
+  /** The library and the picked file's name. Resolves null when the user cancels. Throws on unreadable data. */
+  load(): Promise<{ library: Library; name: string } | null>
+  /**
+   * Saves under `name` (the file it came from) when given. Resolves the saved file's name (as far as the browser
+   * says), or null when the user cancelled, so nothing was saved.
+   */
+  save(library: Library, name?: string): Promise<string | null>
 }

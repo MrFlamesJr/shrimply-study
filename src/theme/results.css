@@ -105,8 +105,8 @@
   .choices {
     grid-template-columns: 1fr;
   }
-  .flip-face {
-    padding: var(--space-6) var(--space-4);
+  .flip-face .card-scroll {
+    padding: 0 calc(var(--space-4) - var(--card-inset)) calc(var(--space-6) - var(--card-inset));
   }
 }
 

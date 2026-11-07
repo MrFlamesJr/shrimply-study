@@ -1,0 +1,177 @@
+/* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
+   CLAUDE.md, Themes; themes.test.ts checks it). */
+
+/* Kahoot (asked for: copies the look of Kahoot's game screens, its colors taken from Kahoot's own stylesheet and
+   brand guide, but never its backgrounds): The ground is a near-black purple (#060412, asked for: far darker), so
+   the cards, dialogs and the sheet stand well off it in a deep, calm Kahoot purple (#2a1950: darker and less
+   saturated than Kahoot's #46178f, so nothing on the dark ground glares, asked for); the sidebar is a step between.
+   Behind the open ground, our own loose scatter of faint geometric shapes, a nod to Kahoot's answer shapes and not a
+   copy of any Kahoot background (asked for): triangles, diamonds, circles and squares, some outlined, some flat,
+   tiled every 560px, each spinning very slowly in place (a turn every two minutes or so, some the other way; the
+   circles, the same at every angle, breathe a little instead), asked for, and still under reduced motion (cards, the
+   sidebar and dialogs cover them). Borders are a light violet. The structure is one purple hue (h 293) whose chroma
+   falls with area: the ground the calmest, the cards rich, the lines the most vivid. The scheme is the four answer
+   colors around the purple, a square: red (h 21), yellow (h 82), green (h 141) and blue (h 257). Kahoot's light grey
+   (#f2f2f2, softer than pure white on the dark) is the action, the chosen option and the focus ring (Kahoot's white
+   Start and PIN boxes); main text is a soft white too: its buttons carry Kahoot's dark grey text and a hard darker
+   edge along their bottom, the chunky 3D of Kahoot's buttons. Kahoot's correct green and incorrect red only mean
+   right and wrong (the red a step lighter, so it reads on the purple cards, tinted or not); the right and wrong
+   buttons are Kahoot's own green and red answer tiles, filled solid with white text and a hard darker bottom edge
+   (asked for: dark tinted ones read brown and olive on the purple), and they take the same hard bottom edge. The
+   yellow is the warning, its light blue info, its pale lavender the explanation (asked for: not the teal); the
+   shrimp is the red with a yellow head. Shadows are hard-edged only (Kahoot's flat lighting): the study cards stand
+   on a dark bottom edge and titles cast a small hard shadow. Montserrat Black, Kahoot's own font, for titles. The
+   explanation banner's edge is one geometric line, not a row of shapes (asked for): a pale lavender ribbon folded
+   down the edge, its facets in two flat tones of the lavender, lit hard-edged like Kahoot's 3D buttons, on a raised
+   purple surface touched with it. */
+:root[data-theme="kahoot"] {
+  color-scheme: dark;
+
+  /* Ground and text. Main text is a near-neutral white; muted text gets its lightness and color amount here and the
+     surfaces' hue (--lift-hue), so it is never cooler or warmer than what it sits on. */
+  --bg: #060412;
+  --text: #f2f0f8;
+  --muted-l: 0.82;
+  --muted-c: 0.04;
+
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
+  --accent: #f2f2f2;
+  --accent-fill: var(--accent);
+  --accent-ink: #333333;
+  --selection-color: #1368ce;
+  --ok: #66bf39;
+  --bad: #ff7088;
+  --ok-fill: #238209;
+  --bad-fill: #e21b3c;
+  --role-ink: #ffffff;
+  --danger: var(--bad);
+  --warn: #ffa602;
+  --info: #56acf0;
+  --explain: #c2a5df;
+  --ink: #000;
+
+  /* The brand mark (shrimp): shell and head; its outline is the text color. */
+  --brand-shell: #e21b3c;
+  --brand-head: #ffc00a;
+
+  /* Fill-in-the-blank underlines, told apart when stacked; the first is the accent. */
+  --blank-1: var(--accent);
+  --blank-2: #45a3e5;
+  --blank-3: #ffc00a;
+  --blank-4: #ff99aa;
+
+  /* Group colors, a touch softer than the accent so they never compete with it. */
+  --group-lagoon: #46cece;
+  --group-coral: #ff8c93;
+  --group-sky: #71bfff;
+  --group-sand: #e7ac2a;
+  --group-moss: #7cd06a;
+  --group-rose: #fc90bc;
+  --group-clay: #ff9858;
+  --group-slate: #c1a9ee;
+
+  /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
+  --lift-hue: 293;
+  --lift-chroma: 0.4;
+  --lift-sunken: -0.03;
+  --lift-1: 0.15;
+  --lift-sidebar: 0.07;
+  --lift-2: 0.19;
+  --lift-3: 0.23;
+  --lift-border: 0.3;
+  --lift-border-strong: 0.4;
+
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
+  --hover-lift: -0.06;
+  --hover-chroma: 1;
+  --accent-hint: 0.7;
+
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
+  --tint-soft: 12%;
+  --tint: 14%;
+  --tint-line: 60%;
+  --tint-select: 60%;
+  --tint-danger: 14%;
+  --tint-muted: 70%;
+  --tint-rest: 10%;
+  --role-solid: 1;
+  --tint-keep: 0.25;
+  --role-chroma: 0.07;
+  --role-turn: 8;
+  --tint-pill: 40%;
+  --tint-explain: 6%;
+  --group-fill: 8%;
+  --group-line: 45%;
+  --group-chip: 25%;
+  --scrim-alpha: 60%;
+  --viewer-scrim-alpha: 90%;
+
+  /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
+  --glow-size: 4px;
+  --glow-accent: inset 0 calc(-1 * var(--glow-size)) 0 color-mix(in srgb, var(--ink) 18%, transparent);
+  --glow-focus: none;
+  --glow-ok: inset 0 calc(-1 * var(--glow-size)) 0 color-mix(in srgb, var(--ok) 55%, transparent);
+  --glow-bad: inset 0 calc(-1 * var(--glow-size)) 0 color-mix(in srgb, var(--bad) 55%, transparent);
+  --glow-text: 0 2px 0 color-mix(in srgb, var(--ink) 30%, transparent);
+  --glow-info: 0 2px 0 color-mix(in srgb, var(--ink) 30%, transparent);
+  --glow-card: 0 var(--glow-size) 0 color-mix(in srgb, var(--ink) 28%, transparent);
+  --glow-card-hover:
+    0 0 0 2px var(--accent),
+    0 calc(var(--glow-size) * 1.5) 0 color-mix(in srgb, var(--ink) 34%, transparent);
+
+  /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
+     background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
+     themselves very slightly (still under reduced motion), all sliding sideways together by one
+     --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
+  --backdrop: none;
+  --backdrop-drift: url("./kahoot-drift.svg");
+  --backdrop-drift-w: 0px;
+  --backdrop-drift-time: 0s;
+
+  /* Backdrop placement, one value per --backdrop layer (or one for all): position, size and repeat. A position can
+     start from --ground-x, where the open page ground begins (right of the open sidebar on wide screens). */
+  --backdrop-position: 0 0;
+  --backdrop-size: auto;
+  --backdrop-repeat: repeat;
+
+  /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
+  --font-display: "Montserrat", var(--font-body);
+  --display-tracking: normal;
+  --display-case: none;
+  --title-size: 1.875rem;
+  --text-brand: 1rem;
+  --text-score: 3rem;
+  --text-info-title: 1rem;
+  --text-result: 1.75rem;
+  --radius: 4px;
+  --radius-pill: var(--radius);
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: url("./kahoot-edge.svg");
+  --explain-edge-w: 12px;
+  --explain-edge-h: 20px;
+  --explain-edge-fill: url("./kahoot-edge-fill.svg");
+}

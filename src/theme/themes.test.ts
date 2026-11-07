@@ -28,6 +28,15 @@ describe('themes', () => {
     expect(sections(text)).toEqual(sections(calm))
   })
 
+  // Each theme places its colors by its own scheme; a color left at Calm's value is one nobody chose (--ink is black
+  // in every theme).
+  const hexes = (text: string) =>
+    [...text.matchAll(/^\s*(--[\w-]+)\s*:\s*(#[0-9a-f]+)\s*;/gim)].map(([, name, value]) => [name, value.toLowerCase()] as const)
+  it.each(THEMES.filter((t) => t.id !== 'calm').map((t) => t.id))('%s never copies one of Calm\'s colors', (id) => {
+    const own = new Map(hexes(css(id)))
+    expect(hexes(calm).filter(([name, value]) => name !== '--ink' && own.get(name) === value)).toEqual([])
+  })
+
   it('never sets a token that tokens.css derives or defines', () => {
     const own = tokens(shared)
     expect(tokens(calm).filter((n) => own.includes(n))).toEqual([])

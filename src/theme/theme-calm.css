@@ -1,5 +1,7 @@
 /* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
-   CLAUDE.md, Themes; themes.test.ts checks it). */
+   CLAUDE.md, Themes; themes.test.ts checks it).
+   The explanation banner in the feedback sheet is a raised warm surface edged with a plain straight line of the info
+   blue, the gold's complement; it takes no tint, as blue over the rose-brown would turn grey. */
 
 /* Calm, the default (on plain :root too, so a missing or unknown data-theme gets it): dark and high contrast,
    a gold accent, warm rose-brown surfaces on a cool ground, no glow. */
@@ -14,16 +16,25 @@
   --muted-l: 0.742;
   --muted-c: 0.012;
 
-  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
-     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
-     --ink is the black of scrims and the sunken well. */
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
   --accent: #e3b65b;
+  --accent-fill: var(--accent);
+  --accent-ink: var(--bg);
   --selection-color: var(--accent);
   --ok: #7fcf8e;
   --bad: #f2877e;
+  --ok-fill: var(--ok);
+  --bad-fill: var(--bad);
+  --role-ink: var(--bg);
   --danger: #f2554a;
   --warn: #f0a35e;
   --info: #8fb8de;
+  --explain: var(--info);
   --ink: #000;
 
   /* The brand mark (shrimp): shell and head; its outline is the text color. */
@@ -47,30 +58,46 @@
   --group-slate: #9ba4ae;
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
-     --lift-chroma color per step, in the hue --lift-hue. */
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
   --lift-hue: 0;
   --lift-chroma: 0.05;
   --lift-sunken: -0.033;
   --lift-1: 0.039;
+  --lift-sidebar: var(--lift-1);
   --lift-2: 0.076;
   --lift-3: 0.112;
   --lift-border: 0.18;
   --lift-border-strong: 0.297;
 
-  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
   --hover-lift: 0.045;
   --hover-chroma: 0.89;
+  --accent-hint: 0.7;
 
-  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
-     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
-     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
   --tint-soft: 12%;
   --tint: 14%;
   --tint-line: 55%;
   --tint-select: 35%;
-  --tint-danger: 16%;
+  --tint-danger: 12%;
   --tint-muted: 30%;
   --tint-rest: 0%;
+  --role-solid: 0;
+  --tint-keep: 1;
+  --role-chroma: 0.045;
+  --role-turn: 12;
+  --tint-pill: 45%;
+  --tint-explain: 0%;
   --group-fill: 6%;
   --group-line: 40%;
   --group-chip: 22%;
@@ -78,14 +105,16 @@
   --viewer-scrim-alpha: 88%;
 
   /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
-     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
-     their own shadow or glow, more while hovered. */
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
   --glow-size: 0px;
   --glow-accent: none;
   --glow-focus: none;
   --glow-ok: none;
   --glow-bad: none;
   --glow-text: none;
+  --glow-info: none;
   --glow-card:
     inset 0 1px 0 color-mix(in srgb, var(--text) 6%, transparent),
     0 6px 20px color-mix(in srgb, var(--ink) 70%, transparent);
@@ -109,12 +138,24 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson). */
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
   --font-display: var(--font-body);
   --display-tracking: normal;
   --display-case: none;
   --title-size: 2rem;
   --text-brand: 1.0625rem;
   --text-score: 3rem;
+  --text-info-title: 1rem;
+  --text-result: 1.5rem;
   --radius: 6px;
+  --radius-pill: 999px;
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: none;
+  --explain-edge-w: 3px;
+  --explain-edge-h: 3px;
+  --explain-edge-fill: linear-gradient(var(--ink), var(--ink));
 }

@@ -1,5 +1,30 @@
 import { describe, expect, it } from 'vitest'
-import { freeName, nameTaken, slug } from './names'
+import { fileNameProblem, freeName, nameTaken, slug } from './names'
+
+describe('fileNameProblem', () => {
+  it('takes ordinary names, accents, dots inside and symbols files allow', () => {
+    for (const name of ['Bio 130', 'Écologie', 'notes.v2', 'Chap 1 + 2 (final) #3', "Marie's cards", 'console']) {
+      expect(fileNameProblem(name)).toBeUndefined()
+    }
+  })
+
+  it('turns down characters no file name may hold', () => {
+    for (const name of ['a/b', 'a\\b', 'a:b', 'a*b', 'a?b', 'a"b', 'a<b', 'a>b', 'a|b']) {
+      expect(fileNameProblem(name)).toMatch(/can't contain/)
+    }
+    expect(fileNameProblem('a\tb')).toMatch(/line breaks or tabs/)
+  })
+
+  it('turns down a dot or space at the end', () => {
+    expect(fileNameProblem('Bio.')).toMatch(/end with a dot or a space/)
+    expect(fileNameProblem('Bio ')).toMatch(/end with a dot or a space/)
+  })
+
+  it("turns down Windows' device names, in any case and with any ending", () => {
+    for (const name of ['CON', 'nul', 'Com1', 'LPT9', 'aux.backup']) expect(fileNameProblem(name)).toMatch(/kept for devices/)
+    for (const name of ['COM10', 'console', 'auxiliary']) expect(fileNameProblem(name)).toBeUndefined()
+  })
+})
 
 describe('slug', () => {
   it('joins the lower-case words with dashes', () => {

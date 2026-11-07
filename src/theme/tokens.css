@@ -10,6 +10,14 @@
   /* The hue is the --lift-hue knob, never the ground's own `h`: a near-grey's hue is powerless, browsers drop it. */
   /* A well set into the page, darker than it (study options). */
   --sunken: oklch(from var(--bg) calc(l + var(--lift-sunken)) calc(c + var(--lift-sunken) * var(--lift-chroma)) var(--lift-hue));
+  /* A well set into a box (a fill-in-the-blank card's blanks): see-through, a soft step darker than whatever it
+     sits on, so a group box's tint still shows through it. */
+  --well: color-mix(in srgb, var(--ink) 16%, transparent);
+  /* The line between rows of a list in a card (a fill-in-the-blank card's blanks): see-through and faint, only a
+     hint of separation, so it reads the same on any surface or tint. */
+  --row-line: color-mix(in srgb, var(--text) 6%, transparent);
+  /* The sidebar: its own step, so a theme can keep it close to the ground while its cards stand well above it. */
+  --surface-side: oklch(from var(--bg) calc(l + var(--lift-sidebar)) calc(c + var(--lift-sidebar) * var(--lift-chroma)) var(--lift-hue));
   --surface: oklch(from var(--bg) calc(l + var(--lift-1)) calc(c + var(--lift-1) * var(--lift-chroma)) var(--lift-hue));
   --surface-2: oklch(from var(--bg) calc(l + var(--lift-2)) calc(c + var(--lift-2) * var(--lift-chroma)) var(--lift-hue));
   --surface-3: oklch(from var(--bg) calc(l + var(--lift-3)) calc(c + var(--lift-3) * var(--lift-chroma)) var(--lift-hue));
@@ -23,19 +31,52 @@
   --surface-3-clear: color-mix(in srgb, var(--text) 9%, transparent);
   /* Popups always stay solid. Resolved here, so a box that swaps --surface-2 doesn't change it. */
   --popup: var(--surface-2);
-  --accent-text: var(--bg);
-  --accent-hover: oklch(from var(--accent) calc(l + var(--hover-lift)) calc(c * var(--hover-chroma)) h);
+  /* The filled accent buttons: their text, and their fill while hovered. */
+  --accent-text: var(--accent-ink);
+  --accent-hover: oklch(from var(--accent-fill) calc(l + var(--hover-lift)) calc(c * var(--hover-chroma)) h);
   --accent-soft: color-mix(in srgb, var(--accent) var(--tint), transparent);
   --accent-line: color-mix(in srgb, var(--accent) var(--tint-line), transparent);
   /* The faint end of the pulse of a drop target's outline (it fades between --accent-line and this). */
   --accent-faint: color-mix(in srgb, var(--accent) 20%, transparent);
-  --ok-soft: color-mix(in srgb, var(--ok) var(--tint-soft), transparent);
-  --ok-tint: color-mix(in srgb, var(--ok) var(--tint), transparent);
-  --bad-soft: color-mix(in srgb, var(--bad) var(--tint-soft), transparent);
-  --bad-tint: color-mix(in srgb, var(--bad) var(--tint), transparent);
-  --danger-soft: color-mix(in srgb, var(--danger) var(--tint-danger), transparent);
-  --ok-rest: color-mix(in srgb, var(--ok) var(--tint-rest), transparent);
-  --bad-rest: color-mix(in srgb, var(--bad) var(--tint-rest), transparent);
+  /* A hovered add pill's edges: the accent fades in from all round, the middle stays clear. */
+  --pill-fade: color-mix(in srgb, var(--accent) var(--tint-pill), transparent);
+  /* Under a role's tint (danger, info, a group box): the ground with only --tint-keep of its own color and no hue of
+     its own. Mixed in OKLCH, the tint then takes the role's hue whole (a container in the role's own hue), where a
+     see-through tint over a ground of another hue would cancel into grey or turn. */
+  --role-ground: oklch(from var(--bg) l calc(c * var(--tint-keep)) none);
+  /* Under a see-through role tint (the danger zone's glass): --role-ground, as opaque as the ground's color is taken
+     out (see-through at --tint-keep 1), so the glass still shows a little of a theme's backdrop. */
+  --role-veil: color-mix(in srgb, var(--role-ground) calc((1 - var(--tint-keep)) * 100%), transparent);
+  /* Under a right or wrong tint (its buttons, a marked answer): the surface's or ground's lightness at a set chroma
+     (--role-chroma) and no hue of its own, so the fill is a deep, clear tone of the role's hue. A dark red or green
+     with too little chroma reads brown or olive. The fill's hue turns away from yellow by --role-turn (a dark coral
+     reads rust and a dark lime olive, so wrong leans crimson and right true green); the text keeps the role's color. */
+  --role-fill: oklch(from var(--surface) l var(--role-chroma) none);
+  --role-fill-ground: oklch(from var(--bg) l var(--role-chroma) none);
+  --ok-deep: oklch(from var(--ok) l c calc(h + var(--role-turn)));
+  --bad-deep: oklch(from var(--bad) l c calc(h - var(--role-turn)));
+  --ok-soft: color-mix(in oklch, var(--ok-deep) var(--tint-soft), var(--role-fill));
+  --ok-tint: color-mix(in oklch, var(--ok-deep) var(--tint), var(--role-fill-ground));
+  --bad-soft: color-mix(in oklch, var(--bad-deep) var(--tint-soft), var(--role-fill));
+  --bad-tint: color-mix(in oklch, var(--bad-deep) var(--tint), var(--role-fill-ground));
+  /* The danger zone: the shared glass (--glass-tile) tinted red, so editing the glass changes it too. */
+  --danger-soft: color-mix(
+    in oklch,
+    var(--danger) var(--tint-danger),
+    oklch(from var(--glass-tile) l calc(c * var(--tint-keep)) none / alpha)
+  );
+  /* Behind help text (InfoBox): half the soft tint, so it reads as info without pulling the eye. Mixed into the
+     ground, not see-through, so a theme's backdrop never shows under the text. */
+  --info-soft: color-mix(in oklch, var(--info) calc(var(--tint-soft) / 2), var(--role-ground));
+  /* The explanation banner's fill: a raised step of the theme's own surface, touched with its edge color by
+     --tint-explain (0% where the two hues are far apart, so it never turns muddy). */
+  --explain-soft: color-mix(in oklab, var(--explain) var(--tint-explain), var(--surface-2));
+  /* An info box's title row: the full soft tint, a step above its notes, so the part that minimizes stands apart. */
+  --info-band: color-mix(in oklch, var(--info) var(--tint-soft), var(--role-ground));
+  /* An info box's thick dashed outline. */
+  --info-line: color-mix(in srgb, var(--info) var(--tint-line), transparent);
+  --ok-rest: color-mix(in oklch, var(--ok-deep) var(--tint-rest), var(--role-fill));
+  --bad-rest: color-mix(in oklch, var(--bad-deep) var(--tint-rest), var(--role-fill));
   --text-muted: oklch(var(--muted-l) var(--muted-c) var(--lift-hue));
   /* Resolved here, so a tinted zone can lean --text-muted and the borders toward its color starting from these. */
   --text-muted-plain: var(--text-muted);
@@ -54,7 +95,9 @@
   --glass-dense: color-mix(in srgb, var(--popup) 78%, transparent);
   /* The top row's frosted glass: the ground, see-through enough to show that something is under it. */
   --glass-bar: color-mix(in srgb, var(--bg) 72%, transparent);
-  /* The new-quiz tile's glass: a faint frost at rest (never fully clear), denser once hovered. */
+  /* The new-quiz tile's glass: a faint frost at rest (never fully clear), denser once hovered. The rest glass is
+     shared with the editor's "Add new card" box and, tinted red (--danger-soft), the danger zone, so one edit changes
+     all three. */
   --glass-tile: color-mix(in srgb, var(--surface) 30%, transparent);
   --glass-tile-hover: color-mix(in srgb, var(--surface-2) 35%, transparent);
 }
@@ -63,6 +106,11 @@
 :root {
   --font-body: "Atkinson Hyperlegible Next", system-ui, sans-serif;
   --font-mono: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  /* The word in edit mode's dashed outline, the same in every theme: small square pixel capitals (bold), spaced
+     out, so it reads as one more dash, not much taller than the line. */
+  --font-dash: "Silkscreen", var(--font-mono);
+  --text-dash: 10px;
+  --dash-tracking: 4px;
   --font-size: 17px;
   --weight: 400;
   --weight-bold: 700;
@@ -75,15 +123,30 @@
   --text-md: 1rem;
   --text-lg: 1.125rem;
   --text-xl: 1.25rem;
+  /* A field's floating label (FloatField): its size once floated, as a scale of the field's text (--text-xs-plus
+     over --font-size, 13 / 17), and the room kept above the field, where the line it sits on runs (at its
+     bottom, a whole px so the line stays sharp; the room holds the top half of the floated label). */
+  --float-scale: 0.765;
+  --float-room: var(--space-4);
   /* Line widths: borders, outlines, underlines. */
   --line: 1px;
   --line-thick: 2px;
+  --line-heavy: 3px;
+  /* The feedback sheet's bar in its right or wrong color (asked to be thick). */
+  --line-sheet: 10px;
+  /* Edit mode's dashed outline, and while the pointer is in the editor (a touch thicker). */
+  --line-edit: 4px;
+  --line-edit-hover: 7px;
   --focus-offset: 2px;
   --underline-offset: 3px;
   /* Faded: disabled controls, then lighter fades. */
   --dim: 0.45;
   --dim-soft: 0.5;
   --dim-light: 0.7;
+  /* Edit mode's dashed outline, dashes and words alike: as faint as the faint accent. */
+  --dim-faint: 0.2;
+  /* The empty sidebar's tumbleweed and "Nothing to see here": barely there, fading into the sidebar (asked for). */
+  --dim-empty: 0.3;
   --blank-line: 2px;
   --blank-gap: 4px;
   --glass-blur: 4px;
@@ -93,7 +156,7 @@
      over this much below its edge. */
   --glass-bar-blur: 18px;
   --glass-bar-fade: 20px;
-  /* The new-quiz tile's blur: a light fog at rest, thicker once hovered. */
+  /* The new-quiz tile's blur: a light fog at rest (shared like --glass-tile), thicker once hovered. */
   --glass-tile-blur: 6px;
   --glass-tile-blur-hover: 16px;
   /* Touch target size on small screens. */
@@ -111,6 +174,8 @@
   --dur-flip: 300ms;
   /* The sidebar's slide: a long way to go, so longer than a UI change, shorter than the card flip. */
   --dur-slide: 220ms;
+  /* A checked sequence's line drawing itself from a step to its correct place, asked for: quick, asked for too. */
+  --dur-draw: 120ms;
   /* One turn of a loading spinner. */
   --dur-spin: 700ms;
   /* How long the pointer rests on an image whose click does something else before it opens big (a border
@@ -123,10 +188,20 @@
   /* The Start button's hover pulse, asked for. */
   --dur-start-ping: 900ms;
   --dur-start-push: 600ms;
+  /* An icon's hover pop: long enough to catch the eye, short enough to stay snappy. */
+  --dur-pop: 240ms;
+  /* An add-card pill's hover, asked to be calm: the inner copy of its edge growing out onto it, and its border and fill. */
+  --dur-echo: 520ms;
+  --dur-echo-fill: 180ms;
+  /* Edit mode's outline when the pointer goes in or out, asked for, very subtle: the dashes' small move settles
+     quickly (a little slower than a UI change), the line's slight thickening takes longer. */
+  --dur-edit-move: 400ms;
+  --dur-edit-swell: 1200ms;
+  /* The easter egg: a click on the outline's line spins the dashes a short way round (EditOutline). */
+  --dur-edit-spin: 1400ms;
   --flip-depth: 1400px;
   --ease: cubic-bezier(0.25, 1, 0.5, 1);
-  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);
-  --content-w: 1040px;
+  --spring: cubic-bezier(0.34, 1.56, 0.64, 1);  --content-w: 1040px;
   --session-w: 760px;
   --session-wide-w: 1120px;
   --card-h: clamp(320px, 50vh, 520px);
@@ -143,12 +218,16 @@
   --toggle-size: 48px;
   --dialog-w: 880px;
   --dialog-narrow-w: 560px;
+  /* The Google Drive dialog: between the two, so its panels and list have room (asked for: wider). */
+  --dialog-drive-w: 760px;
+  --dialog-compact-w: 400px;
   --toast-w: 360px;
   --toast-badge: 1.5rem;
   --toasts-peek: 40vh;
   --prompt-size: clamp(1.5rem, 3vw, 2.5rem);
   --prompt-size-long: clamp(1.125rem, 1.6vw, 1.375rem);
-  --sheet-answer-h: 30dvh;
-  --sheet-max-h: calc(100dvh / 2);
-  --sheet-drag-max-h: calc(200dvh / 3);
+  /* The feedback sheet at its tallest; past that its explanation scrolls. */
+  --sheet-max-h: 40dvh;
+  /* On wide screens (1000px and up) the sheet is a panel from the right this wide; the question column keeps it free. */
+  --sheet-side-w: clamp(340px, 28vw, 420px);
 }

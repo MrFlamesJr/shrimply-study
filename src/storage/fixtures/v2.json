@@ -1,0 +1,46 @@
+{
+  "version": 2,
+  "sideTypes": [["Organelle", "Job"]],
+  "courses": [
+    {
+      "name": "Biology",
+      "quizzes": [
+        {
+          "name": "Cells",
+          "cards": [
+            { "term": "Mitochondria", "termImage": "1.png", "definition": "Powerhouse of the cell", "definitionImage": "2.png", "explanation": "Makes most of the cell's ATP" },
+            { "sides": ["Organelle", "Job"], "term": "Ribosome", "definition": "Makes proteins" },
+            { "sides": ["Question", "Answer"], "term": "What holds the DNA?", "definition": "The nucleus" },
+            { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "image": "1.png", "explanation": ["Has its own DNA", "", "The smallest living unit"] },
+            { "type": "cloze", "statement": "A {ribosome} makes \\{proteins\\}.", "explanation": "Free or on the ER" },
+            { "type": "true-false", "statement": "Plant cells have a cell wall.", "image": "2.png", "answer": true, "explanation": "Made of cellulose" },
+            { "type": "true-false", "statement": "Bacteria have a nucleus.", "answer": false },
+            { "type": "choice", "question": "Which organelle makes ATP?", "image": "1.png", "right": ["Mitochondria"], "wrong": ["Ribosome", "Golgi body"], "explanation": "Through cellular respiration" },
+            { "type": "choice", "question": "Which are found in plant cells?", "right": ["Chloroplast", "Cell wall"], "wrong": ["Centriole"] },
+            { "type": "sequence", "title": "Phases of mitosis", "image": "2.png", "steps": ["Prophase", "Metaphase", "Anaphase", "Telophase"], "explanation": "PMAT" },
+            { "type": "sequence", "title": "Levels of organization", "steps": ["Cell", "Tissue", "Organ"] }
+          ],
+          "groups": [
+            {
+              "name": "Organelles",
+              "color": "moss",
+              "cards": [
+                { "sides": ["Organelle", "Job"], "term": "Golgi body", "definition": "Packs proteins" },
+                { "type": "true-false", "statement": "Lysosomes digest waste.", "answer": true }
+              ]
+            },
+            {
+              "name": "Without a color",
+              "cards": [
+                { "type": "choice", "question": "Where is DNA kept?", "right": ["Nucleus"], "wrong": ["Vacuole"] },
+                { "type": "sequence", "title": "Protein path", "steps": ["Ribosome", "ER", "Golgi body"] }
+              ]
+            }
+          ]
+        },
+        { "name": "Empty quiz", "cards": [] }
+      ]
+    },
+    { "name": "Empty course", "quizzes": [] }
+  ]
+}

@@ -9,10 +9,14 @@ import { slug } from './logic/names'
 //   #/<course>/<quiz>/edit             edit the quiz's cards
 //   #/<course>/<quiz>/study/<format>   full-screen study session
 //   #/_debug                           test tools (not linked; _debug is never a slug)
+//   #/_changelog                       every release's notes, full screen (from What's new on home)
+//   #/_drive/<file id>                 a library shared on Google Drive: opens it, then goes home
 // `course` and `quiz` hold names, or the slugs read from the address; `resolve` matches both.
 export type Route =
   | { name: 'home' }
   | { name: 'debug' }
+  | { name: 'changelog' }
+  | { name: 'drive'; id: string }
   | { name: 'course'; course: string }
   | { name: 'quiz'; course: string; quiz: string }
   | { name: 'edit'; course: string; quiz: string }
@@ -27,6 +31,8 @@ export function parseHash(hash: string): Route {
   }
   const [course, quiz, sub, format] = parts
   if (course === '_debug') return { name: 'debug' }
+  if (course === '_changelog') return { name: 'changelog' }
+  if (course === '_drive') return quiz ? { name: 'drive', id: quiz } : { name: 'home' }
   if (!course) return { name: 'home' }
   if (!quiz) return { name: 'course', course }
   if (sub === 'edit') return { name: 'edit', course, quiz }
@@ -42,6 +48,10 @@ export function href(route: Route): string {
       return '#/'
     case 'debug':
       return '#/_debug'
+    case 'changelog':
+      return '#/_changelog'
+    case 'drive':
+      return `#/_drive/${encodeURIComponent(route.id)}`
     case 'course':
       return `#/${part(route.course)}`
     case 'quiz':

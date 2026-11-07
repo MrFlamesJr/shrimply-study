@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { Card, TrueFalseCard } from '../model'
 import { isBlank, missingPart, sameCard, tidyCard, tidyCards, unfinishedMessage } from './cardStatus'
 
 const card = (term: string, definition: string) => ({ id: 'x', term, definition })
@@ -43,20 +44,20 @@ describe('unfinishedMessage', () => {
   })
 
   it('names one card and its missing side', () => {
-    expect(unfinishedMessage([ok, card('a', '')])).toBe('Card #2 needs a definition.')
-    expect(unfinishedMessage([card('', 'b')])).toBe('Card #1 needs a term.')
+    expect(unfinishedMessage([ok, card('a', '')])).toBe('Card #2 needs a back.')
+    expect(unfinishedMessage([card('', 'b')])).toBe('Card #1 needs a front.')
   })
 
   it('lists several cards', () => {
-    expect(unfinishedMessage([card('a', ''), ok, card('', 'b')])).toBe('Cards #1 and #3 need a term or definition.')
+    expect(unfinishedMessage([card('a', ''), ok, card('', 'b')])).toBe('Cards #1 and #3 need a front or back.')
     expect(unfinishedMessage([card('a', ''), card('a', ''), card('a', '')])).toBe(
-      'Cards #1, #2 and #3 need a term or definition.',
+      'Cards #1, #2 and #3 need a front or back.',
     )
   })
 
   it('shortens a long list', () => {
     const half = Array.from({ length: 8 }, () => card('a', ''))
-    expect(unfinishedMessage(half)).toBe('Cards #1, #2, #3, #4, #5 and 3 more need a term or definition.')
+    expect(unfinishedMessage(half)).toBe('Cards #1, #2, #3, #4, #5 and 3 more need a front or back.')
   })
 })
 
@@ -76,7 +77,7 @@ describe('cards with images', () => {
     expect(missingPart({ ...card('a', 'b'), termImage: png })).toBeNull()
     expect(missingPart({ ...cloze(''), image: png })).toBe('blank')
     expect(missingPart({ ...cloze('Water {boils}'), image: png })).toBeNull()
-    expect(unfinishedMessage([{ ...card('', ''), termImage: png }])).toBe('Card #1 needs a term.')
+    expect(unfinishedMessage([{ ...card('', ''), termImage: png }])).toBe('Card #1 needs a front.')
   })
 })
 
@@ -91,7 +92,7 @@ describe('fill-in-the-blank cards', () => {
     expect(missingPart(cloze('Water {boils}'))).toBeNull()
     expect(missingPart(cloze(''))).toBeNull()
     expect(unfinishedMessage([cloze('Water boils')])).toBe('Card #1 needs a blank.')
-    expect(unfinishedMessage([cloze('a'), card('a', '')])).toBe('Cards #1 and #2 need a term, definition or blank.')
+    expect(unfinishedMessage([cloze('a'), card('a', '')])).toBe('Cards #1 and #2 need a front, back or blank.')
   })
 })
 
@@ -157,5 +158,35 @@ describe('tidyCards', () => {
 
   it('reports a tidied card as a change', () => {
     expect(tidyCards([card(' a', 'b')], []).changed).toBe(true)
+  })
+})
+
+describe('true-or-false cards', () => {
+  const tf = (statement: string, extra: Partial<TrueFalseCard> = {}): Card => ({ id: 't', type: 'true-false', statement, answer: true, ...extra })
+
+  it('is blank without statement, image and explanation', () => {
+    expect(isBlank(tf(' '))).toBe(true)
+    expect(isBlank(tf('', { image: 'data:image/png;base64,AA' }))).toBe(false)
+    expect(isBlank(tf('', { explanation: 'why' }))).toBe(false)
+  })
+
+  it('misses a statement when it has an image or explanation only', () => {
+    expect(missingPart(tf(''))).toBeNull()
+    expect(missingPart(tf('', { explanation: 'why' }))).toBe('statement')
+    expect(missingPart(tf('S', { explanation: 'why' }))).toBeNull()
+  })
+
+  it('tidies the statement and closes an empty explanation', () => {
+    const tidy = tf('S', { explanation: 'why' })
+    expect(tidyCard(tidy)).toBe(tidy)
+    expect(tidyCard(tf(' S ', { explanation: ' ' }))).toEqual(tf('S', { explanation: undefined }))
+  })
+
+  it('names only the missing parts', () => {
+    const bad = tf('', { explanation: 'why' })
+    expect(unfinishedMessage([bad])).toBe('Card #1 needs a statement.')
+    expect(unfinishedMessage([bad, bad])).toBe('Cards #1 and #2 need a statement.')
+    expect(unfinishedMessage([card('a', ''), bad])).toBe('Cards #1 and #2 need a front, back or statement.')
+    expect(unfinishedMessage([card('a', ''), card('', 'b'), bad])).toBe('Cards #1, #2 and #3 need a front, back or statement.')
   })
 })

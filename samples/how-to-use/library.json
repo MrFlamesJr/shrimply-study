@@ -1,5 +1,6 @@
 {
-  "version": 1,
+  "version": 2,
+  "sideTypes": [["Task", "Where to click"]],
   "courses": [
     {
       "name": "Shrimply Study guide",
@@ -7,93 +8,125 @@
         {
           "name": "1. Get started",
           "cards": [
-            { "term": "How it fits together", "definition": "Courses hold quizzes, quizzes hold cards", "explanation": "Make a course for each class, like Biology, and a quiz for each chapter. The sidebar lists them all." },
-            { "term": "Make a course", "definition": "New course, in the sidebar", "explanation": "Type its name right away, or rename it later on its page. Two courses can not have the same name." },
-            { "term": "Make a quiz", "definition": "New quiz, on a course page", "explanation": "It opens in Edit quiz, where you name it and add cards." },
-            { "term": "Find your way", "definition": "The sidebar and the top row", "explanation": "The button beside Shrimply Study hides or shows the sidebar. The top row shows where you are: click a part of it to go back. Every page has its own address you can bookmark." },
-            { "term": "Save your work", "definition": "Download, top right (or Ctrl+S)", "explanation": "Saves everything as one .shrimp file. A * in the tab title means changes you have not downloaded yet. This browser keeps a copy between visits, but the file is your real copy." },
-            { "term": "Open a file", "definition": "Open file, top right", "explanation": "It replaces what is in the app, and asks first if you have changes you have not downloaded. Open your file on another device, a phone too, to study there. Your cards are never uploaded anywhere." },
-            { "term": "Delete a course or quiz", "definition": "Danger zone, at the bottom of the page", "explanation": "For a course, on its page. For a quiz, in Edit quiz. It asks first and can not be undone." },
-            { "term": "Change the look", "definition": "Theme, at the bottom of the sidebar", "explanation": "Pick one of five dark themes. This browser remembers it; it is not saved in your file." }
+            { "type": "true-false", "statement": "This guide is a regular .shrimp file, like any other.", "answer": true, "explanation": "It's made just like the files you save, and it opened into this browser like one. Change it, add your own courses or delete it all. Download saves it as a .shrimp file of your own." },
+            { "type": "sequence", "title": "What holds what, biggest first", "image": "library.svg", "steps": ["Library", "Course", "Quiz", "Card"], "explanation": "Your library is everything here, kept as one .shrimp file. Make a course for each class, like Biology, and a quiz for each chapter." },
+            { "sides": ["Task", "Where to click"], "term": "Make a course", "definition": "New course", "explanation": "At the bottom of the sidebar. It opens the new course, ready for its name." },
+            { "sides": ["Task", "Where to click"], "term": "Make a quiz", "definition": "New quiz", "explanation": "A tile on the course page. It opens Edit quiz, where you name it and add cards." },
+            { "sides": ["Task", "Where to click"], "term": "Rename a course", "definition": "Its title", "explanation": "Select the title at the top of its page and type. A quiz is renamed the same way, in Edit quiz." },
+            { "sides": ["Task", "Where to click"], "term": "Hide the sidebar", "definition": "The double arrow", "definitionImage": "sidebar.svg", "explanation": "Beside Shrimply Study, top left. Select it again to bring the sidebar back." },
+            { "type": "cloze", "statement": "The {sidebar} lists your courses and quizzes. The {top row} shows where you are: select {Home} to see all your courses.", "explanation": ["", "Select any part of it to go back there. Every page has its own address, so you can bookmark it.", ""] },
+            { "type": "cloze", "statement": "Pick a look in the {Theme} menu, under New course.", "explanation": "This browser remembers it. It isn't saved in your file." },
+            { "type": "true-false", "statement": "A deleted course can be brought back.", "answer": false, "explanation": "Danger zone, at the bottom of a course's page, deletes it, and a quiz's is at the bottom of Edit quiz. Both ask first, and can't be undone." },
+            { "type": "choice", "question": "Which button on a quiz's page studies it?", "right": ["Start"], "wrong": ["Edit quiz", "Import", "Done"], "explanation": "It sits beside Edit quiz. The study options under it pick how you study." },
+            { "type": "choice", "question": "Which of these are themes?", "right": ["Neon arcade", "Underwater", "Sassy unicorn"], "wrong": ["Light mode", "Paper"], "explanation": "There are seven, all dark: Calm, Neon arcade, Underwater, Enchanted forest, Sassy unicorn, Quizlet and Kahoot." }
           ]
         },
         {
           "name": "2. Make cards",
-          "cards": [
-            { "term": "Add a card", "definition": "Add card, in Edit quiz", "explanation": "Edit quiz is on the quiz page. Fill in the term and the definition. Enter goes to the next field, then to a new card; Shift+Enter starts a new line. The trash icon deletes a card." },
-            { "term": "Add many cards at once", "definition": "Import, in Edit quiz", "explanation": "Paste one card per line, with a tab or \" - \" between term and definition. A Quizlet export or spreadsheet rows work. Check the preview, pick where the cards go, then add them." },
-            { "term": "Fill-in-the-blank card", "definition": "Add fill in the blank, in Edit quiz", "explanation": "Type a sentence, select a word, then Mark as blank (Ctrl+B). Each blank is asked as its own question. Blanks can sit inside each other." },
-            { "term": "Add an explanation", "definition": "The Explanation button on a card", "explanation": "Optional background, shown after you answer under More info. A fill-in-the-blank card has one per blank." },
-            { "term": "Add an image", "definition": "The image button beside a field", "explanation": "Or paste or drop an image on the field. The term, the definition and a fill-in-the-blank card can each have one. Click the thumbnail to replace it, its ✕ to remove it. A side still needs its text." },
-            { "term": "See an image big", "definition": "Click it", "explanation": "Where a click already does something, like on a flashcard, rest the pointer on the image until its border closes. Esc or any click closes it." },
-            { "term": "Groups", "definition": "New group, in Edit quiz", "explanation": "A named, colored part of a quiz. Multiple choice takes wrong answers from the same group first, so they are harder to tell apart. Click its dot for another color, its arrow to fold it shut." },
-            { "term": "Put a card in a group", "definition": "The group menu on the card", "explanation": "Import can also add cards straight to a group. Ungroup removes a group but keeps its cards." },
-            { "term": "Finish editing", "definition": "Done, beside Import", "explanation": "Back to the quiz page. Empty cards and groups are removed. A half-filled card turns red and keeps you here until you fix it." }
-          ]
-        },
-        {
-          "name": "3. Study",
-          "cards": [
-            { "term": "Start studying", "definition": "Start, on the quiz page", "explanation": "First pick the mode, the side you see and the order. Your picks stay for the next round." },
-            { "term": "Flashcards", "definition": "Flip, then rate yourself", "explanation": "Click the card or press Space to flip it. Then pick Didn't know (1) or Knew it (2)." },
-            { "term": "Multiple choice", "definition": "Pick one of four", "explanation": "Press 1 to 4 to pick. A quiz needs at least 2 cards for it." },
-            { "term": "Typing", "definition": "Type the answer", "explanation": "Case, accents, punctuation and extra spaces don't count. For a typo or another right wording, I was right counts it as right." },
-            { "term": "Question side", "definition": "Term, Definition or Mixed", "explanation": "Term shows the term and asks for the definition, Definition does the opposite, Mixed picks one for each card. A fill-in-the-blank card always asks its blanks." },
-            { "term": "After each answer", "definition": "The sheet at the bottom", "explanation": "It shows the right answer, and which card a wrong answer belongs to. If the card has an explanation, the round button above the sheet opens More info. Continue (Enter) goes on." },
-            { "term": "Keys while studying", "definition": "Space, 1 to 4, Enter, Esc", "explanation": "Space flips a flashcard. 1 and 2 rate it, 1 to 4 pick a choice. Enter checks and goes on. The arrow keys scroll long text. Esc leaves the round." },
-            { "term": "Fix a card", "definition": "The pencil on the card", "explanation": "Works while studying, in the results and on the quiz page. The change shows right away." },
-            { "term": "After the round", "definition": "Retry missed, on the results screen", "explanation": "You see your score and every question, with filters for Missed, Right and Marked (where you used I was right). Study again asks every card again." }
-          ]
-        },
-        {
-          "name": "4. File format examples",
-          "cards": [
-            { "term": "Minimal card", "definition": "Only a term and a definition" },
-            { "term": "Card with an explanation", "definition": "Three fields", "explanation": "The explanation is optional plain text.\nLine breaks are kept, like this one." },
-            { "term": "Triangle", "termImage": "1.svg", "definition": "A shape with three sides", "explanation": "\"termImage\": \"1.svg\" shows images/1.svg on the term side." },
-            { "term": "A shape with four equal sides", "definition": "Square", "definitionImage": "2.svg", "explanation": "\"definitionImage\": \"2.svg\" shows images/2.svg on the definition side." },
-            { "term": "Three sides", "definition": "Triangle", "definitionImage": "1.svg", "explanation": "This card names 1.svg too: cards can share an image file." },
-            { "type": "cloze", "statement": "A fill-in-the-blank card marks each {blank} with braces.", "explanation": "One blank, so the explanation is plain text." },
-            { "type": "cloze", "statement": "{Paris} is the capital of {France}.", "explanation": ["With several blanks, the explanation is a list with one entry per blank.", ""] },
-            { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "explanation": ["Blank 1.", "Blank 2 holds blank 3.", "Blank 3, inside blank 2. Blanks are counted in the order of their {."] },
-            { "type": "cloze", "statement": "Write \\{ and \\} for braces that are not blanks, and \\\\ for a {backslash}.", "explanation": "A backslash before a brace makes it a plain brace, not a blank. Two backslashes make one plain backslash. JSON doubles every backslash, so in library.json they look twice as long as in the app." },
-            { "type": "cloze", "statement": "This shape is a {triangle}.", "image": "1.svg", "explanation": "A fill-in-the-blank card can have one image: \"image\": \"1.svg\"." }
-          ],
+          "cards": [],
           "groups": [
             {
-              "name": "Group with a color",
-              "color": "sky",
+              "name": "Writing cards",
+              "color": "lagoon",
               "cards": [
-                { "term": "Group", "definition": "A named part of a quiz", "explanation": "Its cards go in the group's own \"cards\" list, not the quiz's." },
-                { "term": "Group colors", "definition": "lagoon, coral, sky, sand, moss, rose, clay, slate" }
+                { "type": "sequence", "title": "Add a card, start to finish", "steps": ["Edit quiz", "Pick a kind", "Fill it in", "Done"], "explanation": "Edit quiz is on the quiz page, and Add new card under the cards has a button for each kind. Done drops empty cards; a half-filled one turns red and keeps you here. To move a step in a sequence like this one, drag it by its grip or press Alt+Up or Alt+Down." },
+                { "type": "cloze", "statement": "{Enter} goes to the next box, and from the last one to a new card. {Shift+Enter} starts a new line.", "explanation": ["In a list of answers or steps, Enter in the last box adds one, and in an empty last box leaves the list.", ""] },
+                { "sides": ["Question", "Answer"], "term": "How do you name a card's sides?", "definition": "The menu by its number", "explanation": "Front / Back, Question / Answer like this card, Term / Definition and more. New type makes your own, and its pencil renames or deletes it. New cards take the sides of the last one." },
+                { "type": "cloze", "statement": "Select words, then {Mark as blank} or press {Ctrl+B}. It works {inside {a blank}} too.", "explanation": ["", "Cmd+B on a Mac.", "Two levels deep at most.", "Each blank is asked on its own, with the rest of the sentence as the clue, and can have its own explanation, like this one."] },
+                { "type": "choice", "question": "What does a choice question offer when you study it?", "right": ["The right answers you wrote", "The wrong answers you wrote"], "wrong": ["Answers from other cards", "Answers from other quizzes"], "explanation": "Fill in its Right answers and Wrong answers. With one correct answer you pick it; with several, like here, you pick all of them, then Check." }
               ]
             },
             {
-              "name": "Group without a color",
+              "name": "Extras",
+              "color": "coral",
               "cards": [
-                { "term": "No color in the file", "definition": "Gets the first unused color", "explanation": "Here that is lagoon, since sky is taken." },
-                { "type": "cloze", "statement": "Groups can hold {fill-in-the-blank} cards too." }
+                { "sides": ["Task", "Where to click"], "term": "Add an image", "definition": "The image button", "definitionImage": "image.svg", "explanation": "Beside each side, statement, question or title. Or paste or drop an image on the field. Select the thumbnail to replace it, or its ✕ to remove it." },
+                { "sides": ["Task", "Where to click"], "term": "Remove an answer, step or explanation", "definition": "The eraser", "definitionImage": "eraser.svg", "explanation": "At the end of its box, while you point at it or type in it. Explanation, at the top of a card, adds one back." },
+                { "sides": ["Task", "Where to click"], "term": "Add many cards at once", "definition": "Import", "explanation": "Beside Done. Paste a Quizlet export or spreadsheet rows, one card per line, check the preview, then pick a group." },
+                { "type": "true-false", "statement": "This icon on a card removes its image.", "image": "trash.svg", "answer": false, "explanation": "It deletes the whole card. An image's own ✕ removes just the image." },
+                { "type": "choice", "question": "What does a group change when you study?", "right": ["Wrong options come from it first"], "wrong": ["Its cards are asked first", "Its cards are skipped", "Nothing"], "explanation": "Put cards that are easy to mix up in one group, so multiple choice offers them against each other. New group is under the cards, and a card's group menu moves it. Select a group's dot to change its color." }
               ]
             }
           ]
         },
         {
-          "name": "5. Rules for writing a file",
+          "name": "3. Study",
           "cards": [
-            { "term": "The file", "definition": "A zip renamed to .shrimp", "explanation": "library.json at the top of the zip, plus an images folder when cards have images. Zip the files themselves, not a folder around them." },
-            { "term": "Top level", "definition": "\"version\": 1 and \"courses\"", "explanation": "version is always 1. Nothing else goes at the top." },
-            { "term": "Course", "definition": "\"name\" and \"quizzes\"", "explanation": "Both are required. The name can not be empty or only spaces, or the same as another course's (case, spaces and punctuation do not count). \"quizzes\" can be an empty list." },
-            { "term": "Quiz", "definition": "\"name\" and \"cards\", optional \"groups\"", "explanation": "The name can not be empty or only spaces, or the same as another quiz's in its course (case, spaces and punctuation do not count). \"cards\" holds the cards that are not in a group and can be an empty list." },
-            { "term": "Group", "definition": "\"name\" and \"cards\", optional \"color\"", "explanation": "color is one of lagoon, coral, sky, sand, moss, rose, clay, slate. The name can not be empty or only spaces, and up to 50 characters fit the editor." },
-            { "term": "Term card", "definition": "\"term\" and \"definition\", optional \"termImage\", \"definitionImage\", \"explanation\"", "explanation": "A card with an empty term or definition is skipped while studying." },
-            { "term": "Fill-in-the-blank card", "definition": "\"type\": \"cloze\" and \"statement\", optional \"image\", \"explanation\"", "explanation": "type is always \"cloze\". A statement needs at least one blank to be studied." },
-            { "term": "Blanks", "definition": "Text inside { }", "explanation": "Each blank is one question, and its text is the answer. Blanks can sit inside each other. A blank can not be empty, and the same text can not be marked twice. A backslash before a brace makes it a plain brace." },
-            { "term": "Blank explanations", "definition": "Text for one blank, a list for several", "explanation": "The list has exactly one entry per blank, in the order of their {. Use \"\" for a blank without one." },
-            { "term": "Images", "definition": "A file name from the images folder", "explanation": "png, jpg, jpeg, gif, webp, avif or svg. \"1.svg\" means images/1.svg, and that file must be in the zip." },
-            { "term": "Text", "definition": "Plain text, no markup", "explanation": "No HTML or Markdown. Line breaks are kept. Spaces and empty lines at the start and end are dropped." },
-            { "term": "Not allowed", "definition": "Ids and any other field", "explanation": "A field that is not listed in these rules stops the file from opening. The error names the spot, like courses[0].quizzes[1].cards[3]." },
-            { "term": "Good cards", "definition": "Short answers, one fact each", "explanation": "Keep answers short enough to type and put background in the explanation. Use groups for the parts of a topic, so multiple choice offers close wrong answers. Multiple choice needs at least 2 cards." },
-            { "term": "Write your own file", "definition": "Start from this guide's library.json", "explanation": "Download this guide, rename it to .zip and unzip it. Replace Your course with your own cards, by hand or with an AI, following these rules. Zip it again, rename it to .shrimp and open it. If it does not open, the error names the spot." }
+            { "type": "sequence", "title": "One round, start to finish", "steps": ["Pick the options", "Start", "Answer each card", "See your results", "Retry missed"], "explanation": "The mode, side and order you pick on the quiz page are remembered. Esc leaves a round. The results list every answer, with filters for Missed, Right and Marked." },
+            { "type": "cloze", "statement": "Press {Space} to flip a flashcard, the {number keys} to pick an option, {Enter} to check and go on, and {Esc} to leave.", "explanation": ["Then 1 for Didn't know, or 2 for Knew it.", "", "", ""] },
+            { "type": "true-false", "statement": "With Question side set to Back, you see the back and answer with the front.", "answer": true, "explanation": "Mixed picks a side for each card. Other kinds of cards ignore it and show their own text." },
+            { "type": "choice", "question": "What doesn't count when you type an answer?", "right": ["Capital letters", "Accents", "Punctuation", "Extra spaces"], "wrong": ["Spelling", "Symbols like + and #"], "explanation": "For a typo or another correct wording, select I was right: it counts, and the results mark it as yours." },
+            { "sides": ["Task", "Where to click"], "term": "Fix a card while studying", "definition": "The pencil", "definitionImage": "pencil.svg", "explanation": "On the card, in the results too, and on the quiz page. The change shows right away." },
+            { "sides": ["Task", "Where to click"], "term": "See an image big", "termImage": "shrimp.svg", "definition": "Select it", "explanation": "On a flashcard or an option, rest the pointer on it until its border closes. Esc or any click closes it." }
+          ],
+          "groups": [
+            {
+              "name": "Study modes",
+              "color": "sky",
+              "cards": [
+                { "sides": ["Term", "Definition"], "term": "Flashcards", "definition": "Flip, then say if you knew it", "explanation": "Select the card or press Space to flip it." },
+                { "sides": ["Term", "Definition"], "term": "Multiple choice", "definition": "Pick one of the options", "explanation": "It needs at least 2 cards. A choice question offers its own answers, and a sequence is dragged into order." },
+                { "sides": ["Term", "Definition"], "term": "Typing", "definition": "Type it from memory", "explanation": "A sequence is asked one step at a time. A true or false card still gets two buttons." },
+                { "type": "choice", "question": "Where do the wrong options in multiple choice come from?", "right": ["Other cards in the quiz"], "wrong": ["Other quizzes", "The card's explanation", "The app makes them up"], "explanation": "From the same group first. Pick a wrong one, and it says which card it belongs to." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "4. Save and share",
+          "cards": [],
+          "groups": [
+            {
+              "name": "Files",
+              "color": "moss",
+              "cards": [
+                { "sides": ["Task", "Where to click"], "term": "Save your library", "definition": "Download", "explanation": "At the top, or Ctrl+S. Everything goes in one .shrimp file you can keep, send or open on another device. A * in the tab title means unsaved changes." },
+                { "sides": ["Task", "Where to click"], "term": "Open a library", "definition": "Open file", "explanation": "At the top. It replaces the library in this browser, and asks first when you have unsaved changes." },
+                { "type": "cloze", "statement": "The top of the sidebar says where the open library is: {On this device}, {Your Google Drive} or {Only in this browser}.", "explanation": ["A .shrimp file you opened or downloaded.", "Or Someone else's Google Drive for one shared with you. Signed out, it says Shared on Google Drive or On Google Drive.", "In no file yet: download it or save it to Drive to keep it."] },
+                { "type": "true-false", "statement": "Shrimply Study keeps your cards on its own server.", "answer": false, "explanation": "It has none. Your cards stay in this browser, which keeps a copy between visits, and in the files you save: a .shrimp file or your own Google Drive." },
+                { "type": "choice", "question": "How do you start an empty library?", "right": ["New library, in the sidebar"], "wrong": ["Delete every course", "Open file", "Reload the page"], "explanation": "It asks first. Save this one first, or its unsaved changes are lost." }
+              ]
+            },
+            {
+              "name": "Google Drive",
+              "color": "rose",
+              "cards": [
+                { "type": "sequence", "title": "Share a library", "image": "cloud.svg", "steps": ["Google Drive", "Sign in with Google", "Save to my Drive", "Copy link", "Send the link"], "explanation": "Google Drive is at the top. Anyone with the link can open the library and study it, with no sign-in." },
+                { "sides": ["Task", "Where to click"], "term": "Save changes to your Drive", "definition": "Save to Drive", "explanation": "At the top, or Ctrl+S, once the library is in your Drive. It asks first if the file changed on another device." },
+                { "sides": ["Task", "Where to click"], "term": "Get the owner's new changes", "definition": "Pull changes", "definitionImage": "pull.svg", "explanation": "In the sidebar, on a library shared with you. It asks first, as it replaces the courses here." },
+                { "sides": ["Task", "Where to click"], "term": "Study on another device", "definition": "Open from Google Drive", "explanation": "Sign in there and open it from your list in the Google Drive dialog. The share link or the .shrimp file works too." },
+                { "type": "choice", "question": "What can someone with your link do?", "right": ["Study it", "Change it in their own browser", "Save a copy to their Drive", "Pull your new changes"], "wrong": ["Save into your file"], "explanation": "Only you save into your file. The app only sees the files it saved for you, never the rest of your Drive." }
+              ]
+            }
+          ]
+        },
+        {
+          "name": "5. Write your own file",
+          "cards": [
+            { "type": "sequence", "title": "Make a library by hand or with an AI", "steps": ["Download this guide", "Unzip it", "Write library.json", "Zip it again", "Open file"], "explanation": "Rename the .shrimp file to .zip to unzip it, and the new zip back to .shrimp. Zip the files themselves, not a folder around them. A sequence like this one is \"type\": \"sequence\", a \"title\" and its \"steps\" in order." },
+            { "type": "choice", "question": "What stops a file from opening?", "right": ["A field these cards don't list"], "wrong": ["A card with no explanation", "A group with no color", "A quiz with no cards"], "explanation": "Ids and unknown fields are refused, and the message names the spot, like courses[0].quizzes[1].cards[3]. Optional fields can be left out, and \"quizzes\" and \"cards\" can be empty lists." }
+          ],
+          "groups": [
+            {
+              "name": "The file",
+              "color": "sand",
+              "cards": [
+                { "term": "The top of library.json", "definition": "\"version\" and \"courses\"", "explanation": "\"version\" is 2. An optional \"sideTypes\" lists your own side names, like [[\"Task\", \"Where to click\"]] in this guide." },
+                { "term": "A course", "definition": "\"name\" and \"quizzes\"", "explanation": "No two courses can share a name. Case, spaces and punctuation don't count." },
+                { "term": "A quiz", "definition": "\"name\" and \"cards\", optional \"groups\"", "explanation": "No two quizzes in a course can share a name. \"cards\" holds the cards in no group." },
+                { "term": "A group", "definition": "\"name\" and \"cards\", optional \"color\"", "explanation": "lagoon, coral, sky, sand, moss, rose, clay or slate. Without one, like the Cards group here, it takes the first one not in use." }
+              ]
+            },
+            {
+              "name": "Cards",
+              "cards": [
+                { "term": "A front and back card", "definition": "\"term\" and \"definition\"", "explanation": "Optional: \"sides\" like [\"Question\", \"Answer\"] (Front and Back when left out), \"termImage\", \"definitionImage\" and \"explanation\". All text is plain, and \\n is a line break." },
+                { "sides": ["Question", "Answer"], "term": "Which field shows this picture on the front?", "termImage": "shrimp.svg", "definition": "\"termImage\"", "explanation": "\"termImage\": \"shrimp.svg\" names images/shrimp.svg in the zip, a png, jpg, gif, webp, avif or svg. \"definitionImage\" is for the back, and the other kinds have one \"image\". Cards can share a file." },
+                { "type": "cloze", "statement": "Each {blank} in a \"statement\" goes in {braces}, and a blank can hold {another {blank}}.", "explanation": ["A fill-in-the-blank card is \"type\": \"cloze\" and a \"statement\", with optional \"image\" and \"explanation\".", "Write \\{ and \\} for plain braces and \\\\ for a backslash. In library.json each backslash is doubled.", "", "Blanks count in the order of their {, so this is blank 4. With several blanks, \"explanation\" is a list with one entry per blank, and \"\" for none."] },
+                { "type": "true-false", "statement": "\"answer\" is written \"true\" or \"false\", in quotes.", "answer": false, "explanation": "Without quotes: \"answer\": true. A true or false card is \"type\": \"true-false\", a \"statement\" and an \"answer\", with optional \"image\" and \"explanation\"." },
+                { "type": "choice", "question": "Besides \"type\": \"choice\", which fields does a choice question need?", "right": ["\"question\"", "\"right\"", "\"wrong\""], "wrong": ["\"answer\"", "\"steps\""], "explanation": "\"right\" and \"wrong\" are lists of texts; with several right ones, you pick all. \"image\" and \"explanation\" are optional." }
+              ]
+            }
           ]
         }
       ]

@@ -1,4 +1,4 @@
-import type { Card, ClozeCard, TermCard } from '../model'
+import { isTermCard, type Card, type ClozeCard, type SequenceCard, type TermCard } from '../model'
 import { usableCards } from './buildRound'
 import { checkAnswer } from './checkAnswer'
 import { blankAnswers } from './cloze'
@@ -7,7 +7,7 @@ import { blankAnswers } from './cloze'
 export function mixedUpWith(given: string, answerSide: 'term' | 'definition', cardId: string, cards: Card[]): TermCard | undefined {
   if (!given.trim()) return undefined
   return usableCards(cards)
-    .filter((c): c is TermCard => c.type !== 'cloze')
+    .filter(isTermCard)
     .find((c) => c.id !== cardId && checkAnswer(given, c[answerSide]))
 }
 
@@ -23,4 +23,11 @@ export function mixedUpBlank(given: string, cardId: string, blank: number, cards
     if (i >= 0) return { card, blank: i }
   }
   return undefined
+}
+
+/** The other step of the sequence that a wrong answer to step `step` matches, so feedback can say which step it is. */
+export function mixedUpStep(given: string, card: SequenceCard, step: number): number | undefined {
+  if (!given.trim()) return undefined
+  const i = card.steps.findIndex((s, j) => j !== step && s.trim() !== '' && checkAnswer(given, s))
+  return i >= 0 ? i : undefined
 }

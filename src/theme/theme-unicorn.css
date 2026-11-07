@@ -10,7 +10,9 @@
    a pastel rainbow in the bottom-right corner, as big as the unicorn so the two balance (each at most 45% of the
    open ground, so they never meet), and pastel sparkles and tiny hearts that twinkle and
    drift slowly sideways (still under reduced motion; cards, the sidebar and dialogs cover it). Lobster Two, a sassy
-   bold script, is the title font. */
+   bold script, is the title font.
+   The explanation banner's edge is a scallop of soft lavender clouds (h 305), between the plum ground and the pink,
+   softer and lighter than the selection, on a plum surface touched with lavender. */
 :root[data-theme="unicorn"] {
   color-scheme: dark;
 
@@ -21,16 +23,25 @@
   --muted-l: 0.8;
   --muted-c: 0.045;
 
-  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
-     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
-     --ink is the black of scrims and the sunken well. */
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
   --accent: #ff8cc1;
+  --accent-fill: var(--accent);
+  --accent-ink: var(--bg);
   --selection-color: #bd9ff2;
   --ok: #7ceec5;
   --bad: #fb836d;
+  --ok-fill: var(--ok);
+  --bad-fill: var(--bad);
+  --role-ink: var(--bg);
   --danger: #f65a62;
   --warn: #f1da84;
   --info: #94d0f4;
+  --explain: #d4baf4;
   --ink: #000;
 
   /* The brand mark (shrimp): shell and head; its outline is the text color. */
@@ -54,30 +65,46 @@
   --group-slate: #b0accf;
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
-     --lift-chroma color per step, in the hue --lift-hue. */
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
   --lift-hue: 330;
   --lift-chroma: 0.12;
   --lift-sunken: -0.03;
   --lift-1: 0.045;
+  --lift-sidebar: var(--lift-1);
   --lift-2: 0.085;
   --lift-3: 0.125;
   --lift-border: 0.2;
   --lift-border-strong: 0.32;
 
-  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
   --hover-lift: 0.05;
   --hover-chroma: 0.95;
+  --accent-hint: 0.7;
 
-  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
-     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
-     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
   --tint-soft: 12%;
   --tint: 16%;
   --tint-line: 55%;
   --tint-select: 40%;
-  --tint-danger: 16%;
+  --tint-danger: 8%;
   --tint-muted: 30%;
   --tint-rest: 8%;
+  --role-solid: 0;
+  --tint-keep: 0.3;
+  --role-chroma: 0.06;
+  --role-turn: 12;
+  --tint-pill: 40%;
+  --tint-explain: 9%;
   --group-fill: 8%;
   --group-line: 45%;
   --group-chip: 24%;
@@ -85,14 +112,16 @@
   --viewer-scrim-alpha: 90%;
 
   /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
-     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
-     their own shadow or glow, more while hovered. */
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
   --glow-size: 14px;
   --glow-accent: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 45%, transparent);
   --glow-focus: var(--glow-accent);
   --glow-ok: 0 0 var(--glow-size) color-mix(in srgb, var(--ok) 30%, transparent);
   --glow-bad: 0 0 var(--glow-size) color-mix(in srgb, var(--bad) 30%, transparent);
-  --glow-text: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 40%, transparent);
+  --glow-text: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--accent) 20%, transparent);
+  --glow-info: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--info) 22%, transparent);
   --glow-card:
     inset 0 1px 0 color-mix(in srgb, var(--text) 8%, transparent),
     0 0 var(--glow-size) color-mix(in srgb, var(--selection-color) 22%, transparent);
@@ -116,7 +145,7 @@
       color-mix(in srgb, var(--selection-color) 7%, transparent) 86% 91%,
       transparent 93%),
     url("./unicorn.webp");
-  --backdrop-drift: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='480' height='480'%3E%3Cstyle%3Epath%7Btransform-box:fill-box;transform-origin:center;animation:t 7s ease-in-out infinite%7D@keyframes t%7B0%25,100%25%7Bopacity:1;transform:scale(1)%7D50%25%7Bopacity:.25;transform:scale(.55)%7D%7D@media (prefers-reduced-motion: reduce)%7B*%7Banimation:none%7D%7D%3C/style%3E%3Cg opacity='.26'%3E%3Cg transform='translate(40 60)'%3E%3Cpath d='M0 -5C0.7000000000000001 -0.7000000000000001 0.7000000000000001 -0.7000000000000001 5 0C0.7000000000000001 0.7000000000000001 0.7000000000000001 0.7000000000000001 0 5C-0.7000000000000001 0.7000000000000001 -0.7000000000000001 0.7000000000000001 -5 0C-0.7000000000000001 -0.7000000000000001 -0.7000000000000001 -0.7000000000000001 0 -5Z' fill='%23fff4fb' style='animation-duration:5s;animation-delay:-0.0s'/%3E%3C/g%3E%3Cg transform='translate(300 40)'%3E%3Cpath d='M0 -3C0.42000000000000004 -0.42000000000000004 0.42000000000000004 -0.42000000000000004 3 0C0.42000000000000004 0.42000000000000004 0.42000000000000004 0.42000000000000004 0 3C-0.42000000000000004 0.42000000000000004 -0.42000000000000004 0.42000000000000004 -3 0C-0.42000000000000004 -0.42000000000000004 -0.42000000000000004 -0.42000000000000004 0 -3Z' fill='%23ff8cc1' style='animation-duration:6.5s;animation-delay:-1.3s'/%3E%3C/g%3E%3Cg transform='translate(420 150)'%3E%3Cpath d='M0 2.7C-4.800000000000001 -0.6000000000000001 -2.4000000000000004 -4.5 0 -1.7999999999999998C2.4000000000000004 -4.5 4.800000000000001 -0.6000000000000001 0 2.7Z' fill='%23ff8cc1' style='animation-duration:8s;animation-delay:-2.6s'/%3E%3C/g%3E%3Cg transform='translate(130 230)'%3E%3Cpath d='M0 -4C0.56 -0.56 0.56 -0.56 4 0C0.56 0.56 0.56 0.56 0 4C-0.56 0.56 -0.56 0.56 -4 0C-0.56 -0.56 -0.56 -0.56 0 -4Z' fill='%23c3a5f9' style='animation-duration:9.5s;animation-delay:-3.9s'/%3E%3C/g%3E%3Cg transform='translate(360 300)'%3E%3Cpath d='M0 -6C0.8400000000000001 -0.8400000000000001 0.8400000000000001 -0.8400000000000001 6 0C0.8400000000000001 0.8400000000000001 0.8400000000000001 0.8400000000000001 0 6C-0.8400000000000001 0.8400000000000001 -0.8400000000000001 0.8400000000000001 -6 0C-0.8400000000000001 -0.8400000000000001 -0.8400000000000001 -0.8400000000000001 0 -6Z' fill='%23fff4fb' style='animation-duration:11s;animation-delay:-5.2s'/%3E%3C/g%3E%3Cg transform='translate(60 380)'%3E%3Cpath d='M0 2.7C-4.800000000000001 -0.6000000000000001 -2.4000000000000004 -4.5 0 -1.7999999999999998C2.4000000000000004 -4.5 4.800000000000001 -0.6000000000000001 0 2.7Z' fill='%23c3a5f9' style='animation-duration:5s;animation-delay:-6.5s'/%3E%3C/g%3E%3Cg transform='translate(230 440)'%3E%3Cpath d='M0 -3C0.42000000000000004 -0.42000000000000004 0.42000000000000004 -0.42000000000000004 3 0C0.42000000000000004 0.42000000000000004 0.42000000000000004 0.42000000000000004 0 3C-0.42000000000000004 0.42000000000000004 -0.42000000000000004 0.42000000000000004 -3 0C-0.42000000000000004 -0.42000000000000004 -0.42000000000000004 -0.42000000000000004 0 -3Z' fill='%23f1da84' style='animation-duration:6.5s;animation-delay:-7.8s'/%3E%3C/g%3E%3Cg transform='translate(450 420)'%3E%3Cpath d='M0 -4C0.56 -0.56 0.56 -0.56 4 0C0.56 0.56 0.56 0.56 0 4C-0.56 0.56 -0.56 0.56 -4 0C-0.56 -0.56 -0.56 -0.56 0 -4Z' fill='%237ceec5' style='animation-duration:8s;animation-delay:-9.1s'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E");
+  --backdrop-drift: url("./unicorn-drift.svg");
   --backdrop-drift-w: 480px;
   --backdrop-drift-time: 140s;
 
@@ -129,12 +158,24 @@
   --backdrop-repeat: no-repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson). */
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
   --font-display: "Lobster Two", var(--font-body);
   --display-tracking: 0.01em;
   --display-case: none;
   --title-size: 2.375rem;
   --text-brand: 1.375rem;
   --text-score: 3.5rem;
+  --text-info-title: 1.125rem;
+  --text-result: 1.75rem;
   --radius: 10px;
+  --radius-pill: 999px;
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: url("./unicorn-edge.svg");
+  --explain-edge-w: 8px;
+  --explain-edge-h: 10px;
+  --explain-edge-fill: url("./unicorn-edge-fill.svg");
 }

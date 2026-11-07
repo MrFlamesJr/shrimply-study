@@ -24,6 +24,32 @@
   background: var(--border-strong);
   border-radius: var(--radius);
 }
+/* A scroll box inside a box (the feedback sheet's text, a study card, the Drive dialog's list of libraries): a slim
+   thumb with the theme's corners, clear of
+   the box's ends (and so of a card's rounded corners), brighter while pointed at. Chromium and Safari draw it from the
+   -webkit- rules once the standard properties above, which win over them, are back to auto; Firefox keeps the thin
+   standard one. */
+@supports selector(::-webkit-scrollbar) {
+  :is(.sheet-text, .card-scroll, .drive-files) {
+    scrollbar-width: auto;
+    scrollbar-color: auto;
+  }
+}
+:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar {
+  width: var(--space-3);
+}
+:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar-track {
+  margin-block: var(--space-1);
+  background: transparent;
+}
+:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar-thumb {
+  background: var(--border-strong) padding-box;
+  border: var(--space-1) solid transparent;
+  border-radius: var(--radius);
+}
+:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar-thumb:hover {
+  background-color: var(--text-muted);
+}
 /* The page ground: --bg, then two layers fixed to the window behind everything: ::before the backdrop, ::after
    the moving layer over it (--backdrop-drift). The top row is frosted glass over it (shell.css). The moving layer
    is one tile wider than the window and slides one tile by transform, so it loops seamlessly and the backdrop is
@@ -64,9 +90,14 @@ body::after {
 /* Tinted zones (each sets --zone to its color): muted text and borders lean toward that color, so a grey of
    another temperature never sits on the tint. */
 .danger-zone,
+.info-box,
+.sheet-explain,
 .group-box,
 .choice.is-correct,
 .choice.is-wrong,
+.choice.is-missed,
+.entry.is-correct,
+.entry.is-wrong,
 .ok-outline,
 .bad-outline {
   --text-muted: color-mix(in oklab, var(--zone) var(--tint-muted), var(--text-muted-plain));
@@ -100,13 +131,14 @@ button.small svg {
   width: 16px;
   height: 16px;
 }
-/* Shortcut hint (Shortcut.tsx): one keycap box holding the keys. Only where there is a keyboard to press. */
+/* Shortcut hint (Shortcut.tsx): one keycap box holding the keys. Only where there is a keyboard to press. The top
+   padding balances the thick bottom edge, so the letters sit in the middle of the whole key, not high in it. */
 .shortcut {
   display: none;
   align-items: center;
   gap: var(--space-1);
   margin-left: var(--space-1);
-  padding: 0 var(--space-1);
+  padding: var(--line-thick) var(--space-1) 0;
   border: var(--line) solid var(--border-strong);
   border-bottom-width: var(--line-thick);
   border-radius: var(--radius);
@@ -172,8 +204,8 @@ button svg {
 /* Gold buttons: on hover they lift and an accent ring grows out around them (no glow or shadow). */
 button.primary,
 button.start {
-  background: var(--accent);
-  border-color: var(--accent);
+  background: var(--accent-fill);
+  border-color: var(--accent-fill);
   color: var(--accent-text);
   font-weight: var(--weight-bold);
   outline: var(--line-thick) solid transparent;
@@ -198,10 +230,17 @@ button.primary:active:not(:disabled),
 button.start:active:not(:disabled) {
   transform: translateY(0) scale(0.98);
 }
+/* The focus ring (the rest state's transparent outline above outranks the shared :focus-visible rule): the solid
+   accent, as the faded --focus looks dull beside the button's own accent fill. */
+button.primary:focus-visible,
+button.start:focus-visible {
+  outline-color: var(--accent);
+  outline-offset: var(--focus-offset);
+}
 button.primary .shortcut {
   border-color: currentColor;
   color: inherit;
-  opacity: var(--dim-light);
+  opacity: var(--accent-hint);
 }
 /* The one big action of the quiz page. On hover it springs up in size, a ring keeps pinging
    out from it and the play icon keeps pushing forward; pressing squashes it. */
@@ -256,23 +295,45 @@ button.quiet:hover:not(:disabled) {
   border-color: transparent;
   color: var(--text);
 }
-/* Icon buttons never fill on hover: the icon brightens and springs up a size. The icon's own width and height
-   grow (not a transform), so it stays sharp and centered the whole way. */
+/* Icon pop, the one hover for an icon that is a button's action (icon buttons, the sidebar toggle, the info box's
+   chevron): never a fill, the icon brightens and pops up a size to catch the eye: a quick scale past its new size
+   and back (`icon-pop`, a transient scale) while its own width and height spring up (not a transform, so at rest
+   it stays sharp). The icon sits in a fixed cell (the button, or the info box's chevron cell), so nothing around
+   it moves. A fold chevron also turns (`rotate`, below). */
 .icon-btn:hover:not(:disabled),
 .sidebar-toggle:hover:not(:disabled) {
   background: transparent;
   color: var(--text);
 }
 .icon-btn svg,
-.sidebar-toggle svg {
+.sidebar-toggle svg,
+.info-box-chevron svg {
   transition:
     width var(--dur) var(--spring),
-    height var(--dur) var(--spring);
+    height var(--dur) var(--spring),
+    rotate var(--dur) var(--ease);
 }
 .icon-btn:hover:not(:disabled) svg,
-.sidebar-toggle:hover:not(:disabled) svg {
+.sidebar-toggle:hover:not(:disabled) svg,
+.info-box-toggle:hover .info-box-chevron svg {
   width: 22px;
   height: 22px;
+  animation: icon-pop var(--dur-pop) var(--ease);
+}
+/* Kept gentle (asked for): it overshoots the new size by about a tenth, not a third. */
+@keyframes icon-pop {
+  40% {
+    scale: 1.12;
+  }
+}
+/* A fold chevron points the way its box will go: up while open, down once shut (group boxes, the info box). */
+.group-toggle svg,
+.info-box-chevron svg {
+  rotate: 180deg;
+}
+.group-toggle[aria-expanded='false'] svg,
+.info-box-toggle[aria-expanded='false'] .info-box-chevron svg {
+  rotate: none;
 }
 /* Link buttons (top row Open and Download): small muted text, underlined on hover like the crumbs. */
 button.link {
@@ -368,11 +429,20 @@ textarea {
   font: inherit;
   transition: border-color var(--dur-fast) var(--ease);
 }
+/* Pointed at, a boxed field's border brightens, like an underlined field's line (below). */
+textarea:hover {
+  border-color: var(--border-strong);
+}
 input:focus,
 textarea:focus {
   border-color: var(--accent);
   outline: none;
   box-shadow: none;
+}
+/* The browser's grey placeholder is under 4.5:1 on every theme's fields; muted text passes and still reads as a hint. */
+::placeholder {
+  color: var(--text-muted);
+  opacity: 1;
 }
 :focus-visible {
   outline: var(--line-thick) solid var(--focus);
@@ -397,6 +467,299 @@ textarea:focus {
   color: var(--bad);
   font-size: var(--text-sm);
   font-weight: var(--weight);
+}
+/* Underlined text fields (no box): the card editor's, every field with a floating label, and list entries. A list
+   entry's line rests fainter (`--underline`, set by the list). */
+.pair-field textarea,
+.float-field textarea,
+.entry textarea {
+  padding: var(--space-2) var(--space-3);
+  background: transparent;
+  border: 0;
+  border-bottom: var(--line-thick) solid var(--underline, var(--border));
+  border-radius: 0;
+}
+/* Every underlined field shows its state on its line the same way (asked for): brighter while it is pointed at (its
+   box, its floating label, or the eraser inside it), the accent while focused, red when its text is missing or
+   refused. Each state wins over the one before it (same specificity, in this order); no other file sets them. */
+:is(.pair-field, .float-field, .entry, .cloze-box) textarea:hover,
+.float-field:hover textarea,
+.auto-text-erasable:hover textarea {
+  border-color: var(--border-strong);
+}
+:is(.pair-field, .float-field, .entry, .cloze-box) textarea:focus {
+  border-color: var(--accent);
+}
+:is(.pair-field, .float-field, .entry, .cloze-box) textarea[aria-invalid='true'] {
+  border-color: var(--bad);
+}
+/* A field's floating label (FloatField), asked for. Empty, the name sits in the box where its text will start and at
+   its size, like a placeholder. Once the field has focus or text, the name rises above the box, smaller, its text
+   still lined up with the field's, and a bracket is drawn out of it, like a pen stroke: a line from the name to the
+   field's top left corner (rounded like the theme's corners), down the field's left edge to halfway, then one short
+   dash that stops short of the underline (asked for: the bracket points at the field without closing it). It follows
+   the field's hover and focus with its underline (brighter while pointed at, the accent while focused), so the name
+   and its field read as one, but never turns red: an error shows on the underline and its message only (asked for).
+   Falling, the bracket draws back into the name first, then the name drops. All by transform
+   and clip, and the room above is always kept, so nothing else moves. */
+.float-field {
+  --float-line: var(--border);
+  /* The bracket's top: from the field's left edge to the floated name. */
+  --float-stub: calc(var(--space-3) - var(--space-1));
+  /* The bracket's corner: the theme's, never wider than its top. */
+  --float-corner: min(var(--radius), var(--float-stub));
+  /* Halfway down the bracket, from the bottom of the field (the bracket runs from the room's bottom edge to the
+     underline). */
+  --float-half: calc((100% - var(--float-room) + var(--line) + var(--line-thick)) / 2);
+  /* One step of the pen: the parts draw one after another, at about the same speed. */
+  --float-step: calc(var(--dur-fast) / 2);
+  position: relative;
+  display: block;
+  min-width: 0;
+  padding-top: var(--float-room);
+}
+/* The bracket follows its field's line: brighter while pointed at (the eraser beside the label too). */
+.float-field:hover,
+:where(.auto-text-erasable:hover) > .float-field {
+  --float-line: var(--border-strong);
+}
+.float-field:focus-within {
+  --float-line: var(--accent);
+}
+/* Top and corner, on the room's bottom edge, drawn from the name to the left (clip). */
+.float-field::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--float-room) - var(--line));
+  left: 0;
+  width: var(--float-stub);
+  height: calc(var(--float-corner) + var(--line));
+  border-top: var(--line) solid var(--float-line);
+  border-left: var(--line) solid var(--float-line);
+  border-top-left-radius: var(--float-corner);
+  pointer-events: none;
+  clip-path: inset(0 0 0 100%);
+  transition:
+    clip-path var(--float-step) linear calc(3 * var(--float-step)),
+    border-color var(--dur-fast) var(--ease);
+}
+/* The side, from under the corner to halfway, drawn downward (scale). */
+.float-field::after {
+  content: '';
+  position: absolute;
+  top: calc(var(--float-room) - var(--line) + var(--float-corner));
+  bottom: var(--float-half);
+  left: 0;
+  width: var(--line);
+  background: var(--float-line);
+  pointer-events: none;
+  transform: scaleY(0);
+  transform-origin: top;
+  transition:
+    transform calc(2 * var(--float-step)) linear var(--float-step),
+    background-color var(--dur-fast) var(--ease);
+}
+/* The dash below halfway, drawn downward (clip). */
+.float-tail {
+  position: absolute;
+  top: calc(100% - var(--float-half) + var(--space-1));
+  left: 0;
+  width: var(--line);
+  height: var(--space-2);
+  background: var(--float-line);
+  pointer-events: none;
+  clip-path: inset(0 0 100% 0);
+  transition:
+    clip-path var(--float-step) linear,
+    background-color var(--dur-fast) var(--ease);
+}
+.float-field:focus-within::before,
+.float-field.is-filled::before {
+  clip-path: inset(0);
+  transition:
+    clip-path var(--float-step) linear calc(2 * var(--float-step)),
+    border-color var(--dur-fast) var(--ease);
+}
+.float-field:focus-within::after,
+.float-field.is-filled::after {
+  transform: none;
+  transition:
+    transform calc(2 * var(--float-step)) linear calc(3 * var(--float-step)),
+    background-color var(--dur-fast) var(--ease);
+}
+.float-field:focus-within > .float-tail,
+.float-field.is-filled > .float-tail {
+  clip-path: inset(0);
+  transition:
+    clip-path var(--float-step) var(--ease) calc(5 * var(--float-step)),
+    background-color var(--dur-fast) var(--ease);
+}
+/* Its side padding shrinks with it to the gap beside the bracket (--space-1). Falling, it waits for the bracket. */
+.float-label {
+  position: absolute;
+  top: calc(var(--float-room) + var(--space-2));
+  left: calc(var(--space-3) - var(--space-1) / var(--float-scale));
+  max-width: calc(100% - 2 * var(--space-3));
+  padding-inline: calc(var(--space-1) / var(--float-scale));
+  color: var(--text-muted);
+  white-space: nowrap;
+  pointer-events: none;
+  transform-origin: left center;
+  transition:
+    transform var(--dur) var(--ease) calc(4 * var(--float-step)),
+    color var(--dur-fast) var(--ease);
+}
+.float-field:focus-within > .float-label {
+  color: var(--accent);
+}
+/* Floated: centered on the bracket's top, its left end where that line stops, its text where the field's starts. */
+.float-field:focus-within > .float-label,
+.float-field.is-filled > .float-label {
+  transform: translate(calc(var(--space-1) / var(--float-scale) - var(--space-1)), calc(-50% - var(--space-2) - var(--line) / 2))
+    scale(var(--float-scale));
+  transition:
+    transform var(--dur) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+/* A long name ends in an ellipsis; the clip leaves room at its sides for the editor's shake. */
+.float-text {
+  display: block;
+  margin-inline: calc(-1 * var(--space-2));
+  padding-inline: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Info box (InfoBox.tsx): help on a faint info tint (a tinted zone), so it reads as help, not as something to do.
+   Its title row is one button. Minimized, the box shrinks to a compact chip with just the title: the body folds
+   away like a group's (rows to 0fr, faded, hidden once shut so Tab skips it) while the box narrows to fit the title
+   (interpolate-size lets the width move to and from fit-content; nothing sits beside the box, so nothing else
+   reflows). The title row sits on a slightly stronger tint than the notes (--info-band), so the part that
+   minimizes is told apart by tone. Its chevron has the icon pop and turns like a group's. */
+.info-box {
+  --zone: var(--info);
+  --info-inner-r: max(0px, calc(var(--radius) - var(--line-heavy)));
+  interpolate-size: allow-keywords;
+  width: 100%;
+  background: var(--info-soft);
+  border: var(--line-heavy) dashed var(--info-line);
+  border-radius: var(--radius);
+  transition:
+    width var(--dur) var(--ease),
+    border-color var(--dur-fast) var(--ease),
+    scale var(--dur) var(--ease);
+}
+.info-box.is-min {
+  width: fit-content;
+  max-width: 100%;
+}
+/* Only the minimized chip reacts to hover: its outline turns solid and it grows slightly. The whole box shows no
+   hover at all, so nothing changes while the notes are read. */
+.info-box.is-min:has(> h3 > .info-box-toggle:hover) {
+  border-color: var(--info);
+  scale: 1.03;
+}
+.info-box h3 {
+  font-size: var(--text-info-title);
+  line-height: 1.3;
+}
+.info-box-toggle {
+  width: 100%;
+  height: auto;
+  justify-content: flex-start;
+  padding: var(--space-3) var(--space-3) var(--space-3) var(--space-5);
+  /* Inside the outline, so its corners follow the box's inner edge; square at the bottom where the notes go on. */
+  border-radius: var(--info-inner-r) var(--info-inner-r) 0 0;
+  /* The chevron takes the button's color, muted until hovered, like an icon button's icon. */
+  color: var(--text-muted);
+  font-weight: var(--weight-bold);
+  text-align: left;
+  white-space: normal;
+  transition:
+    padding var(--dur) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.info-box-toggle,
+.info-box-toggle:hover:not(:disabled) {
+  background: var(--info-band);
+}
+.info-box-toggle:hover:not(:disabled) {
+  color: var(--text);
+}
+/* The box's title is a title: the theme's display font, with a glow in the info color (none in Calm). */
+.info-box-title {
+  flex: 1;
+  color: var(--text);
+  font-family: var(--font-display);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-info);
+}
+/* A muted aside after the title (What's new's [release name]): body text, kept as written, so no display font,
+   case, tracking or glow. */
+.info-box-note {
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-sm);
+  font-weight: var(--weight);
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: none;
+}
+.info-box-toggle > svg:first-child {
+  color: var(--info);
+}
+/* The chevron's cell is as big as the popped icon, so the pop happens inside it and nothing around it moves. */
+.info-box-chevron {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+}
+.is-min .info-box-toggle {
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-radius: var(--info-inner-r);
+}
+/* contain: the body never sets the box's width (it fills it), so minimized the box fits the title alone. */
+.info-box-body {
+  display: grid;
+  grid-template-rows: 1fr;
+  contain: inline-size;
+  transition:
+    grid-template-rows var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    visibility 0s;
+}
+.info-box-body > div {
+  min-height: 0;
+  transition: overflow 0s var(--dur);
+  transition-behavior: allow-discrete;
+}
+.info-box-content {
+  padding: var(--space-3) var(--space-5) var(--space-4);
+}
+.is-min .info-box-body {
+  grid-template-rows: 0fr;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    grid-template-rows var(--dur) var(--ease),
+    opacity var(--dur) var(--ease),
+    visibility 0s var(--dur);
+}
+/* clip, not hidden: a focus() while it opens can't scroll it. */
+.is-min .info-box-body > div {
+  overflow: clip;
+  transition-delay: 0s;
+}
+@media (max-width: 799px) {
+  .info-box-toggle {
+    padding-left: var(--space-4);
+  }
+  .info-box-content {
+    padding-inline: var(--space-4);
+  }
 }
 
 /* Segmented: equal segments, a tinted indicator slides to the chosen one (--i of --n, set inline). */
@@ -443,6 +806,10 @@ textarea:focus {
   left: var(--pad);
   width: calc((100% - 2 * var(--pad)) / var(--n));
   background: var(--accent-soft);
+  /* The tint is see-through (it sits in group boxes and cards), so what is under it loses all but --tint-keep of its
+     color first: over a group box or a ground of another hue the chosen segment still reads in the accent's hue, not
+     grey (a color filter only, no blur; nothing in Calm). */
+  backdrop-filter: saturate(var(--tint-keep));
   border: var(--line) solid var(--accent-line);
   border-radius: var(--radius);
   transform: translateX(calc(var(--i) * 100%));
@@ -460,6 +827,8 @@ textarea:focus {
   overflow-wrap: normal;
   text-align: center;
   cursor: pointer;
+  /* A label, not a button: without this a press that moves a little selects its text and the click is lost. */
+  user-select: none;
   transition: color var(--dur-fast) var(--ease);
 }
 .segmented input {

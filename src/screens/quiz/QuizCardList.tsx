@@ -1,4 +1,3 @@
-import type { CSSProperties } from 'react'
 import type { Quiz } from '../../model'
 import { sections, withCollapsed } from '../../logic/groups'
 import { plural } from '../../logic/plural'
@@ -14,12 +13,11 @@ type Props = {
 }
 
 export function QuizCardList({ quiz, collapsed, setCollapsed, onEdit }: Props) {
-  // Card numbers match the editor's ("#1"). The number column is as wide as the longest one, # included.
+  // Card numbers match the editor's ("#1").
   const numbers = new Map(quiz.cards.map((c, i) => [c.id, i + 1]))
-  const leadWidth = { '--lead-w': `${String(quiz.cards.length).length + 1}ch` } as CSSProperties
 
   const list = (cards: Quiz['cards']) => (
-    <ol className="card-list card-rows" start={numbers.get(cards[0].id)} style={leadWidth}>
+    <ol className="card-list card-rows quiz-rows" start={numbers.get(cards[0].id)}>
       {cards.map((card) => (
         <CardRow
           key={card.id}
@@ -29,6 +27,7 @@ export function QuizCardList({ quiz, collapsed, setCollapsed, onEdit }: Props) {
               #{numbers.get(card.id)}
             </span>
           }
+          kind
           onEdit={() => onEdit(card.id)}
         />
       ))}

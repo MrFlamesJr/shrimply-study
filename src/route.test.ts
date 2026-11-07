@@ -18,6 +18,14 @@ describe('parseHash', () => {
     expect(parseHash('#/')).toEqual({ name: 'home' })
     expect(parseHash('')).toEqual({ name: 'home' })
     expect(parseHash('#/_debug')).toEqual({ name: 'debug' })
+    expect(parseHash('#/_changelog')).toEqual({ name: 'changelog' })
+  })
+
+  it('reads a Google Drive link, and goes home when it names no file', () => {
+    expect(parseHash('#/_drive/1AbC-d_9')).toEqual({ name: 'drive', id: '1AbC-d_9' })
+    expect(parseHash(href({ name: 'drive', id: '1AbC-d_9' }))).toEqual({ name: 'drive', id: '1AbC-d_9' })
+    expect(parseHash('#/_drive')).toEqual({ name: 'home' })
+    expect(parseHash('#/_drive/')).toEqual({ name: 'home' })
   })
 
   it('reads course, quiz and edit', () => {
@@ -41,6 +49,7 @@ describe('href', () => {
   it('writes names as slugs', () => {
     expect(href({ name: 'home' })).toBe('#/')
     expect(href({ name: 'debug' })).toBe('#/_debug')
+    expect(href({ name: 'changelog' })).toBe('#/_changelog')
     expect(href({ name: 'course', course: 'Les vers (2)' })).toBe('#/les-vers-2')
     expect(href({ name: 'edit', course: 'Les vers (2)', quiz: 'Plan 1' })).toBe('#/les-vers-2/plan-1/edit')
     expect(href({ name: 'study', course: 'A', quiz: 'B', format: 'typing' })).toBe('#/a/b/study/typing')

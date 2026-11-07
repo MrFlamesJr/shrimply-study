@@ -60,10 +60,14 @@
   overflow: auto;
 }
 .debug-bar {
+  /* A popover in the top layer (DebugBar.tsx), above everything, modal dialogs too. The rest undoes the
+     browser's popover box (centered, filled, scrolling). */
   position: fixed;
-  left: var(--space-3);
-  bottom: var(--space-3);
-  z-index: 1000;
+  inset: auto auto var(--space-3) var(--space-3);
+  margin: 0;
+  overflow: visible;
+  background: none;
+  color: inherit;
   /* Its own width wherever it is moved, so it doesn't squeeze against the right edge. */
   width: max-content;
   max-width: calc(100vw - 2 * var(--space-3));
@@ -71,6 +75,13 @@
   border: var(--line) solid var(--border-strong);
   border-radius: var(--radius);
   font-size: var(--text-sm);
+  /* It drags from any spot that isn't a control (DebugBar.tsx). */
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+.debug-bar:active {
+  cursor: grabbing;
 }
 /* Frosted glass in diagonal stripes (asked for): a light layer under the whole bar, and a denser,
    more blurred one masked into every other stripe. Both sit behind the bar's content. */
@@ -100,14 +111,19 @@
   gap: var(--space-2);
   margin-top: var(--space-2);
 }
-/* The size line is the bar's drag handle. */
-.debug-handle {
-  cursor: grab;
-  touch-action: none;
-  user-select: none;
+/* The same inside a dialog, where narrow screens stretch a dialog's buttons. */
+.debug-bar .actions > * {
+  flex: none;
 }
-.debug-handle:active {
-  cursor: grabbing;
+/* The size line, then the close button in the top right corner. */
+.debug-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+/* The size line fills the row up to the close button. */
+.debug-handle {
+  flex: 1;
 }
 .debug-bar button[aria-pressed="true"] {
   background: var(--accent-soft);

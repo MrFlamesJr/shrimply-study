@@ -1,0 +1,32 @@
+<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 660'>
+  <style>circle{transform-box:fill-box;transform-origin:center;animation:f 20s ease-in-out infinite}@keyframes f{0%,100%{transform:translateY(0) scale(.6);opacity:.4}50%{transform:translateY(-10px) scale(1);opacity:1}}@media (prefers-reduced-motion: reduce){*{animation:none}}</style>
+  <defs>
+    <radialGradient id='a'>
+      <stop offset='0' stop-color='#ffd27a' stop-opacity='0.95'/>
+      <stop offset='0.25' stop-color='#ffc46b' stop-opacity='0.4'/>
+      <stop offset='1' stop-color='#ffc46b' stop-opacity='0'/>
+    </radialGradient>
+    <radialGradient id='m'>
+      <stop offset='0' stop-color='#d6ffe6' stop-opacity='0.9'/>
+      <stop offset='0.25' stop-color='#b8f5d0' stop-opacity='0.35'/>
+      <stop offset='1' stop-color='#b8f5d0' stop-opacity='0'/>
+    </radialGradient>
+  </defs>
+  <g opacity='0.4'>
+    <circle style='animation-duration:9s;animation-delay:-0.0s' cx='70' cy='120' r='18.2' fill='url(#a)'/>
+    <circle style='animation-duration:14s;animation-delay:-3.7s' cx='210' cy='430' r='13' fill='url(#m)'/>
+    <circle style='animation-duration:12s;animation-delay:-7.4s' cx='330' cy='80' r='10.4' fill='url(#m)'/>
+    <circle style='animation-duration:10s;animation-delay:-1.1s' cx='420' cy='300' r='20.8' fill='url(#a)'/>
+    <circle style='animation-duration:15s;animation-delay:-14.8s' cx='560' cy='520' r='13' fill='url(#a)'/>
+    <circle style='animation-duration:13s;animation-delay:-5.5s' cx='640' cy='170' r='15.600000000000001' fill='url(#m)'/>
+    <circle style='animation-duration:11s;animation-delay:-0.2s' cx='760' cy='380' r='10.4' fill='url(#a)'/>
+    <circle style='animation-duration:9s;animation-delay:-7.9s' cx='120' cy='560' r='15.600000000000001' fill='url(#m)'/>
+    <circle style='animation-duration:14s;animation-delay:-1.6s' cx='480' cy='40' r='13' fill='url(#a)'/>
+    <circle style='animation-duration:12s;animation-delay:-9.3s' cx='700' cy='600' r='18.2' fill='url(#m)'/>
+    <circle style='animation-duration:10s;animation-delay:-7.0s' cx='270' cy='250' r='7.800000000000001' fill='url(#a)'/>
+    <circle style='animation-duration:15s;animation-delay:-10.7s' cx='600' cy='320' r='7.800000000000001' fill='url(#m)'/>
+    <circle style='animation-duration:13s;animation-delay:-5.4s' cx='40' cy='340' r='10.4' fill='url(#a)'/>
+    <circle style='animation-duration:11s;animation-delay:-4.1s' cx='380' cy='610' r='10.4' fill='url(#m)'/>
+    <circle style='animation-duration:9s;animation-delay:-6.8s' cx='780' cy='60' r='13' fill='url(#m)'/>
+  </g>
+</svg>

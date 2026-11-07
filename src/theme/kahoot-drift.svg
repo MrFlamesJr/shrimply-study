@@ -1,0 +1,30 @@
+<svg xmlns='http://www.w3.org/2000/svg' width='560' height='560'>
+  <style>g{transform-box:fill-box;transform-origin:center;animation:s 120s linear infinite}@keyframes s{to{transform:rotate(360deg)}}@keyframes b{0%,100%{transform:scale(1)}50%{transform:scale(.88)}}@media (prefers-reduced-motion: reduce){*{animation:none}}</style>
+  <g style='animation:b 14s ease-in-out -3s infinite'>
+    <circle cx='86' cy='92' r='30' fill='none' stroke='#fff' stroke-opacity='.055' stroke-width='5' stroke-linejoin='round'/>
+  </g>
+  <g style='animation-duration:150s;animation-delay:-40s'>
+    <path d='M372 300l36 36-36 36-36-36z' fill='none' stroke='#fff' stroke-opacity='.055' stroke-width='5' stroke-linejoin='round'/>
+  </g>
+  <g style='animation-duration:110s;animation-delay:-70s;animation-direction:reverse'>
+    <rect x='470' y='70' width='44' height='44' transform='rotate(18 492 92)' fill='none' stroke='#fff' stroke-opacity='.055' stroke-width='5' stroke-linejoin='round'/>
+  </g>
+  <g style='animation-duration:130s;animation-delay:-20s'>
+    <path d='M150 430l30 52h-60z' fill='none' stroke='#fff' stroke-opacity='.055' stroke-width='5' stroke-linejoin='round'/>
+  </g>
+  <g style='animation-duration:160s;animation-delay:-90s;animation-direction:reverse'>
+    <path d='M300 40l34 58h-68z' transform='rotate(-12 300 78)' fill='#fff' fill-opacity='.04'/>
+  </g>
+  <g style='animation:b 11s ease-in-out -6s infinite'>
+    <circle cx='236' cy='246' r='14' fill='#fff' fill-opacity='.04'/>
+  </g>
+  <g style='animation-duration:120s;animation-delay:-15s'>
+    <rect x='40' y='300' width='38' height='38' transform='rotate(-20 59 319)' fill='#fff' fill-opacity='.04'/>
+  </g>
+  <g style='animation-duration:140s;animation-delay:-55s;animation-direction:reverse'>
+    <path d='M478 432l26 26-26 26-26-26z' fill='#fff' fill-opacity='.04'/>
+  </g>
+  <g style='animation:b 17s ease-in-out -9s infinite'>
+    <circle cx='530' cy='300' r='8' fill='#fff' fill-opacity='.04'/>
+  </g>
+</svg>

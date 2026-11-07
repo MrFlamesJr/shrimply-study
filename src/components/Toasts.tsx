@@ -23,7 +23,7 @@ export function useToasts() {
 // The stack uses column-reverse: the newest toast comes first in the DOM, sits at the bottom, and scrolling starts there.
 // The stack is a popover, so it sits in the top layer where nothing on the page covers it. Whatever opens
 // there after it (a dialog, the color palette) would sit above it, so it moves back to the top each time
-// something opens and each time a toast comes.
+// something opens and each time a toast comes. The debug bar stays above it (it raises itself over the stack in turn).
 export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: string): void }) {
   const ref = useRef<HTMLElement>(null)
   const raise = () => {
@@ -35,7 +35,8 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
   useEffect(raise, [toasts.length])
   useEffect(() => {
     const onToggle = (e: Event) => {
-      if (e.target !== ref.current && (e as ToggleEvent).newState === 'open') raise()
+      const other = e.target !== ref.current && !(e.target as Element).matches('.debug-bar')
+      if (other && (e as ToggleEvent).newState === 'open') raise()
     }
     document.addEventListener('toggle', onToggle, true)
     return () => document.removeEventListener('toggle', onToggle, true)

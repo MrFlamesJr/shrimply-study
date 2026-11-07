@@ -13,7 +13,7 @@
   text-shadow: var(--glow-text);
 }
 .title-input:hover {
-  border-bottom-color: var(--border);
+  border-bottom-color: var(--border-strong);
 }
 .title-input:focus {
   border-bottom-color: var(--accent);
@@ -61,6 +61,43 @@
 }
 .welcome > .actions {
   margin-top: var(--space-6);
+}
+/* Learn more under the steps (HomeScreen): a link button, underlined at rest since it stands alone. */
+.welcome > button.link {
+  text-decoration-color: currentColor;
+}
+/* What's new, always on home (HomeScreen): the tips box's notes, read left-aligned on the centered welcome page. */
+.welcome > .info-box {
+  margin-top: var(--space-6);
+  text-align: left;
+}
+.welcome > .info-box.is-min {
+  margin-inline: auto;
+}
+/* What's new's way to every release's notes, under this release's: a link like Learn more (small, muted, and
+   underlined at rest since it stands alone), lighting up to the text color on hover. */
+.info-box-content > .all-changes {
+  margin-top: var(--space-4);
+  font-size: var(--text-sm);
+}
+.all-changes a {
+  color: var(--text-muted);
+  text-decoration-color: currentColor;
+  transition: color var(--dur-fast) var(--ease);
+}
+.all-changes a:hover {
+  color: var(--text);
+}
+/* Every release's notes (ChangelogScreen.tsx): a page of its own, full screen outside the app shell, in the
+   same centered column as the app's pages (the shell sets --page-pad on .app, so it is set again here). */
+.changelog {
+  --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
+  min-height: 100dvh;
+}
+@media (max-width: 799px) {
+  .changelog {
+    --page-pad: var(--space-4);
+  }
 }
 .steps {
   display: grid;
@@ -112,7 +149,9 @@
 .page > .course-block + .course-block {
   margin-top: var(--space-8);
 }
-.course-row {
+/* A course's name and count (home), or a release's name and date (ChangelogScreen.tsx). */
+.course-row,
+.release-head {
   display: flex;
   flex-wrap: wrap;
   align-items: baseline;
@@ -253,6 +292,25 @@
     margin: 0;
   }
 }
+/* How studying works (StudyTips.tsx), an InfoBox under the options with the page's gap on both sides: short notes
+   in columns. Newspaper columns, filled top to bottom and evened out, so a short note never leaves a hole beside a long one. */
+.tips-list {
+  columns: 15rem 3;
+  column-gap: var(--space-5);
+  font-size: var(--text-sm);
+}
+.tips-list > div {
+  break-inside: avoid;
+}
+.tips-list > div + div {
+  margin-top: var(--space-3);
+}
+.tips-list dt {
+  font-weight: var(--weight-bold);
+}
+.tips-list dd {
+  color: var(--text-muted);
+}
 section > h3 {
   margin-top: var(--space-6);
   font-size: var(--text-lg);
@@ -300,7 +358,7 @@ section > .group-box + div {
 .card-rows li {
   grid-template-columns: var(--lead-w) minmax(0, 2fr) minmax(0, 3fr) auto;
   align-items: baseline;
-  column-gap: var(--space-4);
+  gap: var(--space-1) var(--space-4);
   padding-right: var(--space-3);
 }
 .row-num {
@@ -317,6 +375,13 @@ section > .group-box + div {
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
+/* A sequence's steps, or a choice question's right answers, one per line, numbered. */
+.row-step {
+  display: inline-block;
+  min-width: 1.5em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
 /* A side's image under its text, a square preview like the editor's. */
 .card-rows .thumb {
   width: var(--thumb-list-h);
@@ -328,6 +393,19 @@ section > .group-box + div {
 .row-blank {
   border-bottom: var(--blank-line) dashed var(--mark);
   color: var(--text);
+}
+/* A fill-in-the-blank card's explanations, like the editor's blanks: on a soft well, a faint line between blanks. */
+.row-blanks {
+  margin-top: var(--space-2);
+  background: var(--well);
+  border-radius: var(--radius);
+}
+.row-blanks .row-note {
+  margin: 0;
+  padding: var(--space-2) var(--space-3);
+}
+.row-blanks .row-note + .row-note {
+  border-top: var(--line) solid var(--row-line);
 }
 /* The pencil takes no more height than a line of text, so it never makes a row taller. */
 .row-edit {
@@ -366,13 +444,55 @@ section > .group-box + div {
     grid-row: 1;
   }
 }
+/* Quiz page: each card headed like the editor's card head (#1, then its sides or kind, the pencil at the right end,
+   as close to the edge as the editor's tools), its text under it from the card's left edge, as the editor's fields. */
+.quiz-rows li {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 3fr);
+  padding: var(--space-1) var(--space-5) var(--space-3);
+}
+.quiz-rows .row-statement {
+  grid-column: 1 / -1;
+}
+.row-head {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: baseline;
+  margin-right: calc(var(--space-1) - var(--space-5));
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+/* Own side names can be long: the name wraps, never the number. */
+.row-head .row-num {
+  flex: none;
+}
+.row-head .pair-kind {
+  min-width: 0;
+}
+.row-head .row-edit {
+  align-self: center;
+  margin: 0 0 0 auto;
+}
+@media (max-width: 799px) {
+  .quiz-rows li {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .quiz-rows .row-def {
+    grid-column: 1;
+  }
+}
 
 
 /* Danger zone (Page.tsx), at the bottom of the course page and the editor: what gets deleted, and the button. */
 .danger-zone {
   --zone: var(--danger);
   padding: var(--space-4) var(--space-5);
-  background: var(--danger-soft);
+  /* The same frosted glass as the editor's "Add new card" box, still tinted red (asked for): --danger-soft is
+     --glass-tile with the red mixed in, and the blur is the same token. Under the glass, --role-veil takes the ground's
+     own hue out by as much as the theme's --tint-keep leaves (none in Calm), so the red reads red over a colored ground
+     (the first layer is one color, a layer over the veil, not a visible gradient). */
+  background: linear-gradient(var(--danger-soft), var(--danger-soft)), var(--role-veil);
+  backdrop-filter: blur(var(--glass-tile-blur));
   border: var(--line) solid var(--danger);
   border-radius: var(--radius);
 }

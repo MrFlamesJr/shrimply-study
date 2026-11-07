@@ -4,6 +4,8 @@ import { PageHead } from '../components/Page'
 import type { Notify } from '../components/Toasts'
 import type { ToastKind } from '../logic/pushToast'
 import { breakBackup, clearBackup } from '../storage/browserBackup'
+import { resetPrefs } from '../storage/resetPrefs'
+import { href } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { JsonSection } from './debug/JsonSection'
 import { LibrarySection } from './debug/LibrarySection'
@@ -25,10 +27,35 @@ export function DebugScreen({ lib, notify, debugBar, setDebugBar }: Props) {
     await change()
     location.reload()
   }
+  // Signed out too, as a new visit starts signed out (this tab's sign-in only; Google keeps the app's permission, as
+  // it would for a new browser). A reload also resets what only lasts the session (sidebar, collapsed groups, debug
+  // bar). Replaced, not assigned, so home isn't shown before the reload.
+  const resetVisit = () => {
+    resetPrefs()
+    lib.drive.signOut()
+    history.replaceState(null, '', href({ name: 'home' }))
+    location.reload()
+  }
   return (
     <>
       <PageHead title="Debug" sub="Tools for testing the app. Not linked anywhere: open #/_debug." />
       <LibrarySection lib={lib} notify={notify} />
+      <section className="debug-section">
+        <h2>First visit</h2>
+        <p className="muted">
+          What this browser remembers besides the library: the theme, the study options, whether "How studying
+          works" is open, the last release whose welcome page it showed, and this tab's Google sign-in.
+        </p>
+        <div className="actions">
+          <button
+            type="button"
+            title="Forgets what this browser remembers, signs out of Google in this tab and reloads on home, which is then the welcome page; the library stays"
+            onClick={resetVisit}
+          >
+            Reset to first visit
+          </button>
+        </div>
+      </section>
       <section className="debug-section">
         <h2>Debug bar</h2>
         <div className="actions">

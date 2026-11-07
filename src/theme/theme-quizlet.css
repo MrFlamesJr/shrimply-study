@@ -1,0 +1,167 @@
+/* A theme: one block with every token of the theme template, in the template's order (see tokens.css and
+   CLAUDE.md, Themes; themes.test.ts checks it). */
+
+/* Quizlet (asked for: copies the look of Quizlet's night theme, its colors taken from Quizlet's own stylesheet): a
+   deep twilight navy ground (h 277) with Quizlet's cards standing well above it, flat, told apart by tone, not
+   shadow; the cards are a richer twilight indigo than Quizlet's grey slate (#272f59, asked for), and the sidebar
+   stays a faint step above the ground, like Quizlet's own navigation (asked for). The scheme is a blue monochrome
+   with one complement: the action is Quizlet blue (the filled buttons, white text, their key hints unfaded) and its
+   periwinkle (the chosen option, the focus ring, lines and the progress bar, as the blue is too dark to read on the
+   navy), both analogous to the ground; Quizlet's sunset yellow, the blue's complement (h 90), marks only the
+   shrimp's head (its shell is Quizlet blue, like its logo). Mint and cherry only mean right and wrong, sherbert
+   orange is the warning, sky blue is info. DM Sans, a geometric sans close to Quizlet's own Hurme Geometric Sans,
+   for titles. No glow and no backdrop; the cards cast Quizlet's faint grey-blue night shadow, and a hovered
+   flashcard gets a thick periwinkle line along its bottom, like Quizlet's underlines. The explanation banner's edge
+   is a plain, thicker line of a soft dusty sky blue (h 236, asked for: calmer than the yellow, and in the theme's
+   blues), on a raised indigo surface touched with it. */
+:root[data-theme="quizlet"] {
+  color-scheme: dark;
+
+  /* Ground and text. Main text is a near-neutral white; muted text gets its lightness and color amount here and the
+     surfaces' hue (--lift-hue), so it is never cooler or warmer than what it sits on. */
+  --bg: #0a092d;
+  --text: #f6f7fb;
+  --muted-l: 0.82;
+  --muted-c: 0.03;
+
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
+  --accent: #a8b1ff;
+  --accent-fill: #4255ff;
+  --accent-ink: #ffffff;
+  --selection-color: #7583ff;
+  --ok: #59e8b5;
+  --bad: #ff8b85;
+  --ok-fill: var(--ok);
+  --bad-fill: var(--bad);
+  --role-ink: var(--bg);
+  --danger: #ff5a52;
+  --warn: #ff983a;
+  --info: #51cfff;
+  --explain: #80b2d1;
+  --ink: #000;
+
+  /* The brand mark (shrimp): shell and head; its outline is the text color. */
+  --brand-shell: #4255ff;
+  --brand-head: #ffcd1f;
+
+  /* Fill-in-the-blank underlines, told apart when stacked; the first is the accent. */
+  --blank-1: var(--accent);
+  --blank-2: #98e3ff;
+  --blank-3: #ffdc62;
+  --blank-4: #fdd2ca;
+
+  /* Group colors, a touch softer than the accent so they never compete with it. */
+  --group-lagoon: #71d4b3;
+  --group-coral: #faa39c;
+  --group-sky: #70caf4;
+  --group-sand: #daba6b;
+  --group-moss: #aeca7e;
+  --group-rose: #f1a2c7;
+  --group-clay: #f2ac7b;
+  --group-slate: #b7bcd5;
+
+  /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
+  --lift-hue: 274;
+  --lift-chroma: 0.04;
+  --lift-sunken: -0.05;
+  --lift-1: 0.15;
+  --lift-sidebar: 0.035;
+  --lift-2: 0.2;
+  --lift-3: 0.245;
+  --lift-border: 0.31;
+  --lift-border-strong: 0.46;
+
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
+  --hover-lift: -0.07;
+  --hover-chroma: 0.91;
+  --accent-hint: 1;
+
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
+  --tint-soft: 12%;
+  --tint: 14%;
+  --tint-line: 70%;
+  --tint-select: 45%;
+  --tint-danger: 14%;
+  --tint-muted: 45%;
+  --tint-rest: 0%;
+  --role-solid: 0;
+  --tint-keep: 0.3;
+  --role-chroma: 0.07;
+  --role-turn: 12;
+  --tint-pill: 40%;
+  --tint-explain: 6%;
+  --group-fill: 7%;
+  --group-line: 45%;
+  --group-chip: 22%;
+  --scrim-alpha: 70%;
+  --viewer-scrim-alpha: 90%;
+
+  /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
+  --glow-size: 0px;
+  --glow-accent: none;
+  --glow-focus: none;
+  --glow-ok: none;
+  --glow-bad: none;
+  --glow-text: none;
+  --glow-info: none;
+  --glow-card: 0 4px 16px color-mix(in srgb, var(--text) 8%, transparent);
+  --glow-card-hover:
+    inset 0 -4px 0 var(--accent),
+    0 8px 24px color-mix(in srgb, var(--text) 12%, transparent);
+
+  /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
+     background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
+     themselves very slightly (still under reduced motion), all sliding sideways together by one
+     --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
+  --backdrop: none;
+  --backdrop-drift: none;
+  --backdrop-drift-w: 0px;
+  --backdrop-drift-time: 0s;
+
+  /* Backdrop placement, one value per --backdrop layer (or one for all): position, size and repeat. A position can
+     start from --ground-x, where the open page ground begins (right of the open sidebar on wide screens). */
+  --backdrop-position: 0 0;
+  --backdrop-size: auto;
+  --backdrop-repeat: repeat;
+
+  /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
+  --font-display: "DM Sans", var(--font-body);
+  --display-tracking: -0.01em;
+  --display-case: none;
+  --title-size: 2rem;
+  --text-brand: 1.125rem;
+  --text-score: 3rem;
+  --text-info-title: 1.0625rem;
+  --text-result: 1.625rem;
+  --radius: 8px;
+  --radius-pill: 999px;
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: none;
+  --explain-edge-w: 4px;
+  --explain-edge-h: 4px;
+  --explain-edge-fill: linear-gradient(var(--ink), var(--ink));
+}

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { mixedUpBlank, mixedUpWith } from './mixUp'
+import { mixedUpBlank, mixedUpStep, mixedUpWith } from './mixUp'
 
 const cards = [
   { id: '1', term: 'cat', definition: 'chat' },
@@ -45,5 +45,20 @@ describe('mixedUpBlank', () => {
     expect(mixedUpBlank('nucleus', 'a', 0, blanks)).toBeUndefined()
     expect(mixedUpBlank('cat', 'a', 0, blanks)).toBeUndefined()
     expect(mixedUpBlank(' ', 'a', 0, blanks)).toBeUndefined()
+  })
+})
+
+describe('mixedUpStep', () => {
+  const seq = { id: 's', type: 'sequence' as const, title: 'Phases', steps: ['Prophase', 'Metaphase', 'Anaphase'] }
+
+  it('finds the step a wrong answer belongs to', () => {
+    expect(mixedUpStep('anaphase', seq, 0)).toBe(2)
+    expect(mixedUpStep(' Prophase! ', seq, 1)).toBe(0)
+  })
+
+  it('ignores the asked step itself and answers matching no step', () => {
+    expect(mixedUpStep('Prophase', seq, 0)).toBeUndefined()
+    expect(mixedUpStep('Telophase', seq, 0)).toBeUndefined()
+    expect(mixedUpStep('  ', seq, 0)).toBeUndefined()
   })
 })
