@@ -6,7 +6,9 @@
    stars above (cards, the sidebar and dialogs cover it). Hot pink is the action, the
    chosen option and the focus ring (a cyan ring beside pink clashes); violet is the structure (surfaces, borders,
    muted text and the text selection; never a control); cyan is info and the shrimp's head; neon green and red
-   only mean right and wrong, and their outline buttons keep a faint fill so they never sit straight on violet. */
+   only mean right and wrong, and their outline buttons keep a faint fill so they never sit straight on violet.
+   The explanation banner's edge is a sharp cyan zigzag (info's neon, split from the pink like the stars) on a raised
+   violet surface touched with cyan, which stays clean as the two are 90° apart. */
 :root[data-theme="arcade"] {
   color-scheme: dark;
 
@@ -17,16 +19,25 @@
   --muted-l: 0.757;
   --muted-c: 0.064;
 
-  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
-     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
-     --ink is the black of scrims and the sunken well. */
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
   --accent: #ff2bd6;
+  --accent-fill: var(--accent);
+  --accent-ink: var(--bg);
   --selection-color: #9d4dff;
   --ok: #39ff7a;
   --bad: #ff5a5a;
+  --ok-fill: var(--ok);
+  --bad-fill: var(--bad);
+  --role-ink: var(--bg);
   --danger: var(--bad);
   --warn: #ffb020;
   --info: #19e6ff;
+  --explain: var(--info);
   --ink: #000;
 
   /* The brand mark (shrimp): shell and head; its outline is the text color. */
@@ -50,23 +61,33 @@
   --group-slate: #a6a9cf;
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
-     --lift-chroma color per step, in the hue --lift-hue. */
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
   --lift-hue: 297;
   --lift-chroma: 0.15;
   --lift-sunken: -0.033;
   --lift-1: 0.039;
+  --lift-sidebar: var(--lift-1);
   --lift-2: 0.076;
   --lift-3: 0.112;
   --lift-border: 0.24;
   --lift-border-strong: 0.38;
 
-  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
   --hover-lift: 0.06;
   --hover-chroma: 1;
+  --accent-hint: 0.85;
 
-  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
-     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
-     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
   --tint-soft: 12%;
   --tint: 14%;
   --tint-line: 55%;
@@ -74,6 +95,12 @@
   --tint-danger: 16%;
   --tint-muted: 30%;
   --tint-rest: 10%;
+  --role-solid: 0;
+  --tint-keep: 0.5;
+  --role-chroma: 0.075;
+  --role-turn: 8;
+  --tint-pill: 40%;
+  --tint-explain: 7%;
   --group-fill: 6%;
   --group-line: 40%;
   --group-chip: 22%;
@@ -81,14 +108,16 @@
   --viewer-scrim-alpha: 88%;
 
   /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
-     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
-     their own shadow or glow, more while hovered. */
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
   --glow-size: 12px;
   --glow-accent: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 55%, transparent);
   --glow-focus: var(--glow-accent);
   --glow-ok: 0 0 var(--glow-size) color-mix(in srgb, var(--ok) 40%, transparent);
   --glow-bad: 0 0 var(--glow-size) color-mix(in srgb, var(--bad) 40%, transparent);
-  --glow-text: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 45%, transparent);
+  --glow-text: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--accent) 22%, transparent);
+  --glow-info: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--info) 22%, transparent);
   --glow-card:
     0 0 0 1px color-mix(in srgb, var(--selection-color) 45%, transparent),
     0 0 var(--glow-size) color-mix(in srgb, var(--selection-color) 40%, transparent);
@@ -102,7 +131,7 @@
      themselves very slightly (still under reduced motion), all sliding sideways together by one
      --backdrop-drift-w tile every --backdrop-drift-time (0px and 0s: they stay put). */
   --backdrop:
-    linear-gradient(transparent calc(70% - 1px), color-mix(in srgb, var(--accent) 70%, transparent) 70%, transparent calc(70% + 1px)),
+    linear-gradient(transparent calc(70% - 1px), color-mix(in srgb, var(--accent) 55%, transparent) 70%, transparent calc(70% + 1px)),
     radial-gradient(ellipse 55% 22% at 50% 70%, color-mix(in srgb, var(--accent) 22%, transparent), transparent 70%),
     linear-gradient(to bottom, var(--bg) 70%, color-mix(in srgb, var(--bg) 75%, transparent) 76%, transparent),
     linear-gradient(transparent calc(70.4% - 1px), color-mix(in srgb, var(--selection-color) 40%, transparent) 70.4%, transparent calc(70.4% + 1px)),
@@ -114,7 +143,7 @@
     linear-gradient(transparent calc(88.1% - 1px), color-mix(in srgb, var(--selection-color) 40%, transparent) 88.1%, transparent calc(88.1% + 1px)),
     linear-gradient(transparent calc(93.7% - 1px), color-mix(in srgb, var(--selection-color) 40%, transparent) 93.7%, transparent calc(93.7% + 1px)),
     repeating-conic-gradient(from 0deg at 50% 70%, color-mix(in srgb, var(--selection-color) 40%, transparent) 0deg 0.35deg, transparent 0.35deg 6deg);
-  --backdrop-drift: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='100%25' height='100%25'%3E%3Cstyle%3Ecircle%7Btransform-box:fill-box;transform-origin:center;animation:b 6s ease-in-out infinite%7D@keyframes b%7B0%25,80%25,100%25%7Bopacity:1;transform:scale(1)%7D90%25%7Bopacity:.3;transform:scale(.6)%7D%7D@media (prefers-reduced-motion: reduce)%7B*%7Banimation:none%7D%7D%3C/style%3E%3Cdefs%3E%3CradialGradient id='c'%3E%3Cstop offset='0' stop-color='%2319e6ff' stop-opacity='.75'/%3E%3Cstop offset='.4' stop-color='%2319e6ff' stop-opacity='.75'/%3E%3Cstop offset='1' stop-color='%2319e6ff' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='p'%3E%3Cstop offset='0' stop-color='%23ff2bd6' stop-opacity='.75'/%3E%3Cstop offset='.4' stop-color='%23ff2bd6' stop-opacity='.75'/%3E%3Cstop offset='1' stop-color='%23ff2bd6' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Ccircle cx='14%25' cy='16%25' r='2.5' fill='url(%23c)' style='animation-duration:10s;animation-delay:-0.0s'/%3E%3Ccircle cx='27%25' cy='41%25' r='2.5' fill='url(%23p)' style='animation-duration:17.5s;animation-delay:-4.8s'/%3E%3Ccircle cx='38%25' cy='9%25' r='2.5' fill='url(%23c)' style='animation-duration:12.5s;animation-delay:-9.5s'/%3E%3Ccircle cx='57%25' cy='28%25' r='2.5' fill='url(%23c)' style='animation-duration:20s;animation-delay:-14.3s'/%3E%3Ccircle cx='71%25' cy='12%25' r='2.5' fill='url(%23p)' style='animation-duration:15s;animation-delay:-4.0s'/%3E%3Ccircle cx='84%25' cy='34%25' r='2.5' fill='url(%23c)' style='animation-duration:10s;animation-delay:-3.8s'/%3E%3Ccircle cx='93%25' cy='8%25' r='2.5' fill='url(%23c)' style='animation-duration:17.5s;animation-delay:-11.0s'/%3E%3Ccircle cx='6%25' cy='48%25' r='2.5' fill='url(%23c)' style='animation-duration:12.5s;animation-delay:-8.3s'/%3E%3C/svg%3E");
+  --backdrop-drift: url("./arcade-drift.svg");
   --backdrop-drift-w: 0px;
   --backdrop-drift-time: 0s;
 
@@ -125,12 +154,24 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson). */
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
   --font-display: "Jersey 15", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
   --title-size: 2.25rem;
   --text-brand: 1.25rem;
   --text-score: 3.5rem;
+  --text-info-title: 1.3125rem;
+  --text-result: 2rem;
   --radius: 2px;
+  --radius-pill: var(--radius);
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: url("./arcade-edge.svg");
+  --explain-edge-w: 8px;
+  --explain-edge-h: 10px;
+  --explain-edge-fill: url("./arcade-edge-fill.svg");
 }

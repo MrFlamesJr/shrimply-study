@@ -1,33 +1,60 @@
 /* Modals and the import dialog. */
-/* Edit: import dialog (native <dialog>, so focus trap and Escape come from the browser). A flex column
-   capped at the window height: the paste box and the preview share the room left and scroll on their
-   own, so the dialog itself only scrolls when even their smallest size does not fit. */
+/* Every modal (Modal.tsx: native <dialog>, so focus trap and Escape come from the browser). A flex column capped at
+   the window height in three parts: the title row with its ✕ stays put at the top, a footer bar (when there is one)
+   at the bottom, and only the content between them scrolls (`.dialog-body`). In the import dialog the paste box and
+   the preview share the content's room and scroll on their own, so the content itself only scrolls when even their
+   smallest size does not fit. */
 .dialog {
+  --dialog-pad: var(--space-5);
   /* The reset's margin: 0 would pin it top left; auto centers it again. */
   margin: auto;
   width: min(var(--dialog-w), calc(100vw - 2 * var(--space-4)));
   max-width: none;
   max-height: calc(100dvh - 2 * var(--space-4));
-  overflow: auto;
-  padding: var(--space-5);
+  overflow: hidden;
+  padding: 0;
   background: var(--surface);
   color: var(--text);
+  /* A dialog opened from a centered page (the welcome page's Learn more) still reads left-aligned. */
+  text-align: start;
   border: 0;
   border-radius: var(--radius);
   animation: appear var(--dur) var(--ease);
+}
+/* The welcome page's Learn more (LearnMore.tsx): the tips box's notes, one under another at full size, then a
+   link on its own line, underlined at rest too so it reads as one. */
+.dialog .tips-list {
+  columns: auto;
+  font-size: inherit;
+}
+.dialog .tips-list + p a {
+  text-decoration-color: currentColor;
 }
 /* Only while open: a display value on a closed dialog would show it. */
 .dialog[open] {
   display: flex;
   flex-direction: column;
 }
-.dialog > * {
+.dialog-head,
+.dialog-foot {
+  flex: none;
+}
+/* The content, the one scroll box. Its padding keeps focus rings inside it; the room under the title is shared
+   with the title row, so content scrolled up is cut a little below the title. */
+.dialog-body {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  overflow: auto;
+  padding: var(--space-2) var(--dialog-pad) var(--dialog-pad);
+}
+.dialog-body > * {
   flex: none;
 }
 .dialog::backdrop {
   background: var(--scrim);
 }
-.dialog > * + * {
+.dialog-body > * + * {
   margin-top: var(--space-4);
 }
 /* The page behind stays still while a dialog is open. The scrollbar's room is always kept (not only while a
@@ -152,16 +179,51 @@ html:has(.dialog[open]) {
 .dialog.is-narrow {
   width: min(var(--dialog-narrow-w), calc(100vw - 2 * var(--space-4)));
 }
-.dialog-field {
-  display: grid;
-  gap: var(--space-1);
+/* A one-line form (a side type's two names): small, with less room around. */
+.dialog.is-compact {
+  --dialog-pad: var(--space-4);
+  width: min(var(--dialog-compact-w), calc(100vw - 2 * var(--space-4)));
 }
-/* Title with the close button in the top right corner. */
+.dialog.is-compact .dialog-body {
+  padding-top: var(--space-1);
+}
+.dialog.is-compact .dialog-body > * + * {
+  margin-top: var(--space-3);
+}
+/* The card dialog holds the editor's card (EditCard), head and all. The dialog is its box, so the card adds none of
+   its own (no fill, outline or room around it; no box in a box), and its fields stack as on a narrow screen. */
+.dialog .pair {
+  background: none;
+  border: 0;
+}
+.dialog .pair-head,
+.dialog .pair-fields {
+  padding: 0;
+}
+.dialog .pair-fields {
+  grid-template-columns: 1fr;
+}
+.dialog .actions-end {
+  margin-left: auto;
+}
+/* The two names side by side, with the slash the menu shows between them. */
+.name-pair {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-2);
+}
+/* The slash lines up with the boxes, not with the room kept above them for their floating labels. */
+.name-pair > .muted {
+  margin-top: var(--float-room);
+}
+/* Title with the close button in the top right corner, outside the scroll box, so both stay in view. */
 .dialog-head {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--dialog-pad) var(--dialog-pad) var(--space-2);
 }
 .dialog-head .icon-btn {
   flex: none;
@@ -203,6 +265,8 @@ html:has(.dialog[open]) {
   border-radius: var(--radius);
   color: var(--text-muted);
   cursor: pointer;
+  /* A label, not a button: without this a press that moves a little selects its text and the click is lost. */
+  user-select: none;
   transition: background-color var(--dur-fast) var(--ease), color var(--dur-fast) var(--ease);
 }
 .chip input {
@@ -229,9 +293,8 @@ html:has(.dialog[open]) {
   background: none;
   border: var(--line) solid var(--border-strong);
 }
-.import-group-name {
+.auto-text-wrap:has(> .import-group-name) {
   flex: 1 1 10rem;
-  width: auto;
 }
 /* "Add 12 cards to <group>" fits on one line on a wide screen (names are capped). On a phone it may wrap
    to a second line instead of pushing the dialog wider. */
@@ -242,21 +305,88 @@ html:has(.dialog[open]) {
   padding-block: var(--space-1);
   white-space: normal;
 }
-/* Live "12/50" after a capped field, only while you type in it; the warning color once it is full. */
+/* Live "12/50" inside a capped field at its end, only while you type in it; the warning color once it is full.
+   Its room is always kept, so the text never moves when it shows. */
+.auto-text-wrap {
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.auto-text-wrap > textarea.auto-text {
+  padding-inline-end: var(--space-7);
+}
 .char-count {
   display: none;
-  flex: none;
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--space-2);
+  align-items: center;
   color: var(--text-muted);
   font-size: var(--text-xs);
   font-variant-numeric: tabular-nums;
+  pointer-events: none;
 }
 .auto-text:focus + .char-count {
-  display: inline;
+  display: flex;
 }
 .char-count.is-full {
   color: var(--warn);
 }
+/* A fixed ending inside the box at its end (AutoText's `suffix`, a file name's ".shrimp"): the text's own color,
+   see-through, so it reads as part of the name but not as typed (asked for). Its room is its own length. */
+.auto-text-wrap.has-suffix > textarea.auto-text {
+  padding-inline-end: calc(var(--space-3) + var(--suffix-ch) * 1ch);
+}
+.auto-text-suffix {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: var(--space-2);
+  display: flex;
+  align-items: center;
+  color: var(--text);
+  opacity: var(--dim-light);
+  pointer-events: none;
+}
+/* A field that can go (AutoText's `erase`: an explanation, an answer, a step): its eraser sits inside the box at its
+   end, centered on the box (below the room a floating label keeps above it), and fades in only while this one field
+   is pointed at or has focus (asked for). Its room is always kept, so the text never moves, and hidden it can not be
+   clicked or tabbed to. */
+.auto-text-erasable {
+  --erase-w: 40px;
+  position: relative;
+  display: block;
+  min-width: 0;
+}
+.auto-text-erasable textarea.auto-text {
+  padding-inline-end: var(--erase-w);
+}
+.auto-text-erase {
+  position: absolute;
+  inset-block: 0;
+  inset-inline-end: 0;
+  width: var(--erase-w);
+  height: var(--erase-w);
+  margin-block: auto;
+  opacity: 0;
+  visibility: hidden;
+  transition:
+    color var(--dur-fast) var(--ease),
+    opacity var(--dur-fast) var(--ease),
+    visibility 0s var(--dur-fast);
+}
+.auto-text-erasable:has(> .float-field) > .auto-text-erase {
+  inset-block-start: var(--float-room);
+}
+.auto-text-erasable:hover > .auto-text-erase,
+.auto-text-erasable:focus-within > .auto-text-erase {
+  opacity: 1;
+  visibility: visible;
+  transition-delay: 0s;
+}
 @media (max-width: 799px) {
+  .auto-text-erasable {
+    --erase-w: var(--tap);
+  }
   .chip {
     min-height: var(--tap);
   }
@@ -293,3 +423,264 @@ th {
   font-weight: var(--weight);
 }
 
+/* The Google Drive dialog: two panels kept apart (asked for), each on a darker well with its own title row (icon,
+   title, an (i) for the long explanation): saving this library, and opening one of yours. Then a footer bar on the
+   page ground for the Google account (Modal's footer), held at the dialog's bottom edge while the rest scrolls. */
+.drive-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  background: var(--well);
+  border-radius: var(--radius);
+  anchor-scope: --drive-info, --drive-missing;
+}
+.drive-panel > .actions {
+  margin-top: var(--space-1);
+}
+/* The Google Drive dialog is wider than a narrow one, with more room on both sides of everything in it, its title row,
+   panels and footer alike (asked for); on phones it keeps the usual room, so nothing is squeezed. */
+.dialog.is-narrow:has(.drive-panel) {
+  width: min(var(--dialog-drive-w), calc(100vw - 2 * var(--space-4)));
+}
+@media (min-width: 800px) {
+  .dialog:has(.drive-panel) {
+    --dialog-pad: var(--space-6);
+  }
+  .drive-panel {
+    padding-inline: var(--space-5);
+  }
+}
+/* The search sits a little closer under its panel's title (asked for): its label's room above it is space enough. */
+.drive-panel-head + .float-field {
+  margin-top: calc(-1 * var(--space-2));
+}
+.drive-panel-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.drive-panel-head > svg {
+  flex: none;
+  width: 20px;
+  height: 20px;
+  color: var(--text-muted);
+}
+.drive-panel-head h3 {
+  flex: 1;
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: var(--weight-bold);
+}
+/* The (i): its explanation pops out under it, kept to a readable width, solid like every popup. */
+.drive-info-btn {
+  margin: calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) calc(-1 * var(--space-2)) 0;
+  anchor-name: --drive-info;
+}
+.drive-info {
+  width: min(22rem, calc(100vw - 2 * var(--space-4)));
+  padding: var(--space-3) var(--space-4);
+  background: var(--popup);
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.drive-info p + p {
+  margin-top: var(--space-2);
+}
+.drive-info .actions {
+  margin-top: var(--space-3);
+}
+/* A button on the popup's own tone would read as text: an outline marks it (its hover fill as everywhere). */
+.drive-info .actions button {
+  border-color: var(--border);
+}
+/* Don't see your file?: a small link under the list, its short why popping out under it. */
+.drive-missing-btn {
+  justify-self: start;
+  font-size: var(--text-sm);
+  anchor-name: --drive-missing;
+}
+@supports (position-area: bottom) {
+  .drive-info {
+    inset: auto;
+    margin: var(--space-1) 0 0;
+    position-anchor: --drive-info;
+    position-area: bottom span-left;
+    position-try-fallbacks: flip-block;
+  }
+  .drive-missing {
+    position-anchor: --drive-missing;
+    position-area: bottom span-right;
+  }
+}
+/* This library: the shrimp marks a library file, then its exact name over where it lives. */
+.drive-current {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: var(--space-3);
+}
+.drive-current-text {
+  display: grid;
+}
+.drive-current-name {
+  font-weight: var(--weight-bold);
+  overflow-wrap: anywhere;
+}
+.drive-current-name.is-none {
+  font-weight: var(--weight);
+}
+/* Its file is in the bin on Google Drive: still works, but a warning (the theme's warning color, its one job). */
+.drive-warning {
+  color: var(--warn);
+}
+.drive-file-icon {
+  display: flex;
+}
+.drive-current .drive-file-icon svg {
+  width: 32px;
+  height: 32px;
+}
+/* The share link, always on show in its own row (so copying it moves nothing): a field that can't be edited, one line
+   cut off at its edge (no ellipsis, no scrollbar, yet selecting or End scrolls it to its end), the copy button beside
+   it. */
+.drive-share {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: var(--space-3);
+}
+textarea.drive-link {
+  overflow-x: auto;
+  overflow-y: hidden;
+  scrollbar-width: none;
+  white-space: pre;
+  color: var(--text-muted);
+}
+/* Scrolls (selecting, dragging, End) to show its end, with no scrollbar (asked for). */
+textarea.drive-link::-webkit-scrollbar {
+  display: none;
+}
+/* Copy link, Copied and Press Ctrl+C share one cell, so the button keeps its width whichever shows; Copied pops in
+   with its check (a short, functional animation: it says the copy happened). */
+.drive-copy {
+  display: grid;
+}
+.drive-copy > span {
+  display: flex;
+  grid-area: 1 / 1;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1);
+  transition: opacity var(--dur) var(--ease);
+}
+.drive-copy > span[aria-hidden='true'] {
+  opacity: 0;
+}
+.drive-copy svg {
+  width: 16px;
+  height: 16px;
+}
+.drive-copy.is-done .drive-copy-done {
+  animation: copied-pop var(--dur-pop) var(--ease);
+}
+@keyframes copied-pop {
+  0% {
+    scale: 0.7;
+  }
+  60% {
+    scale: 1.08;
+  }
+}
+/* The libraries, one row each: the shrimp, name over its last save, then Open and the bin. Four whole rows show (no
+   half row cut through its buttons), then the list scrolls on its own (the slim scrollbar of a scroll box inside a
+   box, base.css), never carrying the scroll on to the dialog at its ends (asked for). */
+.drive-files {
+  --drive-row: 3rem;
+  display: grid;
+  gap: var(--space-2);
+  max-height: calc(4 * var(--drive-row) + 3 * var(--space-2));
+  margin: 0;
+  padding: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  list-style: none;
+}
+.drive-files li {
+  /* Every row exactly as tall (asked for: even spacing): one line of name, one of date, centered in it. */
+  height: var(--drive-row);
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto;
+  align-items: center;
+  gap: var(--space-3);
+}
+/* Open is compact, so every row keeps the same clear room above and below it (asked for: even spacing). On phones the
+   touch size wins, and the rows grow with it. */
+.drive-files li > button:not(.icon-btn) {
+  height: 32px;
+  padding: 0 var(--space-3);
+}
+@media (max-width: 799px) {
+  .drive-files {
+    --drive-row: calc(var(--tap) + var(--space-2));
+  }
+}
+.drive-file-text {
+  display: grid;
+  /* Name and date close together, so a row stays compact (asked for: a slightly lower list). */
+  line-height: 1.35;
+}
+.drive-file-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.drive-file-name > span:first-child,
+.drive-file-date {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+.drive-file-date {
+  font-size: var(--text-sm);
+}
+/* The library open here: a small, compact badge by its name, in the selected look (the accent's soft tint). */
+.drive-badge {
+  flex: none;
+  padding: 0 var(--space-2);
+  background: var(--accent-soft);
+  border-radius: var(--radius-pill);
+  color: var(--text);
+  font-size: var(--text-xs);
+  font-weight: var(--weight-bold);
+  line-height: 1.6;
+  white-space: nowrap;
+}
+/* Moving a library to the bin: the icon turns red on hover, like deleting a card. */
+.drive-files .icon-btn:hover:not(:disabled) {
+  color: var(--bad);
+}
+/* A modal's footer bar (Modal's `footer`: the Drive dialog's Google account), under the scrolling content and edge
+   to edge. It takes the page ground's darker tone, so its buttons stand out on it. */
+.dialog-foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2) var(--space-3);
+  padding: var(--space-4) var(--dialog-pad);
+  background: var(--bg);
+}
+.drive-account {
+  flex: 1 1 12rem;
+  overflow-wrap: anywhere;
+}
+/* The footer's last line: the privacy link, on one line. */
+.drive-privacy {
+  flex-basis: 100%;
+  overflow: hidden;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}

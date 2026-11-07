@@ -15,9 +15,9 @@ function crumbsFor(page: Route['name'], course?: Course, quiz?: Quiz): Crumb[] {
     : [up, { label: quiz.name, to: { name: 'quiz', course: course.name, quiz: quiz.name } }, { label: 'Edit' }]
 }
 
-type Props = { lib: LibraryApi; page: Route['name']; course?: Course; quiz?: Quiz }
+type Props = { lib: LibraryApi; page: Route['name']; course?: Course; quiz?: Quiz; onDrive: () => void }
 
-export function TopBar({ lib, page: name, course, quiz }: Props) {
+export function TopBar({ lib, page: name, course, quiz, onDrive }: Props) {
   // Home leads the trail: the brand link is hidden while the sidebar is closed.
   const page = crumbsFor(name, course, quiz)
   const crumbs: Crumb[] = page.length > 0 ? [{ label: 'Home', to: { name: 'home' } }, ...page] : []
@@ -37,6 +37,30 @@ export function TopBar({ lib, page: name, course, quiz }: Props) {
         </>
       )}
       <div className="topbar-actions">
+        {/* First in the right-aligned row, so it showing up (or its label changing) moves nothing else. Into the file
+            only when signed in and Google said it is the user's own (greyed out with nothing to save); otherwise a
+            copy, signed out too, as nobody can tell then (asked for). */}
+        {lib.drive.file &&
+          (lib.drive.savesInto ? (
+            <button
+              type="button"
+              className="drive-save link"
+              disabled={!lib.hasChanges}
+              title={lib.hasChanges ? `Save your changes into ${lib.drive.file.name} on Google Drive (Ctrl+S)` : 'No changes to save'}
+              onClick={() => void lib.drive.save()}
+            >
+              Save to Drive
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="drive-save link"
+              title={`Save this library to your own Google Drive, as a copy of ${lib.drive.file.name} (Ctrl+S)`}
+              onClick={() => void lib.drive.saveCopy()}
+            >
+              Save a copy to Drive
+            </button>
+          ))}
         <button
           type="button"
           className="load link"
@@ -49,6 +73,9 @@ export function TopBar({ lib, page: name, course, quiz }: Props) {
         </button>
         <button type="button" className="link" title={lib.saveHint} onClick={() => void lib.download()}>
           {lib.saveLabel}
+        </button>
+        <button type="button" className="link" title="Save to your Google Drive, share a link, or open your Drive libraries" onClick={onDrive}>
+          Google Drive
         </button>
       </div>
     </header>

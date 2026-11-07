@@ -1,6 +1,7 @@
-import type { ButtonHTMLAttributes } from 'react'
+import type { ComponentProps } from 'react'
 
-type Props = ButtonHTMLAttributes<HTMLButtonElement> & { label: string }
+// Its `ref` reaches the button too (a sequence step's drag grip needs it).
+type Props = ComponentProps<'button'> & { label: string }
 
 /** An icon-only button. `label` names it for screen readers and is its tooltip, unless `title` says more. */
 export function IconButton({ label, title, className, ...rest }: Props) {

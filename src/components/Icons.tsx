@@ -1,100 +1,84 @@
-// Hand-drawn inline icons. They take the text color and are hidden from screen readers.
-const svg = {
-  width: 18,
-  height: 18,
-  viewBox: '0 0 24 24',
-  fill: 'none',
-  stroke: 'currentColor',
-  strokeWidth: 2,
-  strokeLinecap: 'round',
-  strokeLinejoin: 'round',
-  'aria-hidden': true,
-} as const
+import { svgParts } from '../logic/svgIcon'
+import arrowUp from '../icons/arrow-up.svg?raw'
+import browser from '../icons/browser.svg?raw'
+import check from '../icons/check.svg?raw'
+import chevronDown from '../icons/chevron-down.svg?raw'
+import chevronsLeft from '../icons/chevrons-left.svg?raw'
+import cloud from '../icons/cloud.svg?raw'
+import cross from '../icons/cross.svg?raw'
+import eraser from '../icons/eraser.svg?raw'
+import fileIcon from '../icons/file.svg?raw'
+import grip from '../icons/grip.svg?raw'
+import image from '../icons/image.svg?raw'
+import info from '../icons/info.svg?raw'
+import pencil from '../icons/pencil.svg?raw'
+import play from '../icons/play.svg?raw'
+import plus from '../icons/plus.svg?raw'
+import pull from '../icons/pull.svg?raw'
+import shrimp from '../icons/shrimp.svg?raw'
+import trash from '../icons/trash.svg?raw'
+import tumbleweed from '../icons/tumbleweed.svg?raw'
+import upload from '../icons/upload.svg?raw'
 
-export const PencilIcon = () => (
-  <svg {...svg}>
-    <path d="M12 20h9" />
-    <path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z" />
-  </svg>
-)
+// Hand-drawn icons, one SVG file each in src/icons/. Each is drawn inline (never an <img>), so it takes the text
+// color (currentColor) and the theme's tokens (the shrimp's var(--brand-*)) and CSS can size it; hidden from screen
+// readers.
+const icon = (file: string) => {
+  const { props, inner } = svgParts(file)
+  return () => <svg {...props} aria-hidden dangerouslySetInnerHTML={{ __html: inner }} />
+}
 
-export const ChevronDownIcon = () => (
-  <svg {...svg}>
-    <path d="m6 9 6 6 6-6" />
-  </svg>
-)
+export const PencilIcon = icon(pencil)
+
+export const ChevronDownIcon = icon(chevronDown)
+
+// Six dots in two columns: a handle to drag a sequence's step by.
+export const GripIcon = icon(grip)
 
 // Thicker than the others (back to top).
-export const ArrowUpIcon = () => (
-  <svg {...svg} strokeWidth={3}>
-    <path d="M12 19V5M5.5 11.5 12 5l6.5 6.5" />
-  </svg>
-)
+export const ArrowUpIcon = icon(arrowUp)
 
-export const CheckIcon = () => (
-  <svg {...svg}>
-    <path d="m5 12.5 4.5 4.5L19 7.5" />
-  </svg>
-)
+// Pulling changes from Google Drive: an arrow down into a tray.
+export const PullIcon = icon(pull)
+
+// Saving to Google Drive: an arrow up out of a tray (Pull's counterpart).
+export const UploadIcon = icon(upload)
+
+export const CheckIcon = icon(check)
 
 // Two chevrons pointing left.
-export const ChevronsLeftIcon = () => (
-  <svg {...svg}>
-    <path d="m11 17-5-5 5-5M18 17l-5-5 5-5" />
-  </svg>
-)
+export const ChevronsLeftIcon = icon(chevronsLeft)
 
-export const PlusIcon = () => (
-  <svg {...svg}>
-    <path d="M12 5v14M5 12h14" />
-  </svg>
-)
+// The sidebar's open file: a .shrimp file on this device, a library on Google Drive (a plain cloud, never Google's
+// logo), or one kept only in this browser (a browser window).
+export const FileIcon = icon(fileIcon)
 
-export const CrossIcon = () => (
-  <svg {...svg}>
-    <path d="m6.5 6.5 11 11M17.5 6.5l-11 11" />
-  </svg>
-)
+export const CloudIcon = icon(cloud)
+
+export const BrowserIcon = icon(browser)
+
+export const PlusIcon = icon(plus)
+
+export const CrossIcon = icon(cross)
 
 // A bin with a lid: deletes a card (a ✕ badge only removes an image).
-export const TrashIcon = () => (
-  <svg {...svg}>
-    <path d="M4 7h16" />
-    <path d="M9 7V4.5a.5.5 0 0 1 .5-.5h5a.5.5 0 0 1 .5.5V7" />
-    <path d="m6 7 1 12a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1l1-12" />
-    <path d="M10 11v5M14 11v5" />
-  </svg>
-)
+export const TrashIcon = icon(trash)
 
-// Two cards inside corner brackets.
-export const GroupIcon = () => (
-  <svg {...svg}>
-    <path d="M4 8V5a1 1 0 0 1 1-1h3M16 4h3a1 1 0 0 1 1 1v3M20 16v3a1 1 0 0 1-1 1h-3M8 20H5a1 1 0 0 1-1-1v-3" />
-    <rect x="8" y="8" width="8" height="3" rx="1" />
-    <rect x="8" y="13" width="8" height="3" rx="1" />
-  </svg>
-)
+// A tilted eraser on a line: removes a field that can go (an explanation, answer or step; a ✕ removes a blank, which
+// is not a field, and a ✕ badge an image).
+export const EraserIcon = icon(eraser)
 
 // A framed picture: a sun over a hill.
-export const ImageIcon = () => (
-  <svg {...svg}>
-    <rect x="3" y="4" width="18" height="16" rx="2" />
-    <circle cx="9" cy="10" r="1.5" />
-    <path d="m21 16-5-5-9 9" />
-  </svg>
-)
+export const ImageIcon = icon(image)
 
-export const PlayIcon = () => (
-  <svg {...svg}>
-    <path d="M7 4.5v15l12-7.5Z" fill="currentColor" />
-  </svg>
-)
+// An "i" in a circle: how something works.
+export const InfoIcon = icon(info)
+
+// A tumbleweed spinning along in the wind: a ball with a swirl inside, two spin marks round it and gusts with curled ends
+// behind it. Nothing here (the sidebar with no courses).
+export const TumbleweedIcon = icon(tumbleweed)
+
+export const PlayIcon = icon(play)
 
 // The brand mark, also public/favicon.svg. Filled shapes, not a line icon: the outline takes the text color.
-export const ShrimpIcon = () => (
-  <svg width={24} height={24} viewBox="0 0 297.5 297.5" aria-hidden>
-    <path style={{ fill: 'var(--brand-shell)' }} d="M169.23,219.57h-32.92c-12.809,0-21.51-4.73-26.569-14.46c-1.11-2.141-1.94-4.32-2.56-6.36h32.78c12.83,0,21.56,4.75,26.691,14.51C167.77,215.38,168.61,217.54,169.23,219.57z M136.309,242.05h32.92c-0.569,1.87-1.329,3.851-2.31,5.8c-5.09,10.11-13.91,15.02-26.96,15.02h-32.771c0.561-1.88,1.311-3.87,2.29-5.83C114.5,246.95,123.27,242.05,136.309,242.05z M242.73,151.4l33.15-11.051c-2.87,21.16-12.84,40.091-27.43,54.25c1.23-4.64,1.88-9.5,1.88-14.489C250.33,169.98,247.689,160.19,242.73,151.4z M276.29,118.58l-47.55,15.85c-9.07-7.84-20.03-13.08-31.851-15.29L237.4,51.63C258.84,66.84,273.6,90.96,276.29,118.58z M219.439,41.68l-45.76,76.261h-51.34V34.63h61.75C196.6,34.63,208.54,37.14,219.439,41.68z" />
-    <path style={{ fill: 'var(--brand-head)' }} d="M101.82,34.63v83.311h-8.99c-29.351,0-50.32-15.12-62.3-44.96C24.76,58.63,22.4,44.03,21.439,34.63H101.82z" />
-    <path fill="currentColor" d="M297.25,127.71c0,60.45-47.28,110.021-106.67,113.41c-0.86,4.52-2.43,10.2-5.33,15.95c-8.54,16.97-24.63,26.319-45.29,26.319H95.15c-5.671,0-10.261-4.59-10.261-10.26c0-1.3,0.17-13.1,6.221-25.24c3.51-7.06,8.35-12.779,14.27-17.08c-5.92-4.3-10.76-10.02-14.27-17.069c-6.051-12.15-6.221-23.94-6.221-25.24c0-5.67,4.59-10.26,10.261-10.26h44.81c20.66,0,36.75,9.34,45.29,26.31c2.87,5.7,4.439,11.33,5.3,15.83c22.16-2.8,39.26-19.79,39.26-40.27c0-22.57-21-41.65-45.85-41.65h-65.79l-13.85,27.69c-1.79,3.6-5.42,5.68-9.181,5.68c-1.54,0-3.109-0.35-4.58-1.09c-5.069-2.53-7.12-8.7-4.59-13.76l9.26-18.52H92.83c-38.22,0-66.42-20.191-81.57-58.39C0.38,52.6,0.25,25.51,0.25,24.37c0-5.67,4.6-10.26,10.26-10.26h173.58C246.49,14.11,297.25,65.07,297.25,127.71z M228.74,134.43l47.55-15.85c-2.69-27.62-17.45-51.74-38.89-66.95l-40.511,67.51C208.71,121.35,219.67,126.59,228.74,134.43z M275.88,140.35L242.73,151.4c4.96,8.79,7.6,18.58,7.6,28.71c0,4.989-0.65,9.85-1.88,14.489C263.04,180.44,273.01,161.51,275.88,140.35z M173.68,117.94l45.76-76.261c-10.899-4.54-22.84-7.05-35.35-7.05h-61.75v83.311H173.68z M136.309,219.57h32.92c-0.619-2.03-1.46-4.19-2.579-6.311c-5.131-9.76-13.86-14.51-26.691-14.51h-32.78c0.62,2.04,1.45,4.22,2.56,6.36C114.8,214.84,123.5,219.57,136.309,219.57z M169.23,242.05h-32.92c-13.04,0-21.809,4.9-26.83,14.99c-0.979,1.96-1.729,3.95-2.29,5.83h32.771c13.05,0,21.87-4.91,26.96-15.02C167.9,245.9,168.66,243.92,169.23,242.05z M101.82,117.94V34.63H21.439c0.961,9.4,3.32,24,9.091,38.351c11.98,29.84,32.949,44.96,62.3,44.96H101.82z M68.54,52.75c1.92,1.91,3.01,4.55,3.01,7.25s-1.09,5.35-3.01,7.25c-1.9,1.91-4.55,3.01-7.25,3.01s-5.33-1.1-7.25-3.01c-1.91-1.9-3.01-4.55-3.01-7.25s1.1-5.34,3.01-7.25c1.91-1.91,4.55-3.01,7.25-3.01C64,49.74,66.65,50.84,68.54,52.75z" />
-  </svg>
-)
+export const ShrimpIcon = icon(shrimp)

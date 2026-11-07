@@ -1,10 +1,10 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import type { Library, TermCard } from '../model'
+import { FORMAT_VERSION, type Library, type TermCard } from '../model'
 import { checkLibrary, decodeLibrary, encodeLibrary, libraryFromJson, libraryToJson } from './format'
 
 const library: Library = {
-  version: 1,
+  version: FORMAT_VERSION,
   courses: [
     {
       id: 'a',
@@ -18,7 +18,7 @@ const library: Library = {
 }
 
 const plain = {
-  version: 1,
+  version: FORMAT_VERSION,
   courses: [
     {
       name: 'French',
@@ -32,7 +32,7 @@ const plain = {
 
 const fromData = (data: unknown) => libraryFromJson(JSON.stringify(data))
 const withCard = (card: unknown) => ({
-  version: 1,
+  version: FORMAT_VERSION,
   courses: [{ name: 'c', quizzes: [{ name: 'q', cards: [card] }] }],
 })
 
@@ -61,6 +61,64 @@ describe('library format', () => {
     expect(libraryFromJson(json).courses[0].quizzes[0].cards[0].explanation).toBe('because')
   })
 
+  it('writes named sides first in the card and reads them back', () => {
+    const lib = structuredClone(library)
+    ;(lib.courses[0].quizzes[0].cards[0] as TermCard).sides = ['Question', 'Answer']
+    const json = libraryToJson(lib)
+    expect(json).toContain('{ "sides": ["Question", "Answer"], "term": "cat"')
+    expect((libraryFromJson(json).courses[0].quizzes[0].cards[0] as TermCard).sides).toEqual(['Question', 'Answer'])
+  })
+
+  it('does not write the default sides and drops them when read', () => {
+    const lib = structuredClone(library)
+    ;(lib.courses[0].quizzes[0].cards[0] as TermCard).sides = ['Front', 'Back']
+    expect(libraryToJson(lib)).not.toContain('sides')
+    const card = fromData(withCard({ sides: [' Front ', 'Back'], term: 'a', definition: 'b' })).courses[0].quizzes[0].cards[0]
+    expect((card as TermCard).sides).toBeUndefined()
+  })
+
+  it('trims side names', () => {
+    const card = fromData(withCard({ sides: [' Question ', 'Answer  '], term: 'a', definition: 'b' })).courses[0].quizzes[0].cards[0]
+    expect((card as TermCard).sides).toEqual(['Question', 'Answer'])
+  })
+
+  it('rejects sides that are not two names', () => {
+    const message = 'courses[0].quizzes[0].cards[0]: "sides" must be a list of two names, like ["Question", "Answer"].'
+    for (const sides of ['Question', ['Question'], ['a', 'b', 'c'], ['a', ''], ['a', '  '], ['a', 5]]) {
+      expect(() => fromData(withCard({ sides, term: 'a', definition: 'b' }))).toThrow(message)
+    }
+  })
+
+  it('round-trips own side types, an unused one included', () => {
+    const lib = { ...structuredClone(library), sideTypes: [['Country', 'Capital'], ['English', 'French']] as [string, string][] }
+    const json = libraryToJson(lib)
+    expect(json).toContain('"sideTypes": [["Country", "Capital"], ["English", "French"]],\n  "courses"')
+    expect(libraryFromJson(json).sideTypes).toEqual(lib.sideTypes)
+  })
+
+  it('writes no sideTypes when there are none', () => {
+    expect(libraryToJson(library)).not.toContain('sideTypes')
+    expect(libraryFromJson(libraryToJson(library)).sideTypes).toBeUndefined()
+  })
+
+  it('adds a card pair missing from the list, after the listed ones', () => {
+    const data = {
+      ...withCard({ sides: ['English', 'French'], term: 'a', definition: 'b' }),
+      sideTypes: [['Country', 'Capital']],
+    }
+    expect(fromData(data).sideTypes).toEqual([['Country', 'Capital'], ['English', 'French']])
+  })
+
+  it('drops a preset or duplicate side type quietly and trims names', () => {
+    const data = { ...withCard({ term: 'a', definition: 'b' }), sideTypes: [['Question', 'Answer'], [' a ', 'b'], ['a', 'b']] }
+    expect(fromData(data).sideTypes).toEqual([['a', 'b']])
+  })
+
+  it('rejects a bad side type entry, naming it', () => {
+    const data = { ...withCard({ term: 'a', definition: 'b' }), sideTypes: [['a', 'b'], ['only']] }
+    expect(() => fromData(data)).toThrow('sideTypes[1] must be a list of two names, like ["Question", "Answer"].')
+  })
+
   it('does not write an empty or whitespace explanation', () => {
     for (const explanation of ['', '  \n']) {
       const lib = structuredClone(library)
@@ -82,7 +140,7 @@ describe('library format', () => {
 
   it('accepts an empty explanation in stored data', () => {
     const data = {
-      version: 1,
+      version: FORMAT_VERSION,
       courses: [
         { id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', cards: [{ id: 'c', term: 't', definition: 'd', explanation: '' }] }] },
       ],
@@ -128,8 +186,8 @@ describe('library format', () => {
     )
   })
 
-  it('rejects version 2', () => {
-    expect(() => fromData({ ...plain, version: 2 })).toThrow('"version" must be 1.')
+  it('rejects a newer version', () => {
+    expect(() => fromData({ ...plain, version: FORMAT_VERSION + 1 })).toThrow('made by a newer version of Shrimply Study')
   })
 
   it('rejects invalid JSON', () => {
@@ -140,13 +198,30 @@ describe('library format', () => {
     expect(() => decodeLibrary(zipSync({ 'other.txt': strToU8('x') }))).toThrow('The file has no library.json.')
   })
 
+  it('opens a zip of the folder, with its images', () => {
+    const json = strToU8(JSON.stringify(withCard({ term: 't', termImage: 'p.png', definition: 'd' })))
+    const zip = zipSync({ 'Bio/library.json': json, 'Bio/images/p.png': new Uint8Array([1, 2]), '__MACOSX/Bio/._library.json': strToU8('x') })
+    const card = decodeLibrary(zip).courses[0].quizzes[0].cards[0] as TermCard
+    expect(card.termImage).toBe('data:image/png;base64,AQI=')
+  })
+
+  it('ignores files that are not its own, however big', () => {
+    const zip = zipSync({ 'library.json': strToU8(JSON.stringify(plain)), 'notes/big.bin': new Uint8Array(1e6) })
+    expect(decodeLibrary(zip).courses).toHaveLength(1)
+  })
+
+  it('does not guess between two folders', () => {
+    const json = strToU8(JSON.stringify(plain))
+    expect(() => decodeLibrary(zipSync({ 'a/library.json': json, 'b/library.json': json }))).toThrow('The file has no library.json.')
+  })
+
   it('rejects random bytes', () => {
     expect(() => decodeLibrary(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8]))).toThrow('This is not a .shrimp file.')
   })
 
   describe('groups', () => {
     const withGroups: Library = {
-      version: 1,
+      version: FORMAT_VERSION,
       courses: [
         {
           id: 'a',
@@ -170,7 +245,7 @@ describe('library format', () => {
       ],
     }
     const nested = {
-      version: 1,
+      version: FORMAT_VERSION,
       courses: [
         {
           name: 'c',
@@ -227,7 +302,7 @@ describe('library format', () => {
 
     it('gives a group without a color the next unused one', () => {
       const data = {
-        version: 1,
+        version: FORMAT_VERSION,
         courses: [
           {
             name: 'c',
@@ -264,7 +339,7 @@ describe('library format', () => {
     const gif = dataUrl('image/gif', bytesOf(71, 73, 70, 56, 1, 2, 3))
     const webp = dataUrl('image/webp', bytesOf(82, 73, 70, 70, 9, 8, 7))
     const withImages: Library = {
-      version: 1,
+      version: FORMAT_VERSION,
       courses: [
         {
           id: 'a',
@@ -357,7 +432,7 @@ describe('library format', () => {
 
     it('accepts a supported data URL in stored data and rejects others', () => {
       const stored = (termImage: string) => ({
-        version: 1,
+        version: FORMAT_VERSION,
         courses: [{ id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', cards: [{ id: 'c', term: 't', termImage, definition: 'd' }] }] }],
       })
       expect(checkLibrary(stored(png), 'stored').courses[0].quizzes[0].cards[0]).toMatchObject({ termImage: png })
@@ -426,7 +501,7 @@ describe('library format', () => {
     })
 
     it('reject an unknown type and term fields', () => {
-      expect(() => fromData(withCard({ type: 'pair', statement: 'a' }))).toThrow(`${at}"type" must be "cloze".`)
+      expect(() => fromData(withCard({ type: 'pair', statement: 'a' }))).toThrow(`${at}"type" must be "cloze", "true-false", "choice" or "sequence".`)
       expect(() => fromData(withCard({ type: 'cloze', statement: 'a', term: 't' }))).toThrow(`${at}unknown field "term".`)
     })
 
@@ -447,10 +522,133 @@ describe('library format', () => {
     })
   })
 
+  describe('true-or-false cards', () => {
+    const at = 'courses[0].quizzes[0].cards[0]: '
+    const cardOf = (lib: Library) => lib.courses[0].quizzes[0].cards[0]
+    const png = `data:image/png;base64,${btoa(String.fromCharCode(137, 80, 78, 71))}`
+    const stored = (cards: Library['courses'][number]['quizzes'][number]['cards']): Library => ({
+      version: FORMAT_VERSION,
+      courses: [{ id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', groups: [], cards }] }],
+    })
+
+    it('round-trip through the file and the backup', () => {
+      const lib = stored([
+        { id: 'k', type: 'true-false', statement: 'Mitochondria have their own DNA.', image: png, answer: false, explanation: 'Why' },
+        { id: 'l', type: 'true-false', statement: 'Plain', answer: true },
+      ])
+      const back = decodeLibrary(encodeLibrary(lib))
+      expect(cardOf(back)).toMatchObject({ type: 'true-false', statement: 'Mitochondria have their own DNA.', image: png, answer: false, explanation: 'Why' })
+      expect(back.courses[0].quizzes[0].cards[1]).toMatchObject({ answer: true })
+      expect(back.courses[0].quizzes[0].cards[1]).not.toHaveProperty('explanation')
+      expect(checkLibrary(JSON.parse(JSON.stringify(lib)), 'stored')).toEqual(lib)
+    })
+
+    it('is written on one line, in field order, without an empty explanation', () => {
+      const json = libraryToJson(
+        stored([
+          { id: 'k', type: 'true-false', statement: 'S', image: png, answer: true, explanation: 'E' },
+          { id: 'l', type: 'true-false', statement: 'T', answer: false, explanation: ' ' },
+        ]),
+      )
+      expect(json).toContain('{ "type": "true-false", "statement": "S", "image": "1.png", "answer": true, "explanation": "E" }')
+      expect(json).toContain('{ "type": "true-false", "statement": "T", "answer": false }')
+    })
+
+    it('trims the statement and explanation', () => {
+      const card = cardOf(fromData(withCard({ type: 'true-false', statement: '  S ', answer: true, explanation: ' E ' })))
+      expect(card).toMatchObject({ statement: 'S', explanation: 'E' })
+    })
+
+    it('rejects an answer that is not true or false', () => {
+      expect(() => fromData(withCard({ type: 'true-false', statement: 'S', answer: 'yes' }))).toThrow(`${at}"answer" must be true or false.`)
+    })
+
+    it('rejects a missing statement or answer', () => {
+      expect(() => fromData(withCard({ type: 'true-false', answer: true }))).toThrow(`${at}"statement" is missing.`)
+      expect(() => fromData(withCard({ type: 'true-false', statement: 'S' }))).toThrow(`${at}"answer" is missing.`)
+    })
+
+    it('rejects an unknown type', () => {
+      expect(() => fromData(withCard({ type: 'maybe', statement: 'S', answer: true }))).toThrow(
+        `${at}"type" must be "cloze", "true-false", "choice" or "sequence".`,
+      )
+    })
+  })
+
+  describe('choice and sequence cards', () => {
+    const at = 'courses[0].quizzes[0].cards[0]: '
+    const cardOf = (lib: Library, i = 0) => lib.courses[0].quizzes[0].cards[i]
+    const png = `data:image/png;base64,${btoa(String.fromCharCode(137, 80, 78, 71))}`
+    const stored = (cards: Library['courses'][number]['quizzes'][number]['cards']): Library => ({
+      version: FORMAT_VERSION,
+      courses: [{ id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', groups: [], cards }] }],
+    })
+
+    it('round-trip through the file and the backup', () => {
+      const lib = stored([
+        { id: 'k', type: 'choice', question: 'Which are organelles?', image: png, right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall'], explanation: 'Why' },
+        { id: 'l', type: 'sequence', title: 'Phases', image: png, steps: ['Prophase', 'Metaphase'], explanation: 'Order' },
+        { id: 'm', type: 'choice', question: 'Q', right: ['A'], wrong: ['B'] },
+        { id: 'n', type: 'sequence', title: 'T', steps: ['1', '2'] },
+      ])
+      const back = decodeLibrary(encodeLibrary(lib))
+      expect(cardOf(back, 0)).toMatchObject({ type: 'choice', question: 'Which are organelles?', image: png, right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall'], explanation: 'Why' })
+      expect(cardOf(back, 1)).toMatchObject({ type: 'sequence', title: 'Phases', image: png, steps: ['Prophase', 'Metaphase'], explanation: 'Order' })
+      expect(cardOf(back, 2)).not.toHaveProperty('explanation')
+      expect(cardOf(back, 3)).not.toHaveProperty('image')
+      expect(checkLibrary(JSON.parse(JSON.stringify(lib)), 'stored')).toEqual(lib)
+    })
+
+    it('are written on one line, in field order, without empty entries or explanation', () => {
+      const json = libraryToJson(
+        stored([
+          { id: 'k', type: 'choice', question: 'Q', image: png, right: ['A', ' '], wrong: ['B', 'C', ''], explanation: 'E' },
+          { id: 'l', type: 'choice', question: 'Q2', right: [], wrong: [], explanation: ' ' },
+          { id: 'm', type: 'sequence', title: 'T', image: png, steps: ['x', '', 'y'], explanation: 'E' },
+          { id: 'n', type: 'sequence', title: 'T2', steps: [] },
+        ]),
+      )
+      expect(json).toContain('{ "type": "choice", "question": "Q", "image": "1.png", "right": ["A"], "wrong": ["B", "C"], "explanation": "E" }')
+      expect(json).toContain('{ "type": "choice", "question": "Q2", "right": [], "wrong": [] }')
+      expect(json).toContain('{ "type": "sequence", "title": "T", "image": "1.png", "steps": ["x", "y"], "explanation": "E" }')
+      expect(json).toContain('{ "type": "sequence", "title": "T2", "steps": [] }')
+    })
+
+    it('trim their texts and entries when read', () => {
+      const choice = cardOf(fromData(withCard({ type: 'choice', question: ' Q ', right: [' A '], wrong: ['B '], explanation: ' E ' })))
+      expect(choice).toMatchObject({ question: 'Q', right: ['A'], wrong: ['B'], explanation: 'E' })
+      const sequence = cardOf(fromData(withCard({ type: 'sequence', title: ' T ', steps: [' a', 'b '] })))
+      expect(sequence).toMatchObject({ title: 'T', steps: ['a', 'b'] })
+    })
+
+    it('open half-filled', () => {
+      expect(cardOf(fromData(withCard({ type: 'choice', question: '', right: [], wrong: [] })))).toMatchObject({ right: [], wrong: [] })
+      expect(cardOf(fromData(withCard({ type: 'sequence', title: 'T', steps: ['a'] })))).toMatchObject({ steps: ['a'] })
+    })
+
+    it('stay in their group', () => {
+      const card = { type: 'sequence', title: 'T', steps: ['a', 'b'] }
+      const file = { version: FORMAT_VERSION, courses: [{ name: 'c', quizzes: [{ name: 'q', cards: [], groups: [{ name: 'G', cards: [card] }] }] }] }
+      const lib = fromData(file)
+      const again = libraryFromJson(libraryToJson(lib)).courses[0].quizzes[0]
+      expect(again.cards[0]).toMatchObject({ ...card, group: again.groups[0].id })
+    })
+
+    it('reject fields of the wrong type, naming the spot', () => {
+      expect(() => fromData(withCard({ type: 'choice', question: 'Q', right: 'A', wrong: [] }))).toThrow(`${at}"right" must be a list.`)
+      expect(() => fromData(withCard({ type: 'choice', question: 'Q', right: ['A'], wrong: [1] }))).toThrow(`${at}"wrong" must be a list of texts.`)
+      expect(() => fromData(withCard({ type: 'choice', question: 5, right: [], wrong: [] }))).toThrow(`${at}"question" must be text.`)
+      expect(() => fromData(withCard({ type: 'sequence', title: 'T', steps: 'a' }))).toThrow(`${at}"steps" must be a list.`)
+      expect(() => fromData(withCard({ type: 'sequence', title: 'T', steps: ['a', null] }))).toThrow(`${at}"steps" must be a list of texts.`)
+      expect(() => fromData(withCard({ type: 'sequence', title: 'T' }))).toThrow(`${at}"steps" is missing.`)
+      expect(() => fromData(withCard({ type: 'choice', question: 'Q', right: [], wrong: [], answer: true }))).toThrow(`${at}unknown field "answer".`)
+    })
+  })
+
 describe('encodeLibrary and decodeLibrary', () => {
   it('rejects two courses whose names have the same slug, naming the spot', () => {
     const lib: Library = {
-      version: 1,
+      version: FORMAT_VERSION,
       courses: [
         { id: 'a', name: 'Les vers (2)', quizzes: [] },
         { id: 'b', name: 'les vers 2', quizzes: [] },

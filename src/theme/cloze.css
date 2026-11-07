@@ -1,7 +1,8 @@
 /* Fill in the blank. */
 /* Fill in the blank */
 .cloze-mark,
-.cloze-reveal {
+.cloze-reveal,
+.cloze-blank-word {
   border-bottom: var(--blank-line) dashed var(--mark);
 }
 .cloze-mark {
@@ -16,9 +17,11 @@
   /* Same color as the blank's dashed line once revealed. */
   border-bottom: var(--blank-line) solid var(--mark);
 }
+/* A filled-in blank's answer takes its blank's color, the color of the gap it fills, so it stands out from the
+   statement around it (asked for). */
 .cloze-reveal {
   background: none;
-  color: inherit;
+  color: var(--mark);
 }
 .cloze-field {
   display: grid;
@@ -39,16 +42,11 @@
   white-space: pre-wrap;
   overflow-wrap: break-word;
 }
+/* Pointed at, focused or missing, its line is every underlined field's (base.css). */
 .cloze-box textarea {
   background: transparent;
   border-bottom-color: var(--border);
   border-radius: 0;
-}
-.cloze-box textarea:focus {
-  border-bottom-color: var(--accent);
-}
-.cloze-box textarea[aria-invalid='true'] {
-  border-bottom-color: var(--bad);
 }
 .cloze-overlay {
   position: absolute;
@@ -66,49 +64,58 @@
   margin-top: 0;
   padding-left: 0;
 }
+/* The blanks and their explanations: their own section of the card, on a soft well (asked for) under a heading
+   (like a choice card's answer lists), with a faint line between blanks (asked for), so the buttons at a row's
+   right end plainly belong to its blank. The quiz page's card rows show the explanations the same way
+   (.row-blanks). */
+.cloze-list {
+  /* The rows start right under the heading's band, with no strip of well between them. */
+  gap: 0;
+  margin-top: var(--space-2);
+  background: var(--well);
+  border-radius: var(--radius);
+}
+/* The heading sits on a band a step darker than the well (the see-through well again, over it, so a group box's tint
+   still shows; asked for), apart from the blanks under it. Its top corners follow the well's. */
+.cloze-list > .entry-label {
+  padding-block: var(--space-2);
+  background: var(--well);
+  border-radius: var(--radius) var(--radius) 0 0;
+}
 .cloze-blanks {
-  display: grid;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
 }
-/* One row per blank: swatch, text, + Explanation, remove; an opened explanation sits below the text. */
+/* One row per blank: its words underlined in its color (the row's title; inline, so each line of a long blank is
+   underlined), + Explanation, remove; an opened explanation sits below, a little in from the title. */
 .cloze-blanks li {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto auto;
-  align-items: center;
-  column-gap: var(--space-3);
   row-gap: var(--space-1);
+  padding: var(--space-1) var(--space-1) var(--space-1) var(--space-3);
 }
-.cloze-swatch {
-  width: var(--space-4);
-  height: 1.5em;
-  border-bottom: var(--blank-line) dashed var(--mark);
+.cloze-blanks li + li {
+  border-top: var(--line) solid var(--row-line);
+}
+.cloze-blank-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
 }
 .cloze-blank-text {
+  flex: 1;
+  min-width: 0;
   overflow-wrap: anywhere;
 }
-.cloze-blanks li > .icon-btn {
-  grid-column: 4;
+/* Its eraser, inside the box at its end, sits in the column of the blank's ✕ above it. */
+.cloze-blanks li > .explanation-field {
+  margin-left: var(--space-4);
+  margin-bottom: var(--space-2);
 }
 .cloze-blanks textarea {
-  grid-column: 2 / -1;
-  grid-row: 2;
   padding: var(--space-2) var(--space-3);
 }
 /* The card's type, next to its number in the editor. */
 .pair-kind {
   margin-left: var(--space-2);
-}
-/* The statement's label sits above its box. */
-.cloze-statement > .field-hint {
-  margin: 0 0 var(--space-1);
-}
-.add-rows {
-  display: flex;
-  gap: var(--space-3);
-}
-.add-rows .add-row {
-  flex: 1;
 }

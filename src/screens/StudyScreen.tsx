@@ -3,7 +3,7 @@ import type { Card, Format, Question, StudyOptions } from '../model'
 import { redirect } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { useKeydown } from '../hooks/useKeydown'
-import { buildRound, refreshQuestions, usableCards } from '../logic/buildRound'
+import { buildRound, canChoose, refreshQuestions, usableCards } from '../logic/buildRound'
 import { CrossIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
 import type { Notify } from '../components/Toasts'
@@ -22,7 +22,7 @@ const WIDE_TEXT = 400
 export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
   const found = lib.findQuiz(quizId)
   const usable = found ? usableCards(found.quiz.cards) : []
-  const canStudy = usable.length > 0 && (format !== 'choice' || usable.length >= 2)
+  const canStudy = usable.length > 0 && (format !== 'choice' || canChoose(usable))
   const options = { ...prefs, format }
 
   const [phase, setPhase] = useState<'session' | 'summary'>('session')
@@ -83,7 +83,9 @@ export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
   const total = questions.length
   const progress = phase === 'summary' ? 100 : (index / total) * 100
   const editCard = editing ? quiz.cards.find((c) => c.id === editing) : undefined
-  const cardDialog = editCard && <CardDialog card={editCard} onSave={saveCard} onClose={() => setEditing(null)} />
+  const cardDialog = editCard && (
+    <CardDialog card={editCard} index={quiz.cards.indexOf(editCard)} lib={lib} onSave={saveCard} onClose={() => setEditing(null)} />
+  )
 
   const head = (
     <>
@@ -111,7 +113,6 @@ export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
           results={results}
           cards={quiz.cards}
           usable={usable}
-          format={format}
           onExit={exit}
           onBegin={begin}
           onEdit={setEditing}

@@ -2,16 +2,18 @@ import { useRef, useState, type ComponentProps, type KeyboardEvent, type ReactNo
 import { blankDepth, markBlank, readCloze, shiftBlanks, writeCloze, type Blank } from '../logic/cloze'
 import { AutoText } from './AutoText'
 import { blankColor, ClozeText } from './ClozeText'
+import { ExplanationField } from './ExplanationField'
 import { IconButton } from './IconButton'
+import { FloatField } from './FloatField'
 import { CrossIcon, PlusIcon } from './Icons'
 import { ImageSlot } from './ImageSlot'
 import { Shortcut } from './Shortcut'
 
-type Props = Omit<ComponentProps<typeof AutoText>, 'value' | 'onChange' | 'onKeyDown'> & {
+type Props = Omit<ComponentProps<typeof AutoText>, 'value' | 'onChange' | 'onKeyDown' | 'label'> & {
   statement: string
   explanation: (string | null)[]
   onChange: (statement: string, explanation: (string | null)[]) => void
-  /** Shown right above the statement box (its label, or what is missing). */
+  /** The statement box's label in place of the plain "Statement" (the editor's, which says what is missing). */
   hint?: ReactNode
   /** The card's image, beside the statement box. */
   image: Omit<ComponentProps<typeof ImageSlot>, 'children'>
@@ -25,6 +27,8 @@ export function ClozeField({ statement, explanation, onChange, hint, image, ...r
   const [error, setError] = useState('')
   // The blank whose explanation was just opened with + Explanation, so its new field takes the focus.
   const [opened, setOpened] = useState<number | null>(null)
+  // The blank whose explanation the eraser just removed, so its + Explanation, back in its place, takes the focus.
+  const [erased, setErased] = useState<number | null>(null)
   const lanes = Math.max(0, ...blankDepth(blanks)) + 1
 
   const write = (nextText: string, nextBlanks: Blank[]) => {
@@ -56,14 +60,15 @@ export function ClozeField({ statement, explanation, onChange, hint, image, ...r
 
   const remove = (i: number) => {
     setHovered(null)
+    setErased(null)
     write(text, blanks.filter((_, j) => j !== i))
   }
 
   return (
     <div className="cloze-field">
-      <div className="cloze-statement">
-        {hint}
-        <ImageSlot {...image}>
+      <ImageSlot {...image}>
+        {/* The label goes round the box, so the underline overlay stays over the text. */}
+        <FloatField label={hint ?? 'Statement'} filled={text !== ''}>
           <div ref={wrap} className="cloze-box" style={{ '--lanes': lanes } as React.CSSProperties}>
             <AutoText
               {...rest}
@@ -78,8 +83,8 @@ export function ClozeField({ statement, explanation, onChange, hint, image, ...r
               <ClozeText text={text} ranges={blanks} mode="marks" highlight={hovered} />
             </div>
           </div>
-        </ImageSlot>
-      </div>
+        </FloatField>
+      </ImageSlot>
       <div className="cloze-tools">
         <button type="button" title="Turn the selected text into a blank" onClick={mark}>
           Mark as blank <Shortcut keys="Ctrl+B" />
@@ -91,45 +96,62 @@ export function ClozeField({ statement, explanation, onChange, hint, image, ...r
         )}
       </div>
       {blanks.length > 0 && (
-        <ul className="cloze-blanks">
-          {blanks.map((b, i) => (
-            <li
-              key={i}
-              style={{ '--mark': blankColor(i) } as React.CSSProperties}
-              onMouseEnter={() => setHovered(i)}
-              onMouseLeave={() => setHovered(null)}
-              onFocus={() => setHovered(i)}
-              onBlur={() => setHovered(null)}
-            >
-              <span className="cloze-swatch" aria-hidden="true" />
-              <span className="cloze-blank-text">{text.slice(b.start, b.end)}</span>
-              {b.explanation === null && (
-                <button
-                  type="button"
-                  className="quiet small"
-                  onClick={() => {
-                    setOpened(i)
-                    setExplanation(i, '')
-                  }}
-                >
-                  <PlusIcon /> Explanation
-                </button>
-              )}
-              <IconButton label={`Remove blank ${i + 1}`} title="Remove blank" onClick={() => remove(i)}>
-                <CrossIcon />
-              </IconButton>
-              {b.explanation !== null && (
-                <AutoText
-                  aria-label={`Explanation for blank ${i + 1}`}
-                  placeholder="Explanation"
-                  autoFocus={opened === i}
-                  value={b.explanation}
-                  onChange={(value) => setExplanation(i, value)}
-                />
-              )}
-            </li>
-          ))}
-        </ul>
+        // Headed like a choice card's answer lists, so the blanks read as their own section of the card.
+        <div className="entry-list cloze-list">
+          <div className="entry-label">
+            <span className="field-hint">Blanks</span>
+          </div>
+          <ul className="cloze-blanks">
+            {blanks.map((b, i) => (
+              <li
+                key={i}
+                style={{ '--mark': blankColor(i) } as React.CSSProperties}
+                onMouseEnter={() => setHovered(i)}
+                onMouseLeave={() => setHovered(null)}
+                onFocus={() => setHovered(i)}
+                onBlur={() => setHovered(null)}
+              >
+                <div className="cloze-blank-head">
+                  {/* The blank's words, underlined in its color like in the statement: the row's title. */}
+                  <span className="cloze-blank-text">
+                    <span className="cloze-blank-word">{text.slice(b.start, b.end)}</span>
+                  </span>
+                  {b.explanation === null && (
+                    <button
+                      type="button"
+                      className="quiet small"
+                      title={`Add an explanation for blank ${i + 1}`}
+                      autoFocus={erased === i}
+                      onClick={() => {
+                        setOpened(i)
+                        setErased(null)
+                        setExplanation(i, '')
+                      }}
+                    >
+                      <PlusIcon /> Explanation
+                    </button>
+                  )}
+                  <IconButton label={`Remove blank ${i + 1}`} title="Remove blank" onClick={() => remove(i)}>
+                    <CrossIcon />
+                  </IconButton>
+                </div>
+                {b.explanation !== null && (
+                  <ExplanationField
+                    aria-label={`Explanation for blank ${i + 1}`}
+                    removeLabel={`Remove the explanation for blank ${i + 1}`}
+                    autoFocus={opened === i}
+                    value={b.explanation}
+                    onChange={(value) => setExplanation(i, value)}
+                    onRemove={() => {
+                      setErased(i)
+                      setExplanation(i, null)
+                    }}
+                  />
+                )}
+              </li>
+            ))}
+          </ul>
+        </div>
       )}
     </div>
   )

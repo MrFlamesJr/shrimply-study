@@ -1,8 +1,11 @@
 import { createRoot } from 'react-dom/client'
 import { Modal, closeModal } from './Modal'
 
-/** Asks a yes/no question in a modal (instead of the browser's confirm). Resolves true only for the confirm button. */
-export function askConfirm(question: string, confirmLabel: string, options?: { danger?: boolean }): Promise<boolean> {
+/**
+ * Asks a yes/no question in a modal (instead of the browser's confirm). Resolves true only for the confirm button.
+ * `title` replaces "Are you sure?" where it would read wrong. A blank line in `question` starts a new paragraph.
+ */
+export function askConfirm(question: string, confirmLabel: string, options?: { danger?: boolean; title?: string }): Promise<boolean> {
   return new Promise((resolve) => {
     const host = document.createElement('div')
     document.body.appendChild(host)
@@ -17,8 +20,10 @@ export function askConfirm(question: string, confirmLabel: string, options?: { d
       })
     }
     root.render(
-      <Modal title="Are you sure?" narrow onClose={onClose}>
-        <p>{question}</p>
+      <Modal title={options?.title ?? 'Are you sure?'} narrow onClose={onClose}>
+        {question.split('\n\n').map((part, i) => (
+          <p key={i}>{part}</p>
+        ))}
         <div className="actions">
           <button type="button" onClick={(e) => closeModal(e.currentTarget)}>
             Cancel

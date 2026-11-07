@@ -1,0 +1,31 @@
+{
+  "library": {
+    "version": 1,
+    "courses": [
+      {
+        "id": "c1",
+        "name": "Biology",
+        "quizzes": [
+          {
+            "id": "q1",
+            "name": "Cells",
+            "groups": [
+              { "id": "g1", "name": "Organelles", "color": "moss" },
+              { "id": "g2", "name": "Without a color" }
+            ],
+            "cards": [
+              { "id": "k1", "term": "Mitochondria", "termImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "definition": "Powerhouse of the cell", "explanation": "Makes most of the cell's ATP" },
+              { "id": "k2", "term": "Half filled", "definition": "" },
+              { "id": "k3", "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "explanation": ["Has its own DNA", null, ""] },
+              { "id": "k4", "term": "Nucleus", "definition": "Holds the DNA", "definitionImage": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "group": "g1" },
+              { "id": "k5", "type": "cloze", "statement": "A {ribosome} makes proteins.", "image": "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=", "explanation": [null], "group": "g2" }
+            ]
+          },
+          { "id": "q2", "name": "Empty quiz", "groups": [], "cards": [] }
+        ]
+      },
+      { "id": "c2", "name": "Empty course", "quizzes": [] }
+    ]
+  },
+  "changedIds": ["k2", "q2"]
+}

@@ -98,11 +98,17 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
         <dd>
           {stats.clozeCards} ({plural(stats.blanks, 'blank')})
         </dd>
+        <dt>True or false</dt>
+        <dd>{stats.trueFalseCards}</dd>
+        <dt>Choice questions</dt>
+        <dd>{stats.choiceCards}</dd>
+        <dt>Sequences</dt>
+        <dd>{stats.sequenceCards}</dd>
         <dt>Groups</dt>
         <dd>{stats.groups}</dd>
         <dt>Cards in a group</dt>
         <dd>
-          {stats.groupedCards} of {stats.termCards + stats.clozeCards}
+          {stats.groupedCards} of {stats.termCards + stats.clozeCards + stats.trueFalseCards + stats.choiceCards + stats.sequenceCards}
         </dd>
         <dt>Explanations</dt>
         <dd>{stats.explanations}</dd>

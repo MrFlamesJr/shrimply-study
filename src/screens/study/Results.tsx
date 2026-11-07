@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import type { Card, Format, Question } from '../../model'
+import type { Card, Question } from '../../model'
 import { BackToTop } from '../../components/BackToTop'
 import { Segmented } from '../../components/Segmented'
 import { CardRow } from '../../components/CardRow'
 import { CheckIcon, CrossIcon } from '../../components/Icons'
-import { MarkedBadge } from './SheetContent'
+import { MarkedBadge } from './Answers'
 import type { Result } from './Question'
 
 type Filter = 'all' | 'missed' | 'right' | 'marked'
@@ -14,13 +14,12 @@ type Props = {
   results: Result[]
   cards: Card[]
   usable: Card[]
-  format: Format
   onExit: () => void
   onBegin: (cards: Card[], only?: Question[]) => void
   onEdit: (cardId: string) => void
 }
 
-export function Results({ questions, results, cards, usable, format, onExit, onBegin, onEdit }: Props) {
+export function Results({ questions, results, cards, usable, onExit, onBegin, onEdit }: Props) {
   // Which questions the results list shows.
   const [filter, setFilter] = useState<Filter>('all')
   // The scroll box, for the back-to-top button.
@@ -37,7 +36,8 @@ export function Results({ questions, results, cards, usable, format, onExit, onB
     .filter(({ result }) =>
       filter === 'missed' ? !result?.ok : filter === 'right' ? result?.ok : filter === 'marked' ? result?.marked : true,
     )
-  const givenLabel = format === 'choice' ? 'You picked' : 'You typed'
+  // Choices (also in typing, for true or false and pick all) are picked, a sequence is placed.
+  const givenLabel = (q: Question) => (q.arrange ? 'You placed' : q.choices ? 'You picked' : 'You typed')
   // Missed and Right only when both have questions, Marked by you only when it has any; no bar with nothing to pick.
   const filters: { value: Filter; label: string; title?: string }[] = [
     { value: 'all', label: `All (${total})` },
@@ -109,7 +109,7 @@ export function Results({ questions, results, cards, usable, format, onExit, onB
                       result?.given !== undefined &&
                       (!result.ok || result.marked) && (
                         <p className="row-note">
-                          {givenLabel}: <span className="row-given">{result.given}</span>
+                          {givenLabel(q)}: <span className="row-given">{result.given}</span>
                           {result.marked && <MarkedBadge />}
                         </p>
                       )

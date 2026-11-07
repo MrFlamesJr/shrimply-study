@@ -1,6 +1,7 @@
 import { useId, useRef, useState, type ReactNode } from 'react'
-import { GROUP_NAME_MAX, newId, type Group } from '../model'
+import { GROUP_NAME_MAX, newId, type Group, type Sides } from '../model'
 import { parseCards, type ParsedCard } from '../logic/parseCards'
+import { sideNames } from '../logic/sides'
 import { nextColor } from '../logic/groups'
 import { plural } from '../logic/plural'
 import { AutoText } from './AutoText'
@@ -13,10 +14,13 @@ const NEW = '+new'
 /** Paste import. Every place the cards can go is one click: no group, a group, or a new group named right there. */
 export function ImportDialog({
   groups,
+  sides,
   onImport,
   onClose,
 }: {
   groups: Group[]
+  /** The names the new cards will get (default Front and Back). */
+  sides?: Sides
   onImport: (parsed: ParsedCard[], group?: Group) => void
   onClose: () => void
 }) {
@@ -26,6 +30,7 @@ export function ImportDialog({
   const addButton = useRef<HTMLButtonElement>(null)
   const radios = useId()
   const parsed = parseCards(text)
+  const names = sideNames({ sides })
   const chosen = groups.find((g) => g.id === target)
   const newName = name.trim() || 'New group'
   const where = target === NEW ? newName : chosen?.name
@@ -61,8 +66,8 @@ export function ImportDialog({
             <table>
               <thead>
                 <tr>
-                  <th>Term</th>
-                  <th>Definition</th>
+                  <th>{names.term}</th>
+                  <th>{names.definition}</th>
                 </tr>
               </thead>
               <tbody>

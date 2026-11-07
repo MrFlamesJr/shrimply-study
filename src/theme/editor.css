@@ -1,4 +1,76 @@
 /* Card editor, image slots, selects, groups and palette. */
+/* Edit mode, asked for: one big outline of long and short dashes around the whole editor (title, cards, groups)
+   where every few dashes, always between two long ones, one is the word "Editing" in small spaced pixel capitals,
+   the same for every theme, following the line round (EditOutline sets the pattern). The editor's box reaches out
+   to the line with room to spare (padding, taken back by a negative margin at the sides and bottom, so the content
+   keeps its place and width); at the top the box starts where the content used to, so the line stays clear of the
+   top row and its fog, and the content sits that much lower. Pointing at the line already counts
+   as being in the editor: that nudges the dashes and words a few px round, settling quickly, and slowly thickens
+   the line a touch; pointing out undoes both. Very subtle, so it never distracts (asked for). All
+   of it is the full accent faded as one (--dim-faint), so the words are exactly as faint as the dashes (asked for:
+   they are part of the pattern, not text to read; the address and the crumbs say Edit). The line is centered on
+   the SVG's edge, so the SVG sits half a line inside the box (a thicker line grows both ways). Still under reduced
+   motion. */
+.edit-frame {
+  --frame-gap: var(--space-6);
+  position: relative;
+  margin: 0 calc(-1 * var(--frame-gap)) calc(-1 * var(--frame-gap));
+  padding: var(--frame-gap);
+}
+.edit-frame > .edit-outline {
+  position: absolute;
+  top: calc(var(--line-edit) / 2);
+  left: calc(var(--line-edit) / 2);
+  width: calc(100% - var(--line-edit));
+  height: calc(100% - var(--line-edit));
+  margin: 0;
+  overflow: visible;
+  pointer-events: none;
+  user-select: none;
+  opacity: var(--dim-faint);
+}
+.edit-outline-line {
+  fill: none;
+  stroke: var(--accent);
+  stroke-width: var(--line-edit);
+  transition:
+    stroke-dashoffset var(--dur-edit-move) var(--ease),
+    stroke-width var(--dur-edit-swell) ease-in-out;
+}
+/* About half a long dash round. */
+.edit-frame:hover > .edit-outline .edit-outline-line {
+  stroke-dashoffset: -12px;
+  stroke-width: var(--line-edit-hover);
+}
+/* Small spaced capitals not much taller than the line, so the word reads as a light dash, not a block. It keeps
+   its size when the line thickens: any thickening blurs pixel letters this small. */
+.edit-outline text {
+  font-family: var(--font-dash);
+  font-size: var(--text-dash);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--dash-tracking);
+  text-transform: uppercase;
+  fill: var(--accent);
+}
+.edit-outline .edit-outline-measure {
+  visibility: hidden;
+}
+/* The easter egg's hit area: an unpainted ring a bit wider than the line, on the line only; the rest of the
+   outline lets the pointer through. No pointer cursor, so it stays a secret. */
+.edit-outline .edit-outline-hit {
+  fill: none;
+  stroke: none;
+  stroke-width: var(--space-3);
+  pointer-events: stroke;
+}
+@media (max-width: 799px) {
+  /* The page's sides are only --space-4 here; the top starts lower, as the page's top padding is smaller than the
+     top row's fog. */
+  .edit-frame {
+    --frame-gap: var(--space-3);
+    margin-top: var(--space-3);
+  }
+}
 /* Edit: one box per card, term and definition side by side on underlined fields */
 .pairs {
   display: flex;
@@ -8,6 +80,8 @@
 /* One box per card, set off by its fill. Fields inside are not boxes: just a quiet underline that
    turns accent while typing, or red when it still needs text after Done. */
 .pair {
+  /* Each card's sides menu anchors to its own button. */
+  anchor-scope: --sides-button;
   background: var(--surface);
   border: var(--line) solid transparent;
   border-radius: var(--radius);
@@ -19,6 +93,7 @@
 .pair-head {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   justify-content: space-between;
   padding: var(--space-1) var(--space-1) 0 var(--space-5);
   color: var(--text-muted);
@@ -42,10 +117,117 @@
 .pair-field.is-wide {
   grid-column: 1 / -1;
 }
+/* A true-or-false card's fields: the statement, then the answer bar. */
+.tf-field {
+  display: grid;
+  gap: var(--space-3);
+}
 .pair-tools {
   display: flex;
   align-items: center;
   gap: var(--space-1);
+  margin-left: auto;
+}
+/* The sides button looks like the quiet select: muted text and a chevron, filled only on hover. Long side names:
+   the tools wrap to the next line, and the names wrap inside the button instead of overflowing. */
+.sides-button {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 32px;
+  max-width: 100%;
+  padding: 0 var(--space-3);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight);
+  text-align: start;
+  cursor: pointer;
+  anchor-name: --sides-button;
+  transition: background var(--dur-fast), color var(--dur-fast);
+}
+.sides-button:hover {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.sides-button svg {
+  flex: none;
+}
+/* The menu looks like the select's popup: on the side of the button with more room (below when equal), capped
+   to that room and scrolling inside when even that is too small (a phone), so it is never cut off. */
+.sides-menu {
+  padding: var(--space-1);
+  background: var(--popup);
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--text-sm);
+  font-weight: var(--weight);
+}
+.sides-menu:popover-open {
+  display: flex;
+  flex-direction: column;
+}
+@supports (position-area: bottom) {
+  .sides-menu {
+    inset: auto;
+    margin: var(--space-1) 0;
+    position-anchor: --sides-button;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-block;
+    position-try-order: most-height;
+    max-height: calc(100% - 2 * var(--space-1));
+    overflow-y: auto;
+  }
+}
+.sides-row {
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius);
+}
+.sides-row:has([aria-current='true']) {
+  background: var(--accent-soft);
+}
+.sides-row:hover {
+  background: var(--surface-3);
+}
+.sides-pick,
+.sides-new {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 32px;
+  padding: 0 var(--space-2);
+  background: transparent;
+  border: 0;
+  border-radius: var(--radius);
+  color: var(--text);
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+.sides-pick {
+  flex: 1;
+}
+.sides-new {
+  justify-content: flex-start;
+  color: var(--text-muted);
+}
+.sides-new:hover:not(:disabled) {
+  background: var(--surface-3);
+  color: var(--text);
+}
+.sides-pick:focus-visible,
+.sides-new:focus-visible {
+  outline: var(--line) solid var(--focus);
+  outline-offset: -1px;
+}
+/* Inside the card head, so the head's red trash hover is scoped away: the pencil brightens. */
+.pair-head .sides-menu .icon-btn:hover:not(:disabled) {
+  color: var(--text);
 }
 .pair-tools .quiet {
   height: 32px;
@@ -68,6 +250,10 @@
 .image-slot-in > :first-child {
   flex: 1;
   min-width: 0;
+}
+/* Beside a field with a floating label, the image lines up with the box, not with the room kept for the label. */
+.image-slot-in > .float-field ~ * {
+  margin-top: var(--float-room);
 }
 /* Files dragged over the slot (they can be dropped on the field or its image), asked for: what is inside shrinks a
    little while the slot keeps its size, so nothing around it moves, and a see-through dashed accent outline grows
@@ -245,14 +431,22 @@ select:hover {
     transform: translateY(2px) rotate(225deg);
   }
   ::picker(select) {
-    /* Open below and flip up only when it doesn't fit (the UA default picks the bigger side). */
+    /* Open below and flip up (or sideways) only when it doesn't fit (the UA default picks the bigger side).
+       Fit means the whole list: the UA's `max-block-size: stretch` would squeeze it into a sliver below,
+       scrolling, while there is room above. Only where it fits nowhere whole does it scroll, below or else
+       above, with at least 40vh of room. Chrome tries no more than five fallbacks. */
     position-try-order: normal;
+    min-block-size: max-content;
+    position-try-fallbacks: flip-block, flip-inline, flip-block flip-inline, --picker-roomy, --picker-roomy flip-block;
     margin: var(--space-1) 0;
     padding: var(--space-1);
     background: var(--popup);
     border: var(--line) solid var(--border);
     border-radius: var(--radius);
     box-shadow: none;
+  }
+  @position-try --picker-roomy {
+    min-block-size: 40vh;
   }
   option {
     display: flex;
@@ -312,7 +506,7 @@ select:hover {
 .group-box {
   --zone: var(--group);
   padding: var(--space-3) var(--space-4);
-  background: color-mix(in srgb, var(--group) var(--group-fill), var(--bg));
+  background: color-mix(in oklch, var(--group) var(--group-fill), var(--role-ground));
   border: var(--line) solid color-mix(in srgb, var(--group) var(--group-line), transparent);
   border-radius: var(--radius);
   /* See-through fills inside, so cards, fields and hovers keep the group's tint. */
@@ -323,7 +517,9 @@ select:hover {
 .pairs > .group-box {
   margin-top: var(--space-4);
 }
-.group-box .add-row {
+.group-box .add-new {
+  background: none;
+  backdrop-filter: none;
   border-color: color-mix(in srgb, var(--group) var(--group-line), transparent);
 }
 /* Everything under a group's header folds away: a one-row grid that shrinks to 0fr. Its margins sit inside the
@@ -363,20 +559,10 @@ select:hover {
   overflow: clip;
   transition-delay: 0s;
 }
-/* The collapse chevron: first in the header, in full text color (not muted) so it is easy to spot. It points
-   the way the box will go: up while open, down once collapsed. */
+/* The collapse chevron: first in the header, in full text color (not muted) so it is easy to spot. Its pop and
+   its turn (up while open, down once collapsed) are the shared fold chevron's, in base.css. */
 .group-toggle {
   color: var(--text);
-}
-.group-toggle svg {
-  transform: rotate(180deg);
-  transition:
-    width var(--dur) var(--spring),
-    height var(--dur) var(--spring),
-    transform var(--dur) var(--ease);
-}
-.group-toggle[aria-expanded='false'] svg {
-  transform: none;
 }
 /* Quiz page header: the editor's chevron cell plus its gap, so the dot and name start at the same x. */
 .group-box h3 .group-toggle {
@@ -483,6 +669,17 @@ select:hover {
   outline-offset: var(--focus-offset);
   box-shadow: var(--glow-focus);
 }
+/* The editor's name field (AutoText's wrapper, with room for its live count) takes the room left in the row.
+   When that is too little (a phone), the count and Ungroup wrap to a second line, on the right. */
+.group-head:has(> .auto-text-wrap) {
+  flex-wrap: wrap;
+}
+.group-head .auto-text-wrap {
+  flex: 1 1 10rem;
+}
+.group-head > .auto-text-wrap + .muted {
+  margin-left: auto;
+}
 .group-head .group-name {
   flex: 1;
   min-width: 0;
@@ -496,12 +693,12 @@ select:hover {
   font-weight: var(--weight-bold);
 }
 .group-head .group-name:hover {
-  border-bottom-color: var(--border);
+  border-bottom-color: var(--border-strong);
 }
 .group-head .group-name:focus {
   border-bottom-color: var(--accent);
 }
-/* "New group" under the groups: a solid outline (not dashed like the add rows, not gold) with its hint beside it. */
+/* "New group" under the groups: the same add pill as the add rows' (AddPill), with its hint beside it. */
 .pairs > .new-group {
   display: flex;
   flex-wrap: wrap;
@@ -509,25 +706,14 @@ select:hover {
   gap: var(--space-2) var(--space-4);
   margin-top: var(--space-4);
 }
-.new-group button {
-  background: transparent;
-  border-color: var(--border-strong);
+/* Its hint is the size of the add rows' hints. */
+.new-group .muted {
+  font-size: var(--text-sm);
 }
-.new-group button:hover:not(:disabled) {
-  background: var(--surface-2);
-}
-.pair-field textarea {
-  padding: var(--space-2) var(--space-3);
-  background: transparent;
-  border: 0;
-  border-bottom: var(--line-thick) solid var(--border);
-  border-radius: 0;
-}
-.pair-field textarea:focus {
-  border-bottom-color: var(--accent);
-}
-.pair-field textarea[aria-invalid='true'] {
-  border-bottom-color: var(--bad);
+/* The editor's outline ends as far below New group as New group sits below what comes before it (the list's gap
+   plus its margin above), measured to the line's inner edge. */
+.edit-frame {
+  padding-bottom: calc(var(--space-3) + var(--space-4) + var(--line-edit));
 }
 .field-hint {
   display: block;
@@ -538,6 +724,19 @@ select:hover {
 }
 .field-hint.is-bad {
   color: var(--bad);
+}
+/* As a field's floating label, its size, place and color come from the label (red stays red); it keeps its own
+   ellipsis, as it shakes. */
+.float-label .field-hint {
+  display: block;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  font-size: inherit;
+  text-overflow: ellipsis;
+}
+.float-label .field-hint:not(.is-bad) {
+  color: inherit;
 }
 /* Replayed on every blocked Done (the hint is re-keyed) to point at what still needs fixing. */
 .field-hint.is-nudged {
@@ -557,15 +756,248 @@ select:hover {
     transform: translateX(3px);
   }
 }
-.page > .add-row {
-  margin-top: var(--space-4);
+/* A choice question's and a sequence's fields: the question or title, then lists of answers or steps. */
+.choice-field,
+.sequence-field {
+  display: grid;
+  gap: var(--space-4);
 }
-.add-row {
-  width: 100%;
-  height: 48px;
-  background: transparent;
-  border: var(--line) dashed var(--border);
+.entry-list {
+  display: grid;
+  gap: var(--space-1);
+}
+/* The heading of a list: its mark (right in --ok, wrong in --bad, the text stays plain) and what is missing. */
+.entry-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: var(--space-3);
+}
+.entry-label svg {
+  flex: none;
+}
+.entry-label.is-ok svg {
+  color: var(--ok);
+}
+.entry-label.is-bad svg {
+  color: var(--bad);
+}
+.entry-label .field-hint {
+  margin: 0;
+  padding: 0;
+}
+.entry {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-1);
+}
+.entry textarea,
+.entry > .auto-text-erasable {
+  flex: 1;
+  min-width: 0;
+}
+/* A list entry's number, "1." (asked for), wide enough for "10.". */
+.entry-number {
+  flex: none;
+  width: 2em;
+  padding-top: var(--space-2);
   color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+/* A sequence's steps (StepList), asked to read as separate things that are dragged about (dnd-kit), the same tiles
+   in the editor and when put in order while studying (study.css): each step is its own tile on the soft well, a grip
+   to drag it by, then its text. Its number is the place, so it sits outside the tile in its own column and stays put
+   while the tiles move (asked for), lined up with the tile's first line of text (the tile's border and padding, then
+   the field's). The step being dragged moves by transform, above the others as they make way:
+   solid (the popup's fill, so nothing shows through) with a thin accent line round it, like a chosen thing. Its
+   border is always there, clear at rest, so lifting it never moves the text. Only the grip stops a touch from
+   scrolling the page, so a long list still scrolls on a phone. The browser never keeps the page still by a step
+   (`overflow-anchor`): with the list's top scrolled away, a drop moved the step it held on to, and the page jumped. */
+.step-list {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: var(--space-2);
+  overflow-anchor: none;
+}
+.step-list > .entry-number {
+  padding-top: calc(var(--line) + var(--space-1) + var(--space-2));
+}
+.entry.is-step {
+  padding: var(--space-1);
+  background: var(--well);
+  border: var(--line) solid transparent;
+  border-radius: var(--radius);
+}
+.entry.is-dragging {
+  position: relative;
+  z-index: 1;
+  background: var(--popup);
+  border-color: var(--accent);
+}
+.entry-grip {
+  flex: none;
+  cursor: grab;
+  touch-action: none;
+}
+.entry.is-dragging,
+.entry.is-dragging .entry-grip {
+  color: var(--text);
+  cursor: grabbing;
+}
+.entry-add {
+  justify-self: start;
+  font-weight: var(--weight);
+}
+/* A choice question's answers, kept uncluttered (asked for): the right and the wrong ones side by side, each list on
+   a soft well like a cloze card's blanks, stacked where the card is narrow (the card dialog, phones). The two wells
+   share one height, their answers at the top. Each answer's underline rests as only a faint line, and its eraser shows inside the answer's box only while that box is pointed
+   at or has focus (AutoText's `erase`). */
+.choice-lists {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 16rem), 1fr));
+  gap: var(--space-3);
+}
+.choice-list {
+  align-content: start;
+  padding: var(--space-2) var(--space-1) var(--space-1);
+  background: var(--well);
+  border-radius: var(--radius);
+}
+/* Only the resting line is fainter; pointed at, focused or missing it is every field's (base.css). */
+.choice-list .entry,
+.entry.is-step {
+  --underline: var(--row-line);
+}
+/* Add new card: a dashed box titled on its top edge (a fieldset's legend), with a pill per kind of card. The pointed
+   or focused pill's description shows on the line under the pills: every description sits in the same grid cell,
+   so the line keeps the room of the longest one and the box never changes height. */
+.add-new {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+  margin: 0;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  /* On the page ground it is frosted glass like the new-quiz tile (asked for); inside a group box it stays clear. */
+  background: var(--glass-tile);
+  backdrop-filter: blur(var(--glass-tile-blur));
+  border: var(--line) dashed var(--border);
+  border-radius: var(--radius);
+}
+.add-new legend {
+  margin-left: calc(-1 * var(--space-1));
+  padding: 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  font-weight: var(--weight-bold);
+}
+.add-pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+/* The add pill (AddPill: each card kind, New group). Its hover, kept calm (asked for): a copy of its edge starts
+   just inside it and grows out onto it as it fades, while the border takes the accent and a faint accent fades in
+   from its edges. */
+.add-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 32px;
+  padding: 0 var(--space-3) 0 var(--space-2);
+  background: transparent;
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius-pill);
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  cursor: pointer;
+  /* Its own layer, so the hover fill (::before) sits under the label. */
+  isolation: isolate;
+  transition:
+    border-color var(--dur-echo-fill) var(--ease),
+    color var(--dur-echo-fill) var(--ease);
+}
+/* Hovered, the accent fades in from every edge, falling off within a few px (an inset shadow, so it follows the
+   pill's corners); the middle stays clear, so the glass (or a group's tint) still shows under the label (asked
+   for). */
+.add-pill::before {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  inset: 0;
+  box-shadow: inset 0 0 var(--space-3) var(--pill-fade);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--dur-echo-fill) var(--ease);
+}
+.add-pill:hover::before,
+.add-pill:focus-visible::before {
+  opacity: 1;
+}
+.add-pill::after {
+  content: '';
+  position: absolute;
+  inset: calc(-1 * var(--line));
+  border: var(--line) solid var(--accent);
+  border-radius: inherit;
+  opacity: 0;
+  pointer-events: none;
+}
+.add-pill:hover::after,
+.add-pill:focus-visible::after {
+  animation: pill-echo var(--dur-echo) var(--ease);
+}
+@keyframes pill-echo {
+  from {
+    inset: var(--space-1);
+    opacity: 0.7;
+  }
+  to {
+    inset: calc(-1 * var(--line));
+    opacity: 0;
+  }
+}
+.add-pill svg {
+  width: 14px;
+  height: 14px;
+  transition: color var(--dur-echo-fill) var(--ease);
+}
+.add-pill:hover,
+.add-pill:focus-visible {
+  border-color: var(--accent-line);
+  color: var(--text);
+}
+/* Still see-through when hovered: the plain button's hover fill (base.css) would cover the glass under the glow. */
+button.add-pill:hover:not(:disabled) {
+  background: transparent;
+}
+.add-pill:hover svg,
+.add-pill:focus-visible svg {
+  color: var(--accent);
+}
+.add-pill:focus-visible {
+  outline: var(--line-thick) solid var(--focus);
+  outline-offset: var(--focus-offset);
+  box-shadow: var(--glow-focus);
+}
+.add-hints {
+  display: grid;
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.add-hints > span {
+  grid-area: 1 / 1;
+  visibility: hidden;
+  opacity: 0;
+  transition: opacity var(--dur-echo-fill) var(--ease), visibility var(--dur-echo-fill);
+}
+.add-hints > span.is-shown {
+  visibility: visible;
+  opacity: 1;
 }
 @media (max-width: 799px) {
   .import-grid,
@@ -589,6 +1021,14 @@ select:hover {
   }
   select {
     height: var(--tap);
+  }
+  .sides-button,
+  .sides-pick,
+  .sides-new {
+    min-height: var(--tap);
+  }
+  .add-pill {
+    min-height: var(--tap);
   }
   @supports (appearance: base-select) {
     option {

@@ -6,10 +6,13 @@
    teal mist glowing low near the forest floor (cards, the sidebar and dialogs stay clean to read). Candle amber, a
    fairy light warmer and more orange than Calm's gold, is the action, the chosen option and the focus ring and
    carries a faint glow, as do titles in the engraved capitals of Cinzel, like lit runes. Moss is the structure
-   (surfaces, borders, muted text like pale lichen); amethyst is the text selection; pale gold the warning; sky blue
-   info; spring lime and crimson only mean right and wrong (the lime brighter and yellower than the moss, the crimson
+   (surfaces, borders, muted text like pale lichen); amethyst is the text selection; pale gold the warning; a
+   will-o'-the-wisp teal info, its help glowing faintly like a wisp (candle amber h 69, wisp teal h 200 and amethyst
+   h 295 make a triad over the pine); spring lime and crimson only mean right and wrong (the lime brighter and yellower than the moss, the crimson
    far from the amber). Group colors are gemstones (emerald, ruby, sapphire, topaz, peridot, amethyst, copper,
-   moonstone), dimmer than the accent. Corners are small, as if carved. */
+   moonstone), dimmer than the accent. Corners are small, as if carved.
+   The explanation banner's edge is a chain of amethyst gems (h 298), the triad's third color, lighter than the
+   selection so it reads on the moss; its fill stays plain moss, as amethyst over green would turn to mud. */
 :root[data-theme="forest"] {
   color-scheme: dark;
 
@@ -20,16 +23,25 @@
   --muted-l: 0.79;
   --muted-c: 0.03;
 
-  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
-     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
-     --ink is the black of scrims and the sunken well. */
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
   --accent: #f0a548;
+  --accent-fill: var(--accent);
+  --accent-ink: var(--bg);
   --selection-color: #9a7fe0;
   --ok: #b6e86e;
   --bad: #ea728d;
+  --ok-fill: var(--ok);
+  --bad-fill: var(--bad);
+  --role-ink: var(--bg);
   --danger: #ef5266;
   --warn: #e6cf6e;
-  --info: #8fb8de;
+  --info: #7ad2d6;
+  --explain: #b49aed;
   --ink: #000;
 
   /* The brand mark (shrimp): shell and head; its outline is the text color. */
@@ -53,30 +65,46 @@
   --group-slate: #a7b6c4;
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
-     --lift-chroma color per step, in the hue --lift-hue. */
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
   --lift-hue: 162;
   --lift-chroma: 0.09;
   --lift-sunken: -0.033;
   --lift-1: 0.039;
+  --lift-sidebar: var(--lift-1);
   --lift-2: 0.076;
   --lift-3: 0.112;
   --lift-border: 0.2;
   --lift-border-strong: 0.31;
 
-  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
   --hover-lift: 0.05;
   --hover-chroma: 0.9;
+  --accent-hint: 0.7;
 
-  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
-     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
-     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
   --tint-soft: 12%;
   --tint: 14%;
   --tint-line: 55%;
   --tint-select: 35%;
-  --tint-danger: 16%;
+  --tint-danger: 12%;
   --tint-muted: 30%;
   --tint-rest: 8%;
+  --role-solid: 0;
+  --tint-keep: 0.4;
+  --role-chroma: 0.06;
+  --role-turn: 15;
+  --tint-pill: 45%;
+  --tint-explain: 0%;
   --group-fill: 6%;
   --group-line: 40%;
   --group-chip: 22%;
@@ -84,14 +112,16 @@
   --viewer-scrim-alpha: 88%;
 
   /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
-     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
-     their own shadow or glow, more while hovered. */
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
   --glow-size: 10px;
   --glow-accent: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 28%, transparent);
   --glow-focus: var(--glow-accent);
   --glow-ok: 0 0 var(--glow-size) color-mix(in srgb, var(--ok) 22%, transparent);
   --glow-bad: 0 0 var(--glow-size) color-mix(in srgb, var(--bad) 22%, transparent);
-  --glow-text: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 38%, transparent);
+  --glow-text: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--accent) 18%, transparent);
+  --glow-info: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--info) 20%, transparent);
   --glow-card:
     inset 0 1px 0 color-mix(in srgb, var(--text) 14%, transparent),
     0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--text) 13%, transparent);
@@ -118,7 +148,7 @@
       color-mix(in srgb, var(--text) 5%, transparent) 32deg,
       transparent 37deg
     );
-  --backdrop-drift: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 800 660'%3E%3Cstyle%3Ecircle%7Btransform-box:fill-box;transform-origin:center;animation:f 20s ease-in-out infinite%7D@keyframes f%7B0%25,100%25%7Btransform:translateY(0) scale(.6);opacity:.4%7D50%25%7Btransform:translateY(-10px) scale(1);opacity:1%7D%7D@media (prefers-reduced-motion: reduce)%7B*%7Banimation:none%7D%7D%3C/style%3E%3Cdefs%3E%3CradialGradient id='a'%3E%3Cstop offset='0' stop-color='%23ffd27a' stop-opacity='0.95'/%3E%3Cstop offset='0.25' stop-color='%23ffc46b' stop-opacity='0.4'/%3E%3Cstop offset='1' stop-color='%23ffc46b' stop-opacity='0'/%3E%3C/radialGradient%3E%3CradialGradient id='m'%3E%3Cstop offset='0' stop-color='%23d6ffe6' stop-opacity='0.9'/%3E%3Cstop offset='0.25' stop-color='%23b8f5d0' stop-opacity='0.35'/%3E%3Cstop offset='1' stop-color='%23b8f5d0' stop-opacity='0'/%3E%3C/radialGradient%3E%3C/defs%3E%3Cg opacity='0.4'%3E%3Ccircle style='animation-duration:9s;animation-delay:-0.0s' cx='70' cy='120' r='18.2' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:14s;animation-delay:-3.7s' cx='210' cy='430' r='13' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:12s;animation-delay:-7.4s' cx='330' cy='80' r='10.4' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:10s;animation-delay:-1.1s' cx='420' cy='300' r='20.8' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:15s;animation-delay:-14.8s' cx='560' cy='520' r='13' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:13s;animation-delay:-5.5s' cx='640' cy='170' r='15.600000000000001' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:11s;animation-delay:-0.2s' cx='760' cy='380' r='10.4' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:9s;animation-delay:-7.9s' cx='120' cy='560' r='15.600000000000001' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:14s;animation-delay:-1.6s' cx='480' cy='40' r='13' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:12s;animation-delay:-9.3s' cx='700' cy='600' r='18.2' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:10s;animation-delay:-7.0s' cx='270' cy='250' r='7.800000000000001' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:15s;animation-delay:-10.7s' cx='600' cy='320' r='7.800000000000001' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:13s;animation-delay:-5.4s' cx='40' cy='340' r='10.4' fill='url(%23a)'/%3E%3Ccircle style='animation-duration:11s;animation-delay:-4.1s' cx='380' cy='610' r='10.4' fill='url(%23m)'/%3E%3Ccircle style='animation-duration:9s;animation-delay:-6.8s' cx='780' cy='60' r='13' fill='url(%23m)'/%3E%3C/g%3E%3C/svg%3E");
+  --backdrop-drift: url("./forest-drift.svg");
   --backdrop-drift-w: 0px;
   --backdrop-drift-time: 0s;
 
@@ -129,12 +159,24 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson). */
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
   --font-display: "Cinzel", var(--font-body);
   --display-tracking: 0.06em;
   --display-case: none;
   --title-size: 1.75rem;
   --text-brand: 0.9375rem;
   --text-score: 2.5rem;
+  --text-info-title: 1rem;
+  --text-result: 1.375rem;
   --radius: 3px;
+  --radius-pill: var(--radius);
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: url("./forest-edge.svg");
+  --explain-edge-w: 8px;
+  --explain-edge-h: 10px;
+  --explain-edge-fill: url("./forest-edge-fill.svg");
 }

@@ -60,6 +60,9 @@ export function writeCloze(text: string, blanks: Blank[]): { statement: string; 
   return { statement, explanation: blanks.map((b) => b.explanation) }
 }
 
+/** How many levels of blanks the editor makes: a blank, and a blank inside it. */
+const BLANK_LEVELS = 2
+
 /** Adds a blank over the selection, or returns the message to show when it can't. */
 export function markBlank(text: string, blanks: Blank[], start: number, end: number): Blank[] | string {
   while (start < end && /\s/.test(text[start])) start++
@@ -72,7 +75,12 @@ export function markBlank(text: string, blanks: Blank[], start: number, end: num
     const newContains = start <= b.start && b.end <= end
     if (overlap && !bContains && !newContains) return "Blanks can sit inside each other but can't cross."
   }
-  return [...blanks, { start, end, explanation: null }].sort(byPosition)
+  const next = [...blanks, { start, end, explanation: null }].sort(byPosition)
+  // A blank inside a blank, never deeper (asked for): a third level is not useful and breaks the layout.
+  // Files may still hold deeper ones; they open as they are, so only the new blank and the ones inside it count.
+  const depths = blankDepth(next)
+  if (next.some((b, i) => depths[i] >= BLANK_LEVELS && start <= b.start && b.end <= end)) return 'Blanks can only go two levels deep.'
+  return next
 }
 
 /** Moves blanks to follow an edit of the text, dropping those that no longer hold text. */

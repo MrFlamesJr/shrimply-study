@@ -20,22 +20,28 @@ describe('libraryStats', () => {
       term('b', { termImage: IMG, group: 'g1', explanation: ' ' }),
       term('c', { definition: '' }),
       { id: 'd', type: 'cloze', statement: '{one} and {two}', explanation: ['first', null], image: 'data:image/png;base64,AAAA' },
+      { id: 'e', type: 'true-false', statement: 'Sky', answer: true, explanation: 'blue' },
+      { id: 'f', type: 'choice', question: 'Which?', image: IMG, right: ['A'], wrong: ['B', 'C'], explanation: 'why' },
+      { id: 'g', type: 'sequence', title: 'Order', image: IMG, steps: ['one'] },
     ]
     expect(libraryStats(library(cards, [group]))).toEqual({
       courses: 1,
       quizzes: 1,
       termCards: 3,
       clozeCards: 1,
+      trueFalseCards: 1,
+      choiceCards: 1,
+      sequenceCards: 1,
       blanks: 2,
       groups: 1,
       groupedCards: 1,
-      explanations: 2,
-      incomplete: 1,
+      explanations: 4,
+      incomplete: 2,
       emptyCourses: 0,
       emptyQuizzes: 0,
       unstudyable: 0,
       noChoice: 0,
-      largestQuiz: { name: 'Q', cards: 4 },
+      largestQuiz: { name: 'Q', cards: 7 },
       longestText: 15,
       images: 2,
       imageBytes: 9,
@@ -91,8 +97,24 @@ describe('fakeQuiz', () => {
     expect(usableCards(cards)).toHaveLength(100)
     expect(groups.map((g) => g.name)).toEqual(['Group 1', 'Group 2', 'Group 3', 'Group 4'])
   })
+  it('makes every 7th card a true-or-false card, alternating true and false (7 each in 100)', () => {
+    const answers = cards.filter((c) => c.type === 'true-false').map((c) => (c.type === 'true-false' ? c.answer : null))
+    expect(answers).toHaveLength(14)
+    expect(answers.filter(Boolean)).toHaveLength(7)
+  })
   it('is a clean library in group order', () => {
     expect(libraryProblems(library(cards, groups))).toEqual([])
     expect(inGroupOrder(cards, groups)).toEqual(cards)
+  })
+})
+
+describe('fakeQuiz with choice questions and sequences', () => {
+  const { cards } = fakeQuiz(100)
+  it('mixes in both, one and several right answers', () => {
+    const choices = cards.filter((c) => c.type === 'choice')
+    expect(choices.length).toBeGreaterThan(0)
+    expect(choices.some((c) => c.type === 'choice' && c.right.length > 1)).toBe(true)
+    expect(choices.some((c) => c.type === 'choice' && c.right.length === 1)).toBe(true)
+    expect(cards.filter((c) => c.type === 'sequence').length).toBeGreaterThan(0)
   })
 })

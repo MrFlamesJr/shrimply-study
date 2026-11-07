@@ -8,7 +8,9 @@
    the action, the chosen option and the focus ring: it sits next to the water's blue, so its tints stay clean over
    it (a warm coral tint over blue turns to mud). Coral is the shrimp, the one warm spot. Kelp lime and anemone pink
    only mean right and wrong (the lime leans yellow so it never reads as the aqua); sky blue is info. A faint
-   bioluminescent glow on the action, the focus, right and wrong answers and titles. Fredoka, round, for titles. */
+   bioluminescent glow on the action, the focus, right and wrong answers and titles. Fredoka, round, for titles.
+   The explanation banner's edge is a wave of pale seafoam (h 200), between the aqua and the water's blue: an
+   analogous run, so its faint tint stays clean over the blue surface and the coral stays the one warm spot. */
 :root[data-theme="underwater"] {
   color-scheme: dark;
 
@@ -19,16 +21,25 @@
   --muted-l: 0.79;
   --muted-c: 0.03;
 
-  /* One job per color: the accent is the one action, the chosen option and the focus ring; the text selection; green
-     and red only mean right and wrong; --danger only deleting for good (stronger than --bad); --info only info.
-     --ink is the black of scrims and the sunken well. */
+  /* One job per color: the accent is the one action, the chosen option and the focus ring; --accent-fill fills the
+     accent buttons (the accent itself, or a deeper step of its hue where the accent is too light to carry their text)
+     and --accent-ink is their text; the text selection; green and red only mean right and wrong (--ok-fill and
+     --bad-fill fill the right and wrong buttons where a theme fills them solid, with --role-ink their text);
+     --danger only deleting for good (stronger than --bad); --info only info; --explain only a card's explanation
+     (the feedback sheet's banner). --ink is the black of scrims and the sunken well. */
   --accent: #44e7d1;
+  --accent-fill: var(--accent);
+  --accent-ink: var(--bg);
   --selection-color: var(--accent);
   --ok: #a6e86b;
   --bad: #f7758a;
+  --ok-fill: var(--ok);
+  --bad-fill: var(--bad);
+  --role-ink: var(--bg);
   --danger: #f84a54;
   --warn: #f9ba5f;
   --info: #7dc7f7;
+  --explain: #a6e1e4;
   --ink: #000;
 
   /* The brand mark (shrimp): shell and head; its outline is the text color. */
@@ -52,23 +63,33 @@
   --group-slate: #8ea7b6;
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
-     --lift-chroma color per step, in the hue --lift-hue. */
+     --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
+     surfaces' first one unless the theme sets it apart. */
   --lift-hue: 228;
   --lift-chroma: 0.16;
   --lift-sunken: -0.03;
   --lift-1: 0.05;
+  --lift-sidebar: var(--lift-1);
   --lift-2: 0.09;
   --lift-3: 0.13;
   --lift-border: 0.21;
   --lift-border-strong: 0.33;
 
-  /* Hover on accent buttons: oklch lightness added, chroma multiplied. */
+  /* The filled accent buttons: on hover, oklch lightness added and chroma multiplied; a key hint on them keeps this
+     much of their text color (1 where the fill leaves no room for a fainter one). */
   --hover-lift: 0.05;
   --hover-chroma: 0.9;
+  --accent-hint: 0.7;
 
-  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders
-     in a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: see-through); group
-     boxes (fill over --bg, outline, chosen swatch); scrims. */
+  /* Tint strengths: fills behind text, lines, the text selection, the danger zone; how far muted text and borders in
+     a tinted zone lean toward its color; the right and wrong outline buttons at rest (0%: just the surface, in their
+     hue), or filled solid (--role-solid 1, else 0); how much of the ground's or surface's own color stays under a
+     role's tint (right, wrong, danger, info, group boxes; 1: all of it, lower where its hue would cancel theirs into
+     grey); how colorful a right or wrong button's or marked answer's fill is under its tint (--role-chroma, OKLCH
+     chroma: enough that a dark red reads as a deep red, not brown, and a dark green as a deep green, not olive) and
+     how far that fill's hue turns away from yellow (--role-turn, degrees: wrong toward crimson, right toward true
+     green, as a dark coral turns rust and a dark lime olive); a hovered add pill's edges; the explanation banner's
+     fill over its raised surface (0%: none); group boxes (fill over --bg, outline, chosen swatch); scrims. */
   --tint-soft: 12%;
   --tint: 14%;
   --tint-line: 55%;
@@ -76,6 +97,12 @@
   --tint-danger: 16%;
   --tint-muted: 30%;
   --tint-rest: 8%;
+  --role-solid: 0;
+  --tint-keep: 0.4;
+  --role-chroma: 0.06;
+  --role-turn: 15;
+  --tint-pill: 40%;
+  --tint-explain: 6%;
   --group-fill: 7%;
   --group-line: 40%;
   --group-chip: 22%;
@@ -83,14 +110,16 @@
   --viewer-scrim-alpha: 90%;
 
   /* Glow (box-shadow and text-shadow values, or none): the accent button and the progress bar, the focus ring, right
-     and wrong answers, titles and the brand. Chosen options never glow. The study cards stand off the ground by
-     their own shadow or glow, more while hovered. */
+     and wrong answers, titles and the brand; an info box's title in the info color. Chosen options never glow. The
+     study cards stand off the ground by their own shadow or glow, more while hovered. Text glows (--glow-text,
+     --glow-info) spread wider and fainter than the others, so the halo never fogs the letters' edges. */
   --glow-size: 12px;
   --glow-accent: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 35%, transparent);
   --glow-focus: var(--glow-accent);
   --glow-ok: 0 0 var(--glow-size) color-mix(in srgb, var(--ok) 25%, transparent);
   --glow-bad: 0 0 var(--glow-size) color-mix(in srgb, var(--bad) 25%, transparent);
-  --glow-text: 0 0 var(--glow-size) color-mix(in srgb, var(--accent) 30%, transparent);
+  --glow-text: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--accent) 15%, transparent);
+  --glow-info: 0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--info) 20%, transparent);
   --glow-card:
     inset 0 1px 0 color-mix(in srgb, var(--info) 30%, transparent),
     0 0 calc(var(--glow-size) * 1.5) color-mix(in srgb, var(--info) 26%, transparent);
@@ -121,7 +150,7 @@
     );
   --backdrop-drift:
     linear-gradient(to bottom, transparent, var(--bg) 82%),
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 640' width='960' height='960'%3E%3Cfilter id='c' x='0' y='0' width='100%25' height='100%25'%3E%3CfeTurbulence type='turbulence' baseFrequency='0.008 0.012' numOctaves='2' seed='11' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.6 0 0 0 0 1 0 0 0 0 0.95 -3 0 0 0 1'/%3E%3CfeComponentTransfer%3E%3CfeFuncA type='gamma' exponent='7'/%3E%3C/feComponentTransfer%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23c)' opacity='0.05'/%3E%3C/svg%3E");
+    url("./underwater-drift.svg");
   --backdrop-drift-w: 960px;
   --backdrop-drift-time: 90s;
 
@@ -132,12 +161,24 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson). */
+     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
+     big the display font draws. */
   --font-display: "Fredoka", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
   --title-size: 2.125rem;
   --text-brand: 1.25rem;
   --text-score: 3.25rem;
+  --text-info-title: 1.0625rem;
+  --text-result: 1.5625rem;
   --radius: 9px;
+  --radius-pill: 999px;
+
+  /* The explanation banner's left edge (asked for): a mask tile, --explain-edge-w wide and --explain-edge-h tall,
+     repeated down it in --explain (none: a plain line). --explain-edge-fill is the same tile's line and everything
+     right of it: the banner's fill shows only there, never left of the line (asked for). */
+  --explain-edge: url("./underwater-edge.svg");
+  --explain-edge-w: 8px;
+  --explain-edge-h: 16px;
+  --explain-edge-fill: url("./underwater-edge-fill.svg");
 }

@@ -1,7 +1,7 @@
 // A .shrimp file is a zip holding library.json and an images/ folder. There are no ids in the file:
 //
 // {
-//   "version": 1,
+//   "version": 2,
 //   "courses": [
 //     {
 //       "name": "Biology",
@@ -9,8 +9,10 @@
 //         {
 //           "name": "Cells",
 //           "cards": [
+//             { "sides": ["Question", "Answer"], "term": "What makes ATP?", "definition": "Mitochondria" },
 //             { "term": "Mitochondria", "termImage": "1.webp", "definition": "Powerhouse of the cell", "explanation": "Makes most of the cell's ATP" },
-//             { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "image": "2.png", "explanation": ["Has its own DNA", "", ""] }
+//             { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "image": "2.png", "explanation": ["Has its own DNA", "", ""] },
+//             { "type": "true-false", "statement": "Mitochondria have their own DNA.", "image": "3.png", "answer": true, "explanation": "They descend from bacteria" }
 //           ],
 //           "groups": [
 //             { "name": "Organelles", "color": "moss", "cards": [ { "term": "Nucleus", "definition": "Holds the DNA" } ] }
@@ -24,22 +26,33 @@
 // Course, quiz and group names can not be empty or only spaces. Two courses, or two quizzes in one course, can not
 // have the same name (case, spaces and punctuation do not count): the page address is made from it.
 // A group's "color" is optional when reading (a missing one gets the next unused color) and always written.
+// A card may name its two sides: "sides": ["Question", "Answer"], written first in the card. Two names, none empty;
+// without it they are Front and Back, and that pair is never written.
+// "sideTypes" (optional, after "version") lists the user's own side types: [["Country", "Capital"]]. They are kept even
+// when no card uses them, and a card's pair that is not listed is added when the file is read.
 // A cloze (fill in the blank) card marks its blanks with { } in "statement"; \{ \} \\ are a literal { } \.
 // Its "explanation" is optional: plain text when there is one blank, otherwise a list with one entry per blank.
-// Images are optional: "termImage", "definitionImage" and a cloze card's "image" name a file in images/ ("1.webp" is
+// A true-false card has a "statement" and an "answer" that is true or false; "image" and "explanation" are optional.
+// A choice card has a "question", a list of "right" answers and a list of "wrong" ones; a sequence card a "title" and
+// its "steps" in order. Both may have "image" and "explanation". Entries are trimmed, and empty ones are not written.
+// Images are optional: "termImage", "definitionImage" and a cloze, true-false, choice or sequence card's "image" name a file in images/ ("1.webp" is
 // images/1.webp) whose extension is one of IMAGE_TYPES. Cards with the same image share one file; files no card
 // names are ignored. The app numbers the files in the order they are written.
+// "version" is the format version (FORMAT_VERSION). Older versions are upgraded first (upgrade.ts); this file
+// reads and writes only the current one.
 import { strFromU8, strToU8, unzipSync, zipSync, type Zippable } from 'fflate'
 import { parseCloze } from '../logic/cloze'
 import { plural } from '../logic/plural'
 import { nextColor } from '../logic/groups'
 import { slug } from '../logic/names'
-import { GROUP_COLORS, IMAGE_TYPES, newId } from '../model'
-import type { Card, ClozeCard, Course, Group, GroupColor, Library, Quiz, TermCard } from '../model'
+import { addSideType, toSides } from '../logic/sides'
+import { FORMAT_VERSION, GROUP_COLORS, IMAGE_TYPES, isTermCard, newId } from '../model'
+import { upgrade } from './upgrade'
+import type { Card, ChoiceCard, ClozeCard, Course, Group, GroupColor, Library, Quiz, SequenceCard, Sides, TermCard, TrueFalseCard } from '../model'
 
 const LIBRARY_FILE = 'library.json'
 
-type Ids = 'new' | 'stored'
+export type Ids = 'new' | 'stored'
 
 const list = (items: string[], indent: string): string =>
   items.length === 0 ? '[]' : `[\n${items.map((i) => `${indent}  ${i}`).join(',\n')}\n${indent}]`
@@ -58,10 +71,30 @@ type ImageFile = (src: string) => string
 const imageJson = (key: string, src: string | undefined, file: ImageFile): string =>
   src ? `, "${key}": ${JSON.stringify(file(src))}` : ''
 
+// Named sides are written first in the card; the default pair is never written.
+const sidesJson = (sides: Sides | undefined): string => {
+  const named = sides && toSides(sides)
+  return named ? `"sides": [${named.map((n) => JSON.stringify(n)).join(', ')}], ` : ''
+}
+
+// A list of texts on one line, without the empty ones.
+const textList = (items: string[]): string => `[${items.filter((t) => t.trim()).map((t) => JSON.stringify(t)).join(', ')}]`
+
+const explanationJson = (explanation: string | undefined): string =>
+  explanation?.trim() ? `, "explanation": ${JSON.stringify(explanation)}` : ''
+
 const cardJson = (c: Card, file: ImageFile): string =>
   c.type === 'cloze'
     ? `{ "type": "cloze", "statement": ${JSON.stringify(c.statement)}${imageJson('image', c.image, file)}${clozeExplanation(c.explanation)} }`
-    : `{ "term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
+    : c.type === 'true-false'
+    ? `{ "type": "true-false", "statement": ${JSON.stringify(c.statement)}${imageJson('image', c.image, file)}, "answer": ${c.answer}${
+        c.explanation?.trim() ? `, "explanation": ${JSON.stringify(c.explanation)}` : ''
+      } }`
+    : c.type === 'choice'
+    ? `{ "type": "choice", "question": ${JSON.stringify(c.question)}${imageJson('image', c.image, file)}, "right": ${textList(c.right)}, "wrong": ${textList(c.wrong)}${explanationJson(c.explanation)} }`
+    : c.type === 'sequence'
+    ? `{ "type": "sequence", "title": ${JSON.stringify(c.title)}${imageJson('image', c.image, file)}, "steps": ${textList(c.steps)}${explanationJson(c.explanation)} }`
+    : `{ ${sidesJson(c.sides)}"term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
         c.explanation?.trim() ? `, "explanation": ${JSON.stringify(c.explanation)}` : ''
       } }`
 
@@ -106,7 +139,10 @@ export function libraryToJson(library: Library, images = new Map<string, string>
     }
     return name
   }
-  return `{\n  "version": 1,\n  "courses": ${list(library.courses.map((c) => courseJson(c, file)), '  ')}\n}\n`
+  const types = library.sideTypes?.length
+    ? `  "sideTypes": [${library.sideTypes.map((t) => `[${t.map((n) => JSON.stringify(n)).join(', ')}]`).join(', ')}],\n`
+    : ''
+  return `{\n  "version": ${FORMAT_VERSION},\n${types}  "courses": ${list(library.courses.map((c) => courseJson(c, file)), '  ')}\n}\n`
 }
 
 /** Parses library.json text. `files` is the rest of the zip, where images are looked up. Throws an Error naming the spot that is wrong. */
@@ -200,17 +236,33 @@ function imageReader(ids: Ids, files: Record<string, Uint8Array>): ImageRead {
   }
 }
 
+// Two names, none empty, trimmed. `what` starts the error message.
+function namePair(v: unknown, what: string): Sides {
+  if (!Array.isArray(v) || v.length !== 2 || v.some((n) => typeof n !== 'string' || !n.trim())) {
+    throw new Error(`${what} must be a list of two names, like ["Question", "Answer"].`)
+  }
+  return [v[0].trim(), v[1].trim()]
+}
+
 // Card text loses spaces and empty lines at its start and end; the ones in between stay.
 function checkCard(v: unknown, path: string, ids: Ids, image: ImageRead): Card {
   const stored = ids === 'stored' ? ['group'] : []
   if (typeof v === 'object' && v !== null && 'type' in v) {
-    return checkCloze(v, path, ids, image, ['image', 'explanation', ...stored])
+    if (v.type === 'cloze') return checkCloze(v, path, ids, image, ['image', 'explanation', ...stored])
+    if (v.type === 'true-false') return checkTrueFalse(v, path, ids, image, ['image', 'explanation', ...stored])
+    if (v.type === 'choice') return checkChoice(v, path, ids, image, ['image', 'explanation', ...stored])
+    if (v.type === 'sequence') return checkSequence(v, path, ids, image, ['image', 'explanation', ...stored])
+    throw new Error(`${at(path)}"type" must be "cloze", "true-false", "choice" or "sequence".`)
   }
-  const o = exactFields(v, path, ['term', 'definition'], ids, ['termImage', 'definitionImage', 'explanation', ...stored])
+  const o = exactFields(v, path, ['term', 'definition'], ids, ['sides', 'termImage', 'definitionImage', 'explanation', ...stored])
   const card: TermCard = {
     id: idOf(o, path, ids),
     term: text(o, 'term', path).trim(),
     definition: text(o, 'definition', path).trim(),
+  }
+  if ('sides' in o) {
+    const sides = toSides(namePair(o.sides, `${at(path)}"sides"`))
+    if (sides) card.sides = sides
   }
   if ('termImage' in o) card.termImage = image(o, 'termImage', path)
   if ('definitionImage' in o) card.definitionImage = image(o, 'definitionImage', path)
@@ -225,7 +277,6 @@ function checkCard(v: unknown, path: string, ids: Ids, image: ImageRead): Card {
 function checkCloze(v: object, path: string, ids: Ids, image: ImageRead, optional: string[]): ClozeCard {
   const o = exactFields(v, path, ['type', 'statement'], ids, optional)
   const at = `${path}: `
-  if (o.type !== 'cloze') throw new Error(`${at}"type" must be "cloze".`)
   const statement = text(o, 'statement', path).trim()
   let count: number
   try {
@@ -257,6 +308,56 @@ function checkCloze(v: object, path: string, ids: Ids, image: ImageRead, optiona
   }
   const card: ClozeCard = { id: idOf(o, path, ids), type: 'cloze', statement, explanation }
   if ('image' in o) card.image = image(o, 'image', path)
+  if ('group' in o) card.group = text(o, 'group', path)
+  return card
+}
+
+// A true-or-false card. Its statement and explanation lose spaces at their ends like other card text.
+function checkTrueFalse(v: object, path: string, ids: Ids, image: ImageRead, optional: string[]): TrueFalseCard {
+  const o = exactFields(v, path, ['type', 'statement', 'answer'], ids, optional)
+  if (typeof o.answer !== 'boolean') throw new Error(`${at(path)}"answer" must be true or false.`)
+  const card: TrueFalseCard = { id: idOf(o, path, ids), type: 'true-false', statement: text(o, 'statement', path).trim(), answer: o.answer }
+  if ('image' in o) card.image = image(o, 'image', path)
+  if ('explanation' in o) card.explanation = text(o, 'explanation', path).trim()
+  if ('group' in o) card.group = text(o, 'group', path)
+  return card
+}
+
+// A list of texts, each trimmed. Empty entries stay (the editor keeps them); writing drops them.
+function texts(o: Record<string, unknown>, key: string, path: string): string[] {
+  return items(o, key, path).map((t) => {
+    if (typeof t !== 'string') throw new Error(`${at(path)}"${key}" must be a list of texts.`)
+    return t.trim()
+  })
+}
+
+// A choice question: right and wrong answers are lists of texts. Completeness is the editor's business.
+function checkChoice(v: object, path: string, ids: Ids, image: ImageRead, optional: string[]): ChoiceCard {
+  const o = exactFields(v, path, ['type', 'question', 'right', 'wrong'], ids, optional)
+  const card: ChoiceCard = {
+    id: idOf(o, path, ids),
+    type: 'choice',
+    question: text(o, 'question', path).trim(),
+    right: texts(o, 'right', path),
+    wrong: texts(o, 'wrong', path),
+  }
+  if ('image' in o) card.image = image(o, 'image', path)
+  if ('explanation' in o) card.explanation = text(o, 'explanation', path).trim()
+  if ('group' in o) card.group = text(o, 'group', path)
+  return card
+}
+
+// A sequence: a title and its steps in order.
+function checkSequence(v: object, path: string, ids: Ids, image: ImageRead, optional: string[]): SequenceCard {
+  const o = exactFields(v, path, ['type', 'title', 'steps'], ids, optional)
+  const card: SequenceCard = {
+    id: idOf(o, path, ids),
+    type: 'sequence',
+    title: text(o, 'title', path).trim(),
+    steps: texts(o, 'steps', path),
+  }
+  if ('image' in o) card.image = image(o, 'image', path)
+  if ('explanation' in o) card.explanation = text(o, 'explanation', path).trim()
   if ('group' in o) card.group = text(o, 'group', path)
   return card
 }
@@ -300,18 +401,27 @@ function checkCourse(v: unknown, path: string, ids: Ids, image: ImageRead): Cour
 }
 
 /**
- * Throws when `data` is not a version 1 library. 'new' is the file format (no ids, fresh ids are added);
+ * Throws when `data` is not a library (an older version is upgraded first). 'new' is the file format (no ids, fresh ids are added);
  * 'stored' also requires a string `id` on every course, quiz and card and keeps it. A file quiz may nest `groups`
  * with their own `cards`; a stored quiz has `groups: [{ id, name, color }]` (`color` optional, see above) and each card's optional `group` must be one of them.
  * A file's images are looked up in `files` (the zip's other files); stored images are data URLs.
  */
 export function checkLibrary(data: unknown, ids: Ids, files: Record<string, Uint8Array> = {}): Library {
-  const o = exactFields(data, '', ['version', 'courses'], 'new')
-  if (o.version !== 1) throw new Error('"version" must be 1.')
+  const o = exactFields(upgrade(data, ids), '', ['version', 'courses'], 'new', ['sideTypes'])
   const image = imageReader(ids, files)
   const courses = items(o, 'courses', '').map((c, i) => checkCourse(c, `courses[${i}]`, ids, image))
   uniqueNames(courses, (i) => `courses[${i}]`, ids)
-  return { version: 1, courses }
+  // The own types listed in the file, then every card pair not listed yet, in library order.
+  let sideTypes: Sides[] = []
+  if ('sideTypes' in o) {
+    for (const [i, t] of items(o, 'sideTypes', '').entries()) sideTypes = addSideType(sideTypes, namePair(t, `sideTypes[${i}]`))
+  }
+  for (const course of courses) {
+    for (const quiz of course.quizzes) {
+      for (const card of quiz.cards) if (isTermCard(card) && card.sides) sideTypes = addSideType(sideTypes, card.sides)
+    }
+  }
+  return { version: FORMAT_VERSION, courses, ...(sideTypes.length > 0 && { sideTypes }) }
 }
 
 export function encodeLibrary(library: Library): Uint8Array {
@@ -322,12 +432,21 @@ export function encodeLibrary(library: Library): Uint8Array {
   return zipSync(files)
 }
 
+// The zip's own files: library.json and images/, at its top or in one folder (a zip of the folder, as Windows' "Send to
+// > Compressed folder" and macOS' Compress make). Nothing else is unpacked, so a stray huge file costs nothing.
+const OWN_FILE = /^([^/]+\/)?(library\.json|images\/[^/]+)$/
+
 export function decodeLibrary(bytes: Uint8Array): Library {
   let files: Record<string, Uint8Array>
   try {
-    files = unzipSync(bytes)
+    files = unzipSync(bytes, { filter: (f) => OWN_FILE.test(f.name) && !f.name.startsWith('__MACOSX/') })
   } catch {
     throw new Error('This is not a .shrimp file.')
+  }
+  const folders = Object.keys(files).filter((n) => n.endsWith(`/${LIBRARY_FILE}`))
+  if (!files[LIBRARY_FILE] && folders.length === 1) {
+    const folder = folders[0].slice(0, -LIBRARY_FILE.length)
+    files = Object.fromEntries(Object.entries(files).flatMap(([n, b]) => (n.startsWith(folder) ? [[n.slice(folder.length), b]] : [])))
   }
   const file = files[LIBRARY_FILE]
   if (!file) throw new Error('The file has no library.json.')

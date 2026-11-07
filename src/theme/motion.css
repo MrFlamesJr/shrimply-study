@@ -11,6 +11,12 @@
     opacity: 0;
   }
 }
+/* A stroke with pathLength 1 and a dash of 1 drawing itself in. */
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+}
 /* The backdrop's moving layer sliding sideways (base.css), ambient motion that was asked for. Still under reduced
    motion (below). */
 @keyframes drift {
@@ -28,5 +34,11 @@
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
-}
+  /* A floating label and its bracket take turns (delays); still, they change together. */
+  .float-field::before,
+  .float-field::after,
+  .float-tail,
+  .float-label {
+    transition-delay: 0s !important;
+  }}
 

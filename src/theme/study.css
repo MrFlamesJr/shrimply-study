@@ -56,7 +56,7 @@
   flex-direction: column;
   min-height: 0;
   container-type: size;
-  /* Hides the sheet while it slides in from below. */
+  /* Hides the sheet while it slides in from below (or, wide, from the right). */
   overflow: clip;
 }
 /* A centered --session-w column and its own scroll box. The scrollbar's space is always kept (on both sides,
@@ -71,47 +71,53 @@
   scrollbar-gutter: stable both-edges;
   padding: var(--space-6) max(var(--space-4), calc((100% - var(--session-w)) / 2)) var(--sheet-room);
 }
-/* With the sheet there, the column ends where the sheet starts, so its scrollbar is only as long as what
-   shows: above the closed sheet while it is closed or moving (the sheet then lies over the room the column
-   kept free), above the open sheet once it has settled open (is-split: the sheet is then in the layout), so
-   the two scroll apart. */
+/* With the sheet there, the column ends where the sheet starts (the sheet is in the layout below it) and the room
+   it kept free goes: a sheet up to --sheet-room tall leaves the content where it was, a taller one makes the
+   column scroll. */
 .session-main:has(> .sheet) > .session-body {
-  margin-bottom: var(--sheet-peek, 0px);
-  padding-bottom: max(0px, var(--sheet-room) - var(--sheet-peek, 0px));
+  padding-bottom: 0;
 }
-.session-main:has(> .sheet.is-split) > .session-body {
-  margin-bottom: 0;
+/* Wide (1000px and up): the sheet is a panel from the right (sheet.css), --sheet-side-w wide. Without it the column
+   is as always (centered, its scrollbar at the window's edge). Once the panel is in (`is-docked`, FeedbackSheet) the
+   scroll box ends at the panel, so its scrollbar sits beside it, and the column stays where it was while it still
+   fits beside the panel (centered in the window), else moves left only as far as it must, a gap clear of the panel,
+   narrowing once even that is too tight; it glides there by transform (FeedbackSheet). Padding's 100% is
+   .session-main, the whole width. Nothing comes up from below, so the content takes the whole height (no
+   --sheet-room). */
+@media (min-width: 1000px) {
+  .session {
+    --sheet-room: var(--space-6);
+  }
+  .session-main:has(> .sheet.is-docked) > .session-body {
+    --pad-l: max(
+      var(--space-4),
+      min((100% - var(--session-w)) / 2, 100% - var(--sheet-side-w) - var(--session-w) - var(--space-6))
+    );
+    margin-right: var(--sheet-side-w);
+    padding-inline: var(--pad-l) max(var(--space-6), 100% - var(--sheet-side-w) - var(--pad-l) - var(--session-w));
+  }
 }
 /* A question's content, centered vertically in a fixed height: the column without the sheet, less
-   --sheet-room. The sheet coming, opening, closing or being dragged only changes how much of the column
-   shows (it scrolls to the rest), never this, so the content never moves or resizes. Long text never
-   stretches the screen: the card shrinks to this height (down to its min-height) and its .prompt-text scrolls
-   inside it, so the column only scrolls past this when even the card's smallest size doesn't fit or the
-   choices are taller. */
+   --sheet-room. The sheet coming only changes how much of the column shows (it scrolls to the rest), never
+   this, so the content never moves or resizes. Long text never stretches the screen: the card shrinks to this
+   height (down to its min-height) and its content scrolls inside it, so the column only scrolls past this
+   when even the card's smallest size doesn't fit or the choices are taller. */
 .session-stack {
   display: flex;
   flex: none;
   flex-direction: column;
+  /* Centered while it fits, from the top once it doesn't (safe), so nothing is cut off. */
+  justify-content: safe center;
   gap: var(--space-5);
   height: calc(100cqh - var(--space-6) - var(--sheet-room));
 }
-/* With the sheet there, an empty box hanging below the last item (out of flow, so it takes no room) lets the
-   column scroll that item clear of the round button above the sheet (--space-8). */
-.session-main:has(> .sheet) .session-stack > :last-child {
-  position: relative;
-}
-.session-main:has(> .sheet) .session-stack > :last-child::after {
-  content: '';
-  position: absolute;
-  top: 100%;
-  left: 0;
-  width: 1px;
-  height: var(--space-8);
-  pointer-events: none;
+/* What was answered, scrolled into view above the sheet when it comes (Question.tsx), a little clear of it. */
+.session-stack :is(.choices, .order-check, .typed) {
+  scroll-margin-block: var(--space-4);
 }
 /* The pencil in the card's top right corner; the flip card's sits beside it in .card-wrap.
    The flip card always has the same size (--card-h, the plain column), whatever its text: a card that grows
-   would give away a long answer before it is flipped. Long text scrolls inside the face. */
+   would give away a long answer before it is flipped. Long content scrolls inside the face. */
 .card-wrap {
   position: relative;
   display: flex;
@@ -155,12 +161,15 @@
   visibility: visible;
   pointer-events: auto;
 }
-/* Auto margins center the content and fall to 0 when it is taller than the space, so nothing is cut off. */
-.session-stack > :first-child {
-  margin-top: auto;
-}
-.session-stack > :last-child {
-  margin-bottom: auto;
+/* Room under the last part once the column scrolls, so it never ends flush with the column's bottom or the sheet.
+   The column's own bottom padding can't give it: the content spills out of the fixed-height stack, and a scroll box
+   only pads its own children. So an empty box hangs --space-6 below the last part and takes no room (its margins
+   cancel the gap before it and its own height), leaving the centering as it was. */
+.session-stack::after {
+  content: '';
+  flex: none;
+  height: var(--space-6);
+  margin: calc(-1 * var(--space-5)) 0 calc(-1 * var(--space-6));
 }
 /* Shrinks like the flip card (its min-height is the floor), so the choices or answer box stay in view. */
 /* A card with an image keeps its size instead (the column scrolls), so the sheet opening never resizes the
@@ -171,14 +180,10 @@
 .prompt-card {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
   position: relative;
   width: 100%;
   height: auto;
   min-height: var(--prompt-card-h);
-  padding: var(--space-7) var(--space-6);
   background: var(--surface);
   border-radius: var(--radius);
   box-shadow: var(--glow-card);
@@ -191,12 +196,29 @@
   left: var(--space-4);
   font-size: var(--text-sm);
 }
-/* Scrolls inside its card when the card can't grow any more. The scrollbar's space is always kept (both
-   sides, so centered text stays centered): the card shrinking as the sheet opens never rewraps the text. */
-.prompt-text {
+/* A study card's insides (prompt card or flashcard face: its image and text) and their scroll box: content too long
+   for the card scrolls there, while the label and the pencil in the corners stay put. The box runs from under the
+   label row to just inside the card's edge, clear of the flashcard's dashed hover line (--card-inset in from the
+   edge, past that line's --space-2), so the scrollbar, along the card's right side, never crosses that line, and the
+   text slides out at the bottom just inside it. Its padding is the card's padding less that inset, so the content sits
+   where it always did. Centered while it fits, from the top once it doesn't (safe), so nothing is out of reach. The
+   scrollbar's space is always kept (both sides, so centered text stays centered): the card shrinking as the sheet
+   opens never rewraps the text. Its slim thumb is shared with the sheet's text (base.css). */
+.card-scroll {
+  --card-inset: var(--space-3);
+  display: flex;
+  flex: auto;
+  flex-direction: column;
+  align-items: center;
+  justify-content: safe center;
+  gap: var(--space-4);
   min-height: 0;
+  margin: var(--space-7) var(--card-inset) var(--card-inset);
+  padding: 0 calc(var(--space-6) - var(--card-inset)) calc(var(--space-7) - var(--card-inset));
   overflow-y: auto;
   scrollbar-gutter: stable both-edges;
+}
+.prompt-text {
   font-size: var(--prompt-size);
   white-space: pre-wrap;
 }
@@ -222,7 +244,7 @@
 }
 
 /* Flashcard: both faces share one grid cell; the inner layer turns over. Each level fills .card-wrap and can
-   shrink (min-height: 0), so the faces' text scrolls instead of growing the card. */
+   shrink (min-height: 0), so a face's content scrolls instead of growing the card. */
 .flip-card {
   display: flex;
   flex: 1;
@@ -260,11 +282,7 @@
   grid-area: 1 / 1;
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-4);
   min-height: 0;
-  padding: var(--space-7) var(--space-6);
   background: var(--surface);
   border-radius: var(--radius);
   -webkit-backface-visibility: hidden;
@@ -281,10 +299,9 @@
   transform: rotateY(180deg);
 }
 /* The turned-away face shows no scrollbar and takes no wheel. */
-.flip-face[aria-hidden='true'] .prompt-text {
+.flip-face[aria-hidden='true'] .card-scroll {
   overflow-y: hidden;
-}
-/* Hovered, the flashcard's shadow or glow grows and a dashed line shows inside its edge. On the wrap, not the
+}/* Hovered, the flashcard's shadow or glow grows and a dashed line shows inside its edge. On the wrap, not the
    button: the pencil sits on a layer above the card, so hovering it keeps the card lit. Not on touch, where a
    tap would leave it lit. */
 @media (hover: hover) {
@@ -293,30 +310,60 @@
     box-shadow: var(--glow-card-hover);
   }
 }
-.flip-hint {
+/* Under the card: what the question asks for, then how to flip it (flashcards). */
+.study-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  text-align: center;
+}
+.study-flip {
   display: flex;
   align-items: center;
-  justify-content: center;
+}
+.study-hint strong {
+  color: var(--text);
+}
+/* The right and wrong buttons (a flashcard's Didn't know and Knew it): an outline in their color over a tint of it,
+   or, where a theme fills them solid (--role-solid 1, asked for in Kahoot, like its answer tiles), their --ok-fill or
+   --bad-fill with --role-ink text and a hard darker edge along the bottom (none of it at --role-solid 0). Either
+   way the key hint takes the button's text color. */
+.bad-outline,
+.ok-outline {
+  --solid: calc(var(--role-solid) * 100%);
+  box-shadow: inset 0 calc(-1 * var(--role-solid) * var(--glow-size)) 0 color-mix(in srgb, var(--ink) 20%, transparent);
 }
 .bad-outline {
   --zone: var(--bad);
-  background: var(--bad-rest);
-  border-color: var(--bad);
-  color: var(--bad);
+  --fill: var(--bad-fill);
+  background: color-mix(in oklch, var(--fill) var(--solid), var(--bad-rest));
+  border-color: color-mix(in oklch, var(--fill) var(--solid), var(--bad));
+  color: color-mix(in srgb, var(--role-ink) var(--solid), var(--bad));
 }
 .ok-outline {
   --zone: var(--ok);
-  background: var(--ok-rest);
-  border-color: var(--ok);
-  color: var(--ok);
+  --fill: var(--ok-fill);
+  background: color-mix(in oklch, var(--fill) var(--solid), var(--ok-rest));
+  border-color: color-mix(in oklch, var(--fill) var(--solid), var(--ok));
+  color: color-mix(in srgb, var(--role-ink) var(--solid), var(--ok));
+}
+.bad-outline:hover:not(:disabled),
+.ok-outline:hover:not(:disabled) {
+  --fill-hover: oklch(from var(--fill) calc(l + var(--hover-lift)) c h);
 }
 .bad-outline:hover:not(:disabled) {
-  background: var(--bad-soft);
-  border-color: var(--bad);
+  background: color-mix(in oklch, var(--fill-hover) var(--solid), var(--bad-soft));
+  border-color: color-mix(in oklch, var(--fill-hover) var(--solid), var(--bad));
 }
 .ok-outline:hover:not(:disabled) {
-  background: var(--ok-soft);
-  border-color: var(--ok);
+  background: color-mix(in oklch, var(--fill-hover) var(--solid), var(--ok-soft));
+  border-color: color-mix(in oklch, var(--fill-hover) var(--solid), var(--ok));
+}
+.bad-outline .shortcut,
+.ok-outline .shortcut {
+  border-color: currentColor;
+  color: inherit;
 }
 .choices {
   display: grid;
@@ -332,18 +379,57 @@
   text-align: left;
   white-space: pre-wrap;
 }
-/* Text with its image's square preview in front (an answer in the sheet, the statement under More info). */
-.with-thumb {
+.choice .thumb {
+  flex: none;
+}
+/* A typed answer once checked (TypedAnswer), in place of its field: boxes like the choices, as big as the field. */
+.typed {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+.typed .choice {
   display: flex;
   align-items: center;
   gap: var(--space-3);
+  min-height: 56px;
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+  font-size: var(--text-xl);
 }
-.with-thumb > :not(.thumb) {
-  min-width: 0;
-}
-.with-thumb .thumb,
-.choice .thumb {
+/* "Marked by you": on a typed answer after "I was right", and in the results. Tinted fill, thin border. */
+.marked-badge {
+  display: inline-block;
   flex: none;
+  margin-left: var(--space-2);
+  padding: 0 var(--space-2);
+  background: var(--ok-soft);
+  border: var(--line) solid var(--ok);
+  border-radius: var(--radius);
+  color: var(--ok);
+  font-size: var(--text-sm);
+  font-weight: var(--weight);
+  vertical-align: middle;
+}
+/* Answers as a list (a flashcard's back): one per line, numbered, a long one wrapping beside its number, standing
+   apart so each reads as its own answer. */
+.answer-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  counter-reset: answer;
+}
+.answer-item {
+  display: flex;
+  gap: var(--space-2);
+  counter-increment: answer;
+}
+.answer-item::before {
+  content: counter(answer) '.';
+  flex: none;
+  min-width: 1.5em;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
 }
 .choice-key {
   display: inline-flex;
@@ -357,14 +443,16 @@
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
-.choice.is-correct {
+.choice.is-correct,
+.entry.is-step.is-correct {
   --zone: var(--ok);
   background: var(--ok-tint);
   border-color: var(--ok);
   color: var(--ok);
   box-shadow: var(--glow-ok);
 }
-.choice.is-wrong {
+.choice.is-wrong,
+.entry.is-step.is-wrong {
   --zone: var(--bad);
   background: var(--bad-tint);
   border-color: var(--bad);
@@ -388,4 +476,176 @@
   min-height: 56px;
   padding: var(--space-3) var(--space-4);
   font-size: var(--text-xl);
+}
+/* Pick all that are right (PickAll): the options are .choice buttons, and a picked one before Check is the chosen
+   style: tinted fill, thin accent border. Put in order (Arrange) uses the editor's step tiles (below). */
+.pick-all {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+.choice.is-picked {
+  background: var(--accent-soft);
+  /* See .segmented::before: the ground under the see-through tint loses its color, so the pick reads in the accent's hue. */
+  backdrop-filter: saturate(var(--tint-keep));
+  border-color: var(--accent);
+}
+/* After Check, a right answer that was not picked: the warning color (yellow or orange in every theme, asked for) as a
+   dashed outline, and the word "Missed". */
+.choice.is-missed {
+  --zone: var(--warn);
+  background: transparent;
+  border-style: dashed;
+  border-color: var(--warn);
+  color: var(--warn);
+}
+.choice:disabled.is-missed {
+  opacity: 1;
+}
+/* The mark after an option's text: a check, a cross or the word Missed, so color is never the only sign. */
+.choice-mark {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  margin-left: auto;
+  padding-left: var(--space-3);
+  font-size: var(--text-sm);
+}
+.pick-actions {
+  display: flex;
+  justify-content: center;
+}
+/* Once checked, the sheet's Continue is the one action: Check steps out of view but keeps its room, so nothing moves
+   (pick all; a checked order shows OrderCheck instead). */
+.pick-actions.is-done {
+  visibility: hidden;
+}
+/* Put in order (Arrange): the editor's step tiles (StepList, editor.css), asked to be the same. Each one is dragged
+   from anywhere on it, as it holds no field (its grip only shows how; it brightens while the tile is pointed at). Once
+   checked, OrderCheck (below) takes their place. */
+.entry.is-whole {
+  /* On the page ground, not in a card: the options' solid fill, as a dark well would barely show there and would let
+     the backdrop through. */
+  background: var(--surface);
+  cursor: grab;
+}
+span.entry-grip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  color: var(--text-muted);
+  transition: color var(--dur-fast) var(--ease);
+}
+.entry.is-whole:hover .entry-grip {
+  color: var(--text);
+}
+.step-text {
+  flex: 1;
+  min-width: 0;
+  padding: var(--space-2) var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+/* A checked order (OrderCheck): the order it was put in (right or wrong tiles, with their marks) beside the right
+   order (plain tiles), and between them a line from each step to its right place: level and green when it was there,
+   curving across in red when not. The lines are an SVG over the whole box, drawn from the tiles' places. */
+.order-check {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  column-gap: var(--space-8);
+}
+/* Both lists are as tall as the taller one: the shorter spreads its steps evenly, never stretching them. */
+.order-yours,
+.order-right {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  gap: var(--space-2);
+}
+.order-list {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.order-head {
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+/* A mark sits over the end of its tile, taking no room, and every tile in both lists keeps the same room for one: a
+   step's text wraps the same in both lists, so a step in its correct place is as tall as that place and its line runs
+   level (asked for). 18px is the icon. */
+.order-check .entry {
+  position: relative;
+  align-items: center;
+  background: var(--surface);
+}
+.order-check .step-text {
+  padding-right: calc(var(--space-3) * 2 + 18px);
+}
+.order-check .choice-mark {
+  position: absolute;
+  inset-block: 0;
+  right: var(--space-3);
+  padding: 0;
+}
+.order-check .entry-number {
+  padding-top: 0;
+}
+.order-lines {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  pointer-events: none;
+  fill: none;
+  stroke-width: var(--line-thick);
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+/* Every line is there, hidden; the shown one fades in, and out again when it goes. */
+.order-lines path {
+  opacity: 0;
+  transition: opacity var(--dur);
+}
+.order-lines .is-shown {
+  opacity: 1;
+}
+.order-lines .is-ok {
+  stroke: var(--ok);
+}
+.order-lines .is-bad {
+  stroke: var(--bad);
+}
+/* Narrow: smaller text, and less room for the gap, the numbers and the marks, so each step keeps room to read. */
+@media (max-width: 799px) {
+  .order-check {
+    column-gap: var(--space-5);
+    font-size: var(--text-sm);
+  }
+  .order-check .step-text {
+    padding-inline: var(--space-1) calc(var(--space-1) * 2 + 18px);
+  }
+  .order-check .entry-number {
+    width: 1.5em;
+  }
+  .order-check .choice-mark {
+    right: var(--space-1);
+  }
+}
+@media (max-width: 799px) {
+  span.entry-grip {
+    width: var(--tap);
+    height: var(--tap);
+  }
+}
+/* A long sequence title as the label stays on one line, clear of the pencil. */
+.side-label {
+  max-width: calc(100% - var(--space-8));
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }

@@ -2,6 +2,7 @@ import type { Library } from '../model'
 import { decodeLibrary, encodeLibrary } from './format'
 import type { StorageAdapter } from './StorageAdapter'
 import guideUrl from '../../samples/how-to-use.shrimp?url'
+import { fileNameProblem } from '../logic/names'
 
 function pickFile(): Promise<File | null> {
   return new Promise((resolve) => {
@@ -15,10 +16,10 @@ function pickFile(): Promise<File | null> {
   })
 }
 
-async function load(): Promise<Library | null> {
+async function load(): Promise<{ library: Library; name: string } | null> {
   const file = await pickFile()
   if (!file) return null
-  return decodeLibrary(new Uint8Array(await file.arrayBuffer()))
+  return { library: decodeLibrary(new Uint8Array(await file.arrayBuffer())), name: file.name }
 }
 
 export async function fetchLibrary(url: string): Promise<Library> {
@@ -36,18 +37,29 @@ declare global {
     showSaveFilePicker?(options: {
       suggestedName: string
       types: { description: string; accept: Record<string, string[]> }[]
-    }): Promise<{ createWritable(): Promise<{ write(data: Uint8Array): Promise<void>; close(): Promise<void> }> }>
+    }): Promise<{ name: string; createWritable(): Promise<{ write(data: Uint8Array): Promise<void>; close(): Promise<void> }> }>
   }
 }
 
-/** Resolves false when the user cancelled the save. */
-async function save(library: Library): Promise<boolean> {
+/** `suggested` with its .shrimp ending, or a dated name when there is none or it can't be a file name. */
+function saveName(suggested?: string): string {
+  const base = suggested?.trim().replace(/\.shrimp$/i, '')
+  // A Drive file renamed in Drive may have lost its ending, or taken a character a file name can't hold.
+  if (base && !fileNameProblem(base)) return `${base}.shrimp`
+  const now = new Date()
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `study-library-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.shrimp`
+}
+
+/**
+ * Resolves the file's name: the one picked in the save dialog, or the suggested one for a plain download (the browser
+ * may still add a number to it). Null when the user cancelled the save.
+ */
+async function save(library: Library, suggested?: string): Promise<string | null> {
   const bytes = encodeLibrary(library)
   // A backup is read without name checks, so make sure what is written opens again. The error names the spot.
   decodeLibrary(bytes)
-  const now = new Date()
-  const pad = (n: number) => String(n).padStart(2, '0')
-  const name = `study-library-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.shrimp`
+  const name = saveName(suggested)
   if (window.showSaveFilePicker) {
     try {
       const handle = await window.showSaveFilePicker({
@@ -57,9 +69,9 @@ async function save(library: Library): Promise<boolean> {
       const writable = await handle.createWritable()
       await writable.write(bytes)
       await writable.close()
-      return true
+      return handle.name
     } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return false
+      if (err instanceof DOMException && err.name === 'AbortError') return null
       throw err
     }
   }
@@ -71,7 +83,7 @@ async function save(library: Library): Promise<boolean> {
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
-  return true
+  return name
 }
 
 export const fileStorage: StorageAdapter = {

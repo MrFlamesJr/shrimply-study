@@ -74,6 +74,22 @@ describe('cloze', () => {
     expect(markBlank('one  two', [], 3, 5)).toBe('Select some text first.')
   })
 
+  it('markBlank allows two levels, never three', () => {
+    const text = 'one two three'
+    const deep = 'Blanks can only go two levels deep.'
+    // Inside a blank that is already inside one.
+    expect(markBlank(text, [blank(0, 13), blank(4, 13)], 8, 13)).toBe(deep)
+    // Around a blank that already holds one.
+    expect(markBlank(text, [blank(4, 13), blank(8, 13)], 0, 13)).toBe(deep)
+    // Between two levels.
+    expect(markBlank(text, [blank(0, 13), blank(8, 13)], 4, 13)).toBe(deep)
+    // Two blanks side by side inside one are still two levels.
+    expect(markBlank(text, [blank(0, 13), blank(0, 3)], 8, 13)).toEqual([blank(0, 13), blank(0, 3), blank(8, 13)])
+    // A file's three levels stay, and a new blank outside them is fine.
+    const file = [blank(0, 13), blank(4, 13), blank(8, 13)]
+    expect(markBlank('one two three four', file, 14, 18)).toEqual([...file, blank(14, 18)])
+  })
+
   it('markBlank inserts in order and keeps explanations', () => {
     const result = markBlank('aa bb cc', [blank(0, 2, 'x'), blank(6, 8, 'y')], 3, 5)
     expect(result).toEqual([blank(0, 2, 'x'), blank(3, 5), blank(6, 8, 'y')])
