@@ -354,6 +354,8 @@
   .brand {
     display: none;
   }
+}
+@container page (max-width: 299px) {
   .segmented {
     grid-auto-columns: minmax(0, 1fr);
   }
@@ -431,6 +433,8 @@
 /* Page: a centered column (the top row repeats this math, so the crumbs line up with the content).
    A flex column, so .page-foot (the danger zone) sits at the bottom of the page. */
 .page {
+  /* The page sizes its own content (container queries named page), not the window: a pane can be narrower. */
+  container: page / inline-size;
   grid-column: 2;
   grid-row: 2;
   display: flex;
@@ -520,6 +524,8 @@
     grid-column: 1 / -1;
     padding-block: var(--space-4) var(--space-5);
   }
+}
+@container page (max-width: 559px) {
   .page > * + *,
   .page-body > * + *,
   .edit-frame > * + * {

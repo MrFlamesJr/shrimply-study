@@ -2,6 +2,9 @@
 /* Study session: exactly one screen high. The page never scrolls (so nothing sliding in can flash a
    scrollbar); .session-body scrolls inside .session-main, and the feedback sheet sits below it. */
 .session {
+  /* Two names: the session answers to @container session, and shared lists (card rows, the results) written for
+     the page answer to @container page here too. */
+  container: session page / inline-size;
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -84,8 +87,8 @@
    narrowing once even that is too tight; it glides there by transform (FeedbackSheet). Padding's 100% is
    .session-main, the whole width. Nothing comes up from below, so the content takes the whole height (no
    --sheet-room). */
-@media (min-width: 1000px) {
-  .session {
+@container session (min-width: 1000px) {
+  .session-main {
     --sheet-room: var(--space-6);
   }
   .session-main:has(> .sheet.is-docked) > .session-body {
@@ -648,7 +651,7 @@ span.entry-grip {
   stroke: var(--bad);
 }
 /* Narrow: smaller text, and less room for the gap, the numbers and the marks, so each step keeps room to read. */
-@media (max-width: 799px) {
+@container session (max-width: 639px) {
   .order-check {
     column-gap: var(--space-5);
     font-size: var(--text-sm);

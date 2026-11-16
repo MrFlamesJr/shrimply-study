@@ -1013,20 +1013,10 @@ button.add-pill:hover:not(:disabled) {
   visibility: visible;
   opacity: 1;
 }
-@media (max-width: 799px) {
-  .import-grid,
+/* The card's own layout follows the page's width. */
+@container page (max-width: 559px) {
   .pair-fields {
     grid-template-columns: 1fr;
-  }
-  .import-grid {
-    flex-basis: 30rem;
-    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
-    min-height: 16rem;
-  }
-  .dialog .actions > * {
-    flex: 1 1 auto;
-  }
-  .pair-fields {
     gap: var(--space-4);
     padding: var(--space-3) var(--space-4) var(--space-4);
   }
@@ -1035,6 +1025,24 @@ button.add-pill:hover:not(:disabled) {
   }
   .pair-grip {
     margin-left: calc(var(--space-1) - var(--space-4));
+  }
+  .group-box {
+    padding: var(--space-3);
+  }
+  .group-body > div > :last-child {
+    margin-bottom: 0;
+  }
+}
+/* Dialogs belong to the window; the touch targets are 44px on small screens. */
+@media (max-width: 799px) {
+  .import-grid {
+    grid-template-columns: 1fr;
+    flex-basis: 30rem;
+    grid-template-rows: minmax(0, 1fr) minmax(0, 1fr);
+    min-height: 16rem;
+  }
+  .dialog .actions > * {
+    flex: 1 1 auto;
   }
   select {
     height: var(--tap);
@@ -1051,12 +1059,6 @@ button.add-pill:hover:not(:disabled) {
     option {
       min-height: var(--tap);
     }
-  }
-  .group-box {
-    padding: var(--space-3);
-  }
-  .group-body > div > :last-child {
-    margin-bottom: 0;
   }
   /* The editor's color dot button is a 44px touch target here, so the quiz page's dot cell grows with it. */
   .group-box h3 {

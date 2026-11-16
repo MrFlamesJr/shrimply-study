@@ -154,7 +154,7 @@
   }
 }
 /* Narrow: the word, the explanation, then the buttons across the whole width at the bottom. */
-@media (max-width: 799px) {
+@container session (max-width: 799px) {
   .sheet,
   .sheet:not(:has(.sheet-explain)) {
     grid-template:
@@ -173,7 +173,7 @@
    room free (study.css), so it covers nothing and nothing moves when it comes. The bar runs down its left edge; the
    word and its note at the top, the explanation under them (its text scrolling on its own once it fills the panel),
    and the buttons stacked across the bottom, the main one last, so Continue is always in the same corner. */
-@media (min-width: 1000px) {
+@container session (min-width: 1000px) {
   .sheet,
   .sheet:not(:has(.sheet-explain)) {
     --sheet-out: 100% 0;

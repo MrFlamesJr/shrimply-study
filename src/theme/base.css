@@ -753,7 +753,7 @@ textarea:focus {
   overflow: clip;
   transition-delay: 0s;
 }
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .info-box-toggle {
     padding-left: var(--space-4);
   }

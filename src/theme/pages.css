@@ -342,7 +342,7 @@ section > .group-box + div {
   color: var(--bad);
   font-weight: var(--weight);
 }
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .options {
     padding: var(--space-4);
   }
@@ -441,7 +441,7 @@ section > .group-box + div {
   font-weight: var(--weight);
 }
 /* Narrow: the definition goes under the term, the pencil stays top right. */
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .card-rows li {
     grid-template-columns: var(--lead-w) minmax(0, 1fr) auto;
     column-gap: var(--space-3);
@@ -491,7 +491,7 @@ section > .group-box + div {
 .row-head .row-delete:hover:not(:disabled) {
   color: var(--bad);
 }
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .quiz-rows li {
     grid-template-columns: minmax(0, 1fr);
   }

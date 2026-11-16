@@ -74,7 +74,7 @@
   color: var(--text);
 }
 /* Narrow: score, bar, then the gold action across the full width above the others. */
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .results-summary {
     grid-template-columns: minmax(0, 1fr);
     padding: var(--space-4);
@@ -101,7 +101,7 @@
   height: 100%;
   background: var(--ok);
 }
-@media (max-width: 799px) {
+@container session (max-width: 639px) {
   .choices {
     grid-template-columns: 1fr;
   }
