@@ -20,6 +20,7 @@ import { StudyScreen } from './screens/StudyScreen'
 import { DebugScreen } from './screens/DebugScreen'
 import { DebugBar } from './screens/debug/DebugBar'
 import { ChangelogScreen } from './screens/ChangelogScreen'
+import { WorkbenchDemo } from './kit/demo/WorkbenchDemo'
 import { Toasts, useToasts } from './components/Toasts'
 import { BackToTop } from './components/BackToTop'
 import { askConfirm } from './components/ConfirmDialog'
@@ -153,6 +154,8 @@ export function App() {
         quiz && <StudyScreen key={quiz.id + route.format} lib={lib} notify={toasts.notify} quizId={quiz.id} format={route.format} prefs={prefs} />
       ) : route.name === 'changelog' ? (
         <ChangelogScreen />
+      ) : route.name === 'workbench' ? (
+        <WorkbenchDemo />
       ) : (
         <div className="app">
           <Sidebar

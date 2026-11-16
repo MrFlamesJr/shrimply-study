@@ -19,6 +19,7 @@ describe('parseHash', () => {
     expect(parseHash('')).toEqual({ name: 'home' })
     expect(parseHash('#/_debug')).toEqual({ name: 'debug' })
     expect(parseHash('#/_changelog')).toEqual({ name: 'changelog' })
+    expect(parseHash('#/_workbench')).toEqual({ name: 'workbench' })
   })
 
   it('reads a Google Drive link, and goes home when it names no file', () => {
@@ -50,6 +51,7 @@ describe('href', () => {
     expect(href({ name: 'home' })).toBe('#/')
     expect(href({ name: 'debug' })).toBe('#/_debug')
     expect(href({ name: 'changelog' })).toBe('#/_changelog')
+    expect(href({ name: 'workbench' })).toBe('#/_workbench')
     expect(href({ name: 'course', course: 'Les vers (2)' })).toBe('#/les-vers-2')
     expect(href({ name: 'edit', course: 'Les vers (2)', quiz: 'Plan 1' })).toBe('#/les-vers-2/plan-1/edit')
     expect(href({ name: 'study', course: 'A', quiz: 'B', format: 'typing' })).toBe('#/a/b/study/typing')
