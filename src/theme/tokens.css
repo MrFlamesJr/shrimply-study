@@ -231,3 +231,36 @@
   /* On wide screens (1000px and up) the sheet is a panel from the right this wide; the question column keeps it free. */
   --sheet-side-w: clamp(340px, 28vw, 420px);
 }
+
+/* The reusable kit (src/kit/) styles itself only with --kit-* variables, so it carries no colors of its own.
+   This app maps them to its tokens here; another host maps them to its own. */
+:root {
+  --kit-ground: var(--bg);
+  --kit-surface: var(--surface);
+  --kit-surface-2: var(--surface-2);
+  --kit-popup: var(--popup);
+  --kit-text: var(--text);
+  --kit-muted: var(--text-muted);
+  --kit-border: var(--border);
+  --kit-border-strong: var(--border-strong);
+  --kit-accent: var(--accent);
+  --kit-accent-soft: var(--accent-soft);
+  --kit-accent-line: var(--accent-line);
+  --kit-focus: var(--focus);
+  --kit-danger: var(--danger);
+  --kit-radius: var(--radius);
+  --kit-font: var(--font-body);
+  --kit-text-sm: var(--text-sm);
+  --kit-text-xs: var(--text-xs);
+  --kit-weight-bold: var(--weight-bold);
+  --kit-line: var(--line);
+  --kit-line-thick: var(--line-thick);
+  --kit-dim: var(--dim);
+  --kit-space-1: var(--space-1);
+  --kit-space-2: var(--space-2);
+  --kit-space-3: var(--space-3);
+  --kit-space-4: var(--space-4);
+  --kit-tap: var(--tap);
+  --kit-dur: var(--dur-fast);
+  --kit-ease: var(--ease);
+}
