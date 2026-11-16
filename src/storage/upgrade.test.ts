@@ -7,9 +7,11 @@ import v1 from './fixtures/v1.json?raw'
 import v1Backup from './fixtures/v1-backup.json?raw'
 import v2 from './fixtures/v2.json?raw'
 import v2Backup from './fixtures/v2-backup.json?raw'
+import v3 from './fixtures/v3.json?raw'
+import v3Backup from './fixtures/v3-backup.json?raw'
 
-const files = [v1, v2]
-const backups = [v1Backup, v2Backup]
+const files = [v1, v2, v3]
+const backups = [v1Backup, v2Backup, v3Backup]
 
 // Any bytes do as an image: the file reader only turns them into a data URL.
 const imagesOf = (text: string): Record<string, Uint8Array> =>
@@ -73,6 +75,26 @@ describe('older versions', () => {
     expect(cells.cards[3]).toMatchObject({ type: 'true-false', answer: true })
     expect(cells.cards[4]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast', 'Cell wall', ''], explanation: '', group: 'g1' })
     expect(cells.cards[5]).toMatchObject({ type: 'sequence', group: 'g2', image: expect.stringMatching(/^data:image\/png;base64,/) })
+  })
+
+  it('keeps what a version 3 file holds', () => {
+    const library = libraryFromJson(v3, imagesOf(v3))
+    const [cells] = library.courses[0].quizzes
+    expect(library.sideTypes).toEqual([['Organelle', 'Job']])
+    expect(cells.cards).toHaveLength(17)
+    expect(cells.cards[7]).toMatchObject({ type: 'choice', mode: 'one', right: ['Mitochondria'] })
+    expect(cells.cards[8]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast', 'Cell wall'] })
+    expect(cells.cards[9]).toMatchObject({ type: 'choice', mode: 'one', right: ['Mitochondria', 'Chloroplast'] })
+    expect(cells.cards[10]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast'] })
+    expect(cells.cards[15]).toMatchObject({ type: 'choice', mode: 'one', right: ['Nucleus'] })
+  })
+
+  it('keeps what a version 3 backup holds', () => {
+    const library = checkLibrary(JSON.parse(v3Backup).library, 'stored')
+    const [cells] = library.courses[0].quizzes
+    expect(cells.cards.map((c) => c.id)).toEqual(['k1', 'k2', 'k3', 'k4', 'k5', 'k7', 'k6'])
+    expect(cells.cards[4]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast', 'Cell wall', ''] })
+    expect(cells.cards[5]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast'] })
   })
 })
 

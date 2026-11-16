@@ -1,5 +1,5 @@
 {
-  "version": 2,
+  "version": 3,
   "sideTypes": [["Task", "Where to click"]],
   "courses": [
     {
@@ -17,8 +17,8 @@
             { "type": "cloze", "statement": "The {sidebar} lists your courses and quizzes. The {top row} shows where you are: select {Home} to see all your courses.", "explanation": ["", "Select any part of it to go back there. Every page has its own address, so you can bookmark it.", ""] },
             { "type": "cloze", "statement": "Pick a look in the {Theme} menu, under New course.", "explanation": "This browser remembers it. It isn't saved in your file." },
             { "type": "true-false", "statement": "A deleted course can be brought back.", "answer": false, "explanation": "Danger zone, at the bottom of a course's page, deletes it, and a quiz's is at the bottom of Edit quiz. Both ask first, and can't be undone." },
-            { "type": "choice", "question": "Which button on a quiz's page studies it?", "right": ["Start"], "wrong": ["Edit quiz", "Import", "Done"], "explanation": "It sits beside Edit quiz. The study options under it pick how you study." },
-            { "type": "choice", "question": "Which of these are themes?", "right": ["Neon arcade", "Underwater", "Sassy unicorn"], "wrong": ["Light mode", "Paper"], "explanation": "There are seven, all dark: Calm, Neon arcade, Underwater, Enchanted forest, Sassy unicorn, Quizlet and Kahoot." }
+            { "type": "choice", "question": "Which button on a quiz's page studies it?", "mode": "one", "right": ["Start"], "wrong": ["Edit quiz", "Import", "Done"], "explanation": "It sits beside Edit quiz. The study options under it pick how you study." },
+            { "type": "choice", "question": "Which of these are themes?", "mode": "all", "right": ["Neon arcade", "Underwater", "Sassy unicorn"], "wrong": ["Light mode", "Paper"], "explanation": "There are seven, all dark: Calm, Neon arcade, Underwater, Enchanted forest, Sassy unicorn, Quizlet and Kahoot." }
           ]
         },
         {
@@ -33,7 +33,7 @@
                 { "type": "cloze", "statement": "{Enter} goes to the next box, and from the last one to a new card. {Shift+Enter} starts a new line.", "explanation": ["In a list of answers or steps, Enter in the last box adds one, and in an empty last box leaves the list.", ""] },
                 { "sides": ["Question", "Answer"], "term": "How do you name a card's sides?", "definition": "The menu by its number", "explanation": "Front / Back, Question / Answer like this card, Term / Definition and more. New type makes your own, and its pencil renames or deletes it. New cards take the sides of the last one." },
                 { "type": "cloze", "statement": "Select words, then {Mark as blank} or press {Ctrl+B}. It works {inside {a blank}} too.", "explanation": ["", "Cmd+B on a Mac.", "Two levels deep at most.", "Each blank is asked on its own, with the rest of the sentence as the clue, and can have its own explanation, like this one."] },
-                { "type": "choice", "question": "What does a choice question offer when you study it?", "right": ["The right answers you wrote", "The wrong answers you wrote"], "wrong": ["Answers from other cards", "Answers from other quizzes"], "explanation": "Fill in its Right answers and Wrong answers. With one correct answer you pick it; with several, like here, you pick all of them, then Check." }
+                { "type": "choice", "question": "What does a choice question offer when you study it?", "mode": "all", "right": ["The right answers you wrote", "The wrong answers you wrote"], "wrong": ["Answers from other cards", "Answers from other quizzes"], "explanation": "Fill in its Right answers and Wrong answers. Its Mode sets how it is answered: Select one answer, where any correct answer counts, or Select all that apply, like here, where you tick every correct one, then Check." }
               ]
             },
             {
@@ -44,7 +44,7 @@
                 { "sides": ["Task", "Where to click"], "term": "Remove an answer, step or explanation", "definition": "The eraser", "definitionImage": "eraser.svg", "explanation": "At the end of its box, while you point at it or type in it. Explanation, at the top of a card, adds one back." },
                 { "sides": ["Task", "Where to click"], "term": "Add many cards at once", "definition": "Import", "explanation": "Beside Done. Paste a Quizlet export or spreadsheet rows, one card per line, check the preview, then pick a group." },
                 { "type": "true-false", "statement": "This icon on a card removes its image.", "image": "trash.svg", "answer": false, "explanation": "It deletes the whole card. An image's own ✕ removes just the image." },
-                { "type": "choice", "question": "What does a group change when you study?", "right": ["Wrong options come from it first"], "wrong": ["Its cards are asked first", "Its cards are skipped", "Nothing"], "explanation": "Put cards that are easy to mix up in one group, so multiple choice offers them against each other. New group is under the cards, and a card's group menu moves it. Select a group's dot to change its color." }
+                { "type": "choice", "question": "What does a group change when you study?", "mode": "one", "right": ["Wrong options come from it first"], "wrong": ["Its cards are asked first", "Its cards are skipped", "Nothing"], "explanation": "Put cards that are easy to mix up in one group, so multiple choice offers them against each other. New group is under the cards, and a card's group menu moves it. Select a group's dot to change its color." }
               ]
             }
           ]
@@ -55,7 +55,8 @@
             { "type": "sequence", "title": "One round, start to finish", "steps": ["Pick the options", "Start", "Answer each card", "See your results", "Retry missed"], "explanation": "The mode, side and order you pick on the quiz page are remembered. Esc leaves a round. The results list every answer, with filters for Missed, Right and Marked." },
             { "type": "cloze", "statement": "Press {Space} to flip a flashcard, the {number keys} to pick an option, {Enter} to check and go on, and {Esc} to leave.", "explanation": ["Then 1 for Didn't know, or 2 for Knew it.", "", "", ""] },
             { "type": "true-false", "statement": "With Question side set to Back, you see the back and answer with the front.", "answer": true, "explanation": "Mixed picks a side for each card. Other kinds of cards ignore it and show their own text." },
-            { "type": "choice", "question": "What doesn't count when you type an answer?", "right": ["Capital letters", "Accents", "Punctuation", "Extra spaces"], "wrong": ["Spelling", "Symbols like + and #"], "explanation": "For a typo or another correct wording, select I was right: it counts, and the results mark it as yours." },
+            { "type": "choice", "question": "What doesn't count when you type an answer?", "mode": "all", "right": ["Capital letters", "Accents", "Punctuation", "Extra spaces"], "wrong": ["Spelling", "Symbols like + and #"], "explanation": "For a typo or another correct wording, select I was right: it counts, and the results mark it as yours." },
+            { "type": "choice", "question": "How do you answer a choice question that says Select all that apply?", "mode": "one", "right": ["Tick every correct answer, then Check"], "wrong": ["Pick the first correct answer", "Type the answers one by one", "Drag them into order"], "explanation": "Select one answer shows plain options, and any correct answer counts. Select all that apply shows check boxes: answers you leave out show as Missed, and a wrong one you tick counts against you." },
             { "sides": ["Task", "Where to click"], "term": "Fix a card while studying", "definition": "The pencil", "definitionImage": "pencil.svg", "explanation": "On the card, in the results too, and on the quiz page. The change shows right away." },
             { "sides": ["Task", "Where to click"], "term": "See an image big", "termImage": "shrimp.svg", "definition": "Select it", "explanation": "On a flashcard or an option, rest the pointer on it until its border closes. Esc or any click closes it." }
           ],
@@ -67,7 +68,7 @@
                 { "sides": ["Term", "Definition"], "term": "Flashcards", "definition": "Flip, then say if you knew it", "explanation": "Select the card or press Space to flip it." },
                 { "sides": ["Term", "Definition"], "term": "Multiple choice", "definition": "Pick one of the options", "explanation": "It needs at least 2 cards. A choice question offers its own answers, and a sequence is dragged into order." },
                 { "sides": ["Term", "Definition"], "term": "Typing", "definition": "Type it from memory", "explanation": "A sequence is asked one step at a time. A true or false card still gets two buttons." },
-                { "type": "choice", "question": "Where do the wrong options in multiple choice come from?", "right": ["Other cards in the quiz"], "wrong": ["Other quizzes", "The card's explanation", "The app makes them up"], "explanation": "From the same group first. Pick a wrong one, and it says which card it belongs to." }
+                { "type": "choice", "question": "Where do the wrong options in multiple choice come from?", "mode": "one", "right": ["Other cards in the quiz"], "wrong": ["Other quizzes", "The card's explanation", "The app makes them up"], "explanation": "From the same group first. Pick a wrong one, and it says which card it belongs to." }
               ]
             }
           ]
@@ -84,7 +85,7 @@
                 { "sides": ["Task", "Where to click"], "term": "Open a library", "definition": "Open file", "explanation": "At the top. It replaces the library in this browser, and asks first when you have unsaved changes." },
                 { "type": "cloze", "statement": "The top of the sidebar says where the open library is: {On this device}, {Your Google Drive} or {Only in this browser}.", "explanation": ["A .shrimp file you opened or downloaded.", "Or Someone else's Google Drive for one shared with you. Signed out, it says Shared on Google Drive or On Google Drive.", "In no file yet: download it or save it to Drive to keep it."] },
                 { "type": "true-false", "statement": "Shrimply Study keeps your cards on its own server.", "answer": false, "explanation": "It has none. Your cards stay in this browser, which keeps a copy between visits, and in the files you save: a .shrimp file or your own Google Drive." },
-                { "type": "choice", "question": "How do you start an empty library?", "right": ["New library, in the sidebar"], "wrong": ["Delete every course", "Open file", "Reload the page"], "explanation": "It asks first. Save this one first, or its unsaved changes are lost." }
+                { "type": "choice", "question": "How do you start an empty library?", "mode": "one", "right": ["New library, in the sidebar"], "wrong": ["Delete every course", "Open file", "Reload the page"], "explanation": "It asks first. Save this one first, or its unsaved changes are lost." }
               ]
             },
             {
@@ -95,7 +96,7 @@
                 { "sides": ["Task", "Where to click"], "term": "Save changes to your Drive", "definition": "Save to Drive", "explanation": "At the top, or Ctrl+S, once the library is in your Drive. It asks first if the file changed on another device." },
                 { "sides": ["Task", "Where to click"], "term": "Get the owner's new changes", "definition": "Pull changes", "definitionImage": "pull.svg", "explanation": "In the sidebar, on a library shared with you. It asks first, as it replaces the courses here." },
                 { "sides": ["Task", "Where to click"], "term": "Study on another device", "definition": "Open from Google Drive", "explanation": "Sign in there and open it from your list in the Google Drive dialog. The share link or the .shrimp file works too." },
-                { "type": "choice", "question": "What can someone with your link do?", "right": ["Study it", "Change it in their own browser", "Save a copy to their Drive", "Pull your new changes"], "wrong": ["Save into your file"], "explanation": "Only you save into your file. The app only sees the files it saved for you, never the rest of your Drive." }
+                { "type": "choice", "question": "What can someone with your link do?", "mode": "all", "right": ["Study it", "Change it in their own browser", "Save a copy to their Drive", "Pull your new changes"], "wrong": ["Save into your file"], "explanation": "Only you save into your file. The app only sees the files it saved for you, never the rest of your Drive." }
               ]
             }
           ]
@@ -104,14 +105,14 @@
           "name": "5. Write your own file",
           "cards": [
             { "type": "sequence", "title": "Make a library by hand or with an AI", "steps": ["Download this guide", "Unzip it", "Write library.json", "Zip it again", "Open file"], "explanation": "Rename the .shrimp file to .zip to unzip it, and the new zip back to .shrimp. Zip the files themselves, not a folder around them. A sequence like this one is \"type\": \"sequence\", a \"title\" and its \"steps\" in order." },
-            { "type": "choice", "question": "What stops a file from opening?", "right": ["A field these cards don't list"], "wrong": ["A card with no explanation", "A group with no color", "A quiz with no cards"], "explanation": "Ids and unknown fields are refused, and the message names the spot, like courses[0].quizzes[1].cards[3]. Optional fields can be left out, and \"quizzes\" and \"cards\" can be empty lists." }
+            { "type": "choice", "question": "What stops a file from opening?", "mode": "one", "right": ["A field these cards don't list"], "wrong": ["A card with no explanation", "A group with no color", "A quiz with no cards"], "explanation": "Ids and unknown fields are refused, and the message names the spot, like courses[0].quizzes[1].cards[3]. Optional fields can be left out, and \"quizzes\" and \"cards\" can be empty lists." }
           ],
           "groups": [
             {
               "name": "The file",
               "color": "sand",
               "cards": [
-                { "term": "The top of library.json", "definition": "\"version\" and \"courses\"", "explanation": "\"version\" is 2. An optional \"sideTypes\" lists your own side names, like [[\"Task\", \"Where to click\"]] in this guide." },
+                { "term": "The top of library.json", "definition": "\"version\" and \"courses\"", "explanation": "\"version\" is 3. An optional \"sideTypes\" lists your own side names, like [[\"Task\", \"Where to click\"]] in this guide." },
                 { "term": "A course", "definition": "\"name\" and \"quizzes\"", "explanation": "No two courses can share a name. Case, spaces and punctuation don't count." },
                 { "term": "A quiz", "definition": "\"name\" and \"cards\", optional \"groups\"", "explanation": "No two quizzes in a course can share a name. \"cards\" holds the cards in no group." },
                 { "term": "A group", "definition": "\"name\" and \"cards\", optional \"color\"", "explanation": "lagoon, coral, sky, sand, moss, rose, clay or slate. Without one, like the Cards group here, it takes the first one not in use." }
@@ -124,7 +125,9 @@
                 { "sides": ["Question", "Answer"], "term": "Which field shows this picture on the front?", "termImage": "shrimp.svg", "definition": "\"termImage\"", "explanation": "\"termImage\": \"shrimp.svg\" names images/shrimp.svg in the zip, a png, jpg, gif, webp, avif or svg. \"definitionImage\" is for the back, and the other kinds have one \"image\". Cards can share a file." },
                 { "type": "cloze", "statement": "Each {blank} in a \"statement\" goes in {braces}, and a blank can hold {another {blank}}.", "explanation": ["A fill-in-the-blank card is \"type\": \"cloze\" and a \"statement\", with optional \"image\" and \"explanation\".", "Write \\{ and \\} for plain braces and \\\\ for a backslash. In library.json each backslash is doubled.", "", "Blanks count in the order of their {, so this is blank 4. With several blanks, \"explanation\" is a list with one entry per blank, and \"\" for none."] },
                 { "type": "true-false", "statement": "\"answer\" is written \"true\" or \"false\", in quotes.", "answer": false, "explanation": "Without quotes: \"answer\": true. A true or false card is \"type\": \"true-false\", a \"statement\" and an \"answer\", with optional \"image\" and \"explanation\"." },
-                { "type": "choice", "question": "Besides \"type\": \"choice\", which fields does a choice question need?", "right": ["\"question\"", "\"right\"", "\"wrong\""], "wrong": ["\"answer\"", "\"steps\""], "explanation": "\"right\" and \"wrong\" are lists of texts; with several right ones, you pick all. \"image\" and \"explanation\" are optional." }
+                { "type": "choice", "question": "Besides \"type\": \"choice\", which fields does a choice question need?", "mode": "all", "right": ["\"question\"", "\"right\"", "\"wrong\""], "wrong": ["\"answer\"", "\"steps\""], "explanation": "\"right\" and \"wrong\" are lists of texts, and \"mode\" says how it is answered (see the next cards). \"image\" and \"explanation\" are optional." },
+                { "type": "choice", "question": "Which values can \"mode\" take?", "mode": "one", "right": ["\"one\"", "\"all\""], "wrong": ["\"any\"", "\"many\""], "explanation": "\"one\" is Select one answer: any correct answer counts, even when several are listed, like here. \"all\" is Select all that apply: every correct answer must be ticked. A file may leave \"mode\" out: it is \"all\" when there are two or more different correct answers, else \"one\"." },
+                { "type": "choice", "question": "Which line makes a question Select all that apply?", "mode": "all", "right": ["\"mode\": \"all\""], "wrong": ["\"type\": \"all\"", "\"answer\": \"all\""], "explanation": "\"all\" works with a single correct answer too, like this card: it still shows check boxes. Write \"mode\" explicitly, so a question keeps its mode when you add or remove a correct answer." }
               ]
             }
           ]
