@@ -1,4 +1,5 @@
 import { useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { ownWindow } from './ownWindow'
 
 type Props = {
   // Right or wrong: the top bar's color and the word Correct or Incorrect. Neutral (flashcards) asks "Did you know it?".
@@ -39,10 +40,11 @@ export function FeedbackSheet({ tone, note, explanation, actions, leaving, onLef
   }, [])
   useLayoutEffect(() => {
     const stack = stackOf(sheetRef.current)
-    if (!docked || !stack || matchMedia('(prefers-reduced-motion: reduce)').matches) return
+    const view = stack && ownWindow(stack)
+    if (!docked || !stack || !view || view.matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const dx = from.current - stack.getBoundingClientRect().left
     if (!dx) return
-    const tokens = getComputedStyle(document.documentElement)
+    const tokens = view.getComputedStyle(stack.ownerDocument.documentElement)
     // The build may write the token in seconds (".22s") or ms.
     const token = tokens.getPropertyValue('--dur-slide').trim()
     const duration = parseFloat(token) * (token.endsWith('ms') ? 1 : 1000)

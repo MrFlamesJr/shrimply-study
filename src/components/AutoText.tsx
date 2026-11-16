@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type CSSProperties, type KeyboardEvent, type ReactNode, type TextareaHTMLAttributes } from 'react'
 import { FloatField } from './FloatField'
 import { IconButton } from './IconButton'
+import { ownWindow } from './ownWindow'
 import { EraserIcon } from './Icons'
 
 /**
@@ -15,8 +16,8 @@ export const goesOn = (e: KeyboardEvent<HTMLElement>) =>
   !e.nativeEvent.isComposing &&
   // A box that already used the key: a one-line box, an answer list adding an answer.
   !e.defaultPrevented &&
-  e.target instanceof HTMLTextAreaElement &&
-  e.target.classList.contains('auto-text')
+  (e.target as Element).nodeName === 'TEXTAREA' &&
+  (e.target as Element).classList.contains('auto-text')
 
 /** The text box after `from` in `group` (a card, a dialog), or undefined from the last one. */
 export const nextBox = (from: EventTarget, group: Element) => {
@@ -80,18 +81,19 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, suf
   useEffect(() => {
     const el = ref.current
     if (!el) return
+    const view = ownWindow(el)
     let width = el.clientWidth
     let frame = 0
-    const observer = new ResizeObserver(() => {
+    const observer = new view.ResizeObserver(() => {
       if (el.clientWidth === width) return
       width = el.clientWidth
-      cancelAnimationFrame(frame)
-      frame = requestAnimationFrame(fit)
+      view.cancelAnimationFrame(frame)
+      frame = view.requestAnimationFrame(fit)
     })
     observer.observe(el)
     return () => {
       observer.disconnect()
-      cancelAnimationFrame(frame)
+      view.cancelAnimationFrame(frame)
     }
   }, [])
 

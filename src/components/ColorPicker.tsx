@@ -1,4 +1,4 @@
-import { useId } from 'react'
+import { useId, useRef } from 'react'
 import { GROUP_COLORS, type GroupColor } from '../model'
 import { CheckIcon } from './Icons'
 
@@ -10,7 +10,8 @@ const nameOf = (c: GroupColor) => c[0].toUpperCase() + c.slice(1)
  */
 export function ColorPicker({ value, onChange }: { value: GroupColor; onChange: (color: GroupColor) => void }) {
   const id = useId()
-  const close = () => document.getElementById(id)?.hidePopover()
+  const palette = useRef<HTMLDivElement>(null)
+  const close = () => palette.current?.hidePopover()
   return (
     <>
       <button
@@ -21,6 +22,7 @@ export function ColorPicker({ value, onChange }: { value: GroupColor; onChange: 
         title="Change the group color"
       />
       <div
+        ref={palette}
         id={id}
         popover="auto"
         role="radiogroup"

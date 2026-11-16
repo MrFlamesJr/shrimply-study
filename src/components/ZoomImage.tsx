@@ -55,7 +55,7 @@ export function ZoomImage({ src, alt, className, hover }: { src: string; alt: st
         </button>
       )}
       {/* In the body, as a button around the image can't hold the viewer's ✕. */}
-      {open && createPortal(<ImageViewer src={src} alt={alt} onClose={closed} onPointerMove={track} />, document.body)}
+      {open && createPortal(<ImageViewer src={src} alt={alt} onClose={closed} onPointerMove={track} />, imgRef.current!.ownerDocument.body)}
     </>
   )
 }

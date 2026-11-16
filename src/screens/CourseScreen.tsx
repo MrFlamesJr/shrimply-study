@@ -25,7 +25,7 @@ export function CourseScreen({ lib, courseId }: { lib: LibraryApi; courseId: str
               selectOnMount={created}
               check={(name) => nameTaken(name, lib.library.courses.filter((c) => c.id !== course.id).map((c) => c.name), 'course')}
               onChange={(name) => lib.renameCourse(course.id, name)}
-              onEnter={() => (document.activeElement as HTMLElement | null)?.blur()}
+              onEnter={(box) => (box.ownerDocument.activeElement as HTMLElement | null)?.blur()}
             />
           }
           sub={plural(course.quizzes.length, 'quiz', 'quizzes')}

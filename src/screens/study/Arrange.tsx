@@ -1,3 +1,4 @@
+import { ownWindow } from '../../components/ownWindow'
 import { useLayoutEffect, useRef, useState } from 'react'
 import { arrayMove } from '@dnd-kit/sortable'
 import type { Question } from '../../model'
@@ -36,7 +37,7 @@ export function Arrange({ question, result, paused, onRecord }: Props) {
   useKeydown((e) => {
     const target = e.target as HTMLElement
     if (paused || checked || e.key !== 'Enter' || e.ctrlKey || e.metaKey || e.altKey) return
-    if (target.closest('dialog, button, .step-list') || target instanceof HTMLTextAreaElement) return
+    if (target.closest('dialog, button, .step-list') || target.nodeName === 'TEXTAREA') return
     e.preventDefault()
     check()
   })
@@ -119,7 +120,7 @@ function OrderCheck({ placed, steps }: { placed: string[]; steps: string[] }) {
       )
     }
     draw()
-    const observer = new ResizeObserver(draw)
+    const observer = new (ownWindow(box).ResizeObserver)(draw)
     observer.observe(box)
     return () => observer.disconnect()
   }, [key])
