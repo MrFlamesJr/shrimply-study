@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Confetti } from '../../kit/Confetti'
 import type { Card, Question } from '../../model'
 import { BackToTop } from '../../components/BackToTop'
 import { Segmented } from '../../components/Segmented'
@@ -6,6 +7,21 @@ import { CardRow } from '../../components/CardRow'
 import { CheckIcon, CrossIcon } from '../../components/Icons'
 import { MarkedBadge } from './Answers'
 import type { Result } from './Question'
+
+const CONFETTI_COLORS = ['lagoon', 'coral', 'sky', 'sand', 'moss', 'rose', 'clay', 'slate'].map((n) => `--group-${n}`)
+
+// The theme's tokens as plain color strings, which a canvas can use, read through a hidden probe.
+function themeColors(tokens: string[]): string[] {
+  const probe = document.createElement('span')
+  probe.style.display = 'none'
+  document.body.appendChild(probe)
+  const colors = tokens.map((t) => {
+    probe.style.color = `var(${t})`
+    return getComputedStyle(probe).color
+  })
+  probe.remove()
+  return colors
+}
 
 type Filter = 'all' | 'missed' | 'right' | 'marked'
 
@@ -27,6 +43,9 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
   const total = questions.length
   const missed = questions.filter((_, i) => !results[i]?.ok)
   const right = total - missed.length
+  const perfect = total > 0 && missed.length === 0
+  // Read once, when the results first show, so filtering the list never replays it.
+  const [confetti] = useState(() => themeColors(perfect ? [...CONFETTI_COLORS, '--accent'] : CONFETTI_COLORS))
   const markedCount = results.filter((r) => r?.marked).length
   const missedCards = usable.filter((c) => missed.some((m) => m.cardId === c.id))
   // Every question of the round in the order asked (a fill-in-the-blank card once per blank), each with the
@@ -54,12 +73,13 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
   ]
   return (
     <div className="session-main">
+      <Confetti level={perfect ? 'perfect' : 'done'} colors={confetti} />
       <div ref={setBody} className="session-body results">
         <section className="results-summary" aria-label="Score">
           <div>
             <p className="score">{total ? Math.round((right / total) * 100) : 0}%</p>
             <p className="muted">
-              {missed.length === 0 ? `All ${total} right. Nice work.` : `${right} of ${total} right`}
+              {missed.length === 0 ? `All ${total} correct. Nice work.` : `${right} of ${total} correct`}
               {markedCount > 0 && ` · ${markedCount} marked by you`}
             </p>
           </div>

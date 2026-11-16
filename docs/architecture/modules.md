@@ -226,7 +226,7 @@ export type MenuItem = 'separator' | { label: string; onSelect?: () => void; sho
 export function openMenu(items: MenuItem[], at: { x: number; y: number; doc?: Document } | { anchor: Element }): void
 export function closeMenu(): void
 
-// confetti.ts (pure) + Confetti.tsx
+// confettiMath.ts (pure; not confetti.ts, which clashes with Confetti.tsx on Windows) + Confetti.tsx
 export type Particle = { x: number; y: number; vx: number; vy: number; angle: number; spin: number; color: string;
   w: number; h: number; life: number }
 export function burst(o: { count: number; x: number; y: number; angle: number; spread: number; speed: number;
