@@ -19,6 +19,7 @@ import { FlipCard } from './FlipCard'
 import { AnswerList, Mark, TypedAnswer } from './Answers'
 import { Arrange } from './Arrange'
 import { PickAll } from './PickAll'
+import { ownWindow } from '../../components/ownWindow'
 
 // How a question went: right or not, what was picked, placed or typed (choice and typing), and whether "I was right"
 // counted it as right (a "Marked by you" badge on the answer and in the results).
@@ -51,8 +52,8 @@ const WHEEL_NOTCH = 50
 // A notch within this long (ms) of the last one adds to the glide still under way rather than starting from where it is.
 const GLIDE_MS = 300
 // The card side's scroll box: the prompt card's, or the flashcard face turned up.
-const cardScroll = () =>
-  document.querySelector<HTMLElement>('.prompt-card .card-scroll, .flip-face[aria-hidden="false"] .card-scroll')
+const cardScroll = (stack: HTMLElement) =>
+  stack.ownerDocument.querySelector<HTMLElement>('.prompt-card .card-scroll, .flip-face[aria-hidden="false"] .card-scroll')
 
 /** One question and its feedback sheet. Render it with `key={index}`: its state starts fresh for each question. */
 export function StudyQuestion({ question, card, format: asked, usable, result, paused, onRecord, onNext, onEdit }: Props) {
@@ -77,13 +78,13 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
     let glideTo: number | null = null
     let lastNotch = 0
     const onWheel = (e: WheelEvent) => {
-      const box = cardScroll()
+      const box = cardScroll(stack)
       if (!box || !(e.target as Element).closest('.card-wrap, .prompt-card')) return
       if (e.deltaY === 0 || !canScroll(box, e.deltaY > 0)) return
       e.preventDefault()
       const unit = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? ARROW_STEP : e.deltaMode === WheelEvent.DOM_DELTA_PAGE ? box.clientHeight : 1
       const delta = e.deltaY * unit
-      if (Math.abs(delta) < WHEEL_NOTCH || matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      if (Math.abs(delta) < WHEEL_NOTCH || ownWindow(stack).matchMedia('(prefers-reduced-motion: reduce)').matches) {
         glideTo = null
         box.scrollBy({ top: delta })
         return
@@ -109,7 +110,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
   useEffect(() => {
     if (!feedback) return
     const answered = [...stackRef.current!.querySelectorAll('.choices, .order-check, .typed')].pop()
-    const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches
+    const reduce = ownWindow(stackRef.current!).matchMedia('(prefers-reduced-motion: reduce)').matches
     answered?.scrollIntoView({ block: 'nearest', behavior: reduce ? 'auto' : 'smooth' })
   }, [feedback])
 
@@ -149,8 +150,8 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
     // A dialog (the card editor, the image viewer) handles its own keys.
     const target = e.target as HTMLElement
     if (paused || target.closest('dialog')) return
-    const inField = target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement
-    const onButton = target instanceof HTMLButtonElement
+    const inField = target.nodeName === 'INPUT' || target.nodeName === 'TEXTAREA'
+    const onButton = target.nodeName === 'BUTTON'
     // A field that already handled the key (Enter in the answer box submits) prevents its default.
     if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
     if (e.key === 'Enter') {
@@ -165,7 +166,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
       return
     } else if ((e.key === 'ArrowDown' || e.key === 'ArrowUp') && !target.closest('.sheet')) {
       // A long card side scrolls inside the card: the arrows scroll it first, then the page as usual.
-      const box = cardScroll()
+      const box = cardScroll(stackRef.current!)
       const down = e.key === 'ArrowDown'
       if (box && canScroll(box, down)) {
         e.preventDefault()

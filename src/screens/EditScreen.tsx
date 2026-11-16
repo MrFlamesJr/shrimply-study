@@ -172,7 +172,8 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
     const section = cards.filter((c) => c.group === card.group)
     const other = section[section.indexOf(card) + by]
     if (!other) return
-    refocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const active = listRef.current?.ownerDocument.activeElement
+    refocus.current = active && 'focus' in active ? (active as HTMLElement) : null
     reorder(card.id, other.id)
   }
 

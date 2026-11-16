@@ -36,7 +36,7 @@ export function PickAll({ question, result, paused, onRecord }: Props) {
   useKeydown((e) => {
     const target = e.target as HTMLElement
     if (paused || checked || target.closest('dialog') || e.ctrlKey || e.metaKey || e.altKey) return
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return
+    if (target.nodeName === 'INPUT' || target.nodeName === 'TEXTAREA') return
     if (e.key === 'Enter') {
       // On an option, Enter checks instead of toggling it again. On any other button (Check, the pencil, an image)
       // the click does it.
