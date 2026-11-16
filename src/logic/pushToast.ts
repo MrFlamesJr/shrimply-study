@@ -1,5 +1,7 @@
 export type ToastKind = 'info' | 'warning' | 'error'
-export type Toast = { id: string; kind: ToastKind; text: string; ms: number }
+/** A quiet button after a toast's text (Undo): it runs, then the toast closes. */
+export type ToastAction = { label: string; run(): void }
+export type Toast = { id: string; kind: ToastKind; text: string; ms: number; action?: ToastAction }
 
 /** Replaces any toast with the same kind and text, so it moves to the end with a fresh timer. Nothing else is dropped. */
 export function pushToast(list: Toast[], toast: Toast): Toast[] {

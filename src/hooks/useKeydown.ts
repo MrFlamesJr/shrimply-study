@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
+import { appWindows, subscribeWindows } from '../kit/windows'
 
-/** One window keydown listener for the component's lifetime, always calling the latest `handler`. */
+/** One keydown listener on every app window (popups come and go) for the component's lifetime, always calling the latest `handler`. */
 export function useKeydown(handler: (e: KeyboardEvent) => void): void {
   const latest = useRef(handler)
   useEffect(() => {
@@ -8,7 +9,27 @@ export function useKeydown(handler: (e: KeyboardEvent) => void): void {
   })
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => latest.current(e)
-    window.addEventListener('keydown', onKey)
-    return () => window.removeEventListener('keydown', onKey)
+    const attached = new Set<Window>()
+    const sync = () => {
+      const now = appWindows()
+      for (const win of attached) {
+        if (!now.includes(win)) {
+          win.removeEventListener('keydown', onKey)
+          attached.delete(win)
+        }
+      }
+      for (const win of now) {
+        if (!attached.has(win)) {
+          win.addEventListener('keydown', onKey)
+          attached.add(win)
+        }
+      }
+    }
+    sync()
+    const stop = subscribeWindows(sync)
+    return () => {
+      stop()
+      for (const win of attached) win.removeEventListener('keydown', onKey)
+    }
   }, [])
 }

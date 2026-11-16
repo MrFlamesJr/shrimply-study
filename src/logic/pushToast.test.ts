@@ -15,4 +15,8 @@ describe('pushToast', () => {
     for (let i = 0; i < 20; i++) list = pushToast(list, toast(String(i)))
     expect(list).toHaveLength(20)
   })
+  it('keeps the action of the toast it adds', () => {
+    const action = { label: 'Undo', run: () => {} }
+    expect(pushToast([toast('a')], { ...toast('b'), action })[1].action).toBe(action)
+  })
 })

@@ -1,20 +1,26 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { createPortal } from 'react-dom'
+import { activeWindow, subscribeWindows } from '../kit/windows'
 import { newId } from '../model'
-import { pushToast, type Toast, type ToastKind } from '../logic/pushToast'
+import { pushToast, type Toast, type ToastAction, type ToastKind } from '../logic/pushToast'
 import { CrossIcon } from './Icons'
 import { IconButton } from './IconButton'
 
-export type Notify = (kind: ToastKind, text: string, ms?: number) => void
+export type Notify = (kind: ToastKind, text: string, ms?: number, action?: ToastAction) => void
 
 const LIFETIME: Record<ToastKind, number> = { info: 5000, warning: 8000, error: 12000 }
+// A toast with an action stays long enough to reach it.
+const ACTION_LIFETIME = 8000
 const LABEL: Record<ToastKind, string> = { info: 'Info', warning: 'Warning', error: 'Error' }
 // The badge shape (circle, triangle, octagon) comes from CSS; this is the glyph inside it.
 const GLYPH: Record<ToastKind, string> = { info: 'i', warning: '!', error: '!' }
 
 export function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([])
-  const notify: Notify = (kind, text, ms) =>
-    setToasts((list) => pushToast(list, { id: newId(), kind, text, ms: ms ?? LIFETIME[kind] }))
+  const notify: Notify = (kind, text, ms, action) =>
+    setToasts((list) =>
+      pushToast(list, { id: newId(), kind, text, ms: ms ?? (action ? Math.max(LIFETIME[kind], ACTION_LIFETIME) : LIFETIME[kind]), action }),
+    )
   const dismiss = (id: string) => setToasts((list) => list.filter((t) => t.id !== id))
   return { toasts, notify, dismiss }
 }
@@ -23,26 +29,27 @@ export function useToasts() {
 // The stack uses column-reverse: the newest toast comes first in the DOM, sits at the bottom, and scrolling starts there.
 // The stack is a popover, so it sits in the top layer where nothing on the page covers it. Whatever opens
 // there after it (a dialog, the color palette) would sit above it, so it moves back to the top each time
-// something opens and each time a toast comes. The debug bar stays above it (it raises itself over the stack in turn).
+// something opens and each time a toast comes. It renders into the active window (a popped-out pane's popup, or the main one). The debug bar stays above it (it raises itself over the stack in turn).
 export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: string): void }) {
   const ref = useRef<HTMLElement>(null)
+  const win = useSyncExternalStore(subscribeWindows, activeWindow)
   const raise = () => {
     const stack = ref.current
     if (!stack) return
     if (stack.matches(':popover-open')) stack.hidePopover()
     stack.showPopover()
   }
-  useEffect(raise, [toasts.length])
+  useEffect(raise, [toasts.length, win])
   useEffect(() => {
     const onToggle = (e: Event) => {
       const other = e.target !== ref.current && !(e.target as Element).matches('.debug-bar')
       if (other && (e as ToggleEvent).newState === 'open') raise()
     }
-    document.addEventListener('toggle', onToggle, true)
-    return () => document.removeEventListener('toggle', onToggle, true)
-  }, [])
+    win.document.addEventListener('toggle', onToggle, true)
+    return () => win.document.removeEventListener('toggle', onToggle, true)
+  }, [win])
 
-  return (
+  return createPortal(
     <section
       ref={ref}
       popover="manual"
@@ -59,6 +66,18 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
             {GLYPH[t.kind]}
           </span>
           <p>{t.text}</p>
+          {t.action && (
+            <button
+              type="button"
+              className="toast-action"
+              onClick={() => {
+                t.action!.run()
+                dismiss(t.id)
+              }}
+            >
+              {t.action.label}
+            </button>
+          )}
           <IconButton label="Dismiss" onClick={() => dismiss(t.id)}>
             <CrossIcon />
           </IconButton>
@@ -67,6 +86,7 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
           </div>
         </div>
       ))}
-    </section>
+    </section>,
+    win.document.body,
   )
 }

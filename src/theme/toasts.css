@@ -87,6 +87,22 @@
 .toast .icon-btn {
   flex: none;
 }
+/* A quiet link-style button after the text (Undo): the accent is the action, underlined so it never reads as plain text. */
+.toast .toast-action {
+  flex: none;
+  height: auto;
+  padding: var(--space-1) var(--space-2);
+  background: none;
+  border: 0;
+  color: var(--accent);
+  font-weight: var(--weight-bold);
+  text-decoration: underline;
+  text-underline-offset: var(--space-1);
+}
+.toast .toast-action:hover:not(:disabled) {
+  background: none;
+  color: var(--text);
+}
 .toast-track {
   position: absolute;
   top: 0;
