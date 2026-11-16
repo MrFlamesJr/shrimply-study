@@ -4,6 +4,9 @@ const popups = new Map<string, Window>()
 const listeners = new Set<() => void>()
 const polls = new Map<Window, number>()
 let active: Window | null = null
+// Names this page load, so a popup can tell that its opener was reloaded or navigated away.
+const APP_ID = Math.random().toString(36).slice(2)
+;(window as unknown as { __kitApp: string }).__kitApp = APP_ID
 
 function notify() {
   for (const cb of [...listeners]) cb()
@@ -113,10 +116,18 @@ function followOpener(win: Window) {
   )
 }
 
+/** A script running in the popup's own realm closes it when its opener is gone (a closed, reloaded or navigated main window). */
+function watchOpener(win: Window) {
+  const script = win.document.createElement('script')
+  script.textContent = `(function(){var id=${JSON.stringify(APP_ID)};setInterval(function(){var o=window.opener;var gone=true;try{gone=!o||o.closed||o.__kitApp!==id}catch(e){}if(gone)window.close()},500)})()`
+  win.document.head.appendChild(script)
+}
+
 export async function mountPopup(win: Window, o: { title: string }): Promise<HTMLElement> {
   await waitLoaded(win)
   followOpener(win)
   setPopupTitle(win, o.title)
+  watchOpener(win)
   const root = win.document.createElement('div')
   win.document.body.appendChild(root)
   return root
