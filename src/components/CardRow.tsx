@@ -118,7 +118,7 @@ export function CardRow({ card, lead, blank, note, kind, onEdit, onDelete }: Pro
         </strong>
         <div className="row-def">
           {right.length === 0 ? (
-            <span className="missing">No right answer</span>
+            <span className="missing">No correct answer</span>
           ) : (
             // Several are numbered, like the editor and the flashcard; a lone answer is not a list.
             right.map((x, i) => (

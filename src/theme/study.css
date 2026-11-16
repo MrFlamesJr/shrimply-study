@@ -490,6 +490,33 @@
   backdrop-filter: saturate(var(--tint-keep));
   border-color: var(--accent);
 }
+/* The check box before an option's text when all that apply are selected (PickAll): an empty outline, the accent filled
+   with a check once picked. Checked, it keeps the pick in the option's own color (the mark at the end says right or wrong). */
+.choice-box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: var(--line) solid var(--text-muted);
+  border-radius: var(--radius);
+  color: var(--accent-ink);
+}
+.choice-box svg {
+  width: 14px;
+  height: 14px;
+}
+.choice.is-picked .choice-box {
+  background: var(--accent-fill);
+  border-color: var(--accent);
+}
+.choice.is-correct .choice-box,
+.choice.is-wrong .choice-box,
+.choice.is-missed .choice-box {
+  border-color: currentColor;
+  color: currentColor;
+}
 /* After Check, a right answer that was not picked: the warning color (yellow or orange in every theme, asked for) as a
    dashed outline, and the word "Missed". */
 .choice.is-missed {

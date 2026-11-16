@@ -21,7 +21,7 @@ describe('libraryStats', () => {
       term('c', { definition: '' }),
       { id: 'd', type: 'cloze', statement: '{one} and {two}', explanation: ['first', null], image: 'data:image/png;base64,AAAA' },
       { id: 'e', type: 'true-false', statement: 'Sky', answer: true, explanation: 'blue' },
-      { id: 'f', type: 'choice', question: 'Which?', image: IMG, right: ['A'], wrong: ['B', 'C'], explanation: 'why' },
+      { id: 'f', type: 'choice', question: 'Which?', mode: 'one', image: IMG, right: ['A'], wrong: ['B', 'C'], explanation: 'why' },
       { id: 'g', type: 'sequence', title: 'Order', image: IMG, steps: ['one'] },
     ]
     expect(libraryStats(library(cards, [group]))).toEqual({
@@ -110,11 +110,13 @@ describe('fakeQuiz', () => {
 
 describe('fakeQuiz with choice questions and sequences', () => {
   const { cards } = fakeQuiz(100)
-  it('mixes in both, one and several right answers', () => {
+  it('mixes in both modes, with one and with several right answers', () => {
     const choices = cards.filter((c) => c.type === 'choice')
     expect(choices.length).toBeGreaterThan(0)
-    expect(choices.some((c) => c.type === 'choice' && c.right.length > 1)).toBe(true)
-    expect(choices.some((c) => c.type === 'choice' && c.right.length === 1)).toBe(true)
+    for (const mode of ['one', 'all']) {
+      expect(choices.some((c) => c.type === 'choice' && c.mode === mode && c.right.length > 1)).toBe(true)
+      expect(choices.some((c) => c.type === 'choice' && c.mode === mode && c.right.length === 1)).toBe(true)
+    }
     expect(cards.filter((c) => c.type === 'sequence').length).toBeGreaterThan(0)
   })
 })

@@ -1,7 +1,7 @@
 // A .shrimp file is a zip holding library.json and an images/ folder. There are no ids in the file:
 //
 // {
-//   "version": 2,
+//   "version": 3,
 //   "courses": [
 //     {
 //       "name": "Biology",
@@ -33,7 +33,8 @@
 // A cloze (fill in the blank) card marks its blanks with { } in "statement"; \{ \} \\ are a literal { } \.
 // Its "explanation" is optional: plain text when there is one blank, otherwise a list with one entry per blank.
 // A true-false card has a "statement" and an "answer" that is true or false; "image" and "explanation" are optional.
-// A choice card has a "question", a list of "right" answers and a list of "wrong" ones; a sequence card a "title" and
+// A choice card has a "question", a "mode" ("one": pick one answer and any right one counts; "all": select all that
+// apply), a list of "right" answers and a list of "wrong" ones; a sequence card a "title" and
 // its "steps" in order. Both may have "image" and "explanation". Entries are trimmed, and empty ones are not written.
 // Images are optional: "termImage", "definitionImage" and a cloze, true-false, choice or sequence card's "image" name a file in images/ ("1.webp" is
 // images/1.webp) whose extension is one of IMAGE_TYPES. Cards with the same image share one file; files no card
@@ -91,7 +92,7 @@ const cardJson = (c: Card, file: ImageFile): string =>
         c.explanation?.trim() ? `, "explanation": ${JSON.stringify(c.explanation)}` : ''
       } }`
     : c.type === 'choice'
-    ? `{ "type": "choice", "question": ${JSON.stringify(c.question)}${imageJson('image', c.image, file)}, "right": ${textList(c.right)}, "wrong": ${textList(c.wrong)}${explanationJson(c.explanation)} }`
+    ? `{ "type": "choice", "question": ${JSON.stringify(c.question)}${imageJson('image', c.image, file)}, "mode": ${JSON.stringify(c.mode)}, "right": ${textList(c.right)}, "wrong": ${textList(c.wrong)}${explanationJson(c.explanation)} }`
     : c.type === 'sequence'
     ? `{ "type": "sequence", "title": ${JSON.stringify(c.title)}${imageJson('image', c.image, file)}, "steps": ${textList(c.steps)}${explanationJson(c.explanation)} }`
     : `{ ${sidesJson(c.sides)}"term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
@@ -332,13 +333,18 @@ function texts(o: Record<string, unknown>, key: string, path: string): string[] 
 }
 
 // A choice question: right and wrong answers are lists of texts. Completeness is the editor's business.
+// "mode" is "one" or "all". A file may leave it out (for a hand-written one): it is "all" with more than one distinct
+// right answer, else "one", as for a file of version 2 (upgrade.ts). Stored data always has it.
 function checkChoice(v: object, path: string, ids: Ids, image: ImageRead, optional: string[]): ChoiceCard {
-  const o = exactFields(v, path, ['type', 'question', 'right', 'wrong'], ids, optional)
+  const o = exactFields(v, path, ids === 'stored' ? ['type', 'question', 'mode', 'right', 'wrong'] : ['type', 'question', 'right', 'wrong'], ids, ids === 'stored' ? optional : ['mode', ...optional])
+  const right = texts(o, 'right', path)
+  if ('mode' in o && o.mode !== 'one' && o.mode !== 'all') throw new Error(`${at(path)}"mode" must be "one" or "all".`)
   const card: ChoiceCard = {
     id: idOf(o, path, ids),
     type: 'choice',
     question: text(o, 'question', path).trim(),
-    right: texts(o, 'right', path),
+    mode: (o.mode as ChoiceCard['mode'] | undefined) ?? (new Set(right.filter(Boolean)).size > 1 ? 'all' : 'one'),
+    right,
     wrong: texts(o, 'wrong', path),
   }
   if ('image' in o) card.image = image(o, 'image', path)

@@ -6,7 +6,7 @@ type Kinds = { cloze: boolean; trueFalse: boolean; choice: boolean; sequence: bo
 const TIPS: [string, string, (keyof Kinds)?][] = [
   ['Fill in the blank', 'Each blank is asked on its own, with the rest of the sentence as your clue.', 'cloze'],
   ['True or false', 'In multiple choice and typing, you just pick True or False.', 'trueFalse'],
-  ['Choice questions', 'When more than one answer is correct, select all of them, then Check. Any you leave out show as Missed.', 'choice'],
+  ['Choice questions', 'Some ask for one answer, and any correct answer counts. Others say to select all that apply: tick every correct answer, then Check. Any you leave out show as Missed.', 'choice'],
   [
     'Sequences',
     'In multiple choice, drag the steps into order, then Check. Point at a step to see where it belongs. Typing asks for one step at a time.',

@@ -229,8 +229,8 @@ describe('buildRound with true-or-false cards', () => {
 const sorted = (a?: string[]) => [...(a ?? [])].sort()
 
 describe('buildRound with choice questions', () => {
-  const one: ChoiceCard = { id: 'q1', type: 'choice', question: ' Which is a fruit? ', right: ['Apple'], wrong: ['Rock', ' Chair ', ''] }
-  const many: ChoiceCard = { id: 'q2', type: 'choice', question: 'Which are organelles?', right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall', 'Sap'] }
+  const one: ChoiceCard = { id: 'q1', type: 'choice', question: ' Which is a fruit? ', mode: 'one', right: ['Apple'], wrong: ['Rock', ' Chair ', ''] }
+  const many: ChoiceCard = { id: 'q2', type: 'choice', question: 'Which are organelles?', mode: 'all', right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall', 'Sap'] }
 
   it('is usable with a question, a right answer and a wrong answer', () => {
     expect(usableCards([one, many])).toHaveLength(2)
@@ -238,9 +238,9 @@ describe('buildRound with choice questions', () => {
   })
 
   it('flashcards: the answer, or the list of answers', () => {
-    expect(buildRound([one], options())).toEqual([{ cardId: 'q1', prompt: 'Which is a fruit?', answer: 'Apple' }])
+    expect(buildRound([one], options())).toEqual([{ cardId: 'q1', prompt: 'Which is a fruit?', answer: 'Apple', pick: 'one' }])
     expect(buildRound([many], options())).toEqual([
-      { cardId: 'q2', prompt: 'Which are organelles?', answer: 'Nucleus, Ribosome', answers: ['Nucleus', 'Ribosome'] },
+      { cardId: 'q2', prompt: 'Which are organelles?', answer: 'Nucleus, Ribosome', pick: 'all', answers: ['Nucleus', 'Ribosome'] },
     ])
   })
 
@@ -248,11 +248,31 @@ describe('buildRound with choice questions', () => {
     const [a] = buildRound([one], options({ format: 'choice' }))
     expect(a.answer).toBe('Apple')
     expect(a.answers).toBeUndefined()
+    expect(a.pick).toBe('one')
     expect(sorted(a.choices)).toEqual(['Apple', 'Chair', 'Rock'])
     const [b] = buildRound([many], options({ format: 'choice' }))
     expect(b.answer).toBe('Nucleus, Ribosome')
     expect(b.answers).toEqual(['Nucleus', 'Ribosome'])
+    expect(b.pick).toBe('all')
     expect(sorted(b.choices)).toEqual(['Cell wall', 'Nucleus', 'Ribosome', 'Sap'])
+  })
+
+  it('mode one with several right answers: all of them are options and any counts', () => {
+    const [q] = buildRound([{ ...many, mode: 'one' as const }], options({ format: 'choice' }))
+    expect(q).toMatchObject({ pick: 'one', answers: ['Nucleus', 'Ribosome'] })
+    expect(sorted(q.choices)).toEqual(['Cell wall', 'Nucleus', 'Ribosome', 'Sap'])
+    const [typed] = buildRound([{ ...many, mode: 'one' as const }], options({ format: 'typing' }))
+    expect(typed).toMatchObject({ pick: 'one', answers: ['Nucleus', 'Ribosome'] })
+    expect(typed.choices).toBeUndefined()
+  })
+
+  it('mode all with one right answer is still selected, also when typing', () => {
+    for (const format of ['choice', 'typing'] as const) {
+      const [q] = buildRound([{ ...one, mode: 'all' as const }], options({ format }))
+      expect(q).toMatchObject({ pick: 'all', answers: ['Apple'] })
+      expect(sorted(q.choices)).toEqual(['Apple', 'Chair', 'Rock'])
+    }
+    expect(buildRound([{ ...one, mode: 'all' as const }], options())[0].choices).toBeUndefined()
   })
 
   it('counts an answer typed twice once', () => {
@@ -262,9 +282,9 @@ describe('buildRound with choice questions', () => {
     expect(sorted(q.choices)).toEqual(['Apple', 'Rock'])
   })
 
-  it('typing: type one right answer, pick when there are several', () => {
+  it('typing: type one right answer, select when the mode is all', () => {
     const [a] = buildRound([one], options({ format: 'typing' }))
-    expect(a).toEqual({ cardId: 'q1', prompt: 'Which is a fruit?', answer: 'Apple' })
+    expect(a).toEqual({ cardId: 'q1', prompt: 'Which is a fruit?', answer: 'Apple', pick: 'one' })
     const [b] = buildRound([many], options({ format: 'typing' }))
     expect(b.answers).toEqual(['Nucleus', 'Ribosome'])
     expect(sorted(b.choices)).toEqual(['Cell wall', 'Nucleus', 'Ribosome', 'Sap'])
@@ -290,10 +310,11 @@ describe('buildRound with choice questions', () => {
     const [q] = buildRound([many], options({ format: 'choice' }))
     const edited: ChoiceCard = { ...many, question: 'New?', right: ['Nucleus', 'Golgi'], wrong: ['Sap'] }
     const [fresh] = refreshQuestions([q], edited)
-    expect(fresh).toMatchObject({ prompt: 'New?', answer: 'Nucleus, Golgi', answers: ['Nucleus', 'Golgi'] })
+    expect(fresh).toMatchObject({ prompt: 'New?', answer: 'Nucleus, Golgi', pick: 'all', answers: ['Nucleus', 'Golgi'] })
     expect(sorted(fresh.choices)).toEqual(['Golgi', 'Nucleus', 'Sap'])
     const [typed] = buildRound([one], options({ format: 'typing' }))
-    expect(refreshQuestions([typed], { ...one, right: ['Pear'] })[0]).toEqual({ cardId: 'q1', prompt: 'Which is a fruit?', answer: 'Pear' })
+    expect(refreshQuestions([typed], { ...one, right: ['Pear'] })[0]).toEqual({ cardId: 'q1', prompt: 'Which is a fruit?', answer: 'Pear', pick: 'one' })
+    expect(refreshQuestions([typed], { ...one, right: ['Pear', 'Plum'] })[0]).toMatchObject({ pick: 'one', answers: ['Pear', 'Plum'] })
   })
 })
 
@@ -374,7 +395,7 @@ describe('canChoose', () => {
     expect(canChoose([term('a')])).toBe(false)
     expect(canChoose([term('a'), term('b')])).toBe(true)
     expect(canChoose([{ id: 't', type: 'true-false', statement: 's', answer: true }])).toBe(true)
-    expect(canChoose([{ id: 'c', type: 'choice', question: 'q', right: ['r'], wrong: ['w'] }])).toBe(true)
+    expect(canChoose([{ id: 'c', type: 'choice', question: 'q', mode: 'one', right: ['r'], wrong: ['w'] }])).toBe(true)
     expect(canChoose([{ id: 's', type: 'sequence', title: 't', steps: ['a', 'b'] }])).toBe(true)
   })
 })

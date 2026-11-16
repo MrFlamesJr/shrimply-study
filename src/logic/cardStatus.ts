@@ -106,7 +106,7 @@ const MAX_LISTED = 5
 const PHRASES: Record<string, string> = {
   term: 'front',
   definition: 'back',
-  right: 'right answer',
+  right: 'correct answer',
   wrong: 'wrong answer',
   steps: 'two steps',
 }
@@ -131,7 +131,7 @@ export function unfinishedMessage(cards: Card[]): string | null {
       : `${nums.slice(0, -1).join(', ')} and ${nums[nums.length - 1]}`
   // A half-filled term card makes both its sides the ones to fill; a blank and a statement are named only when missing.
   const sides = bad.some((b) => b.part === 'front' || b.part === 'back')
-  const others = ['blank', 'statement', 'question', 'right answer', 'wrong answer', 'title', 'two steps']
+  const others = ['blank', 'statement', 'question', 'correct answer', 'wrong answer', 'title', 'two steps']
   const parts = [...(sides ? ['front', 'back'] : []), ...others.filter((part) => bad.some((b) => b.part === part))]
   const named = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} or ${parts.at(-1)}`
   return `Cards ${list} need ${needs(named)}.`

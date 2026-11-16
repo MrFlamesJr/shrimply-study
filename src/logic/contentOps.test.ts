@@ -255,7 +255,7 @@ describe('remove, exists, itemName', () => {
       term('a2', '   '),
       { id: 'a3', type: 'cloze', statement: 'The {mito} is \\{x\\}', explanation: [null] },
       { id: 'a4', type: 'true-false', statement: 'Sky is blue', answer: true },
-      { id: 'a5', type: 'choice', question: 'Pick', right: ['a'], wrong: ['b'] },
+      { id: 'a5', type: 'choice', mode: 'one', question: 'Pick', right: ['a'], wrong: ['b'] },
       { id: 'a6', type: 'sequence', title: 'Phases', steps: ['a', 'b'] },
     ]
     docs.a.courses[0].quizzes[0].cards = cards

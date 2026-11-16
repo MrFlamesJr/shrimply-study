@@ -118,7 +118,7 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
         : kind === 'true-false'
           ? { id: newId(), type: 'true-false', statement: '', answer: true, ...(group && { group }) }
           : kind === 'choice'
-            ? { id: newId(), type: 'choice', question: '', right: [''], wrong: ['', ''], ...(group && { group }) }
+            ? { id: newId(), type: 'choice', question: '', mode: 'one', right: [''], wrong: ['', ''], ...(group && { group }) }
             : kind === 'sequence'
               ? { id: newId(), type: 'sequence', title: '', steps: ['', '', ''], ...(group && { group }) }
               : { id: newId(), term: '', definition: '', ...(sides && { sides }), ...(group && { group }) }

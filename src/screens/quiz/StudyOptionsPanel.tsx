@@ -65,7 +65,7 @@ export function StudyOptionsPanel({ prefs, setPrefs, format, choosable, hasGroup
                 value === 'choice' && kinds.trueFalse && 'True or false cards offer only True and False.',
                 value === 'typing' && kinds.trueFalse && 'True or false cards are answered with two buttons.',
                 value === 'choice' && kinds.sequence && 'Sequences are answered by arranging their steps.',
-                value === 'typing' && kinds.choice && 'Choice questions with several correct answers are answered by selecting them.',
+                value === 'typing' && kinds.choice && 'Choice questions that ask for all that apply are answered by selecting them. The others are typed, and any correct answer counts.',
                 value === 'typing' && kinds.sequence && 'Sequences are asked one step at a time.',
                 !choosable && 'Multiple choice needs at least 2 cards.',
               ),

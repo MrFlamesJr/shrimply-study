@@ -2,19 +2,20 @@ import { useState } from 'react'
 import type { Question } from '../../model'
 import { useKeydown } from '../../hooks/useKeydown'
 import { samePicks } from '../../logic/grade'
+import { CheckIcon } from '../../components/Icons'
 import { Shortcut } from '../../components/Shortcut'
 import { Mark } from './Answers'
 import type { Result } from './Question'
 
 type Props = {
-  // A question with several right `answers` among its `choices`.
+  // A choice question that selects all that apply: its right `answers` among its `choices`.
   question: Question
   result: Result | undefined
   paused: boolean
   onRecord: (result: Result) => void
 }
 
-/** Pick all that are right: toggle options (click or keys 1 to 9), then Check. Right only for exactly the right set. */
+/** Select all that apply: toggle options (click or keys 1 to 9), each a check box, then Check. Right only for exactly the right set. */
 export function PickAll({ question, result, paused, onRecord }: Props) {
   const choices = question.choices!
   const right = question.answers!
@@ -76,6 +77,7 @@ export function PickAll({ question, result, paused, onRecord }: Props) {
               onClick={() => toggle(i)}
             >
               <span className="choice-key">{i + 1}</span>
+              <span className="choice-box">{picked && <CheckIcon />}</span>
               {choice}
               {mark === 'Missed' ? (
                 <span className="choice-mark" role="img" aria-label={mark} title={mark}>

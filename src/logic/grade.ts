@@ -1,5 +1,8 @@
 // Grading for answers that are lists: a choice question with several right answers, a sequence put in order.
 
+/** Right when the one pick is any of the right answers (a choice question that picks one). */
+export const anyRight = (picked: string, right: string[]): boolean => right.includes(picked)
+
 /** Right when the picks are exactly the right answers, in any order. */
 export function samePicks(picked: string[], right: string[]): boolean {
   return picked.length === right.length && right.every((r) => picked.includes(r))

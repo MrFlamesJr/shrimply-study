@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type FormEvent } from 'react'
 import { SIDE_IMAGE, isTermCard, type Card, type Format, type Question as QuestionData } from '../../model'
 import { useKeydown } from '../../hooks/useKeydown'
 import { checkAnswer } from '../../logic/checkAnswer'
-import { orderCounts, pickCounts } from '../../logic/grade'
+import { anyRight, orderCounts, pickCounts } from '../../logic/grade'
 import { parseCloze } from '../../logic/cloze'
 import { mixedUpBlank, mixedUpStep, mixedUpWith } from '../../logic/mixUp'
 import { sideNames } from '../../logic/sides'
@@ -98,10 +98,10 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
     return () => stack.removeEventListener('wheel', onWheel)
   }, [])
 
-  // Several right answers are picked all at once, a sequence is put in order: both are checked with a button and
+  // A choice question that selects all that apply is picked all at once, a sequence is put in order: both are checked with a button and
   // keep their own state (PickAll, Arrange), so the question is answered once there is a result.
   const arrange = format === 'choice' && question.arrange === true
-  const pickAll = format === 'choice' && !arrange && !!question.choices && (question.answers?.length ?? 0) > 1
+  const pickAll = format === 'choice' && !arrange && !!question.choices && question.pick === 'all'
   const feedback = format === 'choice' ? (arrange || pickAll ? result !== undefined : picked !== null) : format === 'typing' ? typed !== null : false
 
   // The sheet takes its room at the bottom of the column: what was answered (choices, the checked order, the typed
@@ -128,10 +128,13 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
     next()
   }
 
+  // A choice question that picks one counts any of its right answers.
+  const isRight = (choice: string) => (question.pick === 'one' && question.answers ? anyRight(choice, question.answers) : choice === question.answer)
+
   const pick = (choice: string) => {
     if (picked !== null) return
     setPicked(choice)
-    onRecord({ ok: choice === question.answer, given: choice })
+    onRecord({ ok: isRight(choice), given: choice })
   }
 
   const check = (e: FormEvent) => {
@@ -139,7 +142,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
     // No answer is ever empty (a card needs both sides, a blank needs text), so an empty field can't be checked.
     if (typed !== null || draft.trim() === '') return
     setTyped(draft)
-    onRecord({ ok: checkAnswer(draft, question.answer), given: draft })
+    onRecord({ ok: (question.pick === 'one' && question.answers ? question.answers : [question.answer]).some((a) => checkAnswer(draft, a)), given: draft })
   }
 
   useKeydown((e) => {
@@ -224,14 +227,24 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
       'Arrange the items in the correct order'
     )
   ) : card?.type === 'choice' ? (
-    multi ? (
-      <>
-        {think ? 'Recall' : 'Select'} <strong>all</strong> correct answers
-      </>
-    ) : think ? (
-      'Recall the answer'
+    think ? (
+      question.pick === 'all' ? (
+        <>
+          Recall <strong>all</strong> correct answers
+        </>
+      ) : (
+        'Recall the answer'
+      )
     ) : question.choices ? (
-      'Select the correct answer'
+      question.pick === 'all' ? (
+        <>
+          Select <strong>all</strong> that apply
+        </>
+      ) : (
+        'Select one answer'
+      )
+    ) : multi ? (
+      'Type one correct answer'
     ) : (
       'Type the answer'
     )
@@ -300,7 +313,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
   const choiceImage = (choice: string) =>
     cloze || plain
       ? undefined
-      : choice === question.answer
+      : isRight(choice)
         ? answerImage
         : mixedUpWith(choice, answerSide, question.cardId, usable)?.[SIDE_IMAGE[answerSide]]
 
@@ -376,7 +389,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
             <div className="choices">
               {question.choices.map((choice, i) => {
                 // Once picked: the right answer and a wrong pick are marked, the rest step back.
-                const state = picked === null ? '' : choice === question.answer ? 'is-correct' : choice === picked ? 'is-wrong' : 'is-dim'
+                const state = picked === null ? '' : isRight(choice) ? 'is-correct' : choice === picked ? 'is-wrong' : 'is-dim'
                 return (
                   <button
                     key={i}
@@ -417,7 +430,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
                 typed={typed}
                 ok={ok === true}
                 marked={result?.marked}
-                answer={question.answer}
+                answers={question.pick === 'one' && question.answers ? question.answers : [question.answer]}
                 answerImage={answerImage}
               />
             ))}

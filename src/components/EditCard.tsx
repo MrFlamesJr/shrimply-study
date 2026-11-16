@@ -213,14 +213,16 @@ export function EditCard({ card, index, lib, onPatch, onDelete, editor }: Props)
               data-field="question"
               cardId={card.id}
               question={card.question}
+              mode={card.mode}
               right={card.right}
               wrong={card.wrong}
+              onMode={(mode) => onPatch({ mode })}
               onQuestion={(question) => onPatch({ question })}
               onList={(list, entries) => onPatch({ [list]: entries })}
               onBlur={() => trim(card.question, 'question')}
               image={{ src: card.image, label: `question ${n}`, onChange: (image) => onPatch({ image }) }}
               hint={hint('question', 'Question', 'Add a question')}
-              rightHint={hint('right', 'Right answers', 'Add a right answer')}
+              rightHint={hint('right', 'Correct answers', 'Add a correct answer')}
               wrongHint={hint('wrong', 'Wrong answers', 'Add a wrong answer')}
             />
           </div>

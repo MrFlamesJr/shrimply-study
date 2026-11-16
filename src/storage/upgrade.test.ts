@@ -59,7 +59,7 @@ describe('older versions', () => {
     expect(cells.cards).toHaveLength(15)
     expect(cells.cards[1]).toMatchObject({ sides: ['Organelle', 'Job'], term: 'Ribosome' })
     expect(cells.cards[5]).toMatchObject({ type: 'true-false', answer: true, image: expect.stringMatching(/^data:image\/png;base64,/) })
-    expect(cells.cards[8]).toMatchObject({ type: 'choice', right: ['Chloroplast', 'Cell wall'], wrong: ['Centriole'] })
+    expect(cells.cards[8]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast', 'Cell wall'], wrong: ['Centriole'] })
     expect(cells.cards[9]).toMatchObject({ type: 'sequence', steps: ['Prophase', 'Metaphase', 'Anaphase', 'Telophase'], explanation: 'PMAT' })
     expect(cells.cards[14]).toMatchObject({ type: 'sequence', group: cells.groups[1].id })
   })
@@ -71,8 +71,51 @@ describe('older versions', () => {
     expect(cells.cards.map((c) => c.id)).toEqual(['k1', 'k2', 'k3', 'k4', 'k5', 'k6'])
     expect(cells.cards[1]).toMatchObject({ sides: ['Organelle', 'Job'], definition: '' })
     expect(cells.cards[3]).toMatchObject({ type: 'true-false', answer: true })
-    expect(cells.cards[4]).toMatchObject({ type: 'choice', right: ['Chloroplast', 'Cell wall', ''], explanation: '', group: 'g1' })
+    expect(cells.cards[4]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast', 'Cell wall', ''], explanation: '', group: 'g1' })
     expect(cells.cards[5]).toMatchObject({ type: 'sequence', group: 'g2', image: expect.stringMatching(/^data:image\/png;base64,/) })
+  })
+})
+
+describe('the version 3 step (choice modes)', () => {
+  const choice = (right: string[], extra: object = {}) => ({ type: 'choice', question: 'Q', right, wrong: ['W'], ...extra })
+  const modes = (cards: unknown[]) => cards.map((c) => (c as { mode: string }).mode)
+
+  it('sets "all" for several different right answers and "one" otherwise, in a file and in groups', () => {
+    const file = {
+      version: 2,
+      courses: [
+        {
+          name: 'c',
+          quizzes: [
+            {
+              name: 'q',
+              cards: [choice(['A', 'B']), choice(['A']), choice(['A', ' A ', '']), choice(['', ' ']), { term: 't', definition: 'd' }],
+              groups: [{ name: 'g', cards: [choice(['A', 'B', 'C']), choice(['A', 'A'])] }],
+            },
+          ],
+        },
+      ],
+    }
+    const up = upgrade(file, 'new') as typeof file
+    const [quiz] = up.courses[0].quizzes
+    expect(modes(quiz.cards)).toEqual(['all', 'one', 'one', 'one', undefined])
+    expect(modes(quiz.groups[0].cards)).toEqual(['all', 'one'])
+    expect(quiz.cards[4]).toEqual({ term: 't', definition: 'd' })
+  })
+
+  it('does the same for the backup form, with ids and a flat card list', () => {
+    const backup = {
+      version: 2,
+      courses: [{ id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', groups: [{ id: 'g', name: 'G' }], cards: [choice(['A', 'B'], { id: 'k', group: 'g' }), choice(['A'], { id: 'l' })] }] }],
+    }
+    const up = upgrade(backup, 'stored') as typeof backup
+    expect(modes(up.courses[0].quizzes[0].cards)).toEqual(['all', 'one'])
+    expect(up.courses[0].quizzes[0].cards[0]).toMatchObject({ id: 'k', group: 'g' })
+  })
+
+  it('opens a version 2 file with the same modes it was studied by', () => {
+    const lib = libraryFromJson(JSON.stringify({ version: 2, courses: [{ name: 'c', quizzes: [{ name: 'q', cards: [choice(['A', 'B']), choice(['A'])] }] }] }))
+    expect(lib.courses[0].quizzes[0].cards).toMatchObject([{ mode: 'all' }, { mode: 'one' }])
   })
 })
 

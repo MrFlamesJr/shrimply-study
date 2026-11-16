@@ -586,9 +586,9 @@ describe('library format', () => {
 
     it('round-trip through the file and the backup', () => {
       const lib = stored([
-        { id: 'k', type: 'choice', question: 'Which are organelles?', image: png, right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall'], explanation: 'Why' },
+        { id: 'k', type: 'choice', question: 'Which are organelles?', image: png, mode: 'all', right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall'], explanation: 'Why' },
         { id: 'l', type: 'sequence', title: 'Phases', image: png, steps: ['Prophase', 'Metaphase'], explanation: 'Order' },
-        { id: 'm', type: 'choice', question: 'Q', right: ['A'], wrong: ['B'] },
+        { id: 'm', type: 'choice', question: 'Q', mode: 'one', right: ['A'], wrong: ['B'] },
         { id: 'n', type: 'sequence', title: 'T', steps: ['1', '2'] },
       ])
       const back = decodeLibrary(encodeLibrary(lib))
@@ -602,16 +602,33 @@ describe('library format', () => {
     it('are written on one line, in field order, without empty entries or explanation', () => {
       const json = libraryToJson(
         stored([
-          { id: 'k', type: 'choice', question: 'Q', image: png, right: ['A', ' '], wrong: ['B', 'C', ''], explanation: 'E' },
-          { id: 'l', type: 'choice', question: 'Q2', right: [], wrong: [], explanation: ' ' },
+          { id: 'k', type: 'choice', question: 'Q', image: png, mode: 'one', right: ['A', ' '], wrong: ['B', 'C', ''], explanation: 'E' },
+          { id: 'l', type: 'choice', question: 'Q2', mode: 'all', right: [], wrong: [], explanation: ' ' },
           { id: 'm', type: 'sequence', title: 'T', image: png, steps: ['x', '', 'y'], explanation: 'E' },
           { id: 'n', type: 'sequence', title: 'T2', steps: [] },
         ]),
       )
-      expect(json).toContain('{ "type": "choice", "question": "Q", "image": "1.png", "right": ["A"], "wrong": ["B", "C"], "explanation": "E" }')
-      expect(json).toContain('{ "type": "choice", "question": "Q2", "right": [], "wrong": [] }')
+      expect(json).toContain('{ "type": "choice", "question": "Q", "image": "1.png", "mode": "one", "right": ["A"], "wrong": ["B", "C"], "explanation": "E" }')
+      expect(json).toContain('{ "type": "choice", "question": "Q2", "mode": "all", "right": [], "wrong": [] }')
       expect(json).toContain('{ "type": "sequence", "title": "T", "image": "1.png", "steps": ["x", "y"], "explanation": "E" }')
       expect(json).toContain('{ "type": "sequence", "title": "T2", "steps": [] }')
+    })
+
+    it('read the mode, and take "all" for several different right answers and "one" otherwise when a file leaves it out', () => {
+      const mode = (extra: object) => (cardOf(fromData(withCard({ type: 'choice', question: 'Q', wrong: [], ...extra }))) as { mode: string }).mode
+      expect(mode({ right: ['A'], mode: 'all' })).toBe('all')
+      expect(mode({ right: ['A', 'B'], mode: 'one' })).toBe('one')
+      expect(mode({ right: ['A', 'B'] })).toBe('all')
+      expect(mode({ right: ['A'] })).toBe('one')
+      expect(mode({ right: ['A', ' A ', ''] })).toBe('one')
+    })
+
+    it('require the mode in the backup, and reject any other mode, naming the spot', () => {
+      const card = { id: 'k', type: 'choice', question: 'Q', right: ['A'], wrong: [] }
+      const lib = (c: object) => ({ version: FORMAT_VERSION, courses: [{ id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', groups: [], cards: [c] }] }] })
+      expect(() => checkLibrary(lib(card), 'stored')).toThrow('"mode" is missing.')
+      expect(() => checkLibrary(lib({ ...card, mode: 'many' }), 'stored')).toThrow('"mode" must be "one" or "all".')
+      expect(() => fromData(withCard({ type: 'choice', question: 'Q', mode: 'many', right: [], wrong: [] }))).toThrow(`${at}"mode" must be "one" or "all".`)
     })
 
     it('trim their texts and entries when read', () => {
