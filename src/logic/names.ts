@@ -37,3 +37,10 @@ export function freeName(base: string, names: string[]): string {
   for (let i = 2; names.some(sameAs(name)); i++) name = `${base} ${i}`
   return name
 }
+
+/** `base`, or "base (2)", "base (3)" and so on: the first that none of `names` counts as the same name (a copy's name). */
+export function copyName(base: string, names: string[]): string {
+  let name = base
+  for (let i = 2; names.some(sameAs(name)); i++) name = `${base} (${i})`
+  return name
+}

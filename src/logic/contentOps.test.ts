@@ -1,0 +1,267 @@
+import { describe, expect, it } from 'vitest'
+import { FORMAT_VERSION, type Card, type Course, type Library, type Quiz, type Sides } from '../model'
+import { canPlace, exists, extract, insert, itemName, move, remove, type Docs, type ItemRef } from './contentOps'
+
+const term = (id: string, text = id, extra: Partial<Card> = {}): Card => ({ id, term: text, definition: 'd', ...extra }) as Card
+const quiz = (id: string, cards: Card[] = [], groups: Quiz['groups'] = []): Quiz => ({ id, name: id.toUpperCase(), groups, cards })
+const course = (id: string, quizzes: Quiz[] = []): Course => ({ id, name: id.toUpperCase(), quizzes })
+const lib = (courses: Course[], sideTypes?: Sides[]): Library => ({ version: FORMAT_VERSION, courses, ...(sideTypes && { sideTypes }) })
+
+let n = 0
+const fresh = () => `new${++n}`
+
+const cref = (doc: string, course: string): ItemRef => ({ kind: 'course', doc, course })
+const qref = (doc: string, course: string, quiz: string): ItemRef => ({ kind: 'quiz', doc, course, quiz })
+const kref = (doc: string, course: string, quiz: string, card: string): ItemRef => ({ kind: 'card', doc, course, quiz, card })
+const termOf = (c: Card) => (c as { term: string }).term
+
+function sample(): Docs {
+  return {
+    a: lib([
+      course('c1', [quiz('q1', [term('k1'), term('k2'), term('k3')]), quiz('q2', [term('k4')])]),
+      course('c2', [quiz('q3')]),
+      course('c3'),
+    ]),
+    b: lib([course('c4', [quiz('q4', [term('k5')])])]),
+    c: lib([course('c5')]),
+  }
+}
+const ids = (xs: { id: string }[]) => xs.map((x) => x.id)
+
+describe('extract', () => {
+  it('keeps document order whatever the order of refs, and deep copies', () => {
+    const docs = sample()
+    const f = extract(docs, [cref('b', 'c4'), cref('a', 'c3'), cref('a', 'c1')])
+    expect(f.kind === 'course' && ids(f.courses)).toEqual(['c1', 'c3', 'c4'])
+    if (f.kind === 'course') expect(f.courses[0]).not.toBe(docs.a.courses[0])
+  })
+  it('lists the own side types the term cards use', () => {
+    const docs = sample()
+    docs.a.courses[0].quizzes[0].cards[0] = term('k1', 'x', { sides: ['Q', 'A'] })
+    docs.a.courses[0].quizzes[0].cards[1] = term('k2', 'y', { sides: ['Term', 'Definition'] })
+    expect(extract(docs, [qref('a', 'c1', 'q1')]).sideTypes).toEqual([['Q', 'A']])
+  })
+  it('throws on mixed kinds and missing items', () => {
+    const docs = sample()
+    expect(() => extract(docs, [cref('a', 'c1'), qref('a', 'c1', 'q1')])).toThrow()
+    expect(() => extract(docs, [cref('a', 'zz')])).toThrow('That is no longer there.')
+  })
+})
+
+describe('canPlace', () => {
+  it('refuses the wrong level with a plain reason', () => {
+    const docs = sample()
+    expect(canPlace(docs, [qref('a', 'c1', 'q1')], { kind: 'doc', doc: 'b' }, 'copy')).toBe('A quiz can only go in a course.')
+    expect(canPlace(docs, [qref('a', 'c1', 'q1')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q2' }, 'move')).toBe('A quiz can only go in a course.')
+    expect(canPlace(docs, [cref('a', 'c1')], { kind: 'course', doc: 'a', course: 'c2' }, 'move')).toBe('A course can only go in a file.')
+    expect(canPlace(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'course', doc: 'a', course: 'c2' }, 'copy')).toBe('A card can only go in a quiz.')
+  })
+  it('refuses a missing source, target or group', () => {
+    const docs = sample()
+    expect(canPlace(docs, [cref('a', 'zz')], { kind: 'doc', doc: 'b' }, 'copy')).toBe('That is no longer there.')
+    expect(canPlace(docs, [cref('a', 'c1')], { kind: 'doc', doc: 'zz' }, 'copy')).toBe('That is no longer there.')
+    expect(canPlace(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q2', group: 'nope' }, 'copy')).toBe('That group is no longer there.')
+  })
+  it('refuses a move that changes nothing, but not a reorder or a copy', () => {
+    const docs = sample()
+    const t = { kind: 'doc', doc: 'a', index: 1 } as const
+    expect(canPlace(docs, [cref('a', 'c1')], t, 'move')).toBe('That is already there.')
+    expect(canPlace(docs, [cref('a', 'c1')], { kind: 'doc', doc: 'a', index: 2 }, 'move')).toBeNull()
+    expect(canPlace(docs, [cref('a', 'c1')], t, 'copy')).toBeNull()
+    expect(canPlace(docs, [], t, 'copy')).toBe('Nothing is selected.')
+  })
+})
+
+describe('insert', () => {
+  it('copies a course with fresh ids for everything inside and keeps its quizzes, groups and cards', () => {
+    const docs = sample()
+    const q1 = docs.a.courses[0].quizzes[0]
+    q1.groups = [{ id: 'g1', name: 'G', color: 'coral' }]
+    q1.cards = [term('k1'), term('k3'), term('k2', 'k2', { group: 'g1' })]
+    const { docs: out, created } = insert(docs, extract(docs, [cref('a', 'c1')]), { kind: 'doc', doc: 'b' }, fresh)
+    const copy = out.b.courses[1]
+    expect(created).toEqual([{ kind: 'course', doc: 'b', course: copy.id }])
+    expect(copy.id).not.toBe('c1')
+    expect(copy.name).toBe('C1')
+    expect(copy.quizzes.map((q) => q.name)).toEqual(['Q1', 'Q2'])
+    const q = copy.quizzes[0]
+    expect(q.cards.map(termOf)).toEqual(['k1', 'k3', 'k2'])
+    expect(q.groups[0]).toMatchObject({ name: 'G', color: 'coral' })
+    expect(q.cards[2].group).toBe(q.groups[0].id)
+    const all = [copy.id, ...copy.quizzes.flatMap((x) => [x.id, ...x.groups.map((g) => g.id), ...x.cards.map((c) => c.id)])]
+    expect(new Set(all).size).toBe(all.length)
+    expect(all.every((i) => !['c1', 'q1', 'q2', 'g1', 'k1', 'k2', 'k3', 'k4'].includes(i))).toBe(true)
+  })
+  it('names a clash with (2), (3), also among the inserted ones', () => {
+    const docs = sample()
+    const f = extract(docs, [cref('a', 'c1'), cref('a', 'c2')])
+    const once = insert(docs, f, { kind: 'doc', doc: 'a' }, fresh).docs
+    expect(once.a.courses.map((c) => c.name)).toEqual(['C1', 'C2', 'C3', 'C1 (2)', 'C2 (2)'])
+    const twice = insert(once, f, { kind: 'doc', doc: 'a', index: 0 }, fresh).docs
+    expect(twice.a.courses.map((c) => c.name).slice(0, 2)).toEqual(['C1 (3)', 'C2 (3)'])
+    const q = insert(docs, extract(docs, [qref('a', 'c1', 'q1')]), { kind: 'course', doc: 'a', course: 'c1', index: 0 }, fresh)
+    expect(q.docs.a.courses[0].quizzes.map((x) => x.name)).toEqual(['Q1 (2)', 'Q1', 'Q2'])
+  })
+  it('groups carry by name, or are added at the end with their color; no group stays none', () => {
+    const docs = sample()
+    const src = docs.a.courses[0].quizzes[0]
+    src.groups = [{ id: 'g1', name: 'Same', color: 'coral' }, { id: 'g2', name: 'Fresh', color: 'sky' }]
+    src.cards = [term('k1'), term('k2', 'k2', { group: 'g1' }), term('k3', 'k3', { group: 'g2' })]
+    docs.b.courses[0].quizzes[0].groups = [{ id: 'tg', name: 'Same', color: 'moss' }]
+    const f = extract(docs, [kref('a', 'c1', 'q1', 'k3'), kref('a', 'c1', 'q1', 'k1'), kref('a', 'c1', 'q1', 'k2')])
+    const out = insert(docs, f, { kind: 'quiz', doc: 'b', course: 'c4', quiz: 'q4' }, fresh).docs.b.courses[0].quizzes[0]
+    expect(out.groups.map((g) => g.name)).toEqual(['Same', 'Fresh'])
+    expect(out.groups[0].id).toBe('tg')
+    expect(out.groups[1]).toMatchObject({ name: 'Fresh', color: 'sky' })
+    expect(out.groups[1].id).not.toBe('g2')
+    const byTerm = Object.fromEntries(out.cards.map((c) => [termOf(c), c.group]))
+    expect(byTerm).toEqual({ k5: undefined, k1: undefined, k2: 'tg', k3: out.groups[1].id })
+    expect(out.cards.map(termOf)).toEqual(['k5', 'k1', 'k2', 'k3'])
+  })
+  it('group null drops groups; an id uses that group; an unknown id is refused', () => {
+    const docs = sample()
+    docs.a.courses[0].quizzes[0].groups = [{ id: 'g1', name: 'G', color: 'coral' }]
+    docs.a.courses[0].quizzes[0].cards[0] = term('k1', 'k1', { group: 'g1' })
+    docs.b.courses[0].quizzes[0].groups = [{ id: 'tg', name: 'T', color: 'moss' }]
+    const f = extract(docs, [kref('a', 'c1', 'q1', 'k1')])
+    const into = (group: string | null) => insert(docs, f, { kind: 'quiz', doc: 'b', course: 'c4', quiz: 'q4', index: 0, group }, fresh).docs.b.courses[0].quizzes[0]
+    expect(into(null).cards[0].group).toBeUndefined()
+    expect(into(null).groups).toHaveLength(1)
+    expect(into('tg').cards.find((c) => termOf(c) === 'k1')?.group).toBe('tg')
+    expect(() => into('g1')).toThrow('That group is no longer there.')
+  })
+  it("adds a card's own side type to the target file once", () => {
+    const docs = sample()
+    docs.a.courses[0].quizzes[0].cards[0] = term('k1', 'k1', { sides: ['Q', 'A'] })
+    const f = extract(docs, [kref('a', 'c1', 'q1', 'k1')])
+    const t = { kind: 'quiz', doc: 'b', course: 'c4', quiz: 'q4' } as const
+    const once = insert(docs, f, t, fresh).docs
+    expect(once.b.sideTypes).toEqual([['Q', 'A']])
+    expect(insert(once, f, t, fresh).docs.b.sideTypes).toEqual([['Q', 'A']])
+    expect(docs.b.sideTypes).toBeUndefined()
+  })
+  it('index counts positions before the operation; untouched files keep their identity', () => {
+    const docs = sample()
+    const f = extract(docs, [kref('a', 'c1', 'q2', 'k4')])
+    const out = insert(docs, f, { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 1 }, fresh).docs
+    expect(out.a.courses[0].quizzes[0].cards.map(termOf)).toEqual(['k1', 'k4', 'k2', 'k3'])
+    expect(out.b).toBe(docs.b)
+    expect(out.c).toBe(docs.c)
+  })
+})
+
+describe('move', () => {
+  it('reorders within a file at a new index, counted before the move, without renaming', () => {
+    const docs = sample()
+    const { docs: out, moved } = move(docs, [cref('a', 'c1')], { kind: 'doc', doc: 'a', index: 3 })
+    expect(ids(out.a.courses)).toEqual(['c2', 'c3', 'c1'])
+    expect(moved).toEqual([cref('a', 'c1')])
+    expect(out.a.courses[2].name).toBe('C1')
+    expect(out.b).toBe(docs.b)
+    expect(out.c).toBe(docs.c)
+    expect(ids(move(docs, [cref('a', 'c3')], { kind: 'doc', doc: 'a', index: 0 }).docs.a.courses)).toEqual(['c3', 'c1', 'c2'])
+  })
+  it('keeps document order for shuffled refs and moves them together', () => {
+    const docs = sample()
+    const out = move(docs, [cref('b', 'c4'), cref('a', 'c3'), cref('a', 'c1')], { kind: 'doc', doc: 'c', index: 0 })
+    expect(ids(out.docs.c.courses)).toEqual(['c1', 'c3', 'c4', 'c5'])
+    expect(ids(out.docs.a.courses)).toEqual(['c2'])
+    expect(out.docs.b.courses).toEqual([])
+    expect(out.moved.map((r) => (r as { course: string }).course)).toEqual(['c1', 'c3', 'c4'])
+    const cards = move(docs, [kref('a', 'c1', 'q1', 'k3'), kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 2 })
+    expect(ids(cards.docs.a.courses[0].quizzes[0].cards)).toEqual(['k2', 'k1', 'k3'])
+  })
+  it('keeps ids across files, renames a clash, changes only the two files', () => {
+    const docs = sample()
+    docs.b.courses[0].name = 'C1'
+    const out = move(docs, [cref('a', 'c1')], { kind: 'doc', doc: 'b' }).docs
+    expect(out.b.courses.map((c) => [c.id, c.name])).toEqual([['c4', 'C1'], ['c1', 'C1 (2)']])
+    expect(out.b.courses[1].quizzes[0].cards.map((c) => c.id)).toEqual(['k1', 'k2', 'k3'])
+    expect(out.a.courses.map((c) => c.id)).toEqual(['c2', 'c3'])
+    expect(out.c).toBe(docs.c)
+  })
+  it("moves quizzes between courses and refuses a quiz dropped at a card's level", () => {
+    const docs = sample()
+    const out = move(docs, [qref('a', 'c1', 'q2')], { kind: 'course', doc: 'a', course: 'c2', index: 0 }).docs
+    expect(ids(out.a.courses[1].quizzes)).toEqual(['q2', 'q3'])
+    expect(ids(out.a.courses[0].quizzes)).toEqual(['q1'])
+    expect(() => move(docs, [qref('a', 'c1', 'q2')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1' })).toThrow('A quiz can only go in a course.')
+    expect(() => move(docs, [cref('a', 'c1')], { kind: 'course', doc: 'a', course: 'c1' })).toThrow('A course can only go in a file.')
+  })
+  it('moves cards with their group and own side type to another file; the source group stays', () => {
+    const docs = sample()
+    const src = docs.a.courses[0].quizzes[0]
+    src.groups = [{ id: 'g1', name: 'G', color: 'rose' }]
+    src.cards = [term('k1', 'k1', { group: 'g1', sides: ['Q', 'A'] }), term('k2')]
+    const out = move(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'b', course: 'c4', quiz: 'q4', index: 0 }).docs
+    const target = out.b.courses[0].quizzes[0]
+    expect(target.cards.map((c) => c.id)).toEqual(['k5', 'k1'])
+    expect(target.groups).toEqual([{ id: 'g1', name: 'G', color: 'rose' }])
+    expect(target.cards[1].group).toBe('g1')
+    expect(out.b.sideTypes).toEqual([['Q', 'A']])
+    expect(out.a.courses[0].quizzes[0].groups).toEqual(src.groups)
+    expect(out.a.courses[0].quizzes[0].cards.map((c) => c.id)).toEqual(['k2'])
+    expect(out.a.sideTypes).toBeUndefined()
+  })
+  it('keeps cards in group order within a quiz', () => {
+    const docs = sample()
+    const q = docs.a.courses[0].quizzes[0]
+    q.groups = [{ id: 'g1', name: 'G', color: 'rose' }]
+    q.cards = [term('k1'), term('k2'), term('k3', 'k3', { group: 'g1' })]
+    const out = move(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 3 }).docs
+    expect(ids(out.a.courses[0].quizzes[0].cards)).toEqual(['k2', 'k1', 'k3'])
+    const into = move(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', group: 'g1' }).docs
+    expect(ids(into.a.courses[0].quizzes[0].cards)).toEqual(['k2', 'k3', 'k1'])
+  })
+})
+
+describe('atomicity', () => {
+  it('a refused operation throws and changes nothing', () => {
+    const docs = sample()
+    const before = structuredClone(docs)
+    const frag = extract(docs, [kref('a', 'c1', 'q1', 'k1')])
+    const fragBefore = structuredClone(frag)
+    expect(() => move(docs, [cref('a', 'c1'), cref('a', 'zz')], { kind: 'doc', doc: 'b' })).toThrow()
+    expect(() => insert(docs, frag, { kind: 'course', doc: 'b', course: 'c4' }, fresh)).toThrow()
+    expect(() => remove(docs, [cref('a', 'c1'), cref('a', 'zz')])).toThrow()
+    expect(docs).toEqual(before)
+    expect(frag).toEqual(fragBefore)
+  })
+  it('successful operations leave their inputs alone', () => {
+    const docs = sample()
+    const before = structuredClone(docs)
+    move(docs, [cref('a', 'c1')], { kind: 'doc', doc: 'b' })
+    insert(docs, extract(docs, [cref('a', 'c1')]), { kind: 'doc', doc: 'c' }, fresh)
+    remove(docs, [cref('a', 'c1')])
+    expect(docs).toEqual(before)
+  })
+})
+
+describe('remove, exists, itemName', () => {
+  it('removes items with what is inside and keeps other files as they are', () => {
+    const docs = sample()
+    const out = remove(docs, [cref('a', 'c2'), kref('a', 'c1', 'q1', 'k2'), qref('a', 'c1', 'q2')])
+    expect(ids(out.a.courses)).toEqual(['c1', 'c3'])
+    expect(ids(out.a.courses[0].quizzes)).toEqual(['q1'])
+    expect(ids(out.a.courses[0].quizzes[0].cards)).toEqual(['k1', 'k3'])
+    expect(out.b).toBe(docs.b)
+    expect(exists(out, cref('a', 'c2'))).toBe(false)
+    expect(exists(out, kref('a', 'c1', 'q1', 'k1'))).toBe(true)
+  })
+  it('names an item by its first text', () => {
+    const docs = sample()
+    const cards: Card[] = [
+      term('a1', '  Hello '),
+      term('a2', '   '),
+      { id: 'a3', type: 'cloze', statement: 'The {mito} is \\{x\\}', explanation: [null] },
+      { id: 'a4', type: 'true-false', statement: 'Sky is blue', answer: true },
+      { id: 'a5', type: 'choice', question: 'Pick', right: ['a'], wrong: ['b'] },
+      { id: 'a6', type: 'sequence', title: 'Phases', steps: ['a', 'b'] },
+    ]
+    docs.a.courses[0].quizzes[0].cards = cards
+    const name = (id: string) => itemName(docs, kref('a', 'c1', 'q1', id))
+    expect(['a1', 'a2', 'a3', 'a4', 'a5', 'a6'].map(name)).toEqual(['Hello', 'Empty card', 'The mito is {x}', 'Sky is blue', 'Pick', 'Phases'])
+    expect(itemName(docs, cref('a', 'c1'))).toBe('C1')
+    expect(itemName(docs, qref('a', 'c1', 'q2'))).toBe('Q2')
+  })
+})
