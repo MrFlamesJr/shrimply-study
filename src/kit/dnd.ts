@@ -1,0 +1,55 @@
+export const DRAG_MIME = 'application/x-kit-drag+json'
+export type DragPayload = { kind: string; ids: string[] }
+
+// The drag in progress: the drag may end in another of the app's windows (same JavaScript), so this copy is read first.
+let current: DragPayload | null = null
+
+/** Starts a drag: the payload as JSON and the text for other apps; effectAllowed copyMove. */
+export function startDrag(dt: DataTransfer, payload: DragPayload, text: string): void {
+  dt.setData(DRAG_MIME, JSON.stringify(payload))
+  dt.setData('text/plain', text)
+  dt.effectAllowed = 'copyMove'
+  current = payload
+}
+
+/** The drag in progress: this module's copy, else the payload in the DataTransfer when the browser lets it be read. */
+export function readDrag(dt: DataTransfer | null): DragPayload | null {
+  if (current) return current
+  const text = dt?.getData(DRAG_MIME)
+  if (!text) return null
+  let data: unknown
+  try {
+    data = JSON.parse(text)
+  } catch {
+    return null // something else's drag
+  }
+  const p = data as Partial<DragPayload> | null
+  return p && typeof p.kind === 'string' && Array.isArray(p.ids) ? { kind: p.kind, ids: p.ids.map(String) } : null
+}
+
+/** Forgets the drag (on dragend). */
+export function endDrag(): void {
+  current = null
+}
+
+/** Copy with Ctrl (Alt/Option on a Mac), else move. */
+export function effectFor(mods: { ctrlKey: boolean; altKey: boolean; metaKey: boolean }, mac: boolean): 'move' | 'copy' {
+  return (mac ? mods.altKey : mods.ctrlKey) ? 'copy' : 'move'
+}
+
+/** Where on a row `y` falls: with `inside`, the top quarter is before, the bottom quarter after, the middle inside; else halves. */
+export function dropPosition(top: number, height: number, y: number, inside: boolean): 'before' | 'inside' | 'after' {
+  const f = (y - top) / height
+  if (!inside) return f < 0.5 ? 'before' : 'after'
+  return f < 0.25 ? 'before' : f > 0.75 ? 'after' : 'inside'
+}
+
+/** The outer quarter of a side the point is in (the nearest side in a corner), else center. */
+export function edgeZone(rect: { left: number; top: number; width: number; height: number }, x: number, y: number):
+  'left' | 'right' | 'top' | 'bottom' | 'center' {
+  const fx = (x - rect.left) / rect.width
+  const fy = (y - rect.top) / rect.height
+  const near: ['left' | 'right' | 'top' | 'bottom', number][] = [['left', fx], ['right', 1 - fx], ['top', fy], ['bottom', 1 - fy]]
+  const best = near.reduce((a, b) => (b[1] < a[1] ? b : a))
+  return best[1] < 0.25 ? best[0] : 'center'
+}

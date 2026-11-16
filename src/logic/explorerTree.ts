@@ -1,10 +1,8 @@
 // The Explorer's tree over the open files. Node ids: "d:<doc>", "c:<doc>:<course>", "q:<doc>:<course>:<quiz>",
 // "k:<doc>:<course>:<quiz>:<card>" (ids are UUIDs, so never hold ':').
 import type { Library } from '../model'
+import type { TreeSource } from '../kit/tree'
 import { itemName, type DocId, type Docs, type Fragment, type ItemRef, type Target } from './contentOps'
-
-// same shape as kit/tree TreeSource
-type TreeSource = { roots: string[]; children(id: string): string[]; label(id: string): string }
 
 export type OpenDoc = { id: DocId; name: string; library: Library }
 type DocRef = { kind: 'doc'; doc: DocId }
