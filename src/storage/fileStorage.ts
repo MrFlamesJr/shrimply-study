@@ -4,20 +4,21 @@ import type { StorageAdapter } from './StorageAdapter'
 import guideUrl from '../../samples/how-to-use.shrimp?url'
 import { fileNameProblem } from '../logic/names'
 
-function pickFile(): Promise<File | null> {
+function pickFiles(): Promise<File[]> {
   return new Promise((resolve) => {
     const input = document.createElement('input')
     input.type = 'file'
     input.accept = '.shrimp'
+    input.multiple = true
     input.style.display = 'none'
-    input.addEventListener('change', () => resolve(input.files?.[0] ?? null))
-    input.addEventListener('cancel', () => resolve(null))
+    input.addEventListener('change', () => resolve([...(input.files ?? [])]))
+    input.addEventListener('cancel', () => resolve([]))
     input.click()
   })
 }
 
 async function load(): Promise<{ library: Library; name: string } | null> {
-  const file = await pickFile()
+  const file = (await pickFiles())[0]
   if (!file) return null
   return { library: decodeLibrary(new Uint8Array(await file.arrayBuffer())), name: file.name }
 }
@@ -32,13 +33,104 @@ export async function fetchLibrary(url: string): Promise<Library> {
 export const loadGuide = () => fetchLibrary(guideUrl)
 
 // Not in TypeScript's DOM types yet (Chromium browsers only).
+type PickerType = { description: string; accept: Record<string, string[]> }
 declare global {
   interface Window {
-    showSaveFilePicker?(options: {
-      suggestedName: string
-      types: { description: string; accept: Record<string, string[]> }[]
-    }): Promise<{ name: string; createWritable(): Promise<{ write(data: Uint8Array): Promise<void>; close(): Promise<void> }> }>
+    showSaveFilePicker?(options: { suggestedName: string; types: PickerType[] }): Promise<FileSystemFileHandle>
+    showOpenFilePicker?(options: { multiple: boolean; types: PickerType[] }): Promise<FileSystemFileHandle[]>
   }
+  interface FileSystemHandle {
+    queryPermission?(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+    requestPermission?(descriptor: { mode: 'read' | 'readwrite' }): Promise<PermissionState>
+  }
+}
+
+const PICKER_TYPES: PickerType[] = [{ description: 'Shrimply Study library', accept: { 'application/zip': ['.shrimp'] } }]
+
+/** A local file a library is tied to. `handle` is null where the browser can't write back (Firefox, Safari). */
+export type FileRef = { name: string; handle: FileSystemFileHandle | null; size: number; modified: number }
+
+/** Whether a file can be saved in place (Chrome, Edge). */
+export const canSaveInPlace = (): boolean => !!window.showOpenFilePicker && !!window.showSaveFilePicker
+
+export type Opened = { ok: true; library: Library; file: FileRef } | { ok: false; name: string; error: string }
+
+async function readFile(file: File, handle: FileSystemFileHandle | null): Promise<Opened> {
+  try {
+    const library = decodeLibrary(new Uint8Array(await file.arrayBuffer()))
+    return { ok: true, library, file: { name: file.name, handle, size: file.size, modified: file.lastModified } }
+  } catch (err) {
+    return { ok: false, name: file.name, error: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** Null when nothing was picked. A broken file is reported in its place, never thrown. */
+export async function openFiles(): Promise<Opened[] | null> {
+  if (window.showOpenFilePicker) {
+    let handles: FileSystemFileHandle[]
+    try {
+      handles = await window.showOpenFilePicker({ multiple: true, types: PICKER_TYPES })
+    } catch (err) {
+      if (err instanceof DOMException && err.name === 'AbortError') return null
+      throw err
+    }
+    if (handles.length === 0) return null
+    return Promise.all(handles.map(async (handle) => readFile(await handle.getFile(), handle)))
+  }
+  const files = await pickFiles()
+  if (files.length === 0) return null
+  return Promise.all(files.map((file) => readFile(file, null)))
+}
+
+/** Reads the file again from disk. */
+export async function reread(handle: FileSystemFileHandle): Promise<Opened> {
+  return readFile(await handle.getFile(), handle)
+}
+
+export type SaveResult =
+  | { status: 'saved'; file: FileRef }
+  | { status: 'changed'; modified: number }
+  | { status: 'denied' }
+  | { status: 'error'; message: string }
+
+/**
+ * Writes the library into the file it came from. `expected` is the modified time last seen: when the file has another
+ * one, nothing is written ('changed') unless `force`. The file is only replaced when the write closes.
+ */
+export async function saveInPlace(
+  handle: FileSystemFileHandle,
+  library: Library,
+  expected: number | null,
+  force = false,
+): Promise<SaveResult> {
+  try {
+    let permission = (await handle.queryPermission?.({ mode: 'readwrite' })) ?? 'granted'
+    if (permission === 'prompt') permission = (await handle.requestPermission?.({ mode: 'readwrite' })) ?? 'denied'
+    if (permission !== 'granted') return { status: 'denied' }
+    const current = await handle.getFile()
+    if (expected !== null && current.lastModified !== expected && !force) {
+      return { status: 'changed', modified: current.lastModified }
+    }
+    const bytes = encodeChecked(library)
+    const writable = await handle.createWritable()
+    try {
+      await writable.write(bytes.slice())
+      await writable.close()
+    } catch (err) {
+      await writable.abort?.().catch(() => undefined)
+      throw err
+    }
+    const written = await handle.getFile()
+    return { status: 'saved', file: { name: handle.name, handle, size: written.size, modified: written.lastModified } }
+  } catch (err) {
+    return { status: 'error', message: err instanceof Error ? err.message : String(err) }
+  }
+}
+
+/** True when both are the same file on disk (or, with no handles, by name, size and modified time). */
+export async function sameFile(a: FileRef, b: FileRef): Promise<boolean> {
+  if (a.handle && b.handle) return a.handle.isSameEntry(b.handle)
+  return a.name === b.name && a.size === b.size && a.modified === b.modified
 }
 
 /** `suggested` with its .shrimp ending, or a dated name when there is none or it can't be a file name. */
@@ -51,30 +143,14 @@ function saveName(suggested?: string): string {
   return `study-library-${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}.shrimp`
 }
 
-/**
- * Resolves the file's name: the one picked in the save dialog, or the suggested one for a plain download (the browser
- * may still add a number to it). Null when the user cancelled the save.
- */
-async function save(library: Library, suggested?: string): Promise<string | null> {
+// A backup is read without name checks, so make sure what is written opens again. The error names the spot.
+function encodeChecked(library: Library): Uint8Array {
   const bytes = encodeLibrary(library)
-  // A backup is read without name checks, so make sure what is written opens again. The error names the spot.
   decodeLibrary(bytes)
-  const name = saveName(suggested)
-  if (window.showSaveFilePicker) {
-    try {
-      const handle = await window.showSaveFilePicker({
-        suggestedName: name,
-        types: [{ description: 'Shrimply Study library', accept: { 'application/zip': ['.shrimp'] } }],
-      })
-      const writable = await handle.createWritable()
-      await writable.write(bytes)
-      await writable.close()
-      return handle.name
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') return null
-      throw err
-    }
-  }
+  return bytes
+}
+
+function download(bytes: Uint8Array, name: string) {
   const url = URL.createObjectURL(new Blob([bytes.slice()], { type: 'application/zip' }))
   const link = document.createElement('a')
   link.href = url
@@ -83,6 +159,45 @@ async function save(library: Library, suggested?: string): Promise<string | null
   link.click()
   link.remove()
   setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
+// The save dialog's handle, written; null when the user cancelled.
+async function pickAndWrite(bytes: Uint8Array, name: string): Promise<FileSystemFileHandle | null> {
+  try {
+    const handle = await window.showSaveFilePicker!({ suggestedName: name, types: PICKER_TYPES })
+    const writable = await handle.createWritable()
+    await writable.write(bytes.slice())
+    await writable.close()
+    return handle
+  } catch (err) {
+    if (err instanceof DOMException && err.name === 'AbortError') return null
+    throw err
+  }
+}
+
+/** Save as: the picked file is kept (a handle) where the browser allows, else a download. Null when cancelled. */
+export async function saveAs(library: Library, suggestedName?: string): Promise<FileRef | null> {
+  const bytes = encodeChecked(library)
+  const name = saveName(suggestedName)
+  if (window.showSaveFilePicker) {
+    const handle = await pickAndWrite(bytes, name)
+    if (!handle) return null
+    const written = await handle.getFile()
+    return { name: handle.name, handle, size: written.size, modified: written.lastModified }
+  }
+  download(bytes, name)
+  return { name, handle: null, size: bytes.length, modified: Date.now() }
+}
+
+/**
+ * Resolves the file's name: the one picked in the save dialog, or the suggested one for a plain download (the browser
+ * may still add a number to it). Never keeps a handle. Null when the user cancelled the save.
+ */
+export async function downloadCopy(library: Library, suggested?: string): Promise<string | null> {
+  const bytes = encodeChecked(library)
+  const name = saveName(suggested)
+  if (window.showSaveFilePicker) return (await pickAndWrite(bytes, name))?.name ?? null
+  download(bytes, name)
   return name
 }
 
@@ -92,5 +207,5 @@ export const fileStorage: StorageAdapter = {
   loadHint: 'Open a .shrimp file. It replaces the library in this browser.',
   saveHint: 'Save your library as a .shrimp file',
   load,
-  save,
+  save: downloadCopy,
 }
