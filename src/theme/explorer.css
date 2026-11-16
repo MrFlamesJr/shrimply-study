@@ -1,0 +1,70 @@
+/* The Explorer (src/layout/Explorer.tsx): the open files as a tree. The tree itself is the kit's (tree.css); this is
+   its head, search and the file rows' extras. Tokens only. */
+.explorer {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  gap: var(--space-2);
+}
+.explorer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: 0 var(--space-2);
+}
+/* A title: the theme's display font and glow, like the info box's. */
+.explorer-title {
+  flex: 1;
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-info-title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-text);
+}
+.explorer-search {
+  padding: 0 var(--space-2);
+}
+.explorer-tree {
+  flex: 1;
+  min-height: 0;
+}
+.explorer-empty {
+  margin: 0;
+}
+.explorer .kit-row-icon:empty {
+  display: none;
+}
+.explorer-icon {
+  position: relative;
+  display: inline-flex;
+  color: var(--text-muted);
+}
+.explorer-icon svg {
+  width: 16px;
+  height: 16px;
+}
+/* Unsaved changes: a small dot on the file's icon (the row's description says it in words too). */
+.explorer-dot {
+  position: absolute;
+  top: -2px;
+  right: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--text);
+}
+.explorer-dest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.explorer-dest button {
+  width: 100%;
+  text-align: left;
+}

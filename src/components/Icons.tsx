@@ -4,10 +4,12 @@ import browser from '../icons/browser.svg?raw'
 import check from '../icons/check.svg?raw'
 import chevronDown from '../icons/chevron-down.svg?raw'
 import chevronsLeft from '../icons/chevrons-left.svg?raw'
+import chevronsUp from '../icons/chevrons-up.svg?raw'
 import cloud from '../icons/cloud.svg?raw'
 import cross from '../icons/cross.svg?raw'
 import eraser from '../icons/eraser.svg?raw'
 import fileIcon from '../icons/file.svg?raw'
+import folder from '../icons/folder.svg?raw'
 import grip from '../icons/grip.svg?raw'
 import image from '../icons/image.svg?raw'
 import info from '../icons/info.svg?raw'
@@ -48,6 +50,12 @@ export const CheckIcon = icon(check)
 
 // Two chevrons pointing left.
 export const ChevronsLeftIcon = icon(chevronsLeft)
+
+// Two chevrons pointing up: the Explorer's Collapse all.
+export const ChevronsUpIcon = icon(chevronsUp)
+
+// A folder: the Explorer's Open file.
+export const FolderIcon = icon(folder)
 
 // The sidebar's open file: a .shrimp file on this device, a library on Google Drive (a plain cloud, never Google's
 // logo), or one kept only in this browser (a browser window).
