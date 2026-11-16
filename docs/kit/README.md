@@ -71,6 +71,4 @@ This app maps them in the last block of `src/theme/tokens.css`, on `:root`:
 | Split view and drop zones | `SplitView.tsx`, `split.css` | [split.md](split.md) |
 | Context menu | `ContextMenu.tsx`, `menu.css` | [menu.md](menu.md) |
 | Tree view | `TreeView.tsx`, `tree.css` | [treeview.md](treeview.md) |
-
-The kit also has a `windows` module and the popout component. They are not
-documented here yet; their contracts are in `docs/architecture/modules.md`.
+| Popup windows | `windows.ts`, `Popout.tsx`, `public/popout.html` | [windows.md](windows.md) |
