@@ -11,11 +11,13 @@ type Props = {
   index: number
   lib: LibraryApi
   onSave: (card: Card) => void
+  /** Shows a trash button in the card's head: the card is deleted and the dialog closes. */
+  onDelete?: () => void
   onClose: () => void
 }
 
 /** Edits one card in a modal (from a study session, the results or the quiz page's card list): the editor's `EditCard`, with Save and Cancel. Save waits until the card is complete (both sides, a blank, a statement, a question with a right and a wrong answer, a title and two steps). */
-export function CardDialog({ card, index, lib, onSave, onClose }: Props) {
+export function CardDialog({ card, index, lib, onSave, onDelete, onClose }: Props) {
   // Only what was changed here, over the card as it is now, so a change the sides menu makes to every card using a
   // type (renamed, deleted) still shows.
   const [patch, setPatch] = useState<CardPatch>({})
@@ -31,7 +33,15 @@ export function CardDialog({ card, index, lib, onSave, onClose }: Props) {
 
   return (
     <Modal title="Edit card" narrow onClose={onClose}>
-      <EditCard card={draft} index={index} lib={lib} onPatch={(change) => setPatch((p) => ({ ...p, ...change }) as CardPatch)} />
+      <EditCard card={draft} index={index} lib={lib} onPatch={(change) => setPatch((p) => ({ ...p, ...change }) as CardPatch)}
+        onDelete={
+          onDelete &&
+          ((button) => {
+            closeModal(button)
+            onDelete()
+          })
+        }
+      />
       <div className="actions">
         <button type="button" className="primary" disabled={!complete} onClick={(e) => save(e.currentTarget)}>
           Save

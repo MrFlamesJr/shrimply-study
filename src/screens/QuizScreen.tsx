@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { isTermCard, type Card, type StudyOptions } from '../model'
-import { go, href } from '../route'
+import { go, goToNew, href } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { canChoose, usableCards } from '../logic/buildRound'
 import { missingPart } from '../logic/cardStatus'
@@ -37,6 +37,11 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
   const format = prefs.format === 'choice' && !choosable ? 'flashcards' : prefs.format
   const edit = () => go({ name: 'edit', course: course.name, quiz: quiz.name })
   const editingCard = quiz.cards.find((c) => c.id === editing)
+  const addCards = () => goToNew(`add:${quiz.id}`, { name: 'edit', course: course.name, quiz: quiz.name })
+  const deleteCard = (id: string) => {
+    lib.setCards(quiz.id, quiz.cards.filter((c) => c.id !== id), quiz.groups)
+    setEditing(null)
+  }
   const saveCard = (edited: Card) => lib.updateCard(quiz.id, edited)
 
   return (
@@ -95,10 +100,10 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
         />
       )}
 
-      {quiz.cards.length > 0 && <QuizCardList quiz={quiz} collapsed={collapsed} setCollapsed={setCollapsed} onEdit={setEditing} />}
+      {quiz.cards.length > 0 && <QuizCardList quiz={quiz} collapsed={collapsed} setCollapsed={setCollapsed} onEdit={setEditing} onDelete={deleteCard} onAdd={addCards} />}
 
       {editingCard && (
-        <CardDialog card={editingCard} index={quiz.cards.indexOf(editingCard)} lib={lib} onSave={saveCard} onClose={() => setEditing(null)} />
+        <CardDialog card={editingCard} index={quiz.cards.indexOf(editingCard)} lib={lib} onSave={saveCard} onDelete={() => deleteCard(editingCard.id)} onClose={() => setEditing(null)} />
       )}
     </>
   )

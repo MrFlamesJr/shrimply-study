@@ -101,8 +101,26 @@
   font-weight: var(--weight-bold);
 }
 /* Delete card (trash): the icon turns red on hover. */
-.pair-head .icon-btn:hover:not(:disabled) {
+.pair-head .pair-delete:hover:not(:disabled) {
   color: var(--bad);
+}
+/* The drag grip, hung into the head's left room so the number stays near the fields' edge. Only the grip starts a
+   drag (the card holds text fields); while dragged the card lifts onto the popup surface with an accent outline. */
+.pair-grip {
+  margin: 0 calc(-1 * var(--space-3)) 0 calc(var(--space-1) - var(--space-5));
+  vertical-align: middle;
+  cursor: grab;
+  touch-action: none;
+}
+.pair.is-dragging {
+  position: relative;
+  z-index: 1;
+  background: var(--popup);
+  border-color: var(--accent);
+}
+.pair.is-dragging .pair-grip {
+  color: var(--text);
+  cursor: grabbing;
 }
 .pair-fields {
   display: grid;
@@ -224,10 +242,6 @@
 .sides-new:focus-visible {
   outline: var(--line) solid var(--focus);
   outline-offset: -1px;
-}
-/* Inside the card head, so the head's red trash hover is scoped away: the pencil brightens. */
-.pair-head .sides-menu .icon-btn:hover:not(:disabled) {
-  color: var(--text);
 }
 .pair-tools .quiet {
   height: 32px;
@@ -1018,6 +1032,9 @@ button.add-pill:hover:not(:disabled) {
   }
   .pair-head {
     padding-left: var(--space-4);
+  }
+  .pair-grip {
+    margin-left: calc(var(--space-1) - var(--space-4));
   }
   select {
     height: var(--tap);

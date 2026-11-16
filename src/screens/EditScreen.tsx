@@ -4,7 +4,7 @@ import { go, takeCreated } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import type { ParsedCard } from '../logic/parseCards'
 import { isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
-import { inGroupOrder, nextColor, sections, withCollapsed } from '../logic/groups'
+import { inGroupOrder, moveWithinSection, nextColor, sections, withCollapsed } from '../logic/groups'
 import { plural } from '../logic/plural'
 import { lastSides } from '../logic/sides'
 import { nameTaken } from '../logic/names'
@@ -17,6 +17,7 @@ import { AddPill } from './edit/AddPill'
 import { AddRow, type CardKind } from './edit/AddRow'
 import { EditOutline } from './edit/EditOutline'
 import { GroupHead } from './edit/GroupHead'
+import { CardSortables, SectionSortable, SortableCard } from './edit/SortableCard'
 
 // What to focus after the next write: a card's field (or its group select) by card id, or a group's name by group id.
 type Focus = { card: string; field: Field | 'blank' | 'group' } | { groupName: string }
@@ -40,6 +41,10 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   const listRef = useRef<HTMLDivElement>(null)
   // Only right after "+ New quiz" is the name selected, never on a later visit.
   const [created] = useState(() => takeCreated(quizId))
+  // Only right after the quiz page's "Add cards": the top Add box gets the focus, once.
+  const [adding] = useState(() => takeCreated(`add:${quizId}`))
+  // The box a card move should give the focus back to: moving a card in the page takes its box out and puts it back.
+  const refocus = useRef<HTMLElement | null>(null)
   const cards = found?.quiz.cards
   const groups = found?.quiz.groups
 
@@ -72,6 +77,15 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   }
 
   useEffect(() => {
+    if (adding) listRef.current?.querySelector<HTMLElement>('.add-new button')?.focus()
+  }, [adding])
+
+  useEffect(() => {
+    refocus.current?.focus()
+    refocus.current = null
+  }, [cards])
+
+  useEffect(() => {
     const target = pendingFocus.current
     if (!target) return
     pendingFocus.current = null
@@ -95,7 +109,8 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   const patchGroup = (id: string, patch: Partial<Group>) =>
     put(cards, groups.map((g) => (g.id === id ? { ...g, ...patch } : g)))
 
-  const addCard = (group?: string, kind: CardKind = 'term') => {
+  // New cards go to the end of their section, or (`top`, the ungrouped Add box above the cards) to the start of the page.
+  const addCard = (group?: string, kind: CardKind = 'term', top = false) => {
     const sides = lastSides(cards)
     const card: Card =
       kind === 'cloze'
@@ -108,7 +123,7 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
               ? { id: newId(), type: 'sequence', title: '', steps: ['', '', ''], ...(group && { group }) }
               : { id: newId(), term: '', definition: '', ...(sides && { sides }), ...(group && { group }) }
     pendingFocus.current = { card: card.id, field: firstField(card) }
-    put([...cards, card])
+    put(top ? [card, ...cards] : [...cards, card])
   }
 
   // Focuses the first card of a section, or adds one when it is empty.
@@ -144,6 +159,21 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
     const next = section[section.indexOf(card) + 1]
     if (next) focusCell(next.id, firstField(next))
     else addCard(card.group, card.type ?? 'term')
+  }
+
+  // A card dropped on another card of its section takes its place.
+  const reorder = (id: string, to: string) => {
+    const next = moveWithinSection(cards, groups, id, to)
+    if (next !== cards) put(next)
+  }
+
+  // Alt+Shift+Up or Down: one place within the section, the focus staying in the same box.
+  const shift = (card: Card, by: -1 | 1) => {
+    const section = cards.filter((c) => c.group === card.group)
+    const other = section[section.indexOf(card) + by]
+    if (!other) return
+    refocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    reorder(card.id, other.id)
   }
 
   // Blank cards are dropped and empty explanation fields closed, then groups left without cards.
@@ -184,24 +214,29 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   }
 
   const renderCard = (card: Card) => (
-    <EditCard
-      key={card.id}
-      card={card}
-      index={cards.indexOf(card)}
-      lib={lib}
-      onPatch={(patch) => patchCard(card.id, patch)}
-      editor={{
-        groups,
-        flagged: triedDone ? missingPart(card) : null,
-        nudge,
-        onMove: (group) => move(card, group),
-        onDelete: () => put(cards.filter((c) => c.id !== card.id)),
-        onAdvance: () => advance(card),
-      }}
-    />
+    <SortableCard key={card.id} id={card.id} number={cards.indexOf(card) + 1}>
+      {(sortable) => (
+        <EditCard
+          card={card}
+          index={cards.indexOf(card)}
+          lib={lib}
+          onPatch={(patch) => patchCard(card.id, patch)}
+          onDelete={() => put(cards.filter((c) => c.id !== card.id))}
+          editor={{
+            groups,
+            flagged: triedDone ? missingPart(card) : null,
+            nudge,
+            onMove: (group) => move(card, group),
+            onAdvance: () => advance(card),
+            onShift: (by) => shift(card, by),
+            sortable,
+          }}
+        />
+      )}
+    </SortableCard>
   )
 
-  const addRow = (group?: string) => <AddRow onAdd={(kind) => addCard(group, kind)} />
+  const addRow = (group?: string, top = false) => <AddRow onAdd={(kind) => addCard(group, kind, top)} />
 
   return (
     <>
@@ -242,32 +277,34 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
           {importOpen && <ImportDialog groups={groups} sides={lastSides(cards.filter((c) => !isBlank(c)))} onImport={importCards} onClose={() => setImportOpen(false)} />}
 
           <div ref={listRef} className="pairs">
-            {sections(cards, groups).map(({ group, cards: members }) =>
-              group ? (
-                <section key={group.id} className={collapsed.has(group.id) ? 'group-box is-collapsed' : 'group-box'} data-color={group.color}>
-                  <GroupHead
-                    group={group}
-                    count={members.length}
-                    collapsed={collapsed.has(group.id)}
-                    onToggle={() => setCollapsed(withCollapsed(collapsed, [group.id], !collapsed.has(group.id)))}
-                    onPatch={(patch) => patchGroup(group.id, patch)}
-                    onUngroup={() => ungroup(group.id)}
-                    onEnter={() => enterSection(group.id)}
-                  />
-                  <div className="group-body">
-                    <div>
-                      {members.map(renderCard)}
-                      {addRow(group.id)}
+            <CardSortables onMove={reorder}>
+              {sections(cards, groups).map(({ group, cards: members }) =>
+                group ? (
+                  <section key={group.id} className={collapsed.has(group.id) ? 'group-box is-collapsed' : 'group-box'} data-color={group.color}>
+                    <GroupHead
+                      group={group}
+                      count={members.length}
+                      collapsed={collapsed.has(group.id)}
+                      onToggle={() => setCollapsed(withCollapsed(collapsed, [group.id], !collapsed.has(group.id)))}
+                      onPatch={(patch) => patchGroup(group.id, patch)}
+                      onUngroup={() => ungroup(group.id)}
+                      onEnter={() => enterSection(group.id)}
+                    />
+                    <div className="group-body">
+                      <div>
+                        <SectionSortable ids={members.map((c) => c.id)}>{members.map(renderCard)}</SectionSortable>
+                        {addRow(group.id)}
+                      </div>
                     </div>
-                  </div>
-                </section>
-              ) : (
-                <Fragment key="ungrouped">
-                  {members.map(renderCard)}
-                  {addRow()}
-                </Fragment>
-              ),
-            )}
+                  </section>
+                ) : (
+                  <Fragment key="ungrouped">
+                    {addRow(undefined, true)}
+                    <SectionSortable ids={members.map((c) => c.id)}>{members.map(renderCard)}</SectionSortable>
+                  </Fragment>
+                ),
+              )}
+            </CardSortables>
             <div className="new-group">
               <AddPill onClick={addGroup}>New group</AddPill>
               <span className="muted">Multiple choice takes wrong answers from the same group first.</span>

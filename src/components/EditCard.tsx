@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState, type CSSProperties } from 'react'
+import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/core'
 import { KIND_NAME, SIDE_IMAGE, isTermCard, type Card, type ChoiceCard, type ClozeCard, type Group, type SequenceCard, type TermCard, type TrueFalseCard } from '../model'
 import type { missingPart } from '../logic/cardStatus'
 import { sideNames } from '../logic/sides'
@@ -8,7 +9,7 @@ import { ChoiceField } from './ChoiceField'
 import { ClozeField } from './ClozeField'
 import { ExplanationField } from './ExplanationField'
 import { IconButton } from './IconButton'
-import { PlusIcon, TrashIcon } from './Icons'
+import { GripIcon, PlusIcon, TrashIcon } from './Icons'
 import { ImageSlot } from './ImageSlot'
 import { SequenceField } from './SequenceField'
 import { SidesSelect } from './SidesSelect'
@@ -33,6 +34,15 @@ function FieldHint({ bad, nudge, text, badText }: { bad: boolean; nudge: number;
   )
 }
 
+export type CardSortable = {
+  setNodeRef: (element: HTMLElement | null) => void
+  setActivatorNodeRef: (element: HTMLElement | null) => void
+  style: CSSProperties
+  attributes: DraggableAttributes
+  listeners: DraggableSyntheticListeners
+  isDragging: boolean
+}
+
 type Props = {
   card: Card
   /** Position in the quiz, from 0: the head's "#1", and in every field's name ("Term 1"). */
@@ -40,8 +50,10 @@ type Props = {
   /** For the sides menu: the library's side types. */
   lib: LibraryApi
   onPatch: (patch: CardPatch) => void
+  /** Shows a trash button in the head that deletes the card (the editor's list, the card dialog). */
+  onDelete?: (button: Element) => void
   /**
-   * Only in the editor, a list of cards: the group move select and delete in the head, Enter in the last box going on
+   * Only in the editor, a list of cards: the drag grip and group move select in the head, Enter in the last box going on
    * to the next card, and what is missing in red after a blocked Done. `CardDialog` leaves it out.
    */
   editor?: {
@@ -51,14 +63,17 @@ type Props = {
     /** Bumped on every blocked Done. */
     nudge: number
     onMove: (group: string) => void
-    onDelete: () => void
     /** Enter in the card's last box: go on to the next card. */
     onAdvance: () => void
+    /** Alt+Shift+Up or Down inside the card: move it one place (-1 or 1) within its section. */
+    onShift: (by: -1 | 1) => void
+    /** dnd-kit's hold on the card (`EditScreen`'s `SortableCard`): the card's box, the grip, and while it is dragged. */
+    sortable: CardSortable
   }
 }
 
 /** One card in its box: a head (number, sides or kind, + Explanation) and its fields. The editor's cards and the Edit card dialog (`CardDialog`) are both this. */
-export function EditCard({ card, index, lib, onPatch, editor }: Props) {
+export function EditCard({ card, index, lib, onPatch, onDelete, editor }: Props) {
   const n = index + 1
   const flagged = editor?.flagged ?? null
   const nudge = editor?.nudge ?? 0
@@ -81,10 +96,17 @@ export function EditCard({ card, index, lib, onPatch, editor }: Props) {
 
   return (
     <div
-      className="pair"
-      // Enter goes on to the card's next box, and from its last one to the next card (Shift+Enter starts a new line).
-      // In the dialog its Modal does this, going on to Save.
+      ref={editor?.sortable.setNodeRef}
+      className={editor?.sortable.isDragging ? 'pair is-dragging' : 'pair'}
+      style={editor?.sortable.style}
+      // Alt+Shift+Up or Down moves the card one place, from any of its boxes (a sequence's step boxes use it for the step). Enter goes on to the card's next box, and
+      // from its last one to the next card (Shift+Enter starts a new line). In the dialog its Modal does this, going on to Save.
       onKeyDown={(e) => {
+        if (editor && !e.defaultPrevented && e.altKey && e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+          e.preventDefault()
+          editor.onShift(e.key === 'ArrowUp' ? -1 : 1)
+          return
+        }
         if (!editor || !goesOn(e)) return
         e.preventDefault()
         const next = nextBox(e.target, e.currentTarget)
@@ -94,6 +116,18 @@ export function EditCard({ card, index, lib, onPatch, editor }: Props) {
     >
       <div className="pair-head">
         <span>
+          {editor && (
+            <IconButton
+              ref={editor.sortable.setActivatorNodeRef}
+              className="pair-grip"
+              label={`Move card ${n}`}
+              title="Drag to move (Alt+Shift+Up or Down while typing)"
+              {...editor.sortable.attributes}
+              {...editor.sortable.listeners}
+            >
+              <GripIcon />
+            </IconButton>
+          )}
           #{n}
           {isTermCard(card) ? (
             <SidesSelect value={card.sides} lib={lib} label={`Sides of card ${n}`} onChange={(sides) => onPatch({ sides })} />
@@ -132,8 +166,8 @@ export function EditCard({ card, index, lib, onPatch, editor }: Props) {
               <PlusIcon /> Explanation
             </button>
           )}
-          {editor && (
-            <IconButton label={`Delete card ${n}`} title="Delete card" onClick={editor.onDelete}>
+          {onDelete && (
+            <IconButton className="pair-delete" label={`Delete card ${n}`} title="Delete card" onClick={(e) => onDelete(e.currentTarget)}>
               <TrashIcon />
             </IconButton>
           )}

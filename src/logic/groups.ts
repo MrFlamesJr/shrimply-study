@@ -30,3 +30,14 @@ export function withCollapsed(collapsed: ReadonlySet<string>, ids: string[], shu
 export function inGroupOrder(cards: Card[], groups: Group[]): Card[] {
   return sections(cards, groups).flatMap((s) => s.cards)
 }
+
+/** The cards with card `id` moved to the place of card `to`, which must be in the same section (else nothing moves). */
+export function moveWithinSection(cards: Card[], groups: Group[], id: string, to: string): Card[] {
+  const all = sections(cards, groups)
+  const at = all.findIndex((s) => s.cards.some((c) => c.id === id))
+  const from = at === -1 ? -1 : all[at].cards.findIndex((c) => c.id === id)
+  const target = at === -1 ? -1 : all[at].cards.findIndex((c) => c.id === to)
+  if (from === -1 || target === -1 || from === target) return cards
+  all[at].cards.splice(target, 0, ...all[at].cards.splice(from, 1))
+  return all.flatMap((s) => s.cards)
+}

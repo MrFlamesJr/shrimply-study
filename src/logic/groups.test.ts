@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GROUP_COLORS } from '../model'
 import type { Card, Group } from '../model'
-import { inGroupOrder, nextColor, sections, withCollapsed } from './groups'
+import { inGroupOrder, moveWithinSection, nextColor, sections, withCollapsed } from './groups'
 
 const card = (id: string, group?: string): Card => ({ id, term: id, definition: id, group })
 const groups: Group[] = [
@@ -62,5 +62,21 @@ describe('withCollapsed', () => {
     expect(withCollapsed(set, ['a'], true)).toBe(set)
     expect(withCollapsed(set, ['b'], false)).toBe(set)
     expect(withCollapsed(set, [], true)).toBe(set)
+  })
+})
+
+describe('moveWithinSection', () => {
+  const cards = [card('a'), card('b'), card('c', 'g1'), card('d', 'g1'), card('e', 'g1')]
+  const ids = (list: Card[]) => list.map((c) => c.id)
+
+  it('moves a card to the place of another in its section, the rest staying', () => {
+    expect(ids(moveWithinSection(cards, groups, 'a', 'b'))).toEqual(['b', 'a', 'c', 'd', 'e'])
+    expect(ids(moveWithinSection(cards, groups, 'e', 'c'))).toEqual(['a', 'b', 'e', 'c', 'd'])
+  })
+
+  it('does nothing across sections or for unknown cards', () => {
+    expect(moveWithinSection(cards, groups, 'a', 'c')).toBe(cards)
+    expect(moveWithinSection(cards, groups, 'x', 'a')).toBe(cards)
+    expect(moveWithinSection(cards, groups, 'a', 'a')).toBe(cards)
   })
 })

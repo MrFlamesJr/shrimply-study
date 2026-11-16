@@ -4,7 +4,7 @@ import { parseCloze } from '../logic/cloze'
 import { sideNames } from '../logic/sides'
 import { blankColor, ClozeText } from './ClozeText'
 import { IconButton } from './IconButton'
-import { PencilIcon } from './Icons'
+import { PencilIcon, TrashIcon } from './Icons'
 import { Thumb } from './Thumb'
 
 type Props = {
@@ -18,13 +18,15 @@ type Props = {
   /** Head the card like the editor's card head (quiz page): its number (`lead`), its sides or kind, the pencil. */
   kind?: boolean
   onEdit: () => void
+  /** With `kind`: a trash button next to the pencil that deletes the card. */
+  onDelete?: () => void
 }
 
 /**
  * One card in a `.card-rows` list (quiz page, study results): the term and definition with their images and the
  * explanation under the definition, a fill-in-the-blank statement, or a true-or-false statement with its answer, a choice question with its right and wrong answers, a sequence with its steps; a pencil that opens the card dialog.
  */
-export function CardRow({ card, lead, blank, note, kind, onEdit }: Props) {
+export function CardRow({ card, lead, blank, note, kind, onEdit, onDelete }: Props) {
   // The pencil comes before the note, so the note takes a row of its own under the text.
   const edit = (
     <IconButton className="row-edit" label="Edit card" onClick={onEdit}>
@@ -40,6 +42,11 @@ export function CardRow({ card, lead, blank, note, kind, onEdit }: Props) {
       {lead}
       <span className="pair-kind">{name}</span>
       {edit}
+      {onDelete && (
+        <IconButton className="row-delete" label="Delete card" title="Delete card" onClick={onDelete}>
+          <TrashIcon />
+        </IconButton>
+      )}
     </div>
   ) : (
     lead
