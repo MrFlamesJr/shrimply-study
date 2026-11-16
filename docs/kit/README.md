@@ -24,12 +24,12 @@ nothing about the app it lives in. Data is ids and strings.
 
 1. Copy the module file (`src/kit/<module>.ts`). `confetti` needs two files: `confettiMath.ts` and `Confetti.tsx`.
    The other modules are single files. Copy the test files next to them if you want the tests.
-2. If a module has a css file (`tabs.css`, `split.css`), copy it too; the component imports it itself.
+2. If a module has a css file (`tabs.css`, `split.css`, `menu.css`, `tree.css`), copy it too; the component imports it itself.
 3. Keep the files in one folder: they import each other with relative paths. `Confetti.tsx` imports `confettiMath.ts`;
-   `TabStrip.tsx` and `SplitView.tsx` import `dnd.ts`, and `SplitView.tsx` imports types from `layout.ts`.
-4. `Confetti.tsx`, `TabStrip.tsx` and `SplitView.tsx` need React. The rest are plain TypeScript.
-5. Map the `--kit-*` variables below in your own stylesheet. `tabs.css` and `split.css` use them (the lists are in
-   [tabs.md](tabs.md) and [split.md](split.md)); the other modules use none.
+   `TabStrip.tsx` and `SplitView.tsx` import `dnd.ts`, and `SplitView.tsx` imports types from `layout.ts`; `TreeView.tsx` imports `dnd`, `selection`, `shortcuts` and `tree`.
+4. `Confetti.tsx`, `TabStrip.tsx`, `SplitView.tsx`, `ContextMenu.tsx` (also `react-dom/client`) and `TreeView.tsx` need React. The rest are plain TypeScript.
+5. Map the `--kit-*` variables below in your own stylesheet. the four css files use them (the lists are in
+   each module's page); the other modules use none.
 
 ### The `--kit-*` variables a host maps
 
@@ -69,6 +69,8 @@ This app maps them in the last block of `src/theme/tokens.css`, on `:root`:
 | Confetti | `confettiMath.ts`, `Confetti.tsx` | [confetti.md](confetti.md) |
 | Tab strip | `TabStrip.tsx`, `tabs.css` | [tabs.md](tabs.md) |
 | Split view and drop zones | `SplitView.tsx`, `split.css` | [split.md](split.md) |
+| Context menu | `ContextMenu.tsx`, `menu.css` | [menu.md](menu.md) |
+| Tree view | `TreeView.tsx`, `tree.css` | [treeview.md](treeview.md) |
 
-The kit also has a `windows` module and components (tree view, context menu, popout). They are not
+The kit also has a `windows` module and the popout component. They are not
 documented here yet; their contracts are in `docs/architecture/modules.md`.
