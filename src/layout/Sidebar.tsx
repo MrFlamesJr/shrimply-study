@@ -140,14 +140,8 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
           >
             <HiddenFilesNote ws={ws} />
           </FileTree>
-          <div className="sidebar-foot">
-            <label className="theme-pick">
-              Theme
-              <ThemeSelect theme={theme} setTheme={setTheme} />
-            </label>
-          </div>
-          {/* The sidebar's footer, a slim darker strip at its very bottom (asked for), with a small What's new link, as
-              the empty page's What's new box has: every release's notes in a tab. */}
+          {/* The sidebar's footer, a slim darker strip at its very bottom (asked for): a small What's new link (every
+              release's notes in a tab, as the empty page's What's new box has), then the theme, compact. */}
           <footer className="sidebar-bar">
             <button
               type="button"
@@ -160,6 +154,10 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
             >
               What's new <OpenIcon />
             </button>
+            <label className="theme-pick">
+              Theme
+              <ThemeSelect theme={theme} setTheme={setTheme} />
+            </label>
           </footer>
         </div>
       </nav>

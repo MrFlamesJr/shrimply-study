@@ -118,7 +118,7 @@ def run(page, base):
     wait_for(page, lambda: test.locator('.file-quiz[aria-current="page"]').count() == 1, 'the new quiz is in the tree, as the page shown')
     # A file with no courses looks like any other, with nothing under it; its toolbar's New course adds one. None at
     # the bottom of the sidebar.
-    assert page.locator('.sidebar-foot').get_by_role('button', name='New course').count() == 0, 'no New course at the bottom'
+    assert page.locator('.sidebar-bar').get_by_role('button', name='New course').count() == 0, 'no New course at the bottom'
     page.locator('.files-head').get_by_role('button', name='New file', exact=True).click()
     wait_for(page, lambda: page.locator('.file-row').count() == 3, 'a new file opens')
     fresh = page.locator('.file-block').filter(has=page.locator('.file-name-text', has_text='New library'))
