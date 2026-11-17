@@ -2,17 +2,30 @@ import type { Library } from '../model'
 import { checkLibrary } from './format'
 import type { DriveSource } from './googleDrive'
 
-/** One open document as the browser keeps it. `file` is the local file it is tied to (the handle is stored apart). */
+/**
+ * One open document as the browser keeps it. `legacyName` is only read: an older record tied the library to a local
+ * file, and it now restores as a browser library under that file's name.
+ */
 export type DocRecord = {
   id: string
   library: Library
   dirty: boolean
   drive: DriveSource | null
-  file: { name: string; size: number; modified: number } | null
+  legacyName?: string
 }
 
+/** A file closed but kept in the browser (its record stays): enough to list it and open it again. */
+export type ClosedFile = { id: string; name: string; drive: DriveSource | null }
+
 /** The open documents in order; the screen's layout, the Explorer and the rest are the workspace's own JSON. */
-export type WorkspaceRecord = { version: 1; docs: string[]; layout: unknown; explorer: unknown; ui: unknown }
+export type WorkspaceRecord = {
+  version: 1
+  docs: string[]
+  closed: ClosedFile[]
+  layout: unknown
+  explorer: unknown
+  ui: unknown
+}
 
 // A bad Drive note only loses the link to the file, never the library.
 const readDrive = (d: unknown): DriveSource | null => {
@@ -22,12 +35,20 @@ const readDrive = (d: unknown): DriveSource | null => {
     : null
 }
 
-const num = (n: unknown): number => (typeof n === 'number' && Number.isFinite(n) ? n : 0)
+// An old file note (and an old backup's file name) only gives the library a name.
+const readLegacyName = (f: unknown): string | undefined => {
+  const name = typeof f === 'string' ? f : (f as { name?: unknown } | null)?.name
+  return typeof name === 'string' && name !== '' ? name : undefined
+}
 
-// A bad file note only loses the note.
-const readFileNote = (f: unknown): DocRecord['file'] => {
-  const s = f as { name?: unknown; size?: unknown; modified?: unknown } | null
-  return s && typeof s.name === 'string' ? { name: s.name, size: num(s.size), modified: num(s.modified) } : null
+// A bad entry is skipped; a missing or bad list is empty.
+const readClosed = (list: unknown): ClosedFile[] => {
+  if (!Array.isArray(list)) return []
+  return list.flatMap((c: unknown) => {
+    const s = c as { id?: unknown; name?: unknown; drive?: unknown } | null
+    if (!s || typeof s.id !== 'string' || s.id === '' || typeof s.name !== 'string') return []
+    return [{ id: s.id, name: s.name, drive: readDrive(s.drive) }]
+  })
 }
 
 export function parseDocRecord(text: string): DocRecord {
@@ -39,9 +60,11 @@ export function parseDocRecord(text: string): DocRecord {
     library: checkLibrary(data.library, 'stored'),
     dirty: data.dirty,
     drive: readDrive(data.drive),
-    file: readFileNote(data.file),
+    ...legacy(readLegacyName(data.legacyName ?? data.file)),
   }
 }
+
+const legacy = (legacyName: string | undefined) => (legacyName === undefined ? {} : { legacyName })
 
 export const docRecordText = (rec: DocRecord): string => JSON.stringify(rec)
 
@@ -51,7 +74,14 @@ export function parseWorkspaceRecord(text: string): WorkspaceRecord {
   if (!Array.isArray(data.docs) || !data.docs.every((id: unknown) => typeof id === 'string')) {
     throw new Error('The workspace record is malformed.')
   }
-  return { version: 1, docs: data.docs, layout: data.layout ?? null, explorer: data.explorer ?? null, ui: data.ui ?? null }
+  return {
+    version: 1,
+    docs: data.docs,
+    closed: readClosed(data.closed),
+    layout: data.layout ?? null,
+    explorer: data.explorer ?? null,
+    ui: data.ui ?? null,
+  }
 }
 
 /** The single-library backup (`library.v1`) as a document of the workspace. */
@@ -66,7 +96,7 @@ export function migrateBackup(backupText: string, newId: string): DocRecord {
     library: checkLibrary(data.library, 'stored'),
     dirty: changedIds.length > 0,
     drive: readDrive(data.drive),
-    file: typeof data.file === 'string' ? { name: data.file, size: 0, modified: 0 } : null,
+    ...legacy(readLegacyName(data.file)),
   }
 }
 

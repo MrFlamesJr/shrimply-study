@@ -1,12 +1,12 @@
 // The workspace as one immutable object, and its pure transitions (useWorkspace runs them): the open documents, the
-// layout (one tab per document for now), the undo history, the clipboard and the Explorer's state. Nothing here
-// touches the DOM, storage or the clock: times and new ids come in as arguments.
+// closed ones, the layout, the undo history, the clipboard and the Explorer's state. Nothing here touches the DOM,
+// storage or the clock: times and new ids come in as arguments.
 import { FORMATS, type Course, type Library } from '../model'
-import { href, resolve, sameIds, type Route } from '../logic/routes'
+import { fileKeys, href, resolve, sameIds, type Route } from '../logic/routes'
 import type { AppPage, TabData } from '../logic/workbenchActions'
+import { isViewOnly, VIEW_ONLY_TEXT, type SaveProblem } from '../logic/autosave'
 import type { DriveSource } from '../storage/googleDrive'
-import type { FileRef } from '../storage/StorageAdapter'
-import type { DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
+import type { ClosedFile, DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
 import { emptySelection, type Selection } from '../kit/selection'
 import { emptyHistory, record, redo, seal, undo, type Entry, type History } from '../kit/history'
 import * as L from '../kit/layout'
@@ -14,26 +14,32 @@ import { exists, extract, insert, move, type DocId, type Docs, type Fragment, ty
 import { freeName } from '../logic/names'
 import { plural } from '../logic/plural'
 
-export type { AppPage, DocId, TabData }
+export type { AppPage, ClosedFile, DocId, TabData }
 
+/**
+ * An open library: a Google Drive file (`drive`), or a browser library (kept in this browser only, until uploaded).
+ * The user's own Drive file saves itself (autosave); any other Drive file is view only (`viewOnly`).
+ */
 export type Doc = {
   id: DocId
   library: Library
-  /** The library object last opened or saved here. Unsaved changes: `library !== saved` (null: never saved here). */
-  saved: Library | null
-  /** Its own name ("New library 2"), shown while it has no file and no Drive file (see `docName`). */
-  name: string
-  file: FileRef | null
-  drive: DriveSource | null
-  /** Counts the times the whole library was replaced (pulled, reloaded, taken from another tab, loaded as text). */
-  replaced: number
-  /** Its Drive file has changes that are not here (found by the quiet look on start). */
-  newer: boolean
   /**
-   * The Google account whose own Drive file this is (as Google said, `drive.mine`), once known: the account signed in
-   * while it was shown as the user's own. Null when not known (it is claimed by the next account shown it).
+   * The library object last opened or saved to Google Drive here. A Drive file has changes still to save while
+   * `library !== saved` (null: never saved here).
    */
-  owner: string | null
+  saved: Library | null
+  /** Its own name ("New library 2"), shown while it has no Drive file (see `docName`). */
+  name: string
+  drive: DriveSource | null
+  /** Counts the times the whole library was replaced (taken from Google Drive, from another tab, loaded as text). */
+  replaced: number
+  /** Why its autosave is paused; null while it saves as it should. */
+  problem: SaveProblem | null
+  /**
+   * Another tab has changes to it that are not on Google Drive yet (its record said so when taken up here). That tab
+   * saves them; here they are never counted as saved: no newer version from Drive replaces them, and closing keeps them.
+   */
+  dirtyElsewhere: boolean
 }
 
 /** The libraries of some documents, as a history entry keeps them. */
@@ -45,6 +51,13 @@ export type Workspace = {
   docs: Record<DocId, Doc>
   /** The open documents in the order the sidebar lists them. */
   order: DocId[]
+  /**
+   * The files closed here, the one closed last first (asked for: closing never removes a file): a browser library
+   * (its record stays in the backup) or a Drive file (one entry per Drive file), listed in the Explorer to open again.
+   */
+  closed: ClosedFile[]
+  /** Signed in with Google: then only the user's own Drive files can change (see `viewOnly`). */
+  signedIn: boolean
   layout: L.Layout<TabData>
   history: History<Snap>
   clipboard: Clipboard | null
@@ -55,9 +68,11 @@ export type Workspace = {
 
 export const emptyExplorer = (): Explorer => ({ expanded: [], selection: emptySelection })
 
-export const emptyWorkspace = (groupId: string): Workspace => ({
+export const emptyWorkspace = (groupId: string, signedIn = false): Workspace => ({
   docs: {},
   order: [],
+  closed: [],
+  signedIn,
   layout: L.emptyLayout(groupId),
   history: emptyHistory(),
   clipboard: null,
@@ -65,49 +80,68 @@ export const emptyWorkspace = (groupId: string): Workspace => ({
   recent: [],
 })
 
+/** A Drive file has changes still to save (a browser library's changes are in the backup already). */
 export const hasChanges = (d: Doc): boolean => d.library !== d.saved
-/** What the document is called: its Drive file's name, its local file's name, or its own. */
-export const docName = (d: Doc): string => d.drive?.name ?? d.file?.name ?? d.name
-export const where = (d: Doc): 'drive' | 'device' | 'browser' => (d.drive ? 'drive' : d.file ? 'device' : 'browser')
+/** What the document is called: its Drive file's name, or its own. */
+export const docName = (d: Doc): string => d.drive?.name ?? d.name
+export const where = (d: Doc): 'drive' | 'browser' => (d.drive ? 'drive' : 'browser')
+/** A file's name without its ".shrimp" ending (a browser library's own name has none). */
+export const bareName = (name: string): string => name.replace(/\.shrimp$/i, '')
 
 export const makeDoc = (id: DocId, library: Library, name: string, more: Partial<Doc> = {}): Doc => ({
   id,
   library,
   saved: library,
   name,
-  file: null,
   drive: null,
   replaced: 0,
-  newer: false,
-  owner: null,
+  problem: null,
+  dirtyElsewhere: false,
   ...more,
 })
 
-// ---- Files hidden while signed out (asked for): the user's own Drive files never show in a tab that is not signed
-// in with their account. Their libraries and unsaved changes stay as they are, never written over. ----
+/** The names of the open and closed libraries, without ".shrimp": a new one's name is free among them. */
+export const docNames = (w: Workspace): string[] => [...Object.values(w.docs).map(docName), ...w.closed.map((c) => c.name)].map(bareName)
+
+/** `base`, or "base 2" and so on: a name no open or closed library has. */
+export const freeDocName = (w: Workspace, base: string): string => freeName(base, docNames(w))
+
+// ---- View only (asked for): a Drive file not known to be the signed-in user's own (someone else's, or any while
+// signed out) is shown and studied, never changed: no content change, undo step or cut ever touches it. ----
+
+export const viewOnly = (w: Workspace, id: DocId): boolean => !!w.docs[id] && isViewOnly(w.docs[id], w.signedIn)
+
+export const setSignedIn = (w: Workspace, signedIn: boolean): Workspace => (w.signedIn === signedIn ? w : { ...w, signedIn })
+
+/** The user's own Drive files with changes not on Google Drive yet (waiting, or paused by a problem), in order. */
+export const unsavedDrive = (w: Workspace): DocId[] =>
+  w.order.filter((id) => !!w.docs[id].drive && !viewOnly(w, id) && (hasChanges(w.docs[id]) || !!w.docs[id].problem))
 
 /**
- * Hidden in a tab signed in as `account` (null: signed out): the user's own Drive file (as Google last said) while
- * signed out, or while another account than its owner is signed in. Shared files and local ones never hide.
+ * Keeps view-only libraries untouchable: their undo steps go and a cut from one becomes a copy. Changes one holds from
+ * before it was known to be view only (a backup from before this release, an account that turned out not to own it)
+ * are never lost: they move to a browser library of their own, "<name> (my changes)" (`newId` names it), right after
+ * it, and its Drive file is read again on its next sync (its checksum is forgotten). Says which moved where.
  */
-export const isHidden = (d: Doc, account: string | null): boolean =>
-  !!d.drive?.mine && (account === null || (d.owner !== null && d.owner !== account))
-
-/** The open documents hidden for `account`, in order. */
-export const hiddenDocs = (w: Workspace, account: string | null): DocId[] => w.order.filter((id) => isHidden(w.docs[id], account))
-
-/** Every own Drive file shown to `account` with no owner yet becomes that account's. */
-export function claimOwners(w: Workspace, account: string | null): Workspace {
-  if (account === null) return w
-  const claim = w.order.filter((id) => w.docs[id].drive?.mine && w.docs[id].owner === null)
-  if (claim.length === 0) return w
-  const docs = { ...w.docs }
-  for (const id of claim) docs[id] = { ...docs[id], owner: account }
-  return { ...w, docs }
+export function settleViewOnly(w: Workspace, newId: () => string): { workspace: Workspace; kept: { from: DocId; to: DocId }[] } {
+  let next = w
+  const kept: { from: DocId; to: DocId }[] = []
+  for (const id of w.order) {
+    const d = w.docs[id]
+    if (!d.drive || !viewOnly(w, id)) continue
+    const cb = next.clipboard
+    const cut = cb?.mode === 'cut' && cb.refs.some((r) => r.doc === id)
+    const history = forget(next.history, id)
+    if (history !== next.history || cut) next = { ...next, history, clipboard: cb && cut ? { ...cb, mode: 'copy' } : cb }
+    if (!hasChanges(d)) continue
+    const copy = makeDoc(newId(), d.library, freeDocName(next, `${bareName(docName(d))} (my changes)`))
+    const order = [...next.order]
+    order.splice(order.indexOf(id) + 1, 0, copy.id)
+    next = { ...next, docs: { ...next.docs, [id]: { ...d, saved: d.library, drive: { ...d.drive, md5: '' } }, [copy.id]: copy }, order }
+    kept.push({ from: id, to: copy.id })
+  }
+  return { workspace: next, kept }
 }
-
-/** `base`, or "base 2" and so on: a name no open document has. */
-export const freeDocName = (w: Workspace, base: string): string => freeName(base, Object.values(w.docs).map(docName))
 
 /** Every open document's library, in order (what contentOps works on). */
 export function libraries(w: Workspace): Docs {
@@ -147,20 +181,26 @@ export function activeDoc(w: Workspace): DocId | null {
   return tab ? tab.data.doc : null
 }
 
-/** The main window's focused group: the active group when it is in the main window, else the main group used last. */
-export function mainGroup(w: Workspace): L.GroupId {
-  const main = L.groupsIn(w.layout, L.MAIN)
-  if (main.includes(w.layout.activeGroup)) return w.layout.activeGroup
+/** A window's focused group: the active group when it is in that window, else its group used last, else its first. */
+export function focusedGroup(w: Workspace, win: L.WindowId): L.GroupId {
+  const groups = L.groupsIn(w.layout, win)
+  if (groups.includes(w.layout.activeGroup)) return w.layout.activeGroup
   for (const t of w.recent) {
     const g = L.groupOf(w.layout, t)
-    if (g && main.includes(g)) return g
+    if (g && groups.includes(g)) return g
   }
-  return main[0]
+  return groups[0]
 }
 
-/** The tab the address bar names: the main window's focused group's active tab, of any kind; null when it is empty. */
-export function shownTab(w: Workspace): L.Tab<TabData> | null {
-  const active = w.layout.groups[mainGroup(w)]?.active
+/** The main window's focused group. */
+export const mainGroup = (w: Workspace): L.GroupId => focusedGroup(w, L.MAIN)
+
+/**
+ * The tab a window's address names (the main window's by default): its focused group's active tab, of any kind; null
+ * when it is empty.
+ */
+export function shownTab(w: Workspace, win: L.WindowId = L.MAIN): L.Tab<TabData> | null {
+  const active = w.layout.groups[focusedGroup(w, win)]?.active
   return (active && w.layout.tabs[active]) || null
 }
 
@@ -376,17 +416,20 @@ export function showAppPage(w: Workspace, kind: AppPage, group: L.GroupId, tabId
 }
 
 const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
+// The app's own pages that are tabs, by route name (the same as their tab's kind).
+const APP_TABS = ['explorer', 'changelog', 'welcome', 'studyTips'] as const
+const appTab = (name: Route['name']): name is (typeof APP_TABS)[number] => (APP_TABS as readonly string[]).includes(name)
 
 /**
  * Back, forward, a typed address or a reload: the entry names the tab it belongs to (`tabId`, from history.state).
  * That tab, where it still is (any group or window), becomes active on the entry's page. The app's own pages (the
- * Explorer, What's new, the welcome page) show their tab, opened in the main window's focused group (`newTab`) when
+ * Explorer, What's new, the welcome page, How studying works) show their tab, opened in the main window's focused group (`newTab`) when
  * there is none. A file's page with no tab of its own: the file it names (`doc`, from the address) in its tab there
  * (`newTab` when it has none); naming none, or the main window's own file, the main window's tab takes the page only
  * when its file has that page. Otherwise nothing changes.
  */
 export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route, o: { doc?: DocId | null; newTab?: L.TabId } = {}): Workspace {
-  if (route.name === 'explorer' || route.name === 'changelog' || route.name === 'welcome') {
+  if (appTab(route.name)) {
     const kind = route.name
     const entry = tabId ? w.layout.tabs[tabId] : undefined
     const tab = entry?.data.kind === kind ? entry.id : usedLast(w, (t) => t.data.kind === kind)
@@ -413,6 +456,24 @@ export function recentGroup(w: Workspace, except: L.GroupId | null): L.GroupId |
   return L.allGroups(w.layout).find((g) => g !== except) ?? null
 }
 
+/**
+ * Pane mode (a popped-out window's address opened on its own, asked for): the main window shows just the page the
+ * address names, one group (`groupId`) with one tab (`tabId`). Its file is the one the address names (`file`, its
+ * `fileKey`; none: the only file, else the active one); an app page shows its tab. A file not open here, or an address
+ * of no page, gives an empty group.
+ */
+export function paneLayout(w: Workspace, route: Route, file: string | null, o: { groupId: L.GroupId; tabId: L.TabId }): Workspace {
+  const empty = L.emptyLayout<TabData>(o.groupId)
+  let data: TabData | null = null
+  if (appTab(route.name)) data = { kind: route.name }
+  else if (FILE_PAGES.includes(route.name)) {
+    const keys = fileKeys(w.order.map((id) => ({ id, name: docName(w.docs[id]) })))
+    const doc = file ? w.order.find((id) => keys[id] === file) : w.order.length === 1 ? w.order[0] : activeDoc(w)
+    if (doc) data = docTabData(doc, route)
+  }
+  return { ...w, layout: data ? L.openTab(empty, { id: o.tabId, data }) : empty, recent: data ? [o.tabId] : [] }
+}
+
 // ---- Content changes and the history ----
 
 // Merged entries: `before` keeps the first snapshot of each document, `after` the last.
@@ -422,13 +483,15 @@ const pick = (docs: Docs, ids: DocId[]): Snap => Object.fromEntries(ids.map((id)
 /**
  * The one content write path: `update` gets every open library and returns them changed (new objects only for what
  * it changed). Records one history entry holding only the documents it changed, merged into the last one when both
- * have the same `key` within 1.5 s (typing in one field). Nothing changed: the same workspace back.
+ * have the same `key` within 1.5 s (typing in one field). Nothing changed: the same workspace back. Throws the reason
+ * when it would change a view-only library (then nothing changes).
  */
 export function applyEdit(w: Workspace, label: string, update: (docs: Docs) => Docs, at: number, key?: string): Workspace {
   const before = libraries(w)
   const after = update(before)
   const changed = w.order.filter((id) => after[id] !== undefined && after[id] !== before[id])
   if (changed.length === 0) return w
+  if (changed.some((id) => viewOnly(w, id))) throw new Error(VIEW_ONLY_TEXT)
   const docs = { ...w.docs }
   for (const id of changed) docs[id] = { ...docs[id], library: after[id] }
   const entry: Entry<Snap> = { label, before: pick(before, changed), after: pick(after, changed), key, at }
@@ -514,8 +577,8 @@ export function patchDoc(w: Workspace, id: DocId, patch: Partial<Doc> | ((d: Doc
 }
 
 /**
- * The whole library replaced from outside (a Drive pull, the file reloaded from disk, another tab's write taken up):
- * saved as it comes, counted in `replaced`, and its history entries dropped.
+ * The whole library replaced from outside (a newer version from Google Drive, another tab's write taken up): saved as
+ * it comes, counted in `replaced`, and its history entries dropped.
  */
 export function replaceDoc(w: Workspace, id: DocId, library: Library, patch: Partial<Doc> = {}): Workspace {
   const d = w.docs[id]
@@ -528,27 +591,27 @@ export function replaceDoc(w: Workspace, id: DocId, library: Library, patch: Par
 }
 
 /**
- * Another tab wrote the document: this tab takes it up (its unsaved mark too), with `handle`, the file handle kept
- * with it now (the other tab may have saved it to another file), so the stored handle is never forgotten here.
+ * Another tab wrote the document: this tab takes it up, with its Drive file as that tab knows it. Changes that tab has
+ * not saved yet are its own to save (two tabs never save one change twice), so here they wait elsewhere
+ * (`dirtyElsewhere`), and the record written back from here says the same as the one taken.
  */
-export function takeRecord(w: Workspace, rec: DocRecord, handle: FileSystemFileHandle | null): Workspace {
+export function takeRecord(w: Workspace, rec: DocRecord): Workspace {
   if (!w.docs[rec.id]) return w
-  return replaceDoc(w, rec.id, rec.library, {
-    saved: rec.dirty ? null : rec.library,
-    drive: rec.drive,
-    file: rec.file && { ...rec.file, handle },
-  })
-}
-
-/** Saved: `saving` is the library as it was when the save started, so an edit made meanwhile keeps the mark. */
-export function markSaved(w: Workspace, id: DocId, saving: Library, patch: Partial<Doc> = {}): Workspace {
-  return patchDoc(w, id, { ...patch, saved: saving })
+  return replaceDoc(w, rec.id, rec.library, { drive: rec.drive, dirtyElsewhere: rec.dirty })
 }
 
 /**
- * Whether a document may close: with unsaved changes, `ask` (Save, Don't save, or null for Cancel) and, for Save,
- * `save`; changes made while it saved are asked about again. `dirty` says whether it has changes now (null: it is
- * gone). Resolves false when it stays open.
+ * Saved: `saving` is the library as it was when the save started, so an edit made meanwhile keeps the mark. What
+ * another tab had not saved was in it (the library here was built on that tab's), so it waits no more.
+ */
+export function markSaved(w: Workspace, id: DocId, saving: Library, patch: Partial<Doc> = {}): Workspace {
+  return patchDoc(w, id, { ...patch, saved: saving, dirtyElsewhere: false })
+}
+
+/**
+ * Whether a document may close: while it has changes it could not save, `ask` (Save, Close anyway, or null for
+ * Cancel) and, for Save, `save`; changes made while it saved are asked about again. `dirty` says whether it has such
+ * changes now (null: it is gone). Resolves false when it stays open.
  */
 export async function readyToClose(
   dirty: () => boolean | null,
@@ -566,11 +629,9 @@ export async function readyToClose(
   }
 }
 
-/**
- * Closes a document: it, its tabs and its history entries go, and a cut on the clipboard from it becomes a copy
- * (its items can't be moved out of a closed file, but they can still be pasted).
- */
-export function closeDoc(w: Workspace, id: DocId): Workspace {
+// A document goes: it, its tabs and its history entries, and a cut on the clipboard from it becomes a copy (its items
+// can't be moved out of a closed file, but they can still be pasted).
+function dropDoc(w: Workspace, id: DocId): Workspace {
   if (!w.docs[id]) return w
   const docs = { ...w.docs }
   delete docs[id]
@@ -583,6 +644,59 @@ export function closeDoc(w: Workspace, id: DocId): Workspace {
     clipboard: cb && cb.mode === 'cut' && cb.refs.some((r) => r.doc === id) ? { ...cb, mode: 'copy' } : cb,
   }
   return withLayout(rest, L.closeTabs(w.layout, tabsOf(w.layout, id)))
+}
+
+// The closed files without the ones `match` accepts.
+const withoutClosed = (w: Workspace, match: (c: ClosedFile) => boolean): Workspace =>
+  w.closed.some(match) ? { ...w, closed: w.closed.filter((c) => !match(c)) } : w
+
+/**
+ * Closes a document, which never removes its file (asked for): it heads the closed files, in place of an older entry
+ * for it or for its Drive file, to be opened again from the Explorer.
+ */
+export function closeDoc(w: Workspace, id: DocId): Workspace {
+  const d = w.docs[id]
+  if (!d) return w
+  const entry: ClosedFile = { id, name: docName(d), drive: d.drive }
+  const rest = withoutClosed(dropDoc(w, id), (c) => c.id === id || (!!d.drive && c.drive?.id === d.drive.id))
+  return { ...rest, closed: [entry, ...rest.closed] }
+}
+
+/** A closed file opened again (`doc`, read back under its entry's id): its entry goes, and it shows at `route` in a new tab. */
+export function reopenClosed(w: Workspace, doc: Doc, route: Route, tabId: L.TabId): Workspace {
+  if (w.docs[doc.id]) return activateDoc(w, doc.id, tabId)
+  const rest = withoutClosed(w, (c) => c.id === doc.id || (!!doc.drive && c.drive?.id === doc.drive.id))
+  return addDoc(rest, doc, route, tabId)
+}
+
+/** A closed file removed from the list (deleted from this browser, or a link removed). */
+export const forgetClosed = (w: Workspace, id: DocId): Workspace => withoutClosed(w, (c) => c.id === id)
+
+/** Every closed entry of a Drive file goes (it is open again, or in the bin). */
+export const forgetClosedDrive = (w: Workspace, driveId: string): Workspace => withoutClosed(w, (c) => c.drive?.id === driveId)
+
+/**
+ * Signed out (asked for: the account is forgotten): every Google Drive library closes, the user's own and shared links
+ * alike, and none is listed as closed. Browser libraries stay.
+ */
+export function signedOut(w: Workspace): Workspace {
+  const drive = w.order.filter((id) => w.docs[id].drive)
+  return setSignedIn(withoutClosed(drive.reduce(dropDoc, w), (c) => !!c.drive), false)
+}
+
+/**
+ * Make a copy (asked for): `copy` opens on the same page, in the tab that showed `of` (the active tab, else the one
+ * used last), and `of` stays open; with no tab showing it, the copy gets a new tab (`tabId`) on its home.
+ */
+export function openCopy(w: Workspace, of: DocId, copy: Doc, tabId: L.TabId): Workspace {
+  if (!w.docs[of] || w.docs[copy.id]) return w
+  const order = [...w.order]
+  order.splice(order.indexOf(of) + 1, 0, copy.id)
+  const added: Workspace = { ...w, docs: { ...w.docs, [copy.id]: copy }, order }
+  const active = docTab(w, activeTab(w)?.id)
+  const tab = active?.data.doc === of ? active : docTab(w, usedLast(w, (t) => t.data.kind === 'doc' && t.data.doc === of))
+  if (!tab) return withLayout(added, L.openTab(w.layout, { id: tabId, data: docTabData(copy.id, HOME) }, { group: openingGroup(w) }))
+  return withLayout(added, L.activate(L.updateTab(w.layout, tab.id, docTabData(copy.id, tab.data.route)), tab.id))
 }
 
 /**
@@ -612,21 +726,24 @@ const what = (f: Fragment) => {
 
 /**
  * Copies (or cuts) the items: their contents as they are now. `from` adds libraries that are not open documents (a
- * Google Drive library peeked at in the Explorer), which can be copied from. Throws the reason when they can't be.
+ * Google Drive library peeked at in the Explorer), which can be copied from. Throws the reason when they can't be (a
+ * cut from a view-only library, too).
  */
 export function toClipboard(w: Workspace, refs: ItemRef[], mode: 'copy' | 'cut', from: Docs = {}): Workspace {
+  if (mode === 'cut' && refs.some((r) => viewOnly(w, r.doc))) throw new Error(VIEW_ONLY_TEXT)
   return { ...w, clipboard: { mode, refs, fragment: extract({ ...from, ...libraries(w) }, refs) } }
 }
 
 /**
- * Pastes into `target`, as one history entry: a cut moves its items when they are all still there (then the clipboard
- * holds a copy of them), else the copy taken at cut or copy time goes in with new ids. Throws the reason when the
- * target doesn't take them (nothing changed).
+ * Pastes into `target`, as one history entry: a cut moves its items when they are all still there and can change
+ * (then the clipboard holds a copy of them), else the copy taken at cut or copy time goes in with new ids. Throws the
+ * reason when the target doesn't take them (a view-only library, or a place they don't fit; nothing changed).
  */
 export function paste(w: Workspace, target: Target, newId: () => string, at: number): Workspace {
   const cb = w.clipboard
   if (!cb) throw new Error('Nothing is copied.')
-  if (cb.mode === 'cut' && cb.refs.every((r) => exists(libraries(w), r))) {
+  if (viewOnly(w, target.doc)) throw new Error(VIEW_ONLY_TEXT)
+  if (cb.mode === 'cut' && cb.refs.every((r) => exists(libraries(w), r) && !viewOnly(w, r.doc))) {
     let moved: ItemRef[] = []
     const next = applyEdit(w, `Move ${what(cb.fragment)}`, (docs) => {
       const done = move(docs, cb.refs, target)
@@ -639,51 +756,26 @@ export function paste(w: Workspace, target: Target, newId: () => string, at: num
   return { ...next, clipboard: cb.mode === 'cut' ? { ...cb, mode: 'copy' } : cb }
 }
 
-// ---- Opening a file that is already open ----
-
-/** Whether the file on disk is another version than the one the document was opened from or saved to. */
-export const changedOnDisk = (d: Doc, file: FileRef): boolean =>
-  !!d.file && (d.file.modified !== file.modified || d.file.size !== file.size)
-
-/**
- * The file `id` is tied to was opened again: its document becomes active, and when the file changed on disk it is
- * reloaded, unless there are unsaved changes here (then `ask`: the caller asks first, then `replaceDoc`).
- */
-export function reopenFile(w: Workspace, id: DocId, library: Library, file: FileRef, tabId: L.TabId): { workspace: Workspace; ask: boolean } {
-  const d = w.docs[id]
-  if (!d) return { workspace: w, ask: false }
-  const active = activateDoc(w, id, tabId)
-  if (!changedOnDisk(d, file)) return { workspace: d.file?.handle || !file.handle ? active : patchDoc(active, id, { file }), ask: false }
-  if (hasChanges(d)) return { workspace: active, ask: true }
-  return { workspace: replaceDoc(active, id, library, { file }), ask: false }
-}
-
 export const docWithDrive = (w: Workspace, driveId: string): Doc | undefined =>
   w.order.map((id) => w.docs[id]).find((d) => d.drive?.id === driveId)
 
 // ---- What the browser keeps, and reading it back ----
 
-/** The document's record in the browser backup (its file handle is kept apart). */
-export const docRecord = (d: Doc): DocRecord => ({
-  id: d.id,
-  library: d.library,
-  dirty: hasChanges(d),
-  drive: d.drive,
-  file: d.file && { name: d.file.name, size: d.file.size, modified: d.file.modified },
-})
+/** The document's record in the browser backup (`dirty`: a Drive file with changes still to save, here or elsewhere). */
+export const docRecord = (d: Doc): DocRecord => ({ id: d.id, library: d.library, dirty: hasChanges(d) || d.dirtyElsewhere, drive: d.drive })
 
 /**
- * The workspace's own record: the open documents in order, the layout, the Explorer, each document's own name, the
- * account each own Drive file belongs to, and which tabs were active last.
+ * The workspace's own record: the open documents in order, the closed files, the layout, the Explorer, each
+ * document's own name, and which tabs were active last.
  */
 export const workspaceRecord = (w: Workspace): WorkspaceRecord => ({
   version: 1,
   docs: w.order,
+  closed: w.closed,
   layout: w.layout,
   explorer: w.explorer,
   ui: {
     names: Object.fromEntries(w.order.map((id) => [id, w.docs[id].name])),
-    owners: Object.fromEntries(w.order.flatMap((id) => (w.docs[id].owner ? [[id, w.docs[id].owner]] : []))),
     recent: w.recent,
   },
 })
@@ -692,7 +784,7 @@ const isString = (x: unknown): x is string => typeof x === 'string'
 const strings = (x: unknown): x is string[] => Array.isArray(x) && x.every(isString)
 
 // Pages of the app itself, not of a file: a tab that held one (before tabs had their own pages) shows its file's home.
-const OWN = ['home', 'debug', 'changelog', 'explorer', 'welcome', 'empty', 'workbench']
+const OWN = ['home', 'debug', 'changelog', 'explorer', 'welcome', 'studyTips', 'empty', 'workbench']
 /** A route as a tab keeps it, or null (a Drive link is never kept: it would open again). */
 export function readRoute(r: unknown): Route | null {
   const x = r as Record<string, unknown> | null
@@ -755,7 +847,7 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
     if (data.kind === 'explorer') {
       // Each keeps its own view (a duplicate); the first one may share the workspace's.
       tabs[id] = { id, data: 'view' in data && data.view ? { kind: 'explorer', view: readExplorer(data.view) } : { kind: 'explorer' } }
-    } else if (data.kind === 'changelog' || data.kind === 'welcome') {
+    } else if (data.kind === 'changelog' || data.kind === 'welcome' || data.kind === 'studyTips') {
       tabs[id] = { id, data: { kind: data.kind } }
     } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
       const route = readRoute(data.route)
@@ -782,26 +874,30 @@ export function readExplorer(raw: unknown): Explorer {
 }
 
 /**
- * The workspace as the browser kept it: each document (an unsaved one marked unsaved, `saved` null), with its file
- * handle; its layout and Explorer checked; documents with no name kept get "New library", "New library 2" and so on.
+ * The workspace as the browser kept it: each open document (a Drive file with changes still to save marked so,
+ * `saved` null), the closed files (their records stay closed), its layout and Explorer checked. A document's name is
+ * the local file's it was once tied to (`legacyName`, without ".shrimp"), else its own, else "New library", "New
+ * library 2" and so on.
+ * `signedIn`: whether Google is signed in on start.
  */
 export function restore(
-  read: { workspace: WorkspaceRecord | null; docs: DocRecord[]; handles: Record<string, FileSystemFileHandle> },
+  read: { workspace: WorkspaceRecord | null; docs: DocRecord[] },
   groupId: string,
   newId: () => string,
+  signedIn = false,
 ): Workspace {
-  const ui = read.workspace?.ui as { names?: Record<string, unknown>; owners?: Record<string, unknown>; recent?: unknown } | null
+  const ui = read.workspace?.ui as { names?: Record<string, unknown>; recent?: unknown } | null
   const kept = ui?.names ?? {}
-  const owners = ui?.owners && typeof ui.owners === 'object' ? ui.owners : {}
-  let w = emptyWorkspace(groupId)
+  const closed = read.workspace?.closed ?? []
+  let w = emptyWorkspace(groupId, signedIn)
   for (const rec of read.docs) {
+    if (closed.some((c) => c.id === rec.id)) continue
     const own = kept[rec.id]
-    const name = isString(own) && own.trim() ? own : freeDocName(w, 'New library')
-    const file = rec.file && { ...rec.file, handle: read.handles[rec.id] ?? null }
-    const owner = isString(owners[rec.id]) ? (owners[rec.id] as string) : null
-    const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive, file, owner })
+    const name = rec.legacyName ? bareName(rec.legacyName) : isString(own) && own.trim() ? own : freeDocName(w, 'New library')
+    const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive })
     w = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
   }
+  w = { ...w, closed }
   const layout = readLayout(read.workspace?.layout, w.order, groupId, newId)
   const recent = strings(ui?.recent) ? ui.recent.filter((t) => layout.tabs[t]) : []
   return withLayout({ ...w, layout: L.emptyLayout(groupId), recent, explorer: readExplorer(read.workspace?.explorer) }, layout)

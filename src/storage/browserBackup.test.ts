@@ -50,7 +50,7 @@ describe('readWorkspace', () => {
   it('reads as nothing stored when storage is blocked', async () => {
     vi.stubGlobal('indexedDB', undefined)
     const { readWorkspace } = await import('./browserBackup')
-    expect(await readWorkspace()).toEqual({ workspace: null, docs: [], handles: {}, broken: [], unstored: [], notes: [] })
+    expect(await readWorkspace()).toEqual({ workspace: null, docs: [], broken: [], unstored: [], notes: [] })
   })
 
   it('reads as nothing stored when nothing is', async () => {
@@ -104,7 +104,7 @@ describe('readWorkspace', () => {
     store.set('library.v1', fixture)
     const { readWorkspace, writeWorkspace } = await import('./browserBackup')
     const first = await readWorkspace()
-    await writeWorkspace({ version: 1, docs: [first.docs[0].id], layout: null, explorer: null, ui: null })
+    await writeWorkspace({ version: 1, docs: [first.docs[0].id], closed: [], layout: null, explorer: null, ui: null })
     store.set('library.v1', edited)
     const second = await readWorkspace()
     expect(second.docs.map((d) => d.library.courses[0].name)).toEqual(['Biology', 'Biology, edited'])
@@ -140,41 +140,24 @@ describe('readWorkspace', () => {
     expect((await readWorkspace()).broken).toEqual([])
   })
 
-  it('round trips documents in workspace order, with handles', async () => {
-    const { readWorkspace, writeDoc, writeWorkspace, writeHandle, deleteDoc } = await import('./browserBackup')
+  it('round trips documents in workspace order', async () => {
+    const { readWorkspace, writeDoc, writeWorkspace, deleteDoc } = await import('./browserBackup')
     const { migrateBackup } = await import('./workspaceRecord')
     const a = migrateBackup(fixture, 'a')
     const b = migrateBackup(fixture, 'b')
-    const handle = { name: 'b.shrimp' } as FileSystemFileHandle
     await writeDoc(a)
     await writeDoc(b)
-    await writeHandle('b', handle)
-    await writeWorkspace({ version: 1, docs: ['b', 'a'], layout: { l: 1 }, explorer: null, ui: null })
+    await writeWorkspace({ version: 1, docs: ['b', 'a'], closed: [], layout: { l: 1 }, explorer: null, ui: null })
     const read = await readWorkspace()
     expect(read.docs.map((d) => d.id)).toEqual(['b', 'a'])
-    expect(read.handles).toEqual({ b: handle })
     expect(read.workspace?.layout).toEqual({ l: 1 })
     await deleteDoc('b')
-    expect(store.has('handle.b')).toBe(false)
     expect((await readWorkspace()).docs.map((d) => d.id)).toEqual(['a'])
-  })
-
-  it('reads back the handle another tab stored for a document', async () => {
-    const { readHandle, writeHandle } = await import('./browserBackup')
-    const handle = { name: 'saved-as.shrimp' } as FileSystemFileHandle
-    expect(await readHandle('b')).toBeNull()
-    await writeHandle('b', handle)
-    expect(await readHandle('b')).toBe(handle)
-    await writeHandle('b', null)
-    expect(await readHandle('b')).toBeNull()
-    vi.stubGlobal('indexedDB', undefined)
-    vi.resetModules()
-    expect(await (await import('./browserBackup')).readHandle('b')).toBeNull()
   })
 
   it('copies an unreadable document aside and lists it', async () => {
     const { readWorkspace, writeWorkspace } = await import('./browserBackup')
-    await writeWorkspace({ version: 1, docs: ['x'], layout: null, explorer: null, ui: null })
+    await writeWorkspace({ version: 1, docs: ['x'], closed: [], layout: null, explorer: null, ui: null })
     store.set('doc.x', '{ broken')
     const read = await readWorkspace()
     expect(read.docs).toEqual([])

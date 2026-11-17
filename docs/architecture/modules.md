@@ -350,7 +350,7 @@ Functions return a result instead of throwing (a refusal is a `reason`). Files c
 
 Google Drive in `explorerActions`: `NodeKind` also has `'drivefile'`; `Action` has `driveOpen` and `driveRemove`;
 `describeNode(docs, meta, node, drive?)` takes an optional `{ listing }`. A row's muted text is its state and place: "Open ·
-On this device" (or "Open · Unsaved · ..."), "Open · Only in this browser", "Open · Your Google Drive", and for a library that
+Only in this browser", "Open · Your Google Drive", "Open · View only", and for a library that
 is not open "Not open · Your Google Drive". A Drive library's menu has Open, a disabled Paste ("Open the library first.") and
 Move to bin (Delete). Refusals: pasting or dropping on a Drive library says "Open the library first."; deleting one from the
 tree says "Move a Google Drive library to the bin from its own menu."; nothing can be dropped inside it (`allowInside`).
@@ -402,15 +402,15 @@ takeCreated(id): boolean }` (id first). Every screen takes its tab's `nav` (requ
 ### `src/state/workspace.ts` (pure): the workspace and its transitions (run by `useWorkspace`)
 
 ```ts
-export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'changelog' }   // declared in logic/workbenchActions, re-exported here
-export type Doc = { id; library; saved: Library | null; name; file: FileRef | null; drive: DriveSource | null; replaced: number; newer: boolean }
+export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'changelog' } | { kind: 'welcome' } | { kind: 'studyTips' }   // declared in logic/workbenchActions, re-exported here
+export type Doc = { id; library; saved: Library | null; name; drive: DriveSource | null; replaced: number; problem: SaveProblem | null }   // a library is a Drive file or a browser library, never a local file
 export type Workspace = { docs: Record<DocId, Doc>; order: DocId[]; layout: Layout<TabData>; history: History<Snap>;
-  clipboard: Clipboard | null; explorer: Explorer; recent: TabId[] }   // recent: tabs, the one active last first, across groups and windows
+  clipboard: Clipboard | null; explorer: Explorer; recent: TabId[]; closed: ClosedFile[] }   // recent: tabs, the one active last first, across groups and windows
 export type Snap = Record<DocId, Library>; export type Clipboard = { mode: 'copy' | 'cut'; refs: ItemRef[]; fragment: Fragment }
 export type Explorer = { expanded: string[]; selection: Selection }
 ```
 
-A document has unsaved changes when `library !== saved` (`hasChanges`). Transitions take a `Workspace`, return a new
+`library !== saved` means a Drive save has not happened yet (pending, busy or paused), not an unsaved file; `hasChanges` is `needsAttention(status)` (see `logic/autosave.ts` below). Transitions take a `Workspace`, return a new
 one, and read no clock or random source (times and new ids are arguments; `useWorkspace` makes the ids before it runs one):
 
 - Documents: `emptyWorkspace`, `makeDoc`, `docName`, `where`, `freeDocName`, `libraries`.
@@ -435,10 +435,8 @@ one, and read no clock or random source (times and new ids are arguments; `useWo
   outside): its own entries go; an entry that also changed another document (a move between files) cannot be undone in half,
   so it goes with every step beyond it (older ones in the past, those redone after it in the future). `patchDoc`,
   `replaceDoc` (the whole library replaced from outside: saved as it comes, `replaced` counted, then `forget`), `takeRecord(w,
-  rec, handle)` (another tab wrote the document; `handle` is the file handle stored with it now, so the stored handle is
-  never forgotten here), `markSaved`, `closeDoc` (its tabs and history go; a cut from it becomes a copy),
-  `readyToClose(dirty, ask, save)` (async: with unsaved changes asks Save, Don't save or Cancel and saves; changes made while it
-  saved are asked about again; false when the document stays open), `followRenames(w, doc, before)` (every tab of the document,
+  rec)` (another tab wrote the document), `markSaved`, `closeDoc` (its tabs and history go; a cut from it becomes a copy; it is added to `closed`, a Drive library replacing an older entry with the same Drive id), `reopenClosed`, `forgetClosed`, `focusedGroup(w, win)` (the active group if it is in that window, else that window's group used last, else its first; `mainGroup` wraps it), `shownTab(w, win = MAIN)`, `paneLayout` (pane mode: one group, one tab of the page an address names),
+  `readyToClose` (async: flushes a pending save, and when it can't asks Cancel, Close anyway or Save and close), `followRenames(w, doc, before)` (every tab of the document,
   shown or not, takes the new name of a renamed course or quiz, found again by id; a page whose course or quiz is gone keeps its
   route), `dropDraft(w, id, draft: Course)` (a draft course is dropped as if never made only while the library still holds that
   very course object: never renamed, given a quiz, pasted or moved into, anywhere; otherwise it stays).
@@ -495,12 +493,14 @@ export type WorkspaceApi = {
 }
 ```
 
-`LibraryApi` (one document; what screens use) has: `ready`, `id`, `name`, `library`, `replaced`, `hasChanges`,
-`loadLabel`, `saveLabel`, `loadHint`, `saveHint`, `findCourse`, `findQuiz`, `addCourse` (a draft until anything changes it, here or in the Explorer), `leaveCourse` (drops an untouched draft), `renameCourse`,
+`LibraryApi` (one document; what screens use) has: `ready`, `id`, `name`, `library`, `replaced`, `where` (`'drive' | 'browser'`), `status` (a `SaveStatus`), `readOnly`, `hasChanges` (= needs attention),
+`downloadLabel`, `downloadHint`, `findCourse`, `findQuiz`, `addCourse` (a draft until anything changes it, here or in the Explorer), `leaveCourse` (drops an untouched draft), `renameCourse`,
 `deleteCourse`, `addQuiz`, `renameQuiz`, `deleteQuiz`, `setCards`, `addSideType`, `renameSideType`, `deleteSideType`,
-`updateCard`, `replace`, `save`, `download`, `close`, `file`, `fileName` and `drive: DriveApi` (`setUp`, `file`,
-`signedIn`, `yours`, `newer`, `savesInto`, `signOut`, `account`, `prepare`, `signIn`, `canSave`, `open`, `refresh`,
-`pull`, `save`, `saveCopy`, `saveNew`, `share`, `list`, `remove`, `pick`).
+`updateCard`, `replace`, `saveNow` (Ctrl+S; false for a browser library, whose caller opens Upload), `makeCopy`, `download`, `close` and `drive: DriveApi` (`setUp`, `file`,
+`signedIn`, `yours`, `signOut`, `account`, `prepare`, `signIn`, `canSave`, `open`, `refresh`,
+`saveOver`, `saveNew`, `share`, `unshare`, `list`, `remove`, `pick`). `WorkspaceApi` also has `closed`, `reopenClosed`, `forgetClosed`, `readClosed`, `addressIn(win)`, `openLabel` and `openHint`; `saveAll`, `hiddenDocs` and `isHidden` are gone.
+
+**Autosave, view only, one account** (`logic/autosave.ts`, `logic/keepIds.ts`, `googleDrive.ts`). `AUTOSAVE_DELAY` 1500 ms, `RETRY_DELAY` 30 s, `SYNC_EVERY` 60 s; `SaveProblem` = `signIn | offline | conflict | error`; `SaveStatus` adds `saved | pending | saving | viewOnly | browser`; `saveStatus(doc, { signedIn, busy, online })`, `statusText`, `needsAttention`, `isViewOnly`. A per-document timer saves a Drive library of your own after the last edit through one quiet path; a problem pauses that file and `status` says why. A Drive file not known to be yours is view only: `apply` never changes it (so undo, redo, paste and drops can't), and every Drive library with nothing waiting to save takes a newer version silently (on open, start, focus or visibility, every `SYNC_EVERY`), `keepIds(old, next)` carrying ids over by slug, group name and card position and kind. The sign-in is one `localStorage` key shared by every tab (`onSignInChange`); `drive.signOut` flushes, asks if a save cannot be flushed, then closes every Drive library in every tab and forgets the account.
 
 Content edits go through `apply`, which marks every document it changed as unsaved and schedules that document's browser
 backup 300 ms later. The workspace's own record (open documents, layout, Explorer, names) is written the same way, and what
@@ -564,11 +564,9 @@ one was started is dropped. An open from the list becomes an open file: expanded
   its keys work. `PaneShared` is what `App` hands every tab (`ws`, `notify`, `ask`, `navOps`, the study options, the
   collapsed groups, the tips state, the welcome state, open and new actions, the Explorer's `openNode`, `editNode`,
   `reveal` and `openCard`).
-- `Sidebar` (`{ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }`): the open
-  files from `ws.docs`, the course tree of the active file (`onOpen(route, newTab)` shows a page in the active group), the
-  Explorer button, "+ New course" and the theme select. The brand (`onHome`) opens the active file's home: its home tab in the main window if one exists, else a new tab in the active
+- `Sidebar` (`{ ws, ..., onOpenDialog, onNewFile, onShare, onUpload, onExplorer, onOpen }`): the corner (the brand, the corner badge when signed out or a save needs attention, the toggle), the `AccountBox` under it, the Explorer button, the Files section (`FileTree` over `ws.docs`; `onOpen(route, newTab)` shows a page in the active group) and the theme select. The brand (`onHome`) opens the active file's home: its home tab in the main window if one exists, else a new tab in the active
   group; with no file open it is the plain link home (the welcome page). Under the brand a "Files" heading carries the file actions that a
-  top bar used to hold: New file, Open file, Google Drive and Save all (greyed out with nothing to save).
+  top bar used to hold: New file, Open (the Open dialog) and Fold all. Each library's row holds its own save slot, Share, New course, Download a copy and Close.
 - `App` composes them: the shell is the `Sidebar` and a `wb-cell` holding the `Workbench`, which starts at the top of the window (hidden on the debug page
   and the welcome page). A study session alone in the main window keeps the full-screen look. The kit demo is a full-screen page outside the
   shell. In the main window the group at the top-left corner has a tab strip that makes room for the sidebar's corner while the
@@ -586,10 +584,10 @@ re-exports it. `askChoice` (ConfirmDialog) resolves null when its window goes aw
 
 ### `src/logic/whereLine.ts` (pure)
 
-`whereLine(f: { hasFile: boolean; drive: { shared: boolean; trashed: boolean } | null; yours: boolean; signedIn: boolean }): string`:
-where an open file lives, in words: "On this device", "Only in this browser", or for a Drive file "Your Google Drive" (needs
+`whereLine(f: { drive: { shared: boolean; trashed: boolean } | null; yours: boolean; signedIn: boolean }): string`:
+where a library lives, in words: "Only in this browser", or for a Drive file "Your Google Drive" (needs
 a sign-in and Google's word), "Someone else's Google Drive" (signed in, not yours), "Shared on Google Drive" or "On Google
-Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Used by `ExplorerPane`.
+Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Used by `ExplorerPane`. `closedNote(entry, yours)` words the toast after closing a library: "Closed "X". It's in your Google Drive: open it again from the Explorer.", "... It's on Google Drive: open it again from the Explorer, or from its link." or "... It's still in this browser: open it again from the Explorer."
 
 ### `src/screens/edit/EditorCard.tsx`, `SortableCard.tsx` (mounted)
 
@@ -601,36 +599,30 @@ Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Us
 - `SortableCard.tsx`: `CardSortables` (the dnd-kit context and list, cards move up and down only, with screen reader
   announcements by card number), `SectionSortable`, and `useSortableCard(id, n): CardSortable`.
 
-### `src/storage/StorageAdapter.ts`: the one seam for files
+### `src/storage/StorageAdapter.ts`: the one seam for files (copies only)
 
 ```ts
-export type FileRef = { name: string; handle: FileSystemFileHandle | null; size: number; modified: number }   // handle null where the browser can't write back (Firefox, Safari)
-export type Opened = { ok: true; library: Library; file: FileRef } | { ok: false; name: string; error: string }
-export type SaveResult = { status: 'saved'; file: FileRef } | { status: 'changed'; modified: number } | { status: 'denied' } | { status: 'error'; message: string }
+export type Opened = { ok: true; library: Library; name: string } | { ok: false; name: string; error: string }
 export type StorageAdapter = {
-  loadLabel: string; saveLabel: string; loadHint: string; saveHint: string
+  openLabel: string; openHint: string; downloadLabel: string; downloadHint: string
   openFiles(): Promise<Opened[] | null>        // null when nothing was picked; a file that can't be read is reported in its place, never thrown
-  saveInPlace(handle, library, expected: number | null, force?: boolean): Promise<SaveResult>   // 'changed' when the file has another modified time than `expected`, unless `force`
-  saveAs(library, suggestedName?): Promise<FileRef | null>   // the picked file, kept with a handle where the browser allows, else a download; null when cancelled
   download(library, name?): Promise<string | null>           // a copy as a file; never ties the library to it
-  sameFile(a: FileRef, b: FileRef): Promise<boolean>
 }
 ```
 
-`fileStorage` implements it (the file picker, File System Access where available, else a download); `useWorkspace` calls
+Nothing is saved to a local file: no handles, `saveInPlace`, `saveAs` or `sameFile`. `fileStorage` implements it (the file input; the save picker where there is one, else a download); `useWorkspace` calls
 nothing else for files. A new backend is a new adapter. The old `load()` / `save()` pair is gone, and so is the single-backup
 API of `browserBackup` (`readBackup`, `writeBackup`, `onBackupWritten`, `Backup`) and its BroadcastChannel; the workspace's own
 channel (`shrimply-workspace`) remains.
 
 ### `src/storage/` additions for the workspace
 
-- `workspaceRecord.ts`: `DocRecord` (`id`, `library`, `dirty`, `drive`, `file: { name, size, modified } | null`),
-  `WorkspaceRecord` (`{ version: 1; docs; layout; explorer; ui }`), `parseDocRecord`, `docRecordText`,
+- `workspaceRecord.ts`: `DocRecord` (`id`, `library`, `dirty`, `drive`, `legacyName?`: an old record's `file` note, so a library once tied to a local file restores as a browser library under that name),
+  `WorkspaceRecord` (`{ version: 1; docs; layout; explorer; ui; closed }`, `closed` a list of `ClosedFile` `{ id, name, drive }`, an old record reading as none; an old `ui.owners` is read and ignored), `parseDocRecord`, `docRecordText`,
   `parseWorkspaceRecord`, `migrateBackup(backupText, newId): DocRecord` (the old single-library backup as a
   document) and `textHash(text)` (cyrb53, 14 hex digits).
-- `browserBackup.ts`: one IndexedDB record per document (`doc.<id>`), one for the workspace (`workspace.v1`), file handles
-  (`handle.<id>`, read back with `readHandle(id)`, which another tab's write also uses so a stored handle is never forgotten), unreadable records copied aside (`broken.doc.<id>`). `readWorkspace()` returns `{ workspace, docs,
-  handles, broken, unstored, notes }`: a record that can not be read is copied aside and listed in `broken`, and the others
+- `browserBackup.ts`: one IndexedDB record per document (`doc.<id>`), one for the workspace (`workspace.v1`), unreadable records copied aside (`broken.doc.<id>`). `readWorkspace()` returns `{ workspace, docs,
+  broken, unstored, notes }`: a record that can not be read is copied aside and listed in `broken`, and the others
   still load; storage that is blocked reads as an empty workspace.
 - Migration of the old backup (`library.v1`, written by versions before the workspace): once per text. The key
   `migrated.v1` holds the fingerprint of the last text taken. A new text becomes the document `v1-<fingerprint>`, the same id

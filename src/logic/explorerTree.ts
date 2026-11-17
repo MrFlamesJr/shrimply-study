@@ -5,7 +5,15 @@ import type { TreeSource } from '../kit/tree'
 import { sections } from './groups'
 import { itemName, type DocId, type Docs, type Fragment, type ItemRef, type Target } from './contentOps'
 
-export type OpenDoc = { id: DocId; name: string; library: Library; /** The Google Drive file it is (an open library is a root, so the list does not show it again). */ driveId?: string | null }
+export type OpenDoc = {
+  id: DocId
+  name: string
+  library: Library
+  /** The Google Drive file it is (an open library is a root, so the list does not show it again). */
+  driveId?: string | null
+  /** A view-only library (someone else's Drive file): copy only, like a library that is not open (asked for). */
+  readOnly?: boolean
+}
 type DocRef = { kind: 'doc'; doc: DocId }
 
 export function nodeOf(ref: ItemRef | DocRef): string {
@@ -58,11 +66,14 @@ export function parseDriveNode(nodeId: string): DriveNode | null {
   return m && kind ? { kind, id: m[2] } : null
 }
 
-/** The libraries in the list that are not open (an open one is already a root, whose place says it is on Drive). */
+/**
+ * The libraries in the list that are not open (an open one is already a root, whose place says it is on Drive), each
+ * once: a closed Drive file that is also in the user's Drive list shows one row.
+ */
 export function closedDriveFiles(listing: DriveListing | undefined, open: OpenDoc[]): DriveFileInfo[] {
   if (!listing?.signedIn || listing.files === null) return []
   const taken = new Set(open.map((d) => d.driveId))
-  return listing.files.filter((f) => !taken.has(f.id))
+  return listing.files.filter((f) => !taken.has(f.id) && (taken.add(f.id), true))
 }
 
 // Names compare ignoring case and accents, "2" before "10".

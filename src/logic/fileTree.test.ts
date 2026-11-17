@@ -58,12 +58,21 @@ describe('countLine', () => {
 })
 
 describe('fileInfo', () => {
-  const base = { where: 'On this device', fileName: null, driveName: null, shared: false, newer: false, dirty: false, hasHome: false, counts: 'x' }
+  const base = { where: 'Only in this browser', driveName: null, shared: false, problem: null, saved: false, counts: 'x' }
   it('keeps the order', () => {
-    expect(fileInfo(base)).toEqual(['On this device', 'x'])
-    expect(
-      fileInfo({ ...base, fileName: 'a.shrimp', driveName: 'd.shrimp', shared: true, newer: true, hasHome: true }),
-    ).toEqual(['On this device', 'd.shrimp', 'Shared with a link', 'A newer version is on Google Drive', 'x', 'All changes saved'])
-    expect(fileInfo({ ...base, fileName: 'a.shrimp', dirty: true, hasHome: true })).toEqual(['On this device', 'a.shrimp', 'x', 'Unsaved changes'])
+    expect(fileInfo(base)).toEqual(['Only in this browser', 'x'])
+    expect(fileInfo({ ...base, where: 'Your Google Drive', driveName: 'd.shrimp', shared: true, saved: true })).toEqual([
+      'Your Google Drive',
+      'd.shrimp',
+      'Shared with a link',
+      'x',
+      'All changes saved',
+    ])
+    expect(fileInfo({ ...base, driveName: 'd.shrimp', problem: 'Offline: not saved yet' })).toEqual([
+      'Only in this browser',
+      'd.shrimp',
+      'x',
+      'Offline: not saved yet',
+    ])
   })
 })

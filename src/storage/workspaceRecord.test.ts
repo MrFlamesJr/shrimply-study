@@ -16,7 +16,7 @@ describe('migrateBackup', () => {
       expect(rec.id).toBe('new-id')
       expect(rec.dirty).toBe(data.changedIds.length > 0)
       expect(() => checkLibrary(rec.library, 'stored')).not.toThrow()
-      expect(rec.file).toEqual(typeof data.file === 'string' ? { name: data.file, size: 0, modified: 0 } : null)
+      expect(rec.legacyName).toBe(typeof data.file === 'string' ? data.file : undefined)
     })
   }
 
@@ -26,13 +26,9 @@ describe('migrateBackup', () => {
     expect(migrateBackup(JSON.stringify({ ...data, changedIds: ['x'] }), 'a').dirty).toBe(true)
   })
 
-  it('keeps the file name with size 0 and modified 0', () => {
+  it('keeps the old file name as legacyName', () => {
     const data = JSON.parse(fixture('v2-backup.json'))
-    expect(migrateBackup(JSON.stringify({ ...data, file: 'a.shrimp' }), 'a').file).toEqual({
-      name: 'a.shrimp',
-      size: 0,
-      modified: 0,
-    })
+    expect(migrateBackup(JSON.stringify({ ...data, file: 'a.shrimp' }), 'a').legacyName).toBe('a.shrimp')
   })
 
   it('throws on broken text', () => {
@@ -44,8 +40,18 @@ describe('migrateBackup', () => {
 describe('doc records', () => {
   it('round trips', () => {
     const rec = migrateBackup(fixture('v2-backup.json'), 'd1')
-    const full = { ...rec, file: { name: 'a.shrimp', size: 5, modified: 7 } }
+    const full = { ...rec, legacyName: 'a.shrimp' }
     expect(parseDocRecord(docRecordText(full))).toEqual(full)
+  })
+
+  it('reads an old file note as legacyName and drops the file and the owner', () => {
+    const { legacyName: _, ...rec } = migrateBackup(fixture('v2-backup.json'), 'd1')
+    const old = JSON.stringify({ ...rec, file: { name: 'b.shrimp', size: 5, modified: 7 }, owner: 'me@x.org' })
+    const read = parseDocRecord(old)
+    expect(read.legacyName).toBe('b.shrimp')
+    expect(read).not.toHaveProperty('file')
+    expect(read).not.toHaveProperty('owner')
+    expect(parseDocRecord(JSON.stringify({ ...rec, file: { size: 1 } })).legacyName).toBeUndefined()
   })
 
   it('throws on a broken record', () => {
@@ -58,7 +64,36 @@ describe('doc records', () => {
 describe('workspace records', () => {
   it('parses and keeps layout, explorer and ui as they are', () => {
     const text = JSON.stringify({ version: 1, docs: ['a', 'b'], layout: { x: 1 }, explorer: [2], ui: 'u' })
-    expect(parseWorkspaceRecord(text)).toEqual({ version: 1, docs: ['a', 'b'], layout: { x: 1 }, explorer: [2], ui: 'u' })
+    expect(parseWorkspaceRecord(text)).toEqual({
+      version: 1,
+      docs: ['a', 'b'],
+      closed: [],
+      layout: { x: 1 },
+      explorer: [2],
+      ui: 'u',
+    })
+  })
+
+  it('reads the closed files strictly, skipping bad entries', () => {
+    const drive = { id: 'g', name: 'g.shrimp', md5: 'm', shared: false }
+    const text = JSON.stringify({
+      version: 1,
+      docs: [],
+      closed: [{ id: 'a', name: 'A', drive }, { id: 'b', name: 'B' }, { id: 3, name: 'C' }, { name: 'D' }, { id: 'e' }, null, 'x'],
+    })
+    expect(parseWorkspaceRecord(text).closed).toEqual([
+      { id: 'a', name: 'A', drive: { id: 'g', name: 'g.shrimp', md5: 'm', shared: false, mine: false, trashed: false } },
+      { id: 'b', name: 'B', drive: null },
+    ])
+  })
+
+  it('reads a missing or bad closed list as empty', () => {
+    expect(parseWorkspaceRecord('{"version":1,"docs":[]}').closed).toEqual([])
+    expect(parseWorkspaceRecord('{"version":1,"docs":[],"closed":5}').closed).toEqual([])
+  })
+
+  it('still parses an old ui.owners, which stays in ui for the caller to ignore', () => {
+    expect(() => parseWorkspaceRecord('{"version":1,"docs":[],"ui":{"owners":{"a":"x@y.z"}}}')).not.toThrow()
   })
 
   it('refuses other versions and bad docs', () => {

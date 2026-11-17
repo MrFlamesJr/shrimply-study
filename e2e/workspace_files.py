@@ -1,5 +1,6 @@
-"""Open files: two documents from the debug page, the unsaved dot and title mark per file, Ctrl+Z, a reload that
-restores both (the right one active), closing a file with and without unsaved changes."""
+"""Open files: two browser libraries from the debug page, no unsaved dot or title mark (browser libraries keep
+themselves), Ctrl+Z, a reload that restores both (the right one active), closing a file never asks (a toast with
+Reopen, which brings it back)."""
 import os
 import sys
 
@@ -53,15 +54,14 @@ def run(page, base):
     field.press('End')
     field.press_sequentially(' X')
     page.evaluate('document.activeElement.blur()')
-    wait_for(page, lambda: row(page, 'Guide').locator('.file-dot').count() == 1, 'the edited file shows the unsaved dot')
-    assert row(page, 'Test library').locator('.file-dot').count() == 0, 'the other file shows no dot'
-    assert page.title().startswith('*'), 'the tab title is marked'
+    page.wait_for_timeout(500)
+    assert rows(page).locator('.file-dot').count() == 0, 'a browser library never shows an unsaved dot'
+    assert not page.title().startswith('*'), 'and no mark in the tab title'
 
     # Ctrl+Z outside any field undoes the rename and clears the marks.
     page.keyboard.press('Control+z')
-    wait_for(page, lambda: row(page, 'Guide').locator('.file-dot').count() == 0, 'undo clears the dot')
+    wait_for(page, lambda: field.input_value() == before, 'undo puts the name back')
     assert field.input_value() == before, 'undo puts the name back'
-    assert not page.title().startswith('*'), 'undo clears the tab title mark'
 
     # A reload brings both files back, the same one active.
     page.wait_for_timeout(700)  # the backup writes wait out 300ms
@@ -70,29 +70,30 @@ def run(page, base):
     assert rows(page).locator('.file-name-text').all_inner_texts() == ['Guide', 'Test library'], 'both files restored'
     assert active_name(page) == 'Guide', 'the active file restored'
 
-    # The unedited file closes without a question.
+    # Closing never asks, with changes or without; a toast says where the file is and Reopen brings it back.
     test = row(page, 'Test library')
     test.hover()
     test.get_by_role('button', name='Close Test library', exact=True).click()
-    wait_for(page, lambda: rows(page).count() == 1, 'the unedited file closes at once')
-    assert page.locator('dialog[open]').count() == 0, 'no question for a file without changes'
+    wait_for(page, lambda: rows(page).count() == 1, 'the file closes at once')
+    assert page.locator('dialog[open]').count() == 0, 'no question'
+    toast = page.locator('.toast', has_text='Closed "Test library"')
+    toast.wait_for()
+    toast.get_by_role('button', name='Reopen').click()
+    wait_for(page, lambda: rows(page).count() == 2, 'Reopen opens it again')
 
-    # With changes, closing asks Save / Don't save / Cancel; Cancel keeps it.
+    row(page, 'Guide').locator('.file-name-text').click()
+    page.goto(base + quiz + '/edit')
     field = page.get_by_label('Quiz name')
     field.click()
     field.press('End')
     field.press_sequentially(' Y')
     page.evaluate('document.activeElement.blur()')
     guide = row(page, 'Guide')
-    wait_for(page, lambda: guide.locator('.file-dot').count() == 1, 'the second edit shows the dot')
     guide.hover()
     guide.get_by_role('button', name='Close Guide', exact=True).click()
-    dialog = page.get_by_role('dialog')
-    dialog.wait_for()
-    for name in ['Save', "Don't save", 'Cancel']:
-        assert dialog.get_by_role('button', name=name, exact=True).count() == 1, f'the question offers {name}'
-    dialog.get_by_role('button', name='Cancel', exact=True).click()
-    wait_for(page, lambda: page.locator('dialog[open]').count() == 0, 'Cancel closes the question')
-    assert rows(page).count() == 1 and guide.locator('.file-dot').count() == 1, 'Cancel keeps the file and its changes'
+    wait_for(page, lambda: rows(page).count() == 1, 'a file with changes closes at once too')
+    assert page.locator('dialog[open]').count() == 0, "no Save / Don't save question"
+    page.locator('.toast', has_text='Closed "Guide"').get_by_role('button', name='Reopen').click()
+    wait_for(page, lambda: rows(page).count() == 2, 'Reopen brings it back')
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))

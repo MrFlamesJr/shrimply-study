@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Library } from '../model'
-import { addressOf, fileKeys, followRename, href, parseAddress, parseHash, resolve } from './routes'
+import { addressOf, driveIdFromLink, fileKeys, followRename, href, parseAddress, parseHash, resolve } from './routes'
 
 const library: Library = {
   version: 1,
@@ -15,18 +15,40 @@ const library: Library = {
 
 describe('addresses', () => {
   it('names the app\'s own tabs and an empty group', () => {
-    for (const name of ['explorer', 'welcome', 'empty', 'changelog'] as const) expect(parseHash(href({ name }))).toEqual({ name })
+    for (const name of ['explorer', 'welcome', 'empty', 'changelog', 'studyTips'] as const) expect(parseHash(href({ name }))).toEqual({ name })
     expect(href({ name: 'explorer' })).toBe('#/_explorer')
+    expect(href({ name: 'studyTips' })).toBe('#/_how-to-study')
+    expect(parseHash('#/_how-to-study')).toEqual({ name: 'studyTips' })
   })
 
   it('names the file with several open, and reads it back; one without it still works', () => {
     const quiz = { name: 'quiz', course: 'Les vers (2)', quiz: 'Plan 1' } as const
     const address = addressOf(quiz, 'biologie')
     expect(address).toBe('#/les-vers-2/plan-1?file=biologie')
-    expect(parseAddress(address)).toEqual({ route: { name: 'quiz', course: 'les-vers-2', quiz: 'plan-1' }, file: 'biologie' })
-    expect(parseAddress('#/les-vers-2')).toEqual({ route: { name: 'course', course: 'les-vers-2' }, file: null })
-    expect(parseAddress(addressOf({ name: 'home' }, 'a b'))).toEqual({ route: { name: 'home' }, file: 'a b' })
+    expect(parseAddress(address)).toEqual({ route: { name: 'quiz', course: 'les-vers-2', quiz: 'plan-1' }, file: 'biologie', pane: false })
+    expect(parseAddress('#/les-vers-2')).toEqual({ route: { name: 'course', course: 'les-vers-2' }, file: null, pane: false })
+    expect(parseAddress(addressOf({ name: 'home' }, 'a b'))).toEqual({ route: { name: 'home' }, file: 'a b', pane: false })
     expect(addressOf(quiz, null)).toBe(href(quiz))
+  })
+
+  it('asks for pane mode with and without a file, and reads it back', () => {
+    const quiz = { name: 'quiz', course: 'Les vers (2)', quiz: 'Plan 1' } as const
+    expect(addressOf(quiz, 'biologie', true)).toBe('#/les-vers-2/plan-1?file=biologie&pane')
+    expect(addressOf(quiz, null, true)).toBe('#/les-vers-2/plan-1?pane')
+    expect(parseAddress(addressOf(quiz, 'biologie', true))).toEqual({ route: { name: 'quiz', course: 'les-vers-2', quiz: 'plan-1' }, file: 'biologie', pane: true })
+    expect(parseAddress(addressOf({ name: 'explorer' }, null, true))).toEqual({ route: { name: 'explorer' }, file: null, pane: true })
+    expect(parseAddress('#/les-vers-2').pane).toBe(false)
+  })
+
+  it('finds the Drive file a pasted link names', () => {
+    expect(driveIdFromLink('https://mrflamesjr.github.io/shrimply-study/#/_drive/1AbC_d-9')).toBe('1AbC_d-9')
+    expect(driveIdFromLink('  http://localhost:5173/#/_drive/xyz  ')).toBe('xyz')
+    expect(driveIdFromLink('https://drive.google.com/file/d/1AbC_d-9/view?usp=sharing')).toBe('1AbC_d-9')
+    expect(driveIdFromLink('https://drive.google.com/open?id=1AbC_d-9')).toBe('1AbC_d-9')
+    expect(driveIdFromLink('https://example.com/file/d/abc/view')).toBeNull()
+    expect(driveIdFromLink('https://mrflamesjr.github.io/shrimply-study/#/')).toBeNull()
+    expect(driveIdFromLink('not a link')).toBeNull()
+    expect(driveIdFromLink('')).toBeNull()
   })
 
   it('gives each open file a part of its own', () => {

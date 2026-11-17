@@ -118,7 +118,7 @@ export function StudyScreen({ lib, notify, quizId, format, prefs, nav, active = 
           usable={usable}
           onExit={exit}
           onBegin={begin}
-          onEdit={setEditing}
+          onEdit={lib.readOnly ? undefined : setEditing}
         />
         {cardDialog}
       </div>
@@ -142,7 +142,7 @@ export function StudyScreen({ lib, notify, quizId, format, prefs, nav, active = 
         paused={editing !== null || !active}
         onRecord={record}
         onNext={next}
-        onEdit={setEditing}
+        onEdit={lib.readOnly ? undefined : setEditing}
       />
       {cardDialog}
     </div>

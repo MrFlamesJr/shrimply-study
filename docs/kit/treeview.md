@@ -27,10 +27,12 @@ type DropRule = { ok: true } | { ok: false; reason: string }
   empty space. If the row is not selected it is selected first.
 - `onKeyDown?(e: KeyboardEvent, focus: string | null): boolean`: the host's own keys, run first; return true to say the key
   is handled. `e` is the native event.
-- `drag?`: `{ kind(ids): string | null; rule(payload, target, pos, effect): DropRule; allowInside(target): boolean; onDrop(payload, target, pos, effect): void; label(payload, effect): string }`.
+- `drag?`: `{ kind(ids): string | null; accepts?(payload): boolean; rule(payload, target, pos, effect): DropRule; allowInside(target): boolean; onDrop(payload, target, pos, effect): void; label(payload, effect): string }`.
   `kind` returns the payload kind (null: these cannot be dragged). `target` is a row id or null (empty space below the
   rows), `pos` is `'before' | 'inside' | 'after'`, `effect` is `'move' | 'copy'`. `label` is the text shown by the drop
-  point ("Move 3 cards").
+  point ("Move 3 cards"). `accepts` (default: every payload) says whether a drag is the tree's business at all; when it
+  returns false the tree ignores that drag entirely: no `preventDefault`, no drop effect, no highlight, no label (a tab
+  over the Explorer). A drag over the rename field is ignored too.
 - `rename?`: `{ id: string | null; commit(id, name): void; cancel(): void; check?(id, name): string | null }`. The row with
   `id` shows a text field.
 - `empty?: ReactNode`: shown when there are no rows.
@@ -147,8 +149,8 @@ export function Files() {
   that is not in the visible rows makes the first row the tab stop.
 - Keyboard focus moved by keys is applied after render; a row scrolled out of view is scrolled in first.
 - With a filter, every matching branch is shown open, and `expanded` is ignored until the filter is cleared (see tree.md).
-- Drag: a payload of another kind or from outside is still passed to `rule`, which must refuse it. The tree calls
-  `preventDefault` on every dragover that has a payload, so the refusal is shown by the cursor (`none`) and the label.
+- Drag: a payload `accepts` allows but `rule` refuses is shown as refused. The tree calls
+  `preventDefault` on every dragover whose payload `accepts` allows, so the refusal is shown by the cursor (`none`) and the label.
   Drop on empty space gives target `null` and pos `'after'`.
 - Copy is Ctrl (Option on a Mac), read from the event's window's `navigator.platform`.
 - Rename: Enter commits, Esc cancels, leaving the field commits. While `check` returns a message, Enter does nothing, the

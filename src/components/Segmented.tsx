@@ -1,7 +1,7 @@
-import { useId, type CSSProperties } from 'react'
+import { useId, type CSSProperties, type ReactNode } from 'react'
 
-// `title`: a tooltip, for an option whose label doesn't say enough on its own.
-type Option<T> = { value: T; label: string; disabled?: boolean; hint?: string; title?: string }
+// `title`: a tooltip, for an option whose label doesn't say enough on its own. `icon`: drawn before the label.
+type Option<T> = { value: T; label: string; icon?: ReactNode; disabled?: boolean; hint?: string; title?: string }
 
 /**
  * Pick exactly one: equal segments of radio buttons with an indicator that slides to the chosen one.
@@ -39,6 +39,7 @@ export function Segmented<T extends string | boolean>(props: {
               disabled={o.disabled}
               onChange={() => props.onChange(o.value)}
             />
+            {o.icon}
             {o.label}
           </label>
         ))}

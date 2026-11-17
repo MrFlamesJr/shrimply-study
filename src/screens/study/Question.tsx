@@ -37,7 +37,8 @@ type Props = {
   paused: boolean
   onRecord: (result: Result) => void
   onNext: () => void
-  onEdit: (cardId: string) => void
+  // Left out in a view-only file: no pencil.
+  onEdit?: (cardId: string) => void
 }
 
 // Longer card text gets the smaller, left-aligned paragraph style.
@@ -319,7 +320,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
         : mixedUpWith(choice, answerSide, question.cardId, usable)?.[SIDE_IMAGE[answerSide]]
 
 
-  const editButton = (
+  const editButton = onEdit && (
     <IconButton label="Edit this card" className="card-edit" onClick={() => onEdit(question.cardId)}>
       <PencilIcon />
     </IconButton>

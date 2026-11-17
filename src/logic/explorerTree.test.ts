@@ -114,6 +114,11 @@ describe('Google Drive libraries among the files', () => {
     expect(src.label('g:f:f1')).toBe('one.shrimp')
     expect(src.label('g:w:f1')).toBe('Opening…')
   })
+  it('a library listed twice (closed, and in the Drive list) shows once', () => {
+    const twice = listing({ files: [...files, { id: 'f1', name: 'one.shrimp', modified: '' }] })
+    expect(closedDriveFiles(twice, open).map((f) => f.id)).toEqual(['f1', 'f2', 'f3'])
+    expect(explorerSource(open, twice).roots.filter((r) => r === 'g:f:f1')).toHaveLength(1)
+  })
   it('the list is kept while it refreshes', () => {
     expect(closedDriveFiles(listing({ loading: true }), open)).toHaveLength(3)
     expect(closedDriveFiles(undefined, open)).toEqual([])

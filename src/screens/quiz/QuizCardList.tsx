@@ -13,9 +13,11 @@ type Props = {
   onDelete: (cardId: string) => void
   /** Opens the editor on its Add box. */
   onAdd: () => void
+  /** A view-only library: no pencils, no delete, no Add cards. */
+  readOnly?: boolean
 }
 
-export function QuizCardList({ quiz, collapsed, setCollapsed, onEdit, onDelete, onAdd }: Props) {
+export function QuizCardList({ quiz, collapsed, setCollapsed, onEdit, onDelete, onAdd, readOnly }: Props) {
   // Card numbers match the editor's ("#1").
   const numbers = new Map(quiz.cards.map((c, i) => [c.id, i + 1]))
 
@@ -31,8 +33,8 @@ export function QuizCardList({ quiz, collapsed, setCollapsed, onEdit, onDelete, 
             </span>
           }
           kind
-          onEdit={() => onEdit(card.id)}
-          onDelete={() => onDelete(card.id)}
+          onEdit={readOnly ? undefined : () => onEdit(card.id)}
+          onDelete={readOnly ? undefined : () => onDelete(card.id)}
         />
       ))}
     </ol>
@@ -42,9 +44,11 @@ export function QuizCardList({ quiz, collapsed, setCollapsed, onEdit, onDelete, 
     <section>
       <div className="list-head">
         <h2>Cards in this quiz</h2>
-        <button type="button" className="quiet" title="Open the editor to add cards" onClick={onAdd}>
-          <PlusIcon /> Add cards
-        </button>
+        {!readOnly && (
+          <button type="button" className="quiet" title="Open the editor to add cards" onClick={onAdd}>
+            <PlusIcon /> Add cards
+          </button>
+        )}
       </div>
       {sections(quiz.cards, quiz.groups).map(({ group, cards }) => {
         if (cards.length === 0) return null

@@ -28,6 +28,10 @@ export type WorkbenchProps = {
   docs: Record<string, WorkbenchDoc>
   /** WindowId -> its open popup (the host opened it in the click). */
   popups: Record<string, Window>
+  /** WindowId -> the address its popup shows (the host's own page for what the window shows; none keeps the popup page's). */
+  popupAddresses?: Record<string, string>
+  /** Set when the host is a pane-mode page: the top-right group's strip shows Open full app, where a popup has Dock. */
+  onOpenFullApp?: () => void
   /** The screen for a tab; called for the shown tab and for kept-alive hidden ones. */
   renderTab(tab: Tab<TabData>, shown: boolean): ReactNode
   /** The pane head's breadcrumbs for a tab. */
@@ -55,8 +59,6 @@ export type WorkbenchProps = {
      */
     popOut(groupId: string, tabId?: string): void
     dock(win: string): void
-    saveDoc(docId: string): void
-    saveAll(): void
     revealInExplorer(tab: Tab<TabData>): void
     copyText(text: string): void
   }
@@ -68,15 +70,18 @@ export type WorkbenchProps = {
 
 // Each tab's screen renders into a node of its own (one per tab and window), which its group's slot takes in: a tab
 // moved to another group in the same window keeps its screen (its state too: a study round goes on), only the node
-// moves. Moved to another window it starts afresh there, as what it measured and listened to belonged to the old one.
+// moves. Moved to another window it starts afresh there, as what it measured and listened to belonged to the old one;
+// so does a popup's screens once its window was reloaded (`generation`: the popup's new document).
 type Slots = Map<string, HTMLElement>
-const slotKey = (win: WindowId, tabId: string) => `${win} ${tabId}`
+const slotKey = (win: WindowId, tabId: string, generation = 0) => `${win} ${generation} ${tabId}`
 
 /** The main window's groups, and a popup for each other window of the layout. */
 export function Workbench(p: WorkbenchProps) {
   const { layout } = p
   const nodes = useRef<Slots>(new Map())
-  const nodeFor = (key: string) => {
+  const [reloads, setReloads] = useState<Record<string, number>>({})
+  const nodeFor: NodeFor = (win, tabId) => {
+    const key = slotKey(win, tabId, reloads[win])
     let node = nodes.current.get(key)
     if (!node) {
       node = document.createElement('div')
@@ -95,9 +100,9 @@ export function Workbench(p: WorkbenchProps) {
     for (const id of g.tabs) {
       const tab = layout.tabs[id]
       if (!tab || !keep.has(id)) continue
-      const key = slotKey(win, id)
+      const key = slotKey(win, id, reloads[win])
       live.add(key)
-      screens.push(createPortal(p.renderTab(tab, id === g.active), nodeFor(key), key))
+      screens.push(createPortal(p.renderTab(tab, id === g.active), nodeFor(win, id), key))
     }
   }
   // Nodes of tabs no longer shown anywhere are let go.
@@ -118,7 +123,14 @@ export function Workbench(p: WorkbenchProps) {
           const title = active ? tabTitle(active, p.docs) : 'Shrimply Study'
           return (
             // No title row: the browser's own bar names the window, and the tab strip comes right under it.
-            <Popout key={w} win={p.popups[w]} title={title} onClosed={() => p.on.dock(w)}>
+            <Popout
+              key={w}
+              win={p.popups[w]}
+              title={title}
+              address={p.popupAddresses?.[w]}
+              onClosed={() => p.on.dock(w)}
+              onReload={() => setReloads((r) => ({ ...r, [w]: (r[w] ?? 0) + 1 }))}
+            >
               <div className="workbench is-popup">
                 <WindowView p={p} win={w} nodeFor={nodeFor} />
               </div>
@@ -132,7 +144,7 @@ export function Workbench(p: WorkbenchProps) {
 }
 
 // One window's tree. Narrow, only the shown group has room (workbench.css): the others stay mounted, hidden.
-type NodeFor = (key: string) => HTMLElement
+type NodeFor = (win: WindowId, tabId: string) => HTMLElement
 
 // The group at a window's top-left corner: the first child all the way down.
 const cornerOf = (n: Node): string => (n.kind === 'group' ? n.id : cornerOf(n.children[0]))
@@ -150,6 +162,8 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
   // A popped-out window's way back sits in its top-right group's strip, once per window.
   const dockAt = win === MAIN ? null : topRightOf(layout.windows[win].root)
   // The main window's count of tabs in popped-out windows: in its top-right group's strip, while there are some.
+  // A pane-mode page's way to the full app sits in the main window's top-right group's strip, once.
+  const fullAppAt = win === MAIN && p.onOpenFullApp ? topRightOf(layout.windows[win].root) : null
   const elsewhereAt = win === MAIN && popped.length > 0 ? topRightOf(layout.windows[win].root) : null
   return (
     <div className="wb-win">
@@ -163,6 +177,7 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
             shown={id === shown}
             corner={id === corner}
             dock={id === dockAt}
+            fullApp={id === fullAppAt}
             elsewhere={id === elsewhereAt ? popped : undefined}
             nodeFor={nodeFor}
           />
@@ -182,12 +197,14 @@ type GroupProps = {
   shown: boolean
   corner: boolean
   dock: boolean
+  /** Open full app (a pane-mode page), in this group's strip. */
+  fullApp: boolean
   /** The popped-out windows, for the main window's count of their tabs (one group shows it). */
   elsewhere?: Popped
   nodeFor: NodeFor
 }
 
-function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }: GroupProps) {
+function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, nodeFor }: GroupProps) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -224,7 +241,6 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
     inMain: win === MAIN,
     next: next !== undefined,
     canPopOut: p.canPopOut,
-    anyDirty: Object.values(docs).some((d) => d.dirty),
   })
 
   const items = (entries: MenuEntry[], run: (action: MenuAction) => void): MenuItem[] =>
@@ -248,9 +264,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
       else if (a === 'copyPath') {
         const text = copyPathText(tab, docs)
         if (text !== null) on.copyText(text)
-      } else if (a === 'save') {
-        if (tab.data.kind === 'doc') on.saveDoc(tab.data.doc)
-      } else if (a === 'saveAll') on.saveAll()
+      }
     }
     const mac = isMac(ownWindow(el).navigator.platform)
     openMenu(items(tabMenu(tab, docs, context(), mac), run), { ...at, doc: el.ownerDocument })
@@ -339,6 +353,15 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
                 <DockIcon />
               </IconButton>
             )}
+            {fullApp && (
+              <IconButton
+                label="Open full app"
+                title="Open full app: show the sidebar and the rest of the app"
+                onClick={() => p.onOpenFullApp?.()}
+              >
+                <DockIcon />
+              </IconButton>
+            )}
             {elsewhereCount > 0 && (
               <IconButton label={elsewhereText(elsewhereCount)} className="wb-elsewhere" onClick={(e) => openElsewhereMenu(e.currentTarget)}>
                 <span className="wb-elsewhere-mark">
@@ -373,7 +396,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
                 className="wb-tab"
                 hidden={t.id !== g.active}
                 ref={(slot) => {
-                  const node = nodeFor(slotKey(win, t.id))
+                  const node = nodeFor(win, t.id)
                   if (slot && node.parentNode !== slot) slot.appendChild(node)
                 }}
               />
@@ -381,7 +404,11 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
           {tabs.length === 0 && (p.renderEmpty ? p.renderEmpty(g.id) : <p className="wb-empty">No tab open</p>)}
         </div>
         {body && <BackToTop scroller={body} />}
-        <DropZones accept={(payload) => payload.kind === TAB_KIND} onDrop={dropOnPane} />
+        <DropZones
+          accept={(payload) => payload.kind === TAB_KIND && !!layout.tabs[payload.ids[0]]}
+          acceptZone={(_, z) => z === 'center' || !size || canSplit(size, z === 'left' || z === 'right' ? 'row' : 'column')}
+          onDrop={dropOnPane}
+        />
       </div>
     </div>
   )

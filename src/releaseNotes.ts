@@ -7,9 +7,14 @@
 export const RELEASES: { name: string; date: string; notes: [string, string][] }[] = [
   {
     name: 'Release-RubberDuck',
-    date: '2026-11-16',
+    date: '2026-11-17',
     notes: [
-      ['Several files at once', 'Open as many .shrimp files as you like; each has its own Save. In Chrome and Edge, Save writes straight back into the file you opened.'],
+      ['Saved to Google Drive as you work', 'Sign in with Google and your libraries save to your Drive by themselves a moment after each change. A .shrimp file opens as a copy in your browser, ready to upload.'],
+      ['Share in one click', 'Press Share and Copy link: anyone with the link can view and study your library, and always sees your latest version. Stop sharing whenever you like.'],
+      ['Shared libraries are view only', 'A library shared with you stays in sync by itself and can not be changed. Press Make a copy to get one of your own.'],
+      ['How studying works is a tab', 'Open the tips for every card kind from the link under the study options, and keep them beside your quiz.'],
+      ['Popped-out windows keep their address', 'Reload a window you moved out and it stays out. Paste its address into a new tab to open just that page.'],
+      ['Several libraries at once', 'Open as many libraries as you like; each has its own row, status and Share.'],
       ['Tabs and split view', 'Open pages in tabs, put two side by side or one above the other, and move a pane into its own window.'],
       ['One tree of files', 'The sidebar shows every open file with its courses and quizzes. Fold what you are not using, and rest the pointer on a file to see what is in it.'],
       ['Explorer', 'Every open file as one tree. Copy, cut, paste or drag courses, quizzes and cards, also from one file to another.'],

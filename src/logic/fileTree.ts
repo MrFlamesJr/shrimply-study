@@ -32,24 +32,23 @@ export function countLine(lib: Library): string {
   return [plural(n.courses, 'course'), plural(n.quizzes, 'quiz', 'quizzes'), plural(n.cards, 'card')].join(' · ')
 }
 
-/** The lines of a file's hover card. */
+/**
+ * The lines of a file's hover card. `problem` is the save status in words while a save needs attention (null when
+ * not); `saved` that everything is saved to Google Drive.
+ */
 export function fileInfo(f: {
   where: string
-  fileName: string | null
   driveName: string | null
   shared: boolean
-  newer: boolean
-  dirty: boolean
-  hasHome: boolean
+  problem: string | null
+  saved: boolean
   counts: string
 }): string[] {
-  const name = f.driveName ?? f.fileName
   return [
     f.where,
-    ...(name ? [name] : []),
+    ...(f.driveName ? [f.driveName] : []),
     ...(f.shared ? ['Shared with a link'] : []),
-    ...(f.newer ? ['A newer version is on Google Drive'] : []),
     f.counts,
-    ...(f.dirty ? ['Unsaved changes'] : f.hasHome ? ['All changes saved'] : []),
+    ...(f.problem ? [f.problem] : f.saved ? ['All changes saved'] : []),
   ]
 }

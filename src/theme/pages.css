@@ -270,7 +270,22 @@
     margin: 0;
   }
 }
-/* How studying works (StudyTips.tsx), an InfoBox under the options with the page's gap on both sides: short notes
+/* The quiz page's way to the How studying works tab, under the study options: the shared .open-link (base.css). */
+.study-tips-link {
+  margin: 0;
+}
+/* A view-only library's line under the page title (ViewOnlyNote.tsx): what it is, then Make a copy. */
+.view-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.view-only p {
+  margin: 0;
+}
+/* How studying works (StudyTipsScreen.tsx), the tab's page: short notes
    in columns. Newspaper columns, filled top to bottom and evened out, so a short note never leaves a hole beside a long one. */
 .tips-list {
   columns: 15rem 3;

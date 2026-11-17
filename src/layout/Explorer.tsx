@@ -15,22 +15,47 @@ import { TreeView } from '../kit/TreeView'
 import { itemName, exists, type DocId, type Docs, type ItemRef, type Target } from '../logic/contentOps'
 import {
   addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, blankCard, insertCard, deletePlan, describeNode, type Item, type NewCardKind, reorderTarget, ungroupPlan, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
-  itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
-  renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
+  itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, readOnlyOf, removeItems, renameItem,
+  renameProblem, whereIcon, docIds, type Action, type ClosedKind, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
 import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type Peek } from '../logic/explorerTree'
-import { hiddenNote as hiddenFilesNote } from '../logic/signOut'
 import type { Card, Library } from '../model'
 import { newId } from '../model'
 import { lastSides } from '../logic/sides'
 import type { LibraryApi } from '../state/useWorkspace'
 
-export type ExplorerDoc = { id: DocId; name: string; library: Library; dirty: boolean; where: string; driveId?: string | null }
-/** The user's Google Drive libraries, listed among the open files (the ones not open yet). The host does the listing and the calls. */
+export type ExplorerDoc = {
+  id: DocId
+  name: string
+  library: Library
+  /** Needs attention (a save that is paused). */
+  dirty: boolean
+  /** Where it lives, in words. */
+  where: string
+  /** A Google Drive file or a browser library. */
+  place: 'drive' | 'browser'
+  /** View only (shared with the user): copy out, never in. */
+  readOnly: boolean
+  driveId?: string | null
+}
+/**
+ * A closed library that is still listed (it stays in the Explorer when closed): a browser library, or a Drive file
+ * opened from a link. `id` is its file node's id (the Drive file's id, else `b-<closedId>`), `closedId` the workspace's.
+ */
+export type ExplorerClosed = { id: string; name: string; kind: 'browser' | 'link'; closedId: string }
+/**
+ * The libraries that are not open, listed among the open files: the user's Google Drive libraries and the closed ones.
+ * The host does the listing, the reading and the calls.
+ */
 export type ExplorerDrive = {
-  /** False when Google Drive is not set up on this site: nothing about it shows then. */
+  /** False when Google Drive is not set up on this site: nothing about Google shows then (closed libraries still do). */
   setUp: boolean
   listing: DriveListing
+  closed: ExplorerClosed[]
+  /** Forgets a closed library (a browser library's record, a link's entry); the Explorer asked first. */
+  forget(closedId: string): void
+  /** Downloads a closed library as a file. */
+  download(id: string): void
   signIn(): void
   /** Google's file picker. */
   pick(): void
@@ -39,9 +64,9 @@ export type ExplorerDrive = {
   peeks: Record<string, Peek>
   /** Reads a library to show what is inside (again after a failure). */
   peek(id: string): void
-  /** Opens a library as a file of the tree; `then`: an item inside it (as the peek shows it) to show once it is open. */
+  /** Opens a closed library as a file of the tree; `then`: an item inside it (as the peek shows it) to show once it is open. */
   open(id: string, then?: ItemRef): void
-  /** Asks, then moves it to the bin. */
+  /** Asks, then moves one of the user's own libraries to the bin. */
   remove(file: DriveFileInfo): void
 }
 export type ExplorerProps = {
@@ -70,8 +95,13 @@ export type ExplorerProps = {
   /** One file's API, for the card dialog (New card opens it right here). */
   libOf(doc: DocId): LibraryApi
   newDoc(): void
+  /** Opens a .shrimp copy from this device. */
   openFile(): void
-  saveDoc(id: DocId): void
+  /** Upload to Google Drive: a browser library's dialog. */
+  uploadDoc(id: DocId): void
+  shareDoc(id: DocId): void
+  /** A view-only library as a copy of the user's own. */
+  makeCopyDoc(id: DocId): void
   downloadDoc(id: DocId): void
   closeDoc(id: DocId): void
   /** A node id to show: its ancestors open, selected, scrolled to, the tree focused. */
@@ -87,8 +117,6 @@ export type ExplorerProps = {
   /** The tree's scroll place: restored on mount, reported once scrolling stops. */
   scroll?: number
   onScroll?(top: number): void
-  /** How many files from Google Drive are kept out of the tree until the user signs in (a quiet note; none: nothing). */
-  hiddenFiles?: number
 }
 
 // Everything the Explorer can do, for its (i): short and grouped.
@@ -101,19 +129,21 @@ const HELP: [string, string][] = [
   ['Groups', 'A quiz shows its ungrouped cards, then its groups, each with its color. Drop a card onto a group to add it. Groups copy, cut, paste, drag and move with their cards. Ungroup keeps the cards; Delete removes the group and its cards.'],
   ['Reorder', 'Drag an item before or after another, or press Alt+Shift+Up or Down (also Move up and Move down in the menu). Cards stay in their group.'],
   ['Move to', 'Right-click, then Move to…, to pick the destination from a list.'],
-  ['New', 'New file and Open file are at the top. Right-click a file for New course, a course for New quiz and a quiz for New card. A new course or quiz starts with its name ready to type.'],
+  ['New', 'New file and Open a copy from this device are at the top. Right-click a file for New course, a course for New quiz and a quiz for New card. A new course or quiz starts with its name ready to type.'],
   ['Rename', 'Press F2 to rename a course or quiz. Names stay unique in their place. On a card, F2 edits it.'],
-  ['Delete', 'Delete removes cards at once, with Undo on the message. Quizzes and courses ask first. A file is closed, never deleted.'],
+  ['Delete', 'Delete removes cards at once, with Undo on the message. Quizzes and courses ask first. A file is closed, never deleted: a closed file stays in the list until you delete it from this browser, move it to the bin or remove it from the list.'],
   ['Search', 'Search filters every file, open or not, and keeps the parents of what matches. Esc clears it.'],
-  ['Google Drive', 'Sign in with Google to list your libraries among the files. Open files carry an "Open" chip, the others are libraries you can open. Refresh looks again, "Choose files in Google Drive" adds files the app can not see yet, and Move to bin sends one to the bin in your Drive.'],
+  ['Closed files', 'Open files carry an "Open" chip, the others are closed: press Enter or Open to open one again. Sign in with Google to list your Google Drive libraries too. Refresh looks again, "Choose files in Google Drive" adds files the app can not see yet.'],
+  ['View only', 'A library shared with you is view only: copy out of it, never into it. Make a copy gives you one of your own.'],
   ['Undo', 'Ctrl+Z undoes the last change in any file, Ctrl+Shift+Z does it again.'],
-  ['Unsaved changes', 'Every change marks its file as unsaved, with a dot, until you save it.'],
+  ['Needs attention', 'A dot after a file means its changes are not saved to Google Drive yet: sign in again, or wait until you are online.'],
 ]
 
 const ROW = 32
 const ROW_TOUCH = 44
 
 const toDocs = (docs: ExplorerDoc[]): Docs => Object.fromEntries(docs.map((d) => [d.id, d.library]))
+const lockedIn = (docs: ExplorerDoc[]): ReadonlySet<DocId> => new Set(docs.filter((d) => d.readOnly).map((d) => d.id))
 
 function nodeExists(docs: Docs, node: string, drive: Set<string>): boolean {
   const g = parseDriveNode(node)
@@ -139,13 +169,30 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   const docs = useMemo(() => toDocs(p.docs), [p.docs])
   const names = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, d.name])), [p.docs])
-  const meta = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { where: d.where, dirty: d.dirty }])), [p.docs])
-  const drive = p.drive?.setUp ? p.drive : undefined
-  const listing = drive?.listing
+  const meta = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { where: d.where, dirty: d.dirty, readOnly: d.readOnly }])), [p.docs])
+  const files = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { place: d.place, readOnly: d.readOnly }])), [p.docs])
+  // `drive` carries every closed library, `google` only what needs Google: nothing of it shows when it is not set up.
+  const drive = p.drive
+  const google = drive?.setUp ? drive : undefined
   const peeks = drive?.peeks
+  // The closed libraries as the tree knows them, one list: the user's Drive list, then the closed ones it does not
+  // hold (a Drive id is never listed twice). Its place says which is which, for the menus.
+  const listed = google?.listing.signedIn ? google.listing.files : null
+  const closedList = drive?.closed
+  const { listing, closedKinds } = useMemo(() => {
+    const found = [...(listed ?? [])]
+    const kinds: Record<string, ClosedKind> = Object.fromEntries(found.map((f) => [f.id, 'mine' as const]))
+    for (const c of closedList ?? []) {
+      if (c.id in kinds) continue
+      kinds[c.id] = c.kind
+      found.push({ id: c.id, name: c.name, modified: '' })
+    }
+    return { listing: { signedIn: true, loading: false, failed: false, files: found } satisfies DriveListing, closedKinds: kinds }
+  }, [listed, closedList])
   const source = useMemo(() => explorerSource(p.docs, listing, peeks), [p.docs, listing, peeks])
   // Everything content operations work on: the open files, and the libraries only looked at (read-only).
   const docsAll = useMemo(() => ({ ...peekDocs(peeks), ...docs }), [docs, peeks])
+  const readOnly = useMemo(() => readOnlyOf(files), [files])
   const expanded = p.expanded
   const driveNodes = useMemo(() => new Set(closedDriveFiles(listing, p.docs).map((f) => f.id)), [listing, p.docs])
   const order = useMemo(() => flatten(source, expanded, filter).map((r) => r.id), [source, expanded, filter])
@@ -153,7 +200,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const rowHeight = touch ? ROW_TOUCH : ROW
 
   const win = () => ownWindow(root.current!)
-  const context = (): MenuContext => ({ docs: docsAll, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform) })
+  const context = (): MenuContext => ({ docs: docsAll, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform), files, closed: closedKinds, driveSetUp: !!google })
   const docsNow = () => ({ ...peekDocs(latest.current.drive?.peeks), ...toDocs(latest.current.docs) })
 
   useEffect(() => {
@@ -247,7 +294,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
   }
 
   const remove = async (ids: string[]) => {
-    const plan = deletePlan(docsNow(), ids, isMac(win().navigator.platform))
+    const plan = deletePlan(docsNow(), ids, isMac(win().navigator.platform), lockedIn(latest.current.docs))
     if ('reason' in plan) {
       p.notify('info', plan.reason)
       return
@@ -269,6 +316,24 @@ export function Explorer(p: ExplorerProps): ReactNode {
     const page: ItemRef | DocRef = r.kind === 'group' ? { kind: 'quiz', doc: r.doc, course: r.course, quiz: r.quiz } : r
     if (r.kind !== 'doc' && isPeekDoc(r.doc)) drive?.open(peekDriveId(r.doc), r)
     else p.open(page)
+  }
+
+  // Removing a closed library: a browser library is deleted from this browser, one of the user's own goes to the bin,
+  // a link's entry leaves the list. The first and the last ask here; the bin asks itself.
+  const removeClosed = async (id: string) => {
+    const kind = closedKinds[id]
+    if (kind === 'mine') {
+      const file = listing.files.find((f) => f.id === id)
+      if (file) drive?.remove(file)
+      return
+    }
+    const entry = drive?.closed.find((c) => c.id === id)
+    if (!entry) return
+    const sure =
+      kind === 'browser'
+        ? await p.ask(`Delete "${entry.name}" from this browser?\n\nIt is not saved anywhere else, so it can not be brought back.`, 'Delete', { danger: true })
+        : await p.ask(`Remove "${entry.name}" from the list?\n\nThe link still works: open it again from the link.`, 'Remove')
+    if (sure) drive?.forget(entry.closedId)
   }
 
   const run = (action: Action, ids: string[], at: string | null, kind?: NewCardKind) => {
@@ -310,7 +375,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
       case 'copy': return p.copy(refs, refs.some((r) => isPeekDoc(r.doc)) ? peekDocs(latest.current.drive?.peeks) : undefined)
       case 'cut': return p.cut(refs)
       case 'paste': {
-        const r = pasteTarget(docsNow(), latest.current.clipboard, at)
+        const r = pasteTarget(docsNow(), latest.current.clipboard, at, lockedIn(latest.current.docs))
         return 'reason' in r ? p.notify('info', r.reason) : p.paste(r.target)
       }
       case 'moveTo': return setMoving(refs)
@@ -331,7 +396,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
         })
       }
       case 'delete': return void remove(ids)
-      case 'driveOpen': {
+      case 'closedOpen': {
         const g = parseDriveNode(ids[0])
         return g && drive?.open(g.id)
       }
@@ -339,12 +404,14 @@ export function Explorer(p: ExplorerProps): ReactNode {
         const g = parseDriveNode(ids[0])
         return g && drive?.peek(g.id)
       }
-      case 'driveRemove': {
+      case 'closedDownload': {
         const g = parseDriveNode(ids[0])
-        const file = g?.kind === 'file' ? listing?.files?.find((f) => f.id === g.id) : undefined
-        return file && drive?.remove(file)
+        return g && drive?.download(g.id)
       }
-      case 'save': return docIds(ids).forEach(p.saveDoc)
+      case 'closedRemove': return void ids.reduce((done, id) => done.then(() => removeClosed(parseDriveNode(id)!.id)), Promise.resolve())
+      case 'upload': return first?.kind === 'doc' ? p.uploadDoc(first.doc) : undefined
+      case 'share': return first?.kind === 'doc' ? p.shareDoc(first.doc) : undefined
+      case 'makeCopy': return first?.kind === 'doc' ? p.makeCopyDoc(first.doc) : undefined
       case 'download': return docIds(ids).forEach(p.downloadDoc)
       case 'close': return docIds(ids).forEach(p.closeDoc)
     }
@@ -378,14 +445,14 @@ export function Explorer(p: ExplorerProps): ReactNode {
     else p.apply(`Rename ${ref.kind}`, () => next)
   }
 
-  // After a file's name: the dot for unsaved changes, a chip for a library not open, and the whole status in words for
-  // a screen reader (the place is the icon's tooltip). Other rows: a card's sides or kind.
+  // After a file's name: the dot for a file that needs attention, a chip for an open one, and the whole status in words
+  // for a screen reader (the place is the icon's tooltip). Other rows: a card's sides or kind.
   const describeOf = (id: string): ReactNode => {
-    const st = fileStatus(meta, id, listing && { listing })
+    const st = fileStatus(meta, id, { listing, closed: closedKinds })
     if (!st) return describeNode(docsAll, id)
     return (
       <>
-        {st.dirty && <span className="file-dot" title="Unsaved changes" />}
+        {st.dirty && <span className="file-dot" title="Needs attention" />}
         {st.open && <span className="explorer-chip">Open</span>}
         <span className="explorer-sr">{st.words}</span>
       </>
@@ -394,7 +461,13 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   const iconOf = (id: string): ReactNode => {
     const g = parseDriveNode(id)
-    if (g) return <span className="explorer-icon" title={fileStatus(meta, id, listing && { listing })?.where}><CloudIcon /></span>
+    if (g) {
+      return (
+        <span className="explorer-icon" title={fileStatus(meta, id, { listing, closed: closedKinds })?.where}>
+          {closedKinds[g.id] === 'browser' ? <BrowserIcon /> : <CloudIcon />}
+        </span>
+      )
+    }
     const r = parseNode(id)
     if (r?.kind === 'group') {
       const color = docsAll[r.doc]?.courses.find((c) => c.id === r.course)?.quizzes.find((q) => q.id === r.quiz)?.groups.find((x) => x.id === r.group)?.color
@@ -431,30 +504,28 @@ export function Explorer(p: ExplorerProps): ReactNode {
   // One quiet line at the bottom for Google Drive, whatever the state; the long explanations are in the (i).
   const hasItems = source.roots.length > 0
   let driveLine: ReactNode = null
-  if (drive) {
-    const l = drive.listing
+  if (google) {
+    const l = google.listing
     if (!l.signedIn) {
       // With no files the empty state already has its Sign in button.
-      if (hasItems) driveLine = <button type="button" className="link" onClick={drive.signIn}><CloudIcon /> Sign in to see your Google Drive</button>
+      if (hasItems) driveLine = <button type="button" className="link" onClick={google.signIn}><CloudIcon /> Sign in to see your Google Drive</button>
     } else if (l.files !== null) {
-      driveLine = <button type="button" className="link" onClick={drive.pick}>Choose files in Google Drive</button>
+      driveLine = <button type="button" className="link" onClick={google.pick}>Choose files in Google Drive</button>
     } else if (l.failed) {
       driveLine = (
         <>
           <span>Couldn't load your Google Drive.</span>
-          <button type="button" className="link" onClick={drive.refresh}>Retry</button>
+          <button type="button" className="link" onClick={google.refresh}>Retry</button>
         </>
       )
     } else if (l.loading) {
       driveLine = <span>Loading your Google Drive…</span>
     } else {
       // Signed in earlier but the sign-in has run out: listing asks Google again, so it waits for a click.
-      driveLine = <button type="button" className="link" onClick={drive.refresh}>Show my Google Drive libraries</button>
+      driveLine = <button type="button" className="link" onClick={google.refresh}>Show my Google Drive libraries</button>
     }
   }
   if (driveLine) driveLine = <div className="explorer-drive">{driveLine}</div>
-  // The same words as the sidebar's note: never "your" while nobody is signed in.
-  const hiddenNote = drive && p.hiddenFiles ? <p className="explorer-drive">{hiddenFilesNote(p.hiddenFiles, drive.listing.signedIn)}</p> : null
 
   // Save in the New card dialog: the card goes in as one undoable step, is selected, and the tree takes the focus back;
   // Save and add another opens a fresh dialog for the same kind in the same place.
@@ -469,15 +540,15 @@ export function Explorer(p: ExplorerProps): ReactNode {
     setAdding({ ...adding, key: adding.key + 1, card: blankCard(adding.kind, newId(), lastSides(quiz.cards), adding.group) })
   }
 
-  const destinations = moving ? moveDestinations(docs, names, moving) : []
+  const destinations = moving ? moveDestinations(docs, names, moving, readOnly) : []
 
   return (
     <div className="explorer" ref={root} role="region" aria-label="Explorer">
       <div className="explorer-top">
         <div className="explorer-head">
           <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
-          <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
-          {drive?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
+          <IconButton label="Open a copy from this device" onClick={p.openFile}><FolderIcon /></IconButton>
+          {google?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={google.refresh}><RefreshIcon /></IconButton>}
           <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
           <IconButton className="explorer-info-btn" label="What the Explorer can do" popoverTarget={helpId}><InfoIcon /></IconButton>
           <div id={helpId} popover="auto" className="explorer-info">
@@ -542,9 +613,11 @@ export function Explorer(p: ExplorerProps): ReactNode {
           drag={{
             kind: dragKind,
             allowInside,
-            rule: (payload, target, pos, effect) => dropRule(docsAll, payload.ids, target, pos, effect),
-            onDrop: (payload, target, pos, effect) => planned(dropPlan(docsNow(), payload.ids, target, pos, effect, newId)),
-            label: (payload, effect) => dragLabel(payload.kind as ItemKind, payload.ids.length, dragEffect(payload.ids, effect)),
+            // Only our own items land on a row: a tab dragged over the tree gets no highlight and no refusal.
+            accepts: (payload) => ['course', 'quiz', 'card', 'group'].includes(payload.kind),
+            rule: (payload, target, pos, effect) => dropRule(docsAll, payload.ids, target, pos, effect, readOnly),
+            onDrop: (payload, target, pos, effect) => planned(dropPlan(docsNow(), payload.ids, target, pos, effect, newId, lockedIn(latest.current.docs))),
+            label: (payload, effect) => dragLabel(payload.kind as ItemKind, payload.ids.length, dragEffect(payload.ids, effect, readOnly)),
           }}
           rename={{
             id: renaming,
@@ -560,17 +633,16 @@ export function Explorer(p: ExplorerProps): ReactNode {
               <span className="explorer-empty-mark"><ShrimpIcon /></span>
               <h3 className="explorer-empty-title">No files here yet</h3>
               <div className="explorer-empty-actions">
-                {drive && !drive.listing.signedIn && (
-                  <button type="button" className="is-lead" onClick={drive.signIn}><CloudIcon /> Sign in with Google</button>
+                {google && !google.listing.signedIn && (
+                  <button type="button" className="is-lead" onClick={google.signIn}><CloudIcon /> Sign in with Google</button>
                 )}
                 <button type="button" onClick={p.newDoc}><PlusIcon /> New file</button>
-                <button type="button" onClick={p.openFile}><FolderIcon /> Open file</button>
+                <button type="button" onClick={p.openFile}><FolderIcon /> Open a copy from this device</button>
               </div>
             </div>
           }
         />
       </div>
-      {hiddenNote}
       {driveLine}
       {adding && (
         <CardDialog

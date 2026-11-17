@@ -12,17 +12,20 @@ import { slug } from './names'
 //   #/_debug                           test tools (not linked; _debug is never a slug)
 //   #/_changelog                       What's new (every release's notes), opened as a tab
 //   #/_explorer, #/_welcome            the Explorer and the welcome page, as tabs
+//   #/_how-to-study                    How studying works (the tips for every card kind), opened as a tab
 //   #/_empty                           no page: the focused group is empty (or shows a hidden file)
 //   #/_workbench                       a demo host of the reusable kit (src/kit/demo/, not linked)
 //   #/_drive/<file id>                 a library shared on Google Drive: opens it, then goes home
 // `course` and `quiz` hold names, or the slugs read from the address; `resolve` matches both. With several files open,
-// a file's page also names its file: `#/<course>?file=<file>` (`parseAddress`, `addressOf`, `fileKeys`).
+// a file's page also names its file: `#/<course>?file=<file>` (`parseAddress`, `addressOf`, `fileKeys`). `&pane` asks for
+// pane mode: just that page in the workbench, no sidebar (a popped-out window's address).
 export type Route =
   | { name: 'home' }
   | { name: 'debug' }
   | { name: 'changelog' }
   | { name: 'explorer' }
   | { name: 'welcome' }
+  | { name: 'studyTips' }
   | { name: 'empty' }
   | { name: 'workbench' }
   | { name: 'drive'; id: string }
@@ -43,6 +46,7 @@ export function parseHash(hash: string): Route {
   if (course === '_changelog') return { name: 'changelog' }
   if (course === '_explorer') return { name: 'explorer' }
   if (course === '_welcome') return { name: 'welcome' }
+  if (course === '_how-to-study') return { name: 'studyTips' }
   if (course === '_empty') return { name: 'empty' }
   if (course === '_workbench') return { name: 'workbench' }
   if (course === '_drive') return quiz ? { name: 'drive', id: quiz } : { name: 'home' }
@@ -67,6 +71,8 @@ export function href(route: Route): string {
       return '#/_explorer'
     case 'welcome':
       return '#/_welcome'
+    case 'studyTips':
+      return '#/_how-to-study'
     case 'empty':
       return '#/_empty'
     case 'workbench':
@@ -84,21 +90,43 @@ export function href(route: Route): string {
   }
 }
 
-/** An address: its route, and the file it names (`?file=`), null when it names none (one file open, or an old link). */
-export function parseAddress(hash: string): { route: Route; file: string | null } {
+/**
+ * An address: its route, the file it names (`?file=`, null when it names none: one file open, or an old link) and
+ * whether it asks for pane mode (`pane` in the query).
+ */
+export function parseAddress(hash: string): { route: Route; file: string | null; pane: boolean } {
   const query = hash.match(/\?(.*)$/)?.[1] ?? ''
   let file: string | null = null
+  let pane = false
   try {
-    file = new URLSearchParams(query).get('file') || null
+    const params = new URLSearchParams(query)
+    file = params.get('file') || null
+    pane = params.has('pane')
   } catch {
     file = null
   }
-  return { route: parseHash(hash), file }
+  return { route: parseHash(hash), file, pane }
 }
 
-/** A route's address, naming its file (`file`, from `fileKeys`) when several files are open. */
-export const addressOf = (route: Route, file: string | null): string =>
-  file ? `${href(route)}?file=${encodeURIComponent(file)}` : href(route)
+/** A route's address, naming its file (`file`, from `fileKeys`) when several files are open, and `pane` for pane mode. */
+export function addressOf(route: Route, file: string | null, pane = false): string {
+  const query = [file ? `file=${encodeURIComponent(file)}` : '', pane ? 'pane' : ''].filter(Boolean).join('&')
+  return query ? `${href(route)}?${query}` : href(route)
+}
+
+/**
+ * The Google Drive file id a pasted link names, or null: the app's own share link from any origin (`.../#/_drive/<id>`),
+ * or a Google Drive address (`/file/d/<id>/...`, `?id=<id>`). Anything else gives null.
+ */
+export function driveIdFromLink(text: string): string | null {
+  const link = text.trim()
+  const app = link.match(/#\/_drive\/([^/?#\s]+)/)
+  if (app) return decodeURIComponent(app[1])
+  if (!URL.canParse(link)) return null
+  const url = new URL(link)
+  if (!/^(drive|docs)\.google\.com$/.test(url.hostname)) return null
+  return url.pathname.match(/\/file\/d\/([\w-]+)/)?.[1] ?? url.searchParams.get('id')?.match(/^[\w-]+$/)?.[0] ?? null
+}
 
 /**
  * Each open file's part in the address: its name as a slug (without ".shrimp"), made unique among the files given

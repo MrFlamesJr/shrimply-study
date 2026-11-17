@@ -13,12 +13,22 @@ tracks and closes popups. `Popout.tsx` is the component that renders children in
 - `openPopup(id: string, url: string, o: { width: number; height: number; left?: number; top?: number }): Window | null`:
   `window.open(url, id, 'popup,width=..,height=..[,left=..][,top=..]')`. Returns null when the browser blocks it. Registers
   the window, starts a 500 ms closed-check and notifies subscribers.
-- `mountPopup(win: Window, o: { title: string }): Promise<HTMLElement>`: waits until the popup has loaded, copies the
-  opener's styles and `<html>` attributes and keeps them in step, sets the title, and returns a new `div` appended to the
+- `POPUP_PREFIX = 'pop-'`: a name prefix a host gives the windows it opens (the `id` of `openPopup`), so the page loaded in
+  a popup can tell a controlled popup (its opener alive, such a name) from an address pasted into a new tab.
+- `mountPopup(win: Window, o: { title: string; address?: string }): Promise<HTMLElement>`: waits until the popup has
+  loaded (a finished document at the popup page's path), copies the
+  opener's styles and `<html>` attributes and keeps them in step, sets the title and the address, starts the opener
+  watchdog and the focus tracking, and returns a new `div` appended to the
   popup's `body` to render into. Rejects with `Error('The popup was closed before it loaded')` if the popup closes first.
 - `setPopupTitle(win: Window, title: string): void`.
-- `onPopupClosed(win: Window, cb: () => void): () => void`: calls `cb` once when the popup closes or reloads (its
-  `pagehide`, with a 500 ms `win.closed` poll as a fallback). Returns a function that cancels it without calling `cb`.
+- `setPopupAddress(win: Window, url: string): void`: shows `url` (same origin as the popup) in the popup's address bar with
+  `history.replaceState`; nothing loads and the popup stays as it is.
+- `waitReloaded(win: Window, previous: Document): Promise<void>`: resolves when the popup has a new document (not
+  `previous`) loaded at the path `openPopup` opened it at; rejects when the window closes or none comes within 5 s.
+- `onPopupUnload(win: Window, cb: () => void): () => void`: calls `cb` once when the popup's current document goes away
+  (`pagehide`: closed, reloaded or navigated). Returns a function that cancels it.
+- `onPopupClosed(win: Window, cb: () => void): () => void`: calls `cb` once when the popup window is closed (a 500 ms
+  `win.closed` poll). Returns a function that cancels it without calling `cb`.
 - `appWindows(): Window[]`: the main window, then the open popups.
 - `activeWindow(): Window`: the app window that had focus last; the main window when none or when that one is closed.
 - `subscribeWindows(cb: () => void): () => void`: `cb` runs when a popup opens or closes, or focus moves between windows.
@@ -28,8 +38,11 @@ tracks and closes popups. `Popout.tsx` is the component that renders children in
 
 `Popout.tsx`:
 
-- `Popout(p: { win: Window; title: string; onClosed: () => void; children: ReactNode }): ReactNode`: renders `children`
-  into the popup `win` (a window from `openPopup`). Renders nothing until the popup is ready.
+- `Popout(p: { win: Window; title: string; address?: string; onClosed: () => void; onReload?: () => void; children: ReactNode }): ReactNode`:
+  renders `children` into the popup `win` (a window from `openPopup`). Renders nothing until the popup is ready.
+  `address` is the URL the popup's address bar shows (`setPopupAddress`, set once mounted and again whenever it changes);
+  the kit demo passes none and keeps `popout.html`. `onReload` runs when the user reloaded the popup and its new
+  document has been taken over, just before the children render into it.
 
 ## Dependencies
 
@@ -51,8 +64,11 @@ subscribers. Application state lives only in the main window.
 
 ## Events and callbacks
 
-- `onClosed` (of `Popout`): the popup was closed or reloaded by the user, or it closed before it finished loading. The
-  host should dock the pane back (stop rendering `Popout`).
+- `onClosed` (of `Popout`): the popup was closed by the user, it closed before it finished loading, or it was reloaded and
+  no popup page came within a few seconds. The host should dock the pane back (stop rendering `Popout`).
+- `onReload` (of `Popout`): the popup was reloaded and taken over again (see Limitations). The children had no place
+  between the old document going and the new one loading; a host whose screens measure or listen in the popup's
+  document should start them afresh here (the app bumps a key).
 - `subscribeWindows` callbacks: windows opened or closed, or focus moved.
 - What is mirrored into the popup, and kept up to date by `MutationObserver`s on the opener:
   - every `<style>` and `<link rel~="stylesheet">` in the opener's `<head>` (added, removed, reordered, text or `href`
@@ -119,8 +135,13 @@ To dock, stop rendering `Popout` (set the window to null). Its cleanup closes th
   `about:blank`. Its readiness is polled every 25 ms.
 - `openPopup` uses the id as the window name: calling it again with an id that is still open navigates and reuses that
   window instead of opening a second one.
-- Closed by the user: `onClosed` runs. Reloaded by the user (F5): `pagehide` fires, so it counts as closed; the reloaded
-  page is blank and nothing renders into it. Closed before it loaded: `mountPopup` rejects and `Popout` calls `onClosed`.
+- Closed by the user: `onClosed` runs. Reloaded by the user (F5): `pagehide` fires, `Popout` drops its root and waits for a
+  new document at the popup page's path (`waitReloaded`), then mounts it as on open (styles, `<html>` attributes,
+  title, address, one watchdog script, the focus listener) and calls `onReload`. If the window closes, or no popup page
+  comes within 5 s, `onClosed` runs instead. A host whose popup address (`address`) is its own page: a reloaded popup
+  loads that page, which must send a controlled popup (opener alive, name starting with `POPUP_PREFIX`) back to the
+  popup page, keeping the hash, so the kit can take it over again (the app does this in `src/main.tsx`). Closed before
+  it loaded: `mountPopup` rejects and `Popout` calls `onClosed`.
 - The main window closing, reloading or navigating away: `pagehide` runs `closePopups`, so the popups close. They cannot
   outlive the main window, because their content is rendered by it.
 - `Popout` closes the popup when it unmounts, after a zero-delay timeout, so React Strict Mode's second run of effects does

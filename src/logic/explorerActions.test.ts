@@ -4,7 +4,7 @@ import type { Docs, ItemRef } from './contentOps'
 import {
   blankCard, insertCard, reorderTarget, ungroupPlan, addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
   dragEffect, keyDecision, menuFor, translateRef, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
-  type Clip, type Item, type MenuContext,
+  readOnlyOf, type Clip, type ClosedKind, type Item, type MenuContext,
 } from './explorerActions'
 
 const card = (id: string): Card => ({ id, term: `T${id}`, definition: 'd' })
@@ -17,7 +17,11 @@ const lib = (): Library => ({
 })
 const docs: Docs = { a: lib(), b: { version: FORMAT_VERSION, courses: [] } }
 const names = { a: 'one.shrimp', b: 'two.shrimp' }
-const ctx = (clipboard: Clip | null = null, d: Docs = docs): MenuContext => ({ docs: d, names, clipboard, mac: false })
+const files: MenuContext['files'] = { a: { place: 'drive', readOnly: false }, b: { place: 'browser', readOnly: false } }
+const closed: Record<string, ClosedKind> = { abc: 'mine', def: 'link', bro: 'browser' }
+const ctx = (clipboard: Clip | null = null, d: Docs = docs, f: MenuContext['files'] = files, driveSetUp = true): MenuContext => ({
+  docs: d, names, clipboard, mac: false, files: f, closed, driveSetUp,
+})
 const course = (id: string): ItemRef => ({ kind: 'course', doc: 'a', course: id })
 const quiz = (id: string): ItemRef => ({ kind: 'quiz', doc: 'a', course: 'c1', quiz: id })
 const k = (id: string): ItemRef => ({ kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: id })
@@ -55,18 +59,31 @@ describe('nodes and selections', () => {
 describe('menus', () => {
   it('empty space', () => {
     const m = menuFor(ctx(), [], null)
-    expect(labels(m)).toEqual(['New file', 'Open file', 'Paste'])
+    expect(labels(m)).toEqual(['New file', 'Open a copy from this device', 'Paste'])
     expect(find(m, 'Paste')).toMatchObject({ disabled: true, reason: 'Nothing to paste.' })
   })
   it('empty space pastes courses into the last file, not cards', () => {
     expect(find(menuFor(ctx({ mode: 'copy', refs: [course('c1')] }), [], null), 'Paste').disabled).toBeUndefined()
     expect(find(menuFor(ctx({ mode: 'copy', refs: [k('k1')] }), [], null), 'Paste').reason).toBe('A card can only go in a quiz.')
   })
-  it('a file', () => {
+  it('a Drive file: share, download a copy, close', () => {
     const m = menuFor(ctx(), ['d:a'], 'd:a')
-    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Paste', 'Save', 'Download', 'Close file'])
+    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Paste', 'Share…', 'Download a copy', 'Close file'])
     expect(find(m, 'Close file').disabled).toBeUndefined()
     expect(find(menuFor(ctx(), ['d:a', 'd:b'], 'd:a'), 'New course')).toMatchObject({ disabled: true, reason: 'Pick one file.' })
+  })
+  it('a browser library: upload, share, download a copy, close', () => {
+    expect(labels(menuFor(ctx(), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Paste', 'Upload to Google Drive…', 'Share…', 'Download a copy', 'Close file'])
+  })
+  it('without Google Drive set up there is nothing to upload or share to', () => {
+    expect(labels(menuFor(ctx(null, docs, files, false), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Paste', 'Download a copy', 'Close file'])
+  })
+  it('a view-only library: make a copy, share, download a copy, close; nothing goes in', () => {
+    const f = { ...files, a: { place: 'drive' as const, readOnly: true } }
+    const m = menuFor(ctx({ mode: 'copy', refs: [course('c1')] }, docs, f), ['d:a'], 'd:a')
+    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Paste', 'Make a copy', 'Share…', 'Download a copy', 'Close file'])
+    expect(find(m, 'New course')).toMatchObject({ disabled: true, reason: 'This library is view only. Make a copy to change it.' })
+    expect(find(m, 'Paste')).toMatchObject({ disabled: true, reason: 'This library is view only. Make a copy to change it.' })
   })
   it('a course', () => {
     const m = menuFor(ctx(), ['c:a:c1'], 'c:a:c1')
@@ -283,12 +300,17 @@ describe('removeItems and describeNode', () => {
 
 describe('Google Drive rows', () => {
   const file = 'g:f:abc'
-  it('a closed library: open, paste refused, move to bin', () => {
+  it('a closed library: open, paste refused, download a copy, then the way to remove it', () => {
     const m = menuFor(ctx(), [file], file)
-    expect(labels(m)).toEqual(['Open', 'Paste', 'Move to bin'])
+    expect(labels(m)).toEqual(['Open', 'Paste', 'Download a copy', 'Move to bin'])
     expect(find(m, 'Paste')).toMatchObject({ disabled: true, reason: 'Open the library first.' })
     expect(find(m, 'Move to bin').danger).toBe(true)
     expect(find(menuFor(ctx(), [file, 'g:f:def'], file), 'Open')).toMatchObject({ disabled: true, reason: 'Pick one library.' })
+  })
+  it('removing a closed library is worded by where it is', () => {
+    expect(labels(menuFor(ctx(), ['g:f:bro'], 'g:f:bro')).at(-1)).toBe('Delete from this browser')
+    expect(labels(menuFor(ctx(), ['g:f:def'], 'g:f:def')).at(-1)).toBe('Remove from list')
+    expect(labels(menuFor(ctx(), [file, 'g:f:def'], file)).at(-1)).toBe('Remove')
   })
   it('nothing is pasted or dropped into one, and it can not be dragged', () => {
     expect(pasteTarget(docs, { mode: 'copy', refs: [course('c1')] }, file)).toEqual({ reason: 'Open the library first.' })
@@ -297,7 +319,7 @@ describe('Google Drive rows', () => {
     expect(allowInside(file)).toBe(false)
   })
   it('keys: Delete moves to the bin, Ctrl+V is refused, Ctrl+C is left alone', () => {
-    expect(keyDecision(ctx(), key('Delete'), [file], file)).toEqual({ action: 'driveRemove' })
+    expect(keyDecision(ctx(), key('Delete'), [file], file)).toEqual({ action: 'closedRemove' })
     expect(keyDecision(ctx({ mode: 'copy', refs: [course('c1')] }), key('v', { ctrlKey: true }), [file], file)).toEqual({ refuse: 'Open the library first.' })
     expect(keyDecision(ctx(), key('c', { ctrlKey: true }), [file], file)).toBeNull()
   })
@@ -308,13 +330,14 @@ describe('Google Drive rows', () => {
     expect(deletePlan(docs, [file, 'c:a:c1'], false)).toEqual({ reason: 'Move a Google Drive library to the bin from its own menu.' })
   })
   it('says whether a file is open, where it is and whether it has unsaved changes, with words for a screen reader', () => {
-    const listing = { signedIn: true, loading: false, failed: false, files: [{ id: 'abc', name: 'x.shrimp', modified: '2026-11-01T10:00:00Z' }] }
+    const listing = { signedIn: true, loading: false, failed: false, files: [{ id: 'abc', name: 'x.shrimp', modified: '2026-11-01T10:00:00Z' }, { id: 'bro', name: 'y.shrimp', modified: '' }] }
     // The list does not say whose a library is, so it never says "Your".
-    expect(fileStatus({}, file, { listing })).toEqual({ open: false, dirty: false, where: 'On Google Drive', words: 'Not open, On Google Drive' })
+    expect(fileStatus({}, file, { listing, closed })).toEqual({ open: false, dirty: false, where: 'On Google Drive', words: 'Not open, On Google Drive' })
+    expect(fileStatus({}, 'g:f:bro', { listing, closed })).toEqual({ open: false, dirty: false, where: 'Only in this browser', words: 'Not open, Only in this browser' })
     expect(fileStatus({}, 'g:f:other', { listing })).toBeNull()
-    const meta = { a: { where: 'On this device', dirty: false }, b: { where: 'Shared on Google Drive', dirty: true } }
-    expect(fileStatus(meta, 'd:a')).toEqual({ open: true, dirty: false, where: 'On this device', words: 'Open, On this device' })
-    expect(fileStatus(meta, 'd:b')).toEqual({ open: true, dirty: true, where: 'Shared on Google Drive', words: 'Open, unsaved changes, Shared on Google Drive' })
+    const meta = { a: { where: 'Your Google Drive', dirty: false }, b: { where: 'Shared on Google Drive', dirty: true, readOnly: true } }
+    expect(fileStatus(meta, 'd:a')).toEqual({ open: true, dirty: false, where: 'Your Google Drive', words: 'Open, Your Google Drive' })
+    expect(fileStatus(meta, 'd:b')).toEqual({ open: true, dirty: true, where: 'Shared on Google Drive', words: 'Open, view only, needs attention, Shared on Google Drive' })
     expect(fileStatus(meta, 'c:a:c1')).toBeNull()
   })
 })
@@ -529,5 +552,34 @@ describe('blankCard and insertCard', () => {
     expect(insertCard(grouped, 'a', 'c1', 'q1', { id: 'n3', term: '', definition: '', group: 'gone' })).toBeNull()
     expect(insertCard(grouped, 'a', 'c1', 'nope', { id: 'n4', term: '', definition: '' })).toBeNull()
     expect(grouped.a.courses[0].quizzes[0].cards).toHaveLength(3)
+  })
+})
+
+describe('an open view-only library: copy out, never in', () => {
+  const reason = 'This library is view only. Make a copy to change it.'
+  const f: MenuContext['files'] = { a: { place: 'drive', readOnly: false }, b: { place: 'drive', readOnly: true } }
+  const only = readOnlyOf(f)
+  const both: Docs = { a: lib(), b: lib() }
+  const c = ctx(null, both, f)
+
+  it('copies, but everything that changes it is off with the reason', () => {
+    const course = menuFor(c, ['c:b:c1'], 'c:b:c1')
+    expect(find(course, 'Copy').disabled).toBeUndefined()
+    for (const label of ['New quiz', 'Rename', 'Cut', 'Move to…', 'Move up', 'Delete']) {
+      expect(find(course, label)).toMatchObject({ disabled: true, reason })
+    }
+    expect(find(menuFor(c, ['k:b:c1:q1:k1'], 'k:b:c1:q1:k1'), 'Edit')).toMatchObject({ disabled: true, reason })
+  })
+  it('nothing is pasted or dropped into it, a drag out only copies', () => {
+    const clip: Clip = { mode: 'copy', refs: [quiz('q1')] }
+    expect(pasteTarget(both, clip, 'c:b:c1', only)).toEqual({ reason })
+    expect(pasteTarget(both, clip, 'c:a:c2', only)).toMatchObject({ target: { doc: 'a' } })
+    expect(dropRule(both, ['q:a:c1:q1'], 'c:b:c2', 'inside', 'move', only)).toEqual({ ok: false, reason })
+    expect(dragEffect(['q:b:c1:q1'], 'move', only)).toBe('copy')
+    expect(dropRule(both, ['q:b:c1:q1'], 'c:a:c2', 'inside', 'move', only)).toEqual({ ok: true })
+    expect(deletePlan(both, ['k:b:c1:q1:k1'], false, only)).toEqual({ reason })
+  })
+  it('is no place to move things to', () => {
+    expect(moveDestinations(both, names, [quiz('q1')], only).every((d) => d.target.doc !== 'b')).toBe(true)
   })
 })

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLibrary, type Course, type Library } from '../model'
-import type { FileRef } from '../storage/StorageAdapter'
+import type { DriveSource } from '../storage/googleDrive'
 import type { DocRecord } from '../storage/workspaceRecord'
 import { MAIN, groupOf, groupsIn } from '../kit/layout'
 import {
@@ -13,6 +13,7 @@ import {
   closeTabs,
   dockWindow,
   followHistory,
+  focusedGroup,
   shownTab,
   duplicateTab,
   explorerView,
@@ -22,10 +23,7 @@ import {
   moveTab,
   openPlace,
   popOutGroup,
-  claimOwners,
   patchDoc,
-  hiddenDocs,
-  isHidden,
   popOutTab,
   recentGroup,
   setTabRoute,
@@ -33,6 +31,15 @@ import {
   splitGroup,
   applyEdit,
   closeDoc,
+  forgetClosed,
+  openCopy,
+  paneLayout,
+  reopenClosed,
+  setSignedIn,
+  settleViewOnly,
+  signedOut,
+  unsavedDrive,
+  viewOnly,
   docRecord,
   dropDraft,
   emptyWorkspace,
@@ -47,7 +54,6 @@ import {
   readRoute,
   readyToClose,
   redoEdit,
-  reopenFile,
   replaceDoc,
   restore,
   takeRecord,
@@ -101,12 +107,13 @@ describe('documents and tabs', () => {
     expect(setTabRoute(w, 'tb', { name: 'course', course: 'B1' })).toBe(w)
   })
 
-  it('names new documents uniquely among the open ones', () => {
+  it('names new documents uniquely among the open and closed ones', () => {
     let w = emptyWorkspace('g')
     for (const id of ['x', 'y', 'z']) w = addDoc(w, makeDoc(id, emptyLibrary(), freeDocName(w, 'New library')), HOME, `t${id}`)
     expect(w.order.map((id) => w.docs[id].name)).toEqual(['New library', 'New library 2', 'New library 3'])
     w = closeDoc(w, 'y')
-    expect(freeDocName(w, 'New library')).toBe('New library 2')
+    expect(freeDocName(w, 'New library')).toBe('New library 4')
+    expect(freeDocName(forgetClosed(w, 'y'), 'New library')).toBe('New library 2')
   })
 })
 
@@ -191,21 +198,32 @@ describe('apply and the history', () => {
     expect(undoEdit(w)!.workspace.docs.b.library.courses[0].name).toBe('Bea')
   })
 
-  it('takes up another tab\'s record, its unsaved mark too', () => {
-    const rec: DocRecord = { id: 'a', library: lib(course('t')), dirty: true, drive: null, file: null }
-    const w = takeRecord(applyEdit(two(), 'A', rename('a', 'a1', 'One'), 0), rec, null)
+  it("takes up another tab's record with its Drive file; that tab's unsaved changes are its own to save", () => {
+    const drive: DriveSource = { id: 'x', name: 'A.shrimp', md5: 'new', shared: false, mine: true, trashed: false }
+    const rec: DocRecord = { id: 'a', library: lib(course('t')), dirty: true, drive }
+    const w = takeRecord(applyEdit(two(), 'A', rename('a', 'a1', 'One'), 0), rec)
     expect(w.docs.a.library).toBe(rec.library)
-    expect(hasChanges(w.docs.a)).toBe(true)
+    expect(w.docs.a.drive).toBe(drive)
     expect(w.history.past).toEqual([])
+    // Not to save here, but never counted as saved: they wait in the other tab.
+    expect(hasChanges(w.docs.a)).toBe(false)
+    expect(w.docs.a.dirtyElsewhere).toBe(true)
+    // The record this tab would write says what the one taken says, so it never goes back as an echo that marks the
+    // other tab's change saved.
+    expect(docRecord(w.docs.a)).toEqual(rec)
+    // Taken once that tab saved: nothing waits anywhere.
+    const saved = takeRecord(w, { ...rec, dirty: false })
+    expect(saved.docs.a.dirtyElsewhere).toBe(false)
+    expect(docRecord(saved.docs.a).dirty).toBe(false)
   })
 
-  it('takes up another tab\'s record with the file handle stored for it now', () => {
-    const handle = { name: 'saved-as.shrimp' } as FileSystemFileHandle
-    const mine = { name: 'x.shrimp', handle: { name: 'x.shrimp' } as FileSystemFileHandle, size: 1, modified: 1 }
-    const w = addDoc(two(), makeDoc('f', lib(), 'x.shrimp', { file: mine }), HOME, 'tf')
-    const rec: DocRecord = { id: 'f', library: lib(course('t')), dirty: false, drive: null, file: { name: 'saved-as.shrimp', size: 2, modified: 2 } }
-    expect(takeRecord(w, rec, handle).docs.f.file).toEqual({ name: 'saved-as.shrimp', size: 2, modified: 2, handle })
-    expect(takeRecord(w, { ...rec, file: null }, null).docs.f.file).toBeNull()
+  it("a save from here holds what another tab had not saved: it waits no more", () => {
+    const drive: DriveSource = { id: 'x', name: 'A.shrimp', md5: 'm', shared: false, mine: true, trashed: false }
+    let w = takeRecord(setSignedIn(two(), true), { id: 'a', library: lib(course('t')), dirty: true, drive })
+    w = applyEdit(w, 'A', rename('a', 't', 'Tea'), 0)
+    w = markSaved(w, 'a', w.docs.a.library)
+    expect(w.docs.a.dirtyElsewhere).toBe(false)
+    expect(docRecord(w.docs.a).dirty).toBe(false)
   })
 
   it('a toast\'s undo undoes its own step only while it is the last one', () => {
@@ -264,6 +282,35 @@ describe('closing', () => {
     expect(activeDoc(w)).toBe('a')
     expect(w.history.past).toEqual([])
     expect(activeDoc(closeDoc(w, 'a'))).toBeNull()
+  })
+
+  it('never removes the file: it heads the closed files, one entry per Drive file', () => {
+    const drive = (id: string): DriveSource => ({ id, name: `${id}.shrimp`, md5: 'm', shared: true, mine: false, trashed: false })
+    let w = closeDoc(two(), 'b')
+    expect(w.closed).toEqual([{ id: 'b', name: 'B', drive: null }])
+    w = closeDoc(w, 'a')
+    expect(w.closed.map((c) => c.id)).toEqual(['a', 'b'])
+    // A Drive file opened again (another document) and closed again replaces its older entry.
+    w = addDoc(w, makeDoc('d1', lib(), 'D', { drive: drive('x') }), HOME, 't1')
+    w = closeDoc(w, 'd1')
+    w = addDoc(w, makeDoc('d2', lib(), 'D', { drive: drive('x') }), HOME, 't2')
+    w = closeDoc(w, 'd2')
+    expect(w.closed.map((c) => [c.id, c.drive?.id ?? null])).toEqual([['d2', 'x'], ['a', null], ['b', null]])
+    expect(closeDoc(w, 'nope')).toBe(w)
+  })
+
+  it('opens a closed file again in a new tab, its entry gone; removes one from the list', () => {
+    let w = closeDoc(two(), 'b')
+    const back = makeDoc('b', lib(course('b1')), 'B')
+    w = reopenClosed(w, back, { name: 'course', course: 'b1' }, 'tb2')
+    expect(w.order).toEqual(['a', 'b'])
+    expect(w.closed).toEqual([])
+    expect(activeTab(w)?.data).toEqual({ kind: 'doc', doc: 'b', route: { name: 'course', course: 'b1' } })
+    // Already open: shown, nothing added.
+    expect(Object.keys(reopenClosed(w, back, HOME, 'x').layout.tabs)).not.toContain('x')
+    w = closeDoc(closeDoc(w, 'b'), 'a')
+    expect(forgetClosed(w, 'b').closed.map((c) => c.id)).toEqual(['a'])
+    expect(forgetClosed(w, 'zzz')).toBe(w)
   })
 
   it('turns a cut from it into a copy', () => {
@@ -340,62 +387,108 @@ describe('following renames', () => {
   })
 })
 
-describe('opening a file that is already open', () => {
-  const file = (modified: number, size = 10): FileRef => ({ name: 'x.shrimp', handle: null, size, modified })
-
-  it('activates its document; changed on disk, it reloads when there is nothing to lose', () => {
-    let w = addDoc(two(), makeDoc('f', lib(course('f1')), 'x.shrimp', { file: file(1) }), HOME, 'tf')
-    w = activateDoc(w, 'a', 'x')
-    const same = reopenFile(w, 'f', lib(course('z')), file(1), 'x')
-    expect(activeDoc(same.workspace)).toBe('f')
-    expect(same.workspace.docs.f.library.courses[0].id).toBe('f1')
-    const fresh = lib(course('z'))
-    const changed = reopenFile(w, 'f', fresh, file(2), 'x')
-    expect(changed.ask).toBe(false)
-    expect(changed.workspace.docs.f.library).toBe(fresh)
-    expect(changed.workspace.docs.f.file?.modified).toBe(2)
-  })
-
-  it('asks first when there are unsaved changes', () => {
-    let w = addDoc(two(), makeDoc('f', lib(course('f1')), 'x.shrimp', { file: file(1) }), HOME, 'tf')
-    w = applyEdit(w, 'Rename course', rename('f', 'f1', 'Mine'), 0)
-    const r = reopenFile(w, 'f', lib(course('z')), file(2), 'x')
-    expect(r.ask).toBe(true)
-    expect(r.workspace.docs.f.library.courses[0].name).toBe('Mine')
-  })
-})
-
-describe('own Google Drive files while signed out', () => {
-  const drive = (mine: boolean) => ({ id: 'x', name: 'A.shrimp', md5: 'm', shared: !mine, mine, trashed: false })
+describe('view-only libraries', () => {
+  const drive = (mine: boolean): DriveSource => ({ id: `x-${mine}`, name: 'A.shrimp', md5: 'm', shared: !mine, mine, trashed: false })
   const withDrive = (w: Workspace, id: string, mine: boolean) => patchDoc(w, id, { drive: drive(mine) })
 
-  it('hides the own ones while signed out, never shared or local ones, and claims them for the account shown them', () => {
-    let w = withDrive(withDrive(two(), 'a', true), 'b', false)
-    expect(hiddenDocs(w, null)).toEqual(['a'])
-    expect(hiddenDocs(w, 'ann@example.com')).toEqual([])
-    w = claimOwners(w, 'ann@example.com')
-    expect(w.docs.a.owner).toBe('ann@example.com')
-    expect(w.docs.b.owner).toBeNull()
-    expect(claimOwners(w, 'ann@example.com')).toBe(w)
-    expect(claimOwners(w, null)).toBe(w)
+  it("someone else's Drive file is view only; signed out, every Drive file is", () => {
+    const w = setSignedIn(withDrive(withDrive(two(), 'a', true), 'b', false), true)
+    expect([viewOnly(w, 'a'), viewOnly(w, 'b')]).toEqual([false, true])
+    const out = setSignedIn(w, false)
+    expect([viewOnly(out, 'a'), viewOnly(out, 'b')]).toEqual([true, true])
+    expect(viewOnly(setSignedIn(two(), false), 'a')).toBe(false)
+    expect(setSignedIn(w, true)).toBe(w)
   })
 
-  it('keeps an owned one hidden for another account, and shows it again to its own, its changes kept', () => {
-    let w = claimOwners(withDrive(two(), 'a', true), 'ann@example.com')
-    w = applyEdit(w, 'Rename', rename('a', 'a1', 'Mine'), 0)
-    expect(isHidden(w.docs.a, 'bob@example.com')).toBe(true)
-    expect(claimOwners(w, 'bob@example.com').docs.a.owner).toBe('ann@example.com')
-    expect(isHidden(w.docs.a, 'ann@example.com')).toBe(false)
-    expect(hasChanges(w.docs.a)).toBe(true)
+  it('no change, paste or cut ever touches one; copying out works, and a cut from one pastes a copy', () => {
+    const w = setSignedIn(withDrive(two(), 'b', false), true)
+    expect(() => applyEdit(w, 'Rename', rename('b', 'b1', 'Bee'), 0)).toThrow('This library is view only. Make a copy to change it.')
+    expect(() => applyEdit(w, 'Both', (docs) => rename('b', 'b1', 'Bee')(rename('a', 'a1', 'One')(docs)), 0)).toThrow()
+    expect(applyEdit(w, 'Rename', rename('a', 'a1', 'One'), 0).docs.a.library.courses[0].name).toBe('One')
+    expect(() => toClipboard(w, [{ kind: 'course', doc: 'b', course: 'b1' }], 'cut')).toThrow('view only')
+    const copied = toClipboard(w, [{ kind: 'course', doc: 'b', course: 'b1' }], 'copy')
+    expect(() => paste(copied, { kind: 'doc', doc: 'b' }, () => 'x', 0)).toThrow('view only')
+    const pasted = paste(copied, { kind: 'doc', doc: 'a' }, () => 'n1', 0)
+    expect(pasted.docs.a.library.courses.map((c) => c.id)).toEqual(['a1', 'a2', 'n1'])
+    expect(pasted.docs.b.library).toBe(w.docs.b.library)
+    // A cut taken before its library turned view only pastes a copy, leaving that library as it is.
+    const cut = withDrive(toClipboard(setSignedIn(two(), true), [{ kind: 'course', doc: 'a', course: 'a1' }], 'cut'), 'a', false)
+    const pastedCopy = paste(cut, { kind: 'doc', doc: 'b' }, () => 'n2', 0)
+    expect(pastedCopy.docs.a.library).toBe(cut.docs.a.library)
+    expect(pastedCopy.docs.b.library.courses.map((c) => c.id)).toEqual(['b1', 'n2'])
+    expect(pastedCopy.clipboard?.mode).toBe('copy')
   })
 
-  it('remembers whose each one is in the browser', () => {
-    const w = claimOwners(withDrive(two(), 'a', true), 'ann@example.com')
-    const records = w.order.map((id) => docRecord(w.docs[id]))
-    const back = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: JSON.parse(JSON.stringify(records)), handles: {} }, 'g2', ids())
-    expect(back.docs.a.owner).toBe('ann@example.com')
-    expect(back.docs.b.owner).toBeNull()
-    expect(hiddenDocs(back, 'bob@example.com')).toEqual(['a'])
+  it("changes one held from before move to a browser library of their own, and its file is read again", () => {
+    let w = applyEdit(two(), 'Rename', rename('b', 'b1', 'Mine'), 0)
+    w = toClipboard(w, [{ kind: 'course', doc: 'b', course: 'b1' }], 'cut')
+    w = setSignedIn(withDrive(w, 'b', false), true)
+    const { workspace, kept } = settleViewOnly(w, () => 'kept')
+    expect(kept).toEqual([{ from: 'b', to: 'kept' }])
+    expect(workspace.order).toEqual(['a', 'b', 'kept'])
+    expect(workspace.docs.kept).toMatchObject({ name: 'A (my changes)', drive: null })
+    expect(workspace.docs.kept.library.courses[0].name).toBe('Mine')
+    expect(hasChanges(workspace.docs.b)).toBe(false)
+    expect(workspace.docs.b.drive?.md5).toBe('')
+    expect(workspace.history.past).toEqual([])
+    expect(workspace.clipboard?.mode).toBe('copy')
+    expect(settleViewOnly(workspace, () => 'again').kept).toEqual([])
+    const calm = setSignedIn(withDrive(two(), 'b', false), true)
+    expect(settleViewOnly(calm, () => 'x').workspace).toBe(calm)
+  })
+
+  it('lists the own Drive files with changes not on Drive yet, waiting or paused (checked again before signing out)', () => {
+    let w = setSignedIn(withDrive(withDrive(two(), 'a', true), 'b', false), true)
+    expect(unsavedDrive(w)).toEqual([])
+    w = applyEdit(w, 'A', rename('a', 'a1', 'One'), 0)
+    expect(unsavedDrive(w)).toEqual(['a'])
+    w = patchDoc(markSaved(w, 'a', w.docs.a.library), 'a', { problem: 'signIn' })
+    expect(unsavedDrive(w)).toEqual(['a'])
+    w = patchDoc(w, 'a', { problem: null })
+    expect(unsavedDrive(w)).toEqual([])
+    // A browser library and a view-only file never wait for Drive.
+    const browser = applyEdit(setSignedIn(two(), true), 'B', rename('b', 'b1', 'Bee'), 0)
+    expect(unsavedDrive(browser)).toEqual([])
+  })
+
+  it('signed out in another tab: changes not on Drive yet stay, as browser libraries, and the Drive files close', () => {
+    let w = setSignedIn(withDrive(two(), 'a', true), true)
+    w = applyEdit(w, 'A', rename('a', 'a1', 'Mine'), 0)
+    const { workspace, kept } = settleViewOnly(setSignedIn(w, false), () => 'kept')
+    const out = signedOut(workspace)
+    expect(kept).toEqual([{ from: 'a', to: 'kept' }])
+    expect(out.order).toEqual(['kept', 'b'])
+    expect(out.docs.kept.library.courses[0].name).toBe('Mine')
+    expect(out.docs.kept.drive).toBeNull()
+  })
+
+  it('signing out closes every Drive library, own and shared, and forgets their closed entries', () => {
+    let w = setSignedIn(addDoc(two(), makeDoc('c', lib(), 'C', { drive: drive(false) }), HOME, 'tc'), true)
+    w = withDrive(w, 'a', true)
+    w = closeDoc(w, 'c')
+    w = addDoc(w, makeDoc('d', lib(), 'D'), HOME, 'td')
+    w = closeDoc(w, 'd')
+    const out = signedOut(w)
+    expect(out.signedIn).toBe(false)
+    expect(out.order).toEqual(['b'])
+    expect(out.closed.map((c) => c.id)).toEqual(['d'])
+    expect(Object.values(out.layout.tabs).map((t) => (t.data.kind === 'doc' ? t.data.doc : ''))).toEqual(['b'])
+  })
+
+  it('a copy opens on the same page in the tab that showed the original, which stays open', () => {
+    let w = setTabRoute(two(), 'tb', { name: 'course', course: 'b1' })
+    w = setSignedIn(withDrive(w, 'b', false), true)
+    const copy = makeDoc('c', w.docs.b.library, 'Copy of A')
+    let next = openCopy(w, 'b', copy, 'new')
+    expect(next.order).toEqual(['a', 'b', 'c'])
+    expect(activeTab(next)?.id).toBe('tb')
+    expect(route(next, 'tb')).toEqual({ name: 'course', course: 'b1' })
+    expect(activeDoc(next)).toBe('c')
+    expect(viewOnly(next, 'c')).toBe(false)
+    // Shown in no tab: a new one on its home.
+    next = openCopy(closeTabs(w, ['tb']), 'b', copy, 'new')
+    expect(next.layout.tabs.new.data).toEqual({ kind: 'doc', doc: 'c', route: HOME })
+    expect(openCopy(w, 'zzz', copy, 'new')).toBe(w)
   })
 })
 
@@ -406,7 +499,7 @@ describe('what the browser keeps', () => {
     w = activateDoc(w, 'a', 'x')
     w = setTabRoute(w, 'ta', { name: 'course', course: 'One' })
     const records = w.order.map((id) => docRecord(w.docs[id]))
-    const back = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: JSON.parse(JSON.stringify(records)), handles: {} }, 'g2', ids())
+    const back = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: JSON.parse(JSON.stringify(records)) }, 'g2', ids())
     expect(back.order).toEqual(['a', 'b'])
     expect(back.docs.a.name).toBe('A')
     expect(hasChanges(back.docs.a)).toBe(true)
@@ -416,12 +509,29 @@ describe('what the browser keeps', () => {
   })
 
   it('falls back to one tab per document when the layout is malformed, and names unnamed documents', () => {
-    const docs: DocRecord[] = ['p', 'q'].map((id) => ({ id, library: emptyLibrary(), dirty: false, drive: null, file: null }))
-    const w = restore({ workspace: { version: 1, docs: ['p', 'q'], layout: { tabs: 3 }, explorer: 'x', ui: null }, docs, handles: {} }, 'g', ids())
+    const docs: DocRecord[] = ['p', 'q'].map((id) => ({ id, library: emptyLibrary(), dirty: false, drive: null }))
+    const w = restore({ workspace: { version: 1, docs: ['p', 'q'], closed: [], layout: { tabs: 3 }, explorer: 'x', ui: null }, docs }, 'g', ids())
     expect(w.order.map((id) => w.docs[id].name)).toEqual(['New library', 'New library 2'])
     expect(activeDoc(w)).toBe('p')
     expect(Object.keys(w.layout.tabs)).toHaveLength(2)
     expect(w.explorer).toEqual({ expanded: [], selection: { ids: [], anchor: null, focus: null } })
+  })
+
+  it('keeps closed files closed, and names a library once tied to a local file after it', () => {
+    let w = closeDoc(two(), 'a')
+    w = addDoc(w, makeDoc('f', lib(), 'x'), HOME, 'tf')
+    const records = [...w.order.map((id) => docRecord(w.docs[id])), { id: 'a', library: lib(), dirty: false, drive: null }]
+    const rec = JSON.parse(JSON.stringify(workspaceRecord(w)))
+    delete rec.ui.names.f
+    const old: DocRecord = { ...records[1], legacyName: 'Biology.shrimp' }
+    const back = restore({ workspace: rec, docs: [records[0], old, records[2]] }, 'g2', ids(), true)
+    expect(back.order).toEqual(['b', 'f'])
+    expect(back.closed).toEqual([{ id: 'a', name: 'A', drive: null }])
+    expect(back.docs.f.name).toBe('Biology')
+    expect(back.signedIn).toBe(true)
+    // The file's name wins over the library's own one, which nobody saw while it was tied to the file.
+    const named = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: [old] }, 'g3', ids())
+    expect(named.docs.f.name).toBe('Biology')
   })
 
   it('drops tabs of files no longer open; a file may stay open with no tab', () => {
@@ -630,6 +740,40 @@ describe('what is already open, and duplicates', () => {
     expect(explorerView(w, 'te2').expanded).toEqual(['d:a', 'd:b'])
     w = activateTab(w, 'ta')
     expect(activeTab(showExplorer(w, 'g', { split: true, tabId: 'te3', groupId: 'ge3' }))?.id).toBe('te2')
+  })
+})
+
+describe('pane mode and popped-out windows', () => {
+  it("a window's focused group and the tab its address names: the main window's by default", () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = popOutGroup(w, 'g2', 'pop', 'spare')
+    w = activateTab(w, 'tb2')
+    expect(focusedGroup(w, 'pop')).toBe('g2')
+    expect(shownTab(w, 'pop')?.id).toBe('tb2')
+    expect(shownTab(w)?.id).toBe('tb')
+    w = activateTab(w, 'ta')
+    expect(shownTab(w)?.id).toBe('ta')
+    // Not the active group: the popup's group used last.
+    expect(shownTab(w, 'pop')?.id).toBe('tb2')
+  })
+
+  it("shows just the address's page in one group: a file by its key, an app page, or nothing", () => {
+    const o = { groupId: 'pg', tabId: 'pt' }
+    const w = setTabRoute(two(), 'ta', { name: 'course', course: 'a1' })
+    const pane = paneLayout(w, { name: 'course', course: 'a2' }, 'a', o)
+    expect(Object.keys(pane.layout.groups)).toEqual(['pg'])
+    expect(pane.layout.tabs).toEqual({ pt: { id: 'pt', data: { kind: 'doc', doc: 'a', route: { name: 'course', course: 'a2' } } } })
+    expect(pane.recent).toEqual(['pt'])
+    expect(pane.order).toEqual(['a', 'b'])
+    // No key: the active file.
+    expect(paneLayout(w, HOME, null, o).layout.tabs.pt.data).toEqual({ kind: 'doc', doc: 'b', route: HOME })
+    expect(paneLayout(w, { name: 'explorer' }, null, o).layout.tabs.pt.data).toEqual({ kind: 'explorer' })
+    expect(paneLayout(w, { name: 'studyTips' }, null, o).layout.tabs.pt.data).toEqual({ kind: 'studyTips' })
+    // A file not open here, or no page: an empty group.
+    const none = paneLayout(w, HOME, 'zed', o)
+    expect(none.layout.tabs).toEqual({})
+    expect(Object.keys(none.layout.groups)).toEqual(['pg'])
+    expect(paneLayout(w, { name: 'debug' }, null, o).layout.tabs).toEqual({})
   })
 })
 

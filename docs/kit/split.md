@@ -17,6 +17,9 @@ centre, a dragged item would land on.
   - `minSize?: { width: number; height: number }`: default `{ width: 320, height: 240 }` pixels.
 - `DropZones(p): JSX.Element` with props:
   - `accept(payload: DragPayload): boolean`: whether a payload may be dropped on this pane.
+  - `acceptZone?(payload, zone): boolean`: whether the payload may land in that zone (default: all). A zone it refuses
+    shows no overlay and takes no drop, so the host passes `canSplit` for the edges. The host's `accept` and `onDrop`
+    also check that the payload's ids exist in the layout.
   - `onDrop(payload, zone: 'left' | 'right' | 'top' | 'bottom' | 'center'): void`.
 
 ## Dependencies
@@ -103,8 +106,8 @@ that wrapper `position: relative` (`.kit-dropzones` is absolutely positioned; th
 - `onResize` receives sizes that sum to 1 for the dragged pair's split, but not always normalized to the last bit; the
   host (`layout.resize`) renormalizes.
 - Releasing the pointer sends one final `onResize` even when nothing moved.
-- `DropZones` ignores drags over a `role="tablist"` element (the tab strip handles its own drops) and drags whose payload
-  `accept` refuses. It reads the payload with `readDrag`, so the drag must have started with `startDrag`.
+- `DropZones` ignores drags over a `role="tablist"` element (the tab strip handles its own drops), over a text field and
+  drags whose payload `accept` refuses. `Zone` is exported. It reads the payload with `readDrag`, so the drag must have started with `startDrag`.
 - `DropZones` uses the latest `accept` and `onDrop` without re-registering, but reads its parent element once, on mount;
   do not move it to another parent.
 - A `center` drop means "into this group"; what that does (move the tab, open it) is the host's choice.

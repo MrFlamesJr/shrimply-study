@@ -23,6 +23,8 @@
 /* One toolbar: the action icons, then the search filling the rest of the row; under about 320px the search wraps below
    the icons instead of squeezing. It starts right under the pane's tab strip. */
 .explorer-top {
+  /* Never squeezed by a long tree, in a narrow pane or a popped-out window: only the tree gives way and scrolls. */
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   /* The field keeps its floating label's room above it (--float-room), so the icons line up with the field's bottom,
@@ -148,12 +150,13 @@
   justify-content: flex-start;
   text-align: left;
 }
-/* A library in Google Drive that is not open reads quieter than the open files. */
+/* A closed library (a Google Drive one, or one kept in this browser) reads quieter than the open files. */
 .explorer .kit-row[data-id^="g:f:"] {
   color: var(--text-muted);
 }
 /* The sign-in button and its line, and under the tree the choose-files link or the loading and failure line. */
 .explorer-drive {
+  flex: none;
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -179,8 +182,9 @@
 .explorer .kit-row[data-id^="g:x:"] {
   color: var(--text-muted);
 }
-/* The tip under the tree. */
+/* The tip over the tree. */
 .explorer-tip {
+  flex: none;
   margin: 0;
   padding: 0 var(--space-1);
   color: var(--text-muted);

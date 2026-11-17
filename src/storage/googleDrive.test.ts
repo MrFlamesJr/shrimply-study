@@ -81,7 +81,7 @@ describe('listDriveFiles', () => {
     // Signed in in this tab: a fresh token, as kept over a reload.
     vi.resetModules()
     const kept = JSON.stringify({ token: { value: 't', until: Date.now() + 60_000 } })
-    vi.stubGlobal('sessionStorage', { getItem: () => kept, setItem: () => undefined, removeItem: () => undefined })
+    vi.stubGlobal('localStorage', { getItem: () => kept, setItem: () => undefined, removeItem: () => undefined })
     const { listDriveFiles } = await import('./googleDrive')
     const file = (id: string, name: string, mimeType = 'application/zip') => ({ id, name, mimeType, modifiedTime: '2026-11-07T12:00:00Z' })
     const fetch = answers(

@@ -1,3 +1,5 @@
+import { isEditable } from './shortcuts'
+
 export const DRAG_MIME = 'application/x-kit-drag+json'
 export type DragPayload = { kind: string; ids: string[] }
 
@@ -65,3 +67,51 @@ export function edgeZone(rect: { left: number; top: number; width: number; heigh
   const best = near.reduce((a, b) => (b[1] < a[1] ? b : a))
   return best[1] < 0.25 ? best[0] : 'center'
 }
+
+const has = (dt: DataTransfer | null, type: string) => !!dt && Array.from(dt.types).includes(type)
+
+/**
+ * The browser's own drag and drop, held back in one document (call it for each window the app draws into, popups too):
+ * - a link or an image can not be dragged away (a `dragstart` on `a[href]` or `img` outside a `[draggable="true"]` source
+ *   is cancelled), so a drop can not navigate the page;
+ * - our own payload is never dropped into a text field (it would insert its `text/plain` label): refused there;
+ * - a file from the computer or a dragged link from elsewhere that no target took (no `preventDefault`) is refused too,
+ *   where the browser would open it in place of the app. A target that takes files (an image slot) says so by calling
+ *   `preventDefault` on `dragover`, and keeps working.
+ * Returns the function that takes the guards off again.
+ */
+export function guardNativeDrags(doc: Document): () => void {
+  const start = (e: DragEvent) => {
+    const el = e.target as Element | null
+    if (el && el.nodeType === 1 && el.closest('a[href], img') && !el.closest('[draggable="true"]')) e.preventDefault()
+  }
+  const ours = (e: DragEvent) => has(e.dataTransfer, DRAG_MIME)
+  const refuse = (e: DragEvent) => {
+    if (!ours(e) || !isEditable(e.target)) return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'
+  }
+  const foreign = (e: DragEvent) => has(e.dataTransfer, 'Files') || has(e.dataTransfer, 'text/uri-list')
+  const over = (e: DragEvent) => {
+    if (e.defaultPrevented || ours(e) || !foreign(e)) return
+    e.preventDefault()
+    if (e.dataTransfer) e.dataTransfer.dropEffect = 'none'
+  }
+  const drop = (e: DragEvent) => {
+    if (!ours(e) && foreign(e)) e.preventDefault()
+  }
+  doc.addEventListener('dragstart', start, true)
+  doc.addEventListener('dragover', refuse, true)
+  doc.addEventListener('drop', refuse, true)
+  doc.addEventListener('dragover', over)
+  doc.addEventListener('drop', drop)
+  return () => {
+    doc.removeEventListener('dragstart', start, true)
+    doc.removeEventListener('dragover', refuse, true)
+    doc.removeEventListener('drop', refuse, true)
+    doc.removeEventListener('dragover', over)
+    doc.removeEventListener('drop', drop)
+  }
+}
+
+if (typeof document !== 'undefined') guardNativeDrags(document)

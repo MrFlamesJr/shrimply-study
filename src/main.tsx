@@ -25,12 +25,21 @@ import './theme/cloze.css'
 import './theme/debug.css'
 import { App } from './App'
 import { loadTheme } from './storage/themePref'
+import { POPUP_PREFIX } from './kit/windows'
 
-// Before the first render, so the page never paints in the wrong theme.
-document.documentElement.dataset.theme = loadTheme()
+// A window the app opened as a popup (its opener alive, its name made for one) renders nothing here: it goes to the
+// blank popup page, where the opener takes it over. A pasted address (no opener, no such name) boots normally.
+const controlled = !!window.opener && !window.opener.closed && window.name.startsWith(POPUP_PREFIX)
 
-createRoot(document.getElementById('root')!).render(
-  <StrictMode>
-    <App />
-  </StrictMode>,
-)
+if (controlled) {
+  window.location.replace(new URL(`popout.html${window.location.hash}`, window.location.href))
+} else {
+  // Before the first render, so the page never paints in the wrong theme.
+  document.documentElement.dataset.theme = loadTheme()
+
+  createRoot(document.getElementById('root')!).render(
+    <StrictMode>
+      <App />
+    </StrictMode>,
+  )
+}

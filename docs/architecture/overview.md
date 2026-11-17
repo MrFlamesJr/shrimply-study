@@ -12,13 +12,13 @@ study data. The app composes it with its own domain code.
    hooks and the address bar.
 3. `src/storage/`: every file, zip, IndexedDB, localStorage and Google call. Nothing else touches them.
 4. `src/state/` (`workspace.ts` the pure transitions, `useWorkspace.ts` the hook): owns all runtime state: the open
-   documents (one per `.shrimp` file, Drive file or browser-only library), the layout, the undo history, the clipboard
-   and the Explorer's state. Content changes go through one path, `apply`, which records history, marks the files
-   touched as unsaved and schedules the browser backup. The layout is a set of tabs in groups, split panes and windows; a
-   file may show in several tabs, and closing tabs never closes a file.
+   documents (one per library: a Google Drive file or a browser library), the layout, the undo history, the clipboard
+   and the Explorer's state. Content changes go through one path, `apply`, which records history, schedules the browser
+   backup and, for a Drive library of your own, the autosave; it never changes a view-only library. The layout is a set of
+   tabs in groups, split panes and windows; a library may show in several tabs, and closing tabs never closes a library.
 5. `src/layout/`, `src/screens/`, `src/components/`: the UI. Screens get `lib: LibraryApi` (one document) and
    `nav: Nav` (their tab) as props. `App` mounts the `Sidebar` and the `Workbench` (there is no top bar), whose tabs
-   show `PaneScreen`s: a file's page, the Explorer or every release's notes. With no file open the app shows the welcome page.
+   show `PaneScreen`s: a library's page, the Explorer, How studying works or every release's notes. With no library open the app shows the welcome page.
 
 ## One state, many windows
 
@@ -30,9 +30,13 @@ backup (IndexedDB plus a BroadcastChannel naming the document), as before.
 
 ## Documents
 
-A document is one library plus where it lives: a local file (with its `FileSystemFileHandle` in Chrome and Edge), a
-Google Drive file, or only this browser. Each has its own unsaved mark (`library !== saved`), Save, Download and Close.
+A document is one library plus where it lives: a Google Drive file (autosaved 1.5 s after the last edit; view only when
+it is not the signed-in user's own, and then kept in sync) or only this browser (until it is uploaded). A `.shrimp` file is
+a copy: opened as a browser library, downloaded as a copy. Each has its own status (Saving, Saved, or the reason a save is
+paused), Share, Download a copy and Close; closing keeps the library in the Explorer's closed files. There is one Google
+account per browser; Sign out closes every Drive library everywhere.
 A tab is a view of a document at a place (home, course, quiz, editor, study); closing tabs never loses anything.
+A popped-out window has a real address (`&pane`), so a reload keeps it popped out and a pasted address opens pane mode.
 
 ## Compatibility
 

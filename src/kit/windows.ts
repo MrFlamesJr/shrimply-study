@@ -4,6 +4,11 @@ const popups = new Map<string, Window>()
 const listeners = new Set<() => void>()
 const polls = new Map<Window, number>()
 const mounted = new WeakMap<Window, Promise<HTMLElement>>()
+// The path of the page each popup was opened at: a reloaded popup is taken over once a new document is loaded there.
+const paths = new WeakMap<Window, string>()
+const focusers = new WeakMap<Window, () => void>()
+/** The name prefix of a window opened for a popup, so a host can tell a controlled popup (opener alive) from a pasted address. */
+export const POPUP_PREFIX = 'pop-'
 let active: Window | null = null
 // Names this page load, so a popup can tell that its opener was reloaded or navigated away.
 const APP_ID = Math.random().toString(36).slice(2)
@@ -38,12 +43,10 @@ export function openPopup(id: string, url: string, o: { width: number; height: n
   const win = window.open(url, id, features.join(','))
   if (!win) return null
   popups.set(id, win)
+  paths.set(win, new URL(url, window.location.href).pathname)
   // The same id gives the same window back: it is already watched.
   if (!polls.has(win)) {
-    win.addEventListener('focus', () => {
-      active = win
-      notify()
-    })
+    trackFocus(win)
     polls.set(
       win,
       window.setInterval(() => {
@@ -55,17 +58,47 @@ export function openPopup(id: string, url: string, o: { width: number; height: n
   return win
 }
 
+/** Keeps `active` right from this document on; one listener per popup, so the same document is never counted twice. */
+function trackFocus(win: Window) {
+  let focused = focusers.get(win)
+  if (!focused) {
+    focused = () => {
+      active = win
+      notify()
+    }
+    focusers.set(win, focused)
+  }
+  win.addEventListener('focus', focused)
+}
+
 const ROOT_ATTRIBUTES = ['data-theme', 'lang', 'class', 'style']
 
-function waitLoaded(win: Window): Promise<void> {
+// Loaded: a finished document that is not `previous` (a reload's old one) and, once the popup page's path is known,
+// is at that path (a host's own page that redirects to the popup page is not it yet). Rejects when the window closes
+// or `timeout` ms pass.
+function waitLoaded(win: Window, previous?: Document, timeout?: number): Promise<void> {
+  const path = paths.get(win)
+  const until = timeout === undefined ? Infinity : Date.now() + timeout
   return new Promise((resolve, reject) => {
     const check = () => {
       if (win.closed) return reject(new Error('The popup was closed before it loaded'))
-      if (win.document.readyState === 'complete' && win.location.href !== 'about:blank') return resolve()
+      if (Date.now() > until) return reject(new Error('No new page came to the popup'))
+      if (
+        win.document !== previous &&
+        win.document.readyState === 'complete' &&
+        win.location.href !== 'about:blank' &&
+        (path === undefined || win.location.pathname === path)
+      )
+        return resolve()
       window.setTimeout(check, 25)
     }
     check()
   })
+}
+
+/** Resolves when a popup that is unloading (a reload) has a new document at the popup page; rejects if the window closes or none comes within a few seconds. */
+export function waitReloaded(win: Window, previous: Document): Promise<void> {
+  return waitLoaded(win, previous, 5000)
 }
 
 /** Keeps the popup's styles and <html> attributes equal to the opener's. */
@@ -129,12 +162,14 @@ function watchOpener(win: Window) {
 }
 
 /** Mounts once per popup document: a second call (a remount) gets the same root. */
-export function mountPopup(win: Window, o: { title: string }): Promise<HTMLElement> {
+export function mountPopup(win: Window, o: { title: string; address?: string }): Promise<HTMLElement> {
   const done = mounted.get(win)
   if (done) {
     return done.then((root) => {
-      if (root.isConnected) {
+      // A root of the document the popup has since left stays connected to that document, so ask which one is current.
+      if (root.isConnected && root.ownerDocument === win.document) {
         setPopupTitle(win, o.title)
+        if (o.address !== undefined) setPopupAddress(win, o.address)
         return root
       }
       // The popup navigated to a new document since: mount that one.
@@ -145,7 +180,9 @@ export function mountPopup(win: Window, o: { title: string }): Promise<HTMLEleme
   const made = (async () => {
     await waitLoaded(win)
     followOpener(win)
+    trackFocus(win)
     setPopupTitle(win, o.title)
+    if (o.address !== undefined) setPopupAddress(win, o.address)
     watchOpener(win)
     const root = win.document.createElement('div')
     win.document.body.appendChild(root)
@@ -160,11 +197,24 @@ export function setPopupTitle(win: Window, title: string): void {
   win.document.title = title
 }
 
+/** Sets the popup's address bar to `url` (same origin as the popup) without loading anything: the popup stays as it is. */
+export function setPopupAddress(win: Window, url: string): void {
+  const next = new URL(url, win.location.href).href
+  if (win.location.href !== next) win.history.replaceState(null, '', next)
+}
+
+/** Calls `cb` once when the popup's current document goes away (closed, or reloaded or navigated). */
+export function onPopupUnload(win: Window, cb: () => void): () => void {
+  const fire = () => cb()
+  win.addEventListener('pagehide', fire, { once: true })
+  return () => win.removeEventListener('pagehide', fire)
+}
+
+/** Calls `cb` once when the popup window is closed. */
 export function onPopupClosed(win: Window, cb: () => void): () => void {
   let done = false
   const stop = () => {
     window.clearInterval(poll)
-    win.removeEventListener('pagehide', fire)
   }
   const fire = () => {
     if (done) return
@@ -176,7 +226,6 @@ export function onPopupClosed(win: Window, cb: () => void): () => void {
   const poll = window.setInterval(() => {
     if (win.closed) fire()
   }, 500)
-  win.addEventListener('pagehide', fire)
   return () => {
     done = true
     stop()

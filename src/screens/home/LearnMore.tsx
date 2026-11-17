@@ -1,37 +1,41 @@
 import { Modal } from '../../components/Modal'
 
-/** The welcome page's Learn more: what Google Drive adds to cards kept in this browser. */
+/** The welcome page's Learn more: what Google Drive adds to cards kept in this browser (autosave, links, view only). */
 export function LearnMore({ onClose }: { onClose: () => void }) {
   return (
     <Modal title="Save and share with Google Drive" narrow onClose={onClose}>
       <p className="muted">
-        Your cards stay in this browser. Save them to your Google Drive to study on any device and share them with a
-        link.
+        Until you sign in, your cards stay in this browser. Signed in with Google, they save to your Google Drive as you
+        work.
       </p>
       <dl className="tips-list">
         <div>
-          <dt>Save to your Drive</dt>
+          <dt>Saved as you work</dt>
           <dd>
-            Select Google Drive at the top of the page and sign in with Google. Save to my Drive puts your library
-            there, and from then on Save to Drive updates the same file.
+            Sign in with Google and new libraries are made in your Drive. Each change saves by itself a moment later, so
+            there is nothing to remember. A library kept only in this browser has Upload to Google Drive on its row.
           </dd>
         </div>
         <div>
           <dt>Study on any device</dt>
-          <dd>On your other device, select Google Drive, sign in, and open the library under Open from Google Drive.</dd>
+          <dd>On your other device, sign in, then select Open under Files and choose the library under Your Google Drive libraries.</dd>
         </div>
         <div>
           <dt>Share a link</dt>
           <dd>
-            Copy link gives you a link anyone can open, with no sign-in. When you save again, the people who
-            opened it see Pull new changes in their sidebar, and get your new version when they select it.
+            Share on a library's row gives you a link anyone can open, with no sign-in. They can view and study it but
+            not change it, and they always see your latest version. Stop sharing turns the link off.
           </dd>
         </div>
         <div>
-          <dt>Your file stays yours</dt>
+          <dt>A library shared with you</dt>
+          <dd>You can view and study it, and it stays in sync with the original. To change it, select Make a copy: the copy is yours, in your Drive.</dd>
+        </div>
+        <div>
+          <dt>Signing out</dt>
           <dd>
-            People who open your link can change the cards, but only in their own browser. Your file only changes when
-            you save. To keep their changes, they save a copy to their own Drive.
+            Sign out closes your Google Drive libraries in this browser and forgets your account. Libraries kept only in
+            this browser stay.
           </dd>
         </div>
         <div>

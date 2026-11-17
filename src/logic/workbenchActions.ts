@@ -8,7 +8,7 @@ import type { Library } from '../model'
 
 /**
  * What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or one of the app's own pages
- * (`AppPage`: What's new, every release's notes; the welcome page), one tab at most each.
+ * (`AppPage`: What's new, every release's notes; the welcome page; How studying works), one tab at most each.
  */
 export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer'; view?: ExplorerView } | { kind: AppPage }
 /**
@@ -22,9 +22,9 @@ export type ExplorerView = {
   search?: string
   scroll?: number
 }
-export type AppPage = 'changelog' | 'welcome'
+export type AppPage = 'changelog' | 'welcome' | 'studyTips'
 /** The app's own pages' tab titles. */
-export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome' }
+export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome', studyTips: 'How studying works' }
 export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }
 export type Docs = Record<string, WorkbenchDoc>
 
@@ -111,8 +111,8 @@ export function canSplit(size: { width: number; height: number }, dir: 'row' | '
 }
 
 export type MenuAction =
-  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'duplicate' | 'reveal' | 'copyPath' | 'save'
-  | 'saveAll' | 'join'
+  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'duplicate' | 'reveal' | 'copyPath'
+  | 'join'
 export type MenuEntry = 'separator' | { action: MenuAction; label: string; shortcut?: string; disabled?: boolean; reason?: string }
 
 /** What a menu needs to know about the group it belongs to. */
@@ -126,7 +126,6 @@ export type GroupContext = {
   /** The group that Join with next group would join into (the one after in reading order), if any. */
   next: boolean
   canPopOut: boolean
-  anyDirty: boolean
 }
 
 const entry = (action: MenuAction, label: string, why?: string | false | null, shortcut?: string): MenuEntry =>
@@ -157,10 +156,9 @@ function popOutTabWhy(g: GroupContext): string | null {
  * The menu of a tab. Split shows a copy of a file's tab in the new group; a tab of another kind (the Explorer, of
  * which there is one) moves instead, which would leave an empty group, so it needs a second tab beside it.
  */
-export function tabMenu(tab: Tab<TabData>, docs: Docs, g: GroupContext, mac: boolean): MenuEntry[] {
+export function tabMenu(tab: Tab<TabData>, _docs: Docs, g: GroupContext, mac: boolean): MenuEntry[] {
   const doc = tab.data.kind === 'doc'
   const lone = !doc && g.tabCount < 2 && 'It is the only tab in its group.'
-  const dirty = tabDirty(tab, docs)
   const why = (dir: 'row' | 'column') => lone || splitWhy(g, dir)
   return [
     entry('close', 'Close'),
@@ -174,9 +172,6 @@ export function tabMenu(tab: Tab<TabData>, docs: Docs, g: GroupContext, mac: boo
     'separator',
     entry('reveal', 'Reveal in Explorer', !doc && 'Only files, courses and quizzes are in the Explorer.'),
     entry('copyPath', 'Copy path', !doc && 'Only files, courses and quizzes have a path.'),
-    'separator',
-    entry('save', 'Save', !doc ? 'Nothing to save here.' : !dirty && 'No unsaved changes.'),
-    entry('saveAll', 'Save all', !g.anyDirty && 'No unsaved changes.'),
   ]
 }
 

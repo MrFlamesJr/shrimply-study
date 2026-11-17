@@ -19,7 +19,7 @@ const home = tab({ kind: 'doc', doc: 'd', route: { name: 'home' } })
 const course = tab({ kind: 'doc', doc: 'd', route: { name: 'course', course: 'cell-biology' } })
 const quiz = tab({ kind: 'doc', doc: 'd', route: { name: 'quiz', course: 'Cell Biology', quiz: 'quiz-1' } })
 const gone = tab({ kind: 'doc', doc: 'd', route: { name: 'quiz', course: 'Cell Biology', quiz: 'nope' } })
-const ctx: GroupContext = { tabCount: 3, size: { width: 900, height: 700 }, groupsInWindow: 2, inMain: true, next: true, canPopOut: true, anyDirty: true }
+const ctx: GroupContext = { tabCount: 3, size: { width: 900, height: 700 }, groupsInWindow: 2, inMain: true, next: true, canPopOut: true }
 const find = (m: MenuEntry[], action: string) => m.find((x) => x !== 'separator' && x.action === action) as Exclude<MenuEntry, 'separator'>
 
 describe('tabs in other windows', () => {
@@ -58,6 +58,7 @@ describe('titles', () => {
     expect(tabTitle(tab({ kind: 'explorer' }), docs)).toBe('Explorer')
     expect(tabTitle(tab({ kind: 'changelog' }), docs)).toBe("What's new")
     expect(tabTitle(tab({ kind: 'welcome' }), docs)).toBe('Welcome')
+    expect(tabTitle(tab({ kind: 'studyTips' }), docs)).toBe('How studying works')
   })
   it('describes with the file name only away from its home', () => {
     expect(tabDescription(home, docs)).toBeUndefined()
@@ -83,8 +84,7 @@ describe('paths and tooltips', () => {
 describe('menus', () => {
   it('enables everything that makes sense for a document tab with other tabs', () => {
     const m = tabMenu(quiz, docs, ctx, false)
-    expect(m.filter((x) => x !== 'separator' && x.disabled).map((x) => (x as { action: string }).action)).toEqual(['save'])
-    expect(find(m, 'save').reason).toBe('No unsaved changes.')
+    expect(m.filter((x) => x !== 'separator' && x.disabled)).toEqual([])
   })
   it('gives a reason for what is refused', () => {
     const m = tabMenu(tab({ kind: 'explorer' }), docs, { ...ctx, tabCount: 1, groupsInWindow: 1 }, false)
@@ -93,7 +93,6 @@ describe('menus', () => {
     expect(find(m, 'popOutTab').disabled).toBeUndefined()
     expect(find(m, 'reveal').disabled).toBe(true)
     expect(find(m, 'copyPath').disabled).toBe(true)
-    expect(find(m, 'save').reason).toBe('Nothing to save here.')
   })
   it('splits a lone file tab (the new group shows a copy)', () => {
     expect(find(tabMenu(quiz, docs, { ...ctx, tabCount: 1 }, false), 'splitRight').disabled).toBeUndefined()
@@ -112,8 +111,11 @@ describe('menus', () => {
     expect(find(tabMenu(quiz, docs, { ...alone, tabCount: 2 }, false), 'popOutTab').disabled).toBeUndefined()
     expect(find(tabMenu(quiz, docs, ctx, true), 'splitRight').shortcut).toBe('⌘\\')
   })
-  it('disables Save all with nothing unsaved', () => {
-    expect(find(tabMenu(quiz, docs, { ...ctx, anyDirty: false }, false), 'saveAll').disabled).toBe(true)
+  it('has no Save or Save all: Drive files save by themselves', () => {
+    const actions = tabMenu(quiz, docs, ctx, false).map((e) => (e === 'separator' ? e : e.action))
+    expect(actions).not.toContain('save')
+    expect(actions).not.toContain('saveAll')
+    expect(actions[actions.length - 1]).not.toBe('separator')
   })
   it('builds the group menu', () => {
     const m = groupMenu({ ...ctx, next: false, tabCount: 0, groupsInWindow: 1, inMain: false })

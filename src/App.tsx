@@ -1,17 +1,16 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { addressOf, followRename, href, parseAddress, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
-import { emptyLibrary, newId, type StudyOptions, type ThemeId } from './model'
+import { newId, type StudyOptions, type ThemeId } from './model'
 import { useWorkspace, type DocId, type WorkspaceApi } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, windowOf, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
-import { openPopup } from './kit/windows'
+import { openPopup, POPUP_PREFIX } from './kit/windows'
 import { APP_PAGE_TITLE, canSplit, poppedOut, type TabData, type WorkbenchDoc } from './logic/workbenchActions'
 import { nodeOf } from './logic/explorerTree'
 import type { ItemRef } from './logic/contentOps'
 import { fileStorage, loadGuide } from './storage/fileStorage'
 import { loadTheme, saveTheme } from './storage/themePref'
-import { loadTipsOpen, saveTipsOpen } from './storage/tipsPref'
 import { loadExplorerTipSeen, saveExplorerTipSeen } from './storage/explorerTipPref'
 import { loadStudyOptions, saveStudyOptions } from './storage/studyPref'
 import { loadSeenRelease, saveSeenRelease } from './storage/welcomePref'
@@ -30,7 +29,8 @@ import { DebugBar } from './screens/debug/DebugBar'
 import { WorkbenchDemo } from './kit/demo/WorkbenchDemo'
 import { Toasts, useToasts } from './components/Toasts'
 import { askChoice, askConfirm } from './components/ConfirmDialog'
-import { DriveDialog } from './components/DriveDialog'
+import { OpenDialog } from './components/OpenDialog'
+import { ShareDialog } from './components/ShareDialog'
 
 // The app's own pages shown instead of the workbench: debug in the page cell (the workbench kept, hidden), the kit
 // demo full screen. What's new (#/_changelog) and the welcome page open as tabs instead.
@@ -45,12 +45,21 @@ type DocNode = ItemRef | { kind: 'doc'; doc: DocId }
 // The address of what a tab shows (asked for: the address always names the page on screen): a file's page (naming
 // its file while several are shown), the app's own pages by name, and `#/_empty` for no page (an empty group, or a
 // hidden file, which never shows in the address).
-const addressFor = (ws: WorkspaceApi, tab: Tab<TabData> | null): string =>
-  !tab ? href({ name: 'empty' }) : tab.data.kind === 'doc' ? addressOf(tab.data.route, ws.fileKey(tab.data.doc)) : href({ name: tab.data.kind })
+const addressFor = (ws: WorkspaceApi, tab: Tab<TabData> | null, pane: boolean): string =>
+  !tab
+    ? addressOf({ name: 'empty' }, null, pane)
+    : tab.data.kind === 'doc'
+      ? addressOf(tab.data.route, ws.fileKey(tab.data.doc), pane)
+      : addressOf({ name: tab.data.kind }, null, pane)
 
 export function App() {
   const toasts = useToasts()
-  const ws = useWorkspace(fileStorage, toasts.notify, askConfirm, askChoice)
+  // Pane mode (the address asks for it): a page for one pane, as a popped-out window shows. Read once, at start.
+  const [pane] = useState(() => parseAddress(location.hash).pane)
+  const ws = useWorkspace(fileStorage, toasts.notify, askConfirm, askChoice, { pane })
+  useLayoutEffect(() => {
+    document.documentElement.classList.toggle('is-pane', pane)
+  }, [pane])
   // The active file (the active tab's, else the last one shown); null when no tab shows one.
   const lib = ws.active ? ws.doc(ws.active) : null
   const hashRoute = useRoute()
@@ -63,7 +72,7 @@ export function App() {
   // file it names, the app's own page it names, or the main window's tab when its file has that page. Pages of the
   // app itself (debug, the kit demo), Drive links and `#/_empty` are left alone.
   const addr = ws.address
-  const target = addressFor(ws, addr)
+  const target = addressFor(ws, addr, pane)
   const addrKey = `${addr?.id ?? ''} ${target}`
   const entryTab = () => {
     const tab = (history.state as { tab?: unknown } | null)?.tab
@@ -73,15 +82,18 @@ export function App() {
   // anything else can reach it. Back and Forward fire popstate (and hashchange); the second finds nothing to do.
   const latest = useRef(ws)
   latest.current = ws
+  // Set by Open full app: the address is on its way out, so the hash change it makes is not written back with `pane`.
+  const leaving = useRef(false)
   useEffect(() => {
     const onNav = () => {
+      if (leaving.current) return
       const now = latest.current
       const { route: to, file } = parseAddress(location.hash)
       if (!now.ready || OWN_PAGES.includes(to.name) || to.name === 'drive' || to.name === 'empty') return
       flushSync(() => now.followHistory(entryTab(), to, file))
       // Nothing to change (already there, or nowhere to go): the address names what is shown, as written.
       const shown = latest.current.address
-      const canonical = addressFor(latest.current, shown)
+      const canonical = addressFor(latest.current, shown, pane)
       if (location.hash !== canonical) history.replaceState({ tab: shown?.id ?? null }, '', canonical)
     }
     addEventListener('popstate', onNav)
@@ -116,7 +128,7 @@ export function App() {
     ownsAddress: (id) => !own && id === ws.address?.id,
     address: (id, route) => {
       const tab = ws.layout.tabs[id]
-      return tab?.data.kind === 'doc' ? addressOf(route, ws.fileKey(tab.data.doc)) : href(route)
+      return addressOf(route, tab?.data.kind === 'doc' ? ws.fileKey(tab.data.doc) : null, pane)
     },
   }
   const tabNav = (tabId: string, route: Route): Nav => makeTabNav(tabId, route, navOps)
@@ -139,17 +151,11 @@ export function App() {
   // The theme is `data-theme` on <html> (set from the remembered one in main.tsx). Set before the re-render,
   // so anything that reads computed styles while rendering (the debug page's tokens) sees the new theme.
   const [theme, setTheme] = useState(loadTheme)
-  // The quiz page's "How studying works" box: whole, or minimized to its title (remembered in this browser).
-  const [tipsOpen, setTipsOpen] = useState(loadTipsOpen)
   // The Explorer's one-line tip stays until the first right-click there (remembered in this browser).
   const [explorerTipSeen, setExplorerTipSeen] = useState(loadExplorerTipSeen)
   const tipSeen = () => {
     saveExplorerTipSeen()
     setExplorerTipSeen(true)
-  }
-  const toggleTips = (open: boolean) => {
-    saveTipsOpen(open)
-    setTipsOpen(open)
   }
   // The welcome page is a tab (the brand opens it). On a first visit and once after each release (`RELEASES`; the
   // last one shown is remembered in this browser) it opens on start, when the visit starts on home; shown counts as
@@ -194,7 +200,8 @@ export function App() {
   // A new course in the active file (a new file when none is open), shown in `group` (default: where it opens).
   // In the active file (or a new one), or in the file given (the sidebar tree's New course).
   const newCourse = (group?: string, doc?: DocId) => {
-    const docId = doc ?? ws.active ?? ws.newDoc()
+    // With no file open, signed in, the new library goes to Google Drive under a free "New library" name (D19).
+    const docId = doc ?? ws.active ?? ws.newDoc(undefined, { inDrive: true })
     const made = ws.doc(docId).addCourse()
     const route = { name: 'course', course: made.name } as const
     const tab = ws.openPlace(docId, route, group ? { group } : undefined)
@@ -218,34 +225,39 @@ export function App() {
   // A shared Google Drive link opens its library as a file beside the others (or shows the one it is open in, bringing
   // its changes after asking), then goes home. Any other start takes a quiet look at each open Drive file, once (asks
   // nothing: their changes come only when pulled). Refs, so StrictMode's second run does nothing twice.
-  const [driveOpen, setDriveOpen] = useState(false)
-  // Google's file picker is a layer on the page, so the Drive dialog (on top of everything) closes while it shows, then
+  const [openDialog, setOpenDialog] = useState(false)
+  // The Share dialog: one library, to share it (`share`) or to put it on Google Drive (`upload`).
+  const [shareDialog, setShareDialog] = useState<{ docId: DocId; mode: 'share' | 'upload' } | null>(null)
+  // Google's file picker is a layer on the page, so the Open dialog (on top of everything) closes while it shows, then
   // opens again with the picked files in its list.
   const pickFromDrive = async () => {
-    setDriveOpen(false)
+    setOpenDialog(false)
     await ws.drive.pick()
-    setDriveOpen(true)
+    setOpenDialog(true)
+  }
+  // New file: signed in, the new library goes straight to Google Drive (the Upload step asks for its name).
+  const newFile = () => {
+    const id = ws.newDoc()
+    if (ws.drive.signedIn()) setShareDialog({ docId: id, mode: 'upload' })
   }
   const driveId = hashRoute.name === 'drive' ? hashRoute.id : undefined
   const handledLink = useRef<string>(undefined)
   // A re-render once the link is handled (the address changes without an event then).
   const [, setDriveDone] = useState(0)
-  const checkedDrive = useRef(false)
+  // (Drive files check for a newer version by themselves, on start too: useWorkspace's sync.)
   useEffect(() => {
     if (!ws.ready) return
     if (!driveId) {
       handledLink.current = undefined
-      if (!checkedDrive.current) for (const d of ws.docs) if (d.where === 'drive') void ws.doc(d.id).drive.refresh()
     } else if (handledLink.current !== driveId) {
       handledLink.current = driveId
       // Then the address shows the tab it opened in (or home when it did not open).
       void ws.openDrive(driveId).then(() => {
         const tab = latest.current.address
-        history.replaceState({ tab: tab?.id ?? null }, '', addressFor(latest.current, tab))
+        history.replaceState({ tab: tab?.id ?? null }, '', addressFor(latest.current, tab, pane))
         setDriveDone((n) => n + 1)
       })
     }
-    checkedDrive.current = true
   }, [ws.ready, driveId])
 
   // ---- The Explorer ----
@@ -330,7 +342,7 @@ export function App() {
   // The popup of each popped-out window, opened in the click (browsers block it otherwise).
   const [popups, setPopups] = useState<Record<string, Window>>({})
   const popOut = (groupId: string, tabId?: string) => {
-    const win = `pop-${newId()}`
+    const win = `${POPUP_PREFIX}${newId()}`
     const box = document.querySelector(`.wb-group[data-group="${groupId}"]`)?.getBoundingClientRect()
     const size = box ? { width: Math.round(box.width), height: Math.round(box.height) + 48 } : POPUP
     const opened = openPopup(win, new URL('popout.html', document.baseURI).href, { ...size, left: screenX + 48, top: screenY + 48 })
@@ -368,19 +380,20 @@ export function App() {
   }
   useKeydown((e) => {
     const mac = isMac(navigator.platform)
-    // Ctrl+S saves the active file where it lives (see LibraryApi.save).
+    // Ctrl+S saves now: a Drive file at once; a browser library is offered Upload to Google Drive; a view-only
+    // library says so, with Make a copy.
     if ((e.ctrlKey || e.metaKey) && !e.shiftKey && !e.altKey && e.key.toLowerCase() === 's') {
       e.preventDefault()
       // Held down, the key repeats: one save is enough.
       if (e.repeat) return
-      if (lib) void lib.save()
-    }
-    // Ctrl+Alt+S saves every file with changes. By `code`, as Ctrl+Alt is AltGr on some layouts: there it only counts
-    // outside a text field, where AltGr+S may type a letter.
-    const saveAll = (mac ? e.metaKey : e.ctrlKey) && e.altKey && !e.shiftKey && e.code === 'KeyS'
-    if (saveAll && (e.key.toLowerCase() === 's' || !isEditable(e.target))) {
-      e.preventDefault()
-      if (!e.repeat) void ws.saveAll()
+      if (!lib) return
+      if (lib.readOnly) {
+        toasts.notify('info', 'This library is view only. Make a copy to change it.', undefined, {
+          label: 'Make a copy',
+          run: () => void lib.makeCopy(),
+        })
+      } else if (lib.where === 'browser') setShareDialog({ docId: lib.id, mode: 'upload' })
+      else void lib.saveNow()
     }
     // Undo and redo, app-wide; inside a text field the browser's own (that field's typing).
     const undoing = matches(e, 'Mod+Z', mac)
@@ -416,18 +429,13 @@ export function App() {
   const wbDocs: Record<string, WorkbenchDoc> = Object.fromEntries(
     ws.docs.map((d) => [d.id, { name: d.name, dirty: d.dirty, library: ws.doc(d.id).library }]),
   )
-  // A hidden file's tabs say only that (asked for: nothing of the user's own Drive files shows signed out).
-  for (const t of Object.values(ws.layout.tabs)) {
-    if (t.data.kind === 'doc' && ws.isHidden(t.data.doc)) wbDocs[t.data.doc] = { name: 'Hidden file', dirty: false, library: emptyLibrary() }
-  }
   // A pane's breadcrumbs: the file (its home, under the file's name as it is now), then the course and quiz the tab's
   // page names, followed by id through a rename (as the page is: the tab's route takes the new name only once the
   // typing pauses). A page that is gone shows the file alone while the pane moves on. None for a study session or
   // the Explorer (each has a head of its own, the same height); the app's own pages are under the app's name.
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
-    if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
+    if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome' || tab.data.kind === 'studyTips') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
-    if (ws.isHidden(tab.data.doc)) return [{ label: 'Hidden file', icon: 'drive' }]
     const r = tab.data.route
     if (r.name === 'study') return []
     const name = wbDocs[tab.data.doc].name
@@ -458,14 +466,18 @@ export function App() {
     setPrefs: choosePrefs,
     collapsed,
     setCollapsed,
-    tipsOpen,
-    setTipsOpen: toggleTips,
     explorerTipSeen,
     onExplorerTipSeen: tipSeen,
-    openDrive: () => setDriveOpen(true),
+    openDrive: () => setOpenDialog(true),
     openFile: async () => (await ws.openFile()) !== null,
     openGuide: async () => (await ws.openLibrary(loadGuide, 'Guide')) !== null,
     newCourse,
+    upload: (doc) => setShareDialog({ docId: doc, mode: 'upload' }),
+    share: (doc) => setShareDialog({ docId: doc, mode: 'share' }),
+    onStudyTips: (group, background) => {
+      ws.showAppPage('studyTips', group ?? undefined, background)
+      bringForward()
+    },
     openNode: (node) => openFromExplorer(node),
     openNodeNew: (node) => openFromExplorer(node, false, true),
     editNode: (ref) => openFromExplorer(ref, true),
@@ -490,6 +502,18 @@ export function App() {
   const fullPage = hashRoute.name === 'workbench'
   // The popped-out windows, newest last: an empty group says how many tabs are in them.
   const popped = poppedOut(ws.layout, (w) => !!popups[w])
+  // Each popped-out window shows its own page's address (the host's page, in pane mode, for what the window shows).
+  const popupAddresses = Object.fromEntries(
+    Object.keys(popups).map((w) => [w, new URL(addressFor(ws, ws.addressIn(w), true), location.href).href]),
+  )
+  // Open full app: this page without pane mode.
+  // Only the hash changes, which loads nothing: reload so the app starts again, full, on that page (pane mode is read
+  // once, at start).
+  const openFullApp = () => {
+    leaving.current = true
+    location.replace(addressFor(ws, addr, false))
+    location.reload()
+  }
   const appClass = ['app', sidebarOpen ? '' : 'is-side-closed', studyAlone ? 'is-session' : ''].filter(Boolean).join(' ')
 
   return (
@@ -506,7 +530,10 @@ export function App() {
           setOpen={setSidebarOpen}
           theme={theme}
           setTheme={chooseTheme}
-          onDrive={() => setDriveOpen(true)}
+          onOpenDialog={() => setOpenDialog(true)}
+          onNewFile={newFile}
+          onShare={(doc) => setShareDialog({ docId: doc, mode: 'share' })}
+          onUpload={(doc) => setShareDialog({ docId: doc, mode: 'upload' })}
           onNewCourseIn={(doc) => newCourse(undefined, doc)}
           onNewQuiz={newQuiz}
           onExplorer={() => showExplorer()}
@@ -542,14 +569,14 @@ export function App() {
             <HomeScreen
               lib={null}
               nav={null}
-              driveSetUp={ws.drive.setUp}
-              loadLabel={ws.loadLabel}
-              loadHint={ws.loadHint}
+              drive={ws.drive}
+              openLabel={ws.openLabel}
+              openHint={ws.openHint}
               openFile={shared.openFile}
               openGuide={shared.openGuide}
               newCourse={() => newCourse()}
               welcome
-              openDrive={() => setDriveOpen(true)}
+              openDrive={() => setOpenDialog(true)}
             />
           </main>
         )}
@@ -558,6 +585,8 @@ export function App() {
             layout={ws.layout}
             docs={wbDocs}
             popups={popups}
+            popupAddresses={popupAddresses}
+            onOpenFullApp={pane ? openFullApp : undefined}
             renderTab={(tab, shown) => {
               const group = groupOf(ws.layout, tab.id)
               return <PaneScreen tab={tab} group={group} shown={shown} active={shown && !own && group === ws.layout.activeGroup} s={shared} />
@@ -580,8 +609,6 @@ export function App() {
               resize: ws.resize,
               popOut,
               dock,
-              saveDoc: (docId) => void ws.doc(docId).save(),
-              saveAll: () => void ws.saveAll(),
               revealInExplorer: (tab) => showExplorer(nodeOfTab(tab) ?? undefined),
               copyText: (text) =>
                 void navigator.clipboard.writeText(text).then(
@@ -594,8 +621,8 @@ export function App() {
               <EmptyPane
                 docs={ws.docs}
                 onExplorer={() => showExplorer()}
-                onNewFile={() => void ws.newDoc()}
-                onOpenFile={() => void ws.openFile()}
+                onNewFile={newFile}
+                onOpen={() => setOpenDialog(true)}
                 onOpenDoc={(id) => {
                   ws.openPlace(id, HOME, { group: groupId })
                   bringForward()
@@ -611,15 +638,8 @@ export function App() {
             )}
           />
         </div>
-        {driveOpen && (
-          <DriveDialog
-            drive={lib?.drive ?? ws.drive}
-            hasDoc={!!lib}
-            hasChanges={!!lib?.hasChanges}
-            onClose={() => setDriveOpen(false)}
-            onPick={() => void pickFromDrive()}
-          />
-        )}
+        {openDialog && <OpenDialog ws={ws} onClose={() => setOpenDialog(false)} onPick={() => void pickFromDrive()} />}
+        {shareDialog && <ShareDialog lib={ws.doc(shareDialog.docId)} mode={shareDialog.mode} onClose={() => setShareDialog(null)} />}
       </div>
       )}
       {/* Outside the shell so running timers survive the app's own pages. */}

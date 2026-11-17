@@ -6,6 +6,10 @@ import chevronDown from '../icons/chevron-down.svg?raw'
 import chevronsLeft from '../icons/chevrons-left.svg?raw'
 import chevronsUp from '../icons/chevrons-up.svg?raw'
 import cloud from '../icons/cloud.svg?raw'
+import cloudAlert from '../icons/cloud-alert.svg?raw'
+import cloudOff from '../icons/cloud-off.svg?raw'
+import copy from '../icons/copy.svg?raw'
+import link from '../icons/link.svg?raw'
 import course from '../icons/course.svg?raw'
 import cross from '../icons/cross.svg?raw'
 import dock from '../icons/dock.svg?raw'
@@ -76,6 +80,16 @@ export const RefreshIcon = icon(refresh)
 export const FileIcon = icon(fileIcon)
 
 export const CloudIcon = icon(cloud)
+
+// A cloud with a slash (signed out: nothing reaches Google Drive) and a cloud with a mark (a save is paused).
+export const CloudOffIcon = icon(cloudOff)
+
+export const CloudAlertIcon = icon(cloudAlert)
+
+// Share (a link), and Make a copy (two sheets).
+export const LinkIcon = icon(link)
+
+export const CopyIcon = icon(copy)
 
 export const BrowserIcon = icon(browser)
 

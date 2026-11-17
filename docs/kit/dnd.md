@@ -16,6 +16,12 @@ pointer is. It does not attach any listeners.
 - `readDrag(dt: DataTransfer | null): DragPayload | null`: the drag in progress. Returns the module's copy first; if
   there is none, parses `DRAG_MIME` from `dt`. `null` when there is no drag, or the data is not a valid payload.
 - `endDrag(): void`: forgets the module's copy. Call in `dragend`.
+- `guardNativeDrags(doc: Document): () => void`: holds back the browser's own drag and drop in one document. A `dragstart`
+  on `a[href]` or `img` outside a `[draggable="true"]` source is cancelled; `DRAG_MIME` payloads are refused over text
+  fields (`dropEffect = 'none'`, so no `text/plain` label is inserted); a file or link from outside that no target
+  accepted (no `preventDefault` on `dragover`) is refused, so the browser never opens it in place of the app. Installed
+  for the main document when the module loads; call it for each popup window and keep the returned function to take it
+  off.
 - `effectFor(mods: { ctrlKey; altKey; metaKey }, mac: boolean): 'move' | 'copy'`: `'copy'` when Ctrl is held (Alt, called
   Option, on a Mac), else `'move'`.
 - `dropPosition(top, height, y, inside: boolean): 'before' | 'inside' | 'after'`: where `y` falls on a row that starts

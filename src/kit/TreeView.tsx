@@ -4,7 +4,7 @@ import { dropPosition, effectFor, endDrag, readDrag, startDrag } from './dnd'
 import type { DragPayload } from './dnd'
 import { ordered, select, selectAll } from './selection'
 import type { Selection } from './selection'
-import { isMac } from './shortcuts'
+import { isEditable, isMac } from './shortcuts'
 import { createLongPress } from './longPress'
 import { flatten, keyNav, typeahead } from './tree'
 import type { Row, TreeSource } from './tree'
@@ -21,6 +21,8 @@ const EDGE = 28
 
 type Drag = {
   kind(ids: string[]): string | null
+  /** Whether a drag of this payload is the tree's business at all (default: all). When not, the tree ignores it entirely: no `preventDefault`, no drop effect, no highlight, no label. */
+  accepts?(payload: DragPayload): boolean
   rule(payload: DragPayload, target: string | null, pos: Pos, effect: Effect): DropRule
   allowInside(target: string): boolean
   onDrop(payload: DragPayload, target: string | null, pos: Pos, effect: Effect): void
@@ -220,7 +222,7 @@ export function TreeView(p: {
   const onDragOver = (e: ReactDragEvent) => {
     if (!drag) return
     const payload = readDrag(e.dataTransfer)
-    if (!payload) return
+    if (!payload || drag.accepts?.(payload) === false || isEditable(e.target)) return
     const { row, pos, effect, rule } = target(e, payload)
     const el = box.current!
     const r = el.getBoundingClientRect()
@@ -254,7 +256,7 @@ export function TreeView(p: {
   const onDrop = (e: ReactDragEvent) => {
     if (!drag) return
     const payload = readDrag(e.dataTransfer)
-    if (!payload) return
+    if (!payload || drag.accepts?.(payload) === false || isEditable(e.target)) return
     e.preventDefault()
     const { row, pos, effect, rule } = target(e, payload)
     clearOver()

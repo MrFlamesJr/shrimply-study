@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
-import { DRAG_MIME, dropPosition, edgeZone, effectFor, endDrag, readDrag, startDrag } from './dnd'
+import { DRAG_MIME, dropPosition, edgeZone, effectFor, endDrag, guardNativeDrags, readDrag, startDrag } from './dnd'
 
 type Fake = DataTransfer & { data: Record<string, string> }
 const fakeDt = (): Fake => {
@@ -73,5 +73,69 @@ describe('edgeZone', () => {
     expect(edgeZone(r, 140, 102)).toBe('top')
     expect(edgeZone(r, 495, 298)).toBe('bottom')
     expect(edgeZone(r, 498, 250)).toBe('right')
+  })
+})
+
+describe('guardNativeDrags', () => {
+  type Listener = (e: unknown) => void
+  // A document that only keeps its listeners: capture ones run first, as in the browser.
+  const fakeDoc = () => {
+    const capture: Record<string, Listener[]> = {}
+    const bubble: Record<string, Listener[]> = {}
+    const doc = {
+      addEventListener: (type: string, fn: Listener, cap?: boolean) => ((cap ? capture : bubble)[type] ??= []).push(fn),
+      removeEventListener: (type: string, fn: Listener, cap?: boolean) => {
+        const list = (cap ? capture : bubble)[type] ?? []
+        list.splice(list.indexOf(fn), 1)
+      },
+    }
+    const fire = (type: string, e: Record<string, unknown>) => {
+      const event = { defaultPrevented: false, preventDefault() { this.defaultPrevented = true }, ...e }
+      for (const fn of capture[type] ?? []) fn(event)
+      for (const fn of bubble[type] ?? []) fn(event)
+      return event as { defaultPrevented: boolean; dataTransfer?: { dropEffect: string } }
+    }
+    return { doc: doc as unknown as Document, fire, count: () => Object.values({ ...capture, ...bubble }).flat().length }
+  }
+  const el = (closest: (selector: string) => unknown) => ({ nodeType: 1, nodeName: 'DIV', closest })
+  const dt = (types: string[]) => ({ types, dropEffect: 'move' })
+
+  it('cancels the drag of a link or an image outside a draggable source', () => {
+    const { doc, fire } = fakeDoc()
+    guardNativeDrags(doc)
+    const link = (inside: boolean) => el((s) => (s.startsWith('a[href]') ? {} : inside ? {} : null))
+    expect(fire('dragstart', { target: link(false) }).defaultPrevented).toBe(true)
+    expect(fire('dragstart', { target: link(true) }).defaultPrevented).toBe(false)
+    expect(fire('dragstart', { target: el(() => null) }).defaultPrevented).toBe(false)
+  })
+
+  it('refuses our own payload on a text field only', () => {
+    const { doc, fire } = fakeDoc()
+    guardNativeDrags(doc)
+    const field = { nodeType: 1, nodeName: 'TEXTAREA' }
+    const over = fire('dragover', { target: field, dataTransfer: dt([DRAG_MIME, 'text/plain']) })
+    expect(over.defaultPrevented).toBe(true)
+    expect(over.dataTransfer?.dropEffect).toBe('none')
+    expect(fire('dragover', { target: el(() => null), dataTransfer: dt([DRAG_MIME]) }).defaultPrevented).toBe(false)
+    expect(fire('dragover', { target: field, dataTransfer: dt(['text/plain']) }).defaultPrevented).toBe(false)
+  })
+
+  it('refuses a file nobody took, and leaves one a target took', () => {
+    const { doc, fire } = fakeDoc()
+    guardNativeDrags(doc)
+    const loose = fire('dragover', { target: el(() => null), dataTransfer: dt(['Files']) })
+    expect(loose.defaultPrevented).toBe(true)
+    expect(loose.dataTransfer?.dropEffect).toBe('none')
+    const taken = fire('dragover', { target: el(() => null), dataTransfer: dt(['Files']), defaultPrevented: true })
+    expect(taken.dataTransfer?.dropEffect).toBe('move')
+    expect(fire('drop', { target: el(() => null), dataTransfer: dt(['Files']) }).defaultPrevented).toBe(true)
+  })
+
+  it('takes its listeners off again', () => {
+    const { doc, count } = fakeDoc()
+    const off = guardNativeDrags(doc)
+    expect(count()).toBeGreaterThan(0)
+    off()
+    expect(count()).toBe(0)
   })
 })

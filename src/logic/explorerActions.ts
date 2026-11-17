@@ -21,12 +21,28 @@ const PLACE = { course: 'a file', quiz: 'a course', card: 'a quiz', group: 'a qu
 const MIXED = 'Pick items of one kind.'
 const OPEN_FIRST = 'Open the library first.'
 const READ_ONLY = 'Open the library to change it.'
+const VIEW_ONLY = 'This library is view only. Make a copy to change it.'
+const NONE: ReadonlySet<DocId> = new Set()
 
-/** Whether the item is inside a Google Drive library that is only looked at (not open): read-only, copy only. */
+/** Whether the item is inside a library that is only looked at (not open): read-only, copy only. */
 export const isPeekRef = (r: ItemRef): boolean => isPeekDoc(r.doc)
+/**
+ * Why nothing can be put into or changed in this file, or undefined. A library only looked at (not open) must be opened
+ * first; an open view-only one (`readOnly`) is copy only, out but never in.
+ */
+const lockReason = (doc: DocId, readOnly: ReadonlySet<DocId>): string | undefined =>
+  isPeekDoc(doc) ? READ_ONLY : readOnly.has(doc) ? VIEW_ONLY : undefined
 // The list does not say whose a library is (what the app saved, or what the user picked), so no "your" here.
-const NOT_OPEN_WHERE = whereLine({ hasFile: false, drive: { shared: false, trashed: false }, yours: false, signedIn: false })
+const NOT_OPEN_WHERE = whereLine({ drive: { shared: false, trashed: false }, yours: false, signedIn: false })
+const BROWSER_WHERE = whereLine({ drive: null, yours: false, signedIn: false })
 const BIN_FROM_MENU = 'Move a Google Drive library to the bin from its own menu.'
+
+/**
+ * A library that is closed but still listed: `browser` (kept in this browser), `mine` (in the signed-in user's Drive
+ * list: Move to bin) or `link` (a Drive file opened from a link: Remove from list).
+ */
+export type ClosedKind = 'browser' | 'mine' | 'link'
+const CLOSED_REMOVE: Record<ClosedKind, string> = { browser: 'Delete from this browser', mine: 'Move to bin', link: 'Remove from list' }
 
 /** "1 card", "3 quizzes". */
 export const kindCount = (kind: ItemKind, n: number): string => (kind === 'quiz' ? plural(n, 'quiz', 'quizzes') : plural(n, kind))
@@ -79,18 +95,20 @@ export type FileStatus = { open: boolean; dirty: boolean; where: string; words: 
  * library not open; `words` says all of it for a screen reader. Null for a node that is not a file.
  */
 export function fileStatus(
-  meta: Record<DocId, { where: string; dirty: boolean }>,
+  meta: Record<DocId, { where: string; dirty: boolean; readOnly?: boolean }>,
   node: string,
-  drive?: { listing: DriveListing },
+  drive?: { listing: DriveListing; closed?: Record<string, ClosedKind> },
 ): FileStatus | null {
   const g = parseDriveNode(node)
   if (g) {
     const found = g.kind === 'file' && drive?.listing.files?.some((f) => f.id === g.id)
-    return found ? { open: false, dirty: false, where: NOT_OPEN_WHERE, words: `Not open, ${NOT_OPEN_WHERE}` } : null
+    if (!found) return null
+    const where = drive?.closed?.[g.id] === 'browser' ? BROWSER_WHERE : NOT_OPEN_WHERE
+    return { open: false, dirty: false, where, words: `Not open, ${where}` }
   }
   const r = parseNode(node)
   const m = r?.kind === 'doc' ? meta[r.doc] : undefined
-  return m ? { open: true, dirty: m.dirty, where: m.where, words: `Open, ${m.dirty ? 'unsaved changes, ' : ''}${m.where}` } : null
+  return m ? { open: true, dirty: m.dirty, where: m.where, words: `Open, ${m.readOnly ? 'view only, ' : ''}${m.dirty ? 'needs attention, ' : ''}${m.where}` } : null
 }
 
 /** The muted text after a course, quiz or card: a card's sides or kind. Files have chips instead (`fileStatus`). */
@@ -112,7 +130,7 @@ export const whereIcon = (where: string): 'cloud' | 'browser' | 'file' =>
 // ---- Paste
 
 /** Where a paste at a node goes (inside a file, course or quiz; after a card; the last file for no node), or why not. */
-export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | null): { target: Target } | { reason: string } {
+export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | null, readOnly: ReadonlySet<DocId> = NONE): { target: Target } | { reason: string } {
   if (!clipboard || clipboard.refs.length === 0) return { reason: 'Nothing to paste.' }
   if (Object.keys(docs).length === 0) return { reason: 'Open a file first.' }
   if (node !== null && parseDriveNode(node)) return { reason: OPEN_FIRST }
@@ -122,7 +140,8 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
   const pos = at?.kind === 'card' || (at?.kind === 'group' && kind === 'group') ? 'after' : 'inside'
   const target = targetFor(docs, node, pos, kind)
   if (!target) return { reason: `A ${kind} can only go in ${PLACE[kind]}.` }
-  if (isPeekDoc(target.doc)) return { reason: READ_ONLY }
+  const lock = lockReason(target.doc, readOnly)
+  if (lock) return { reason: lock }
   const reason = canPlace(docs, clipboard.refs, target, clipboard.mode === 'cut' ? 'move' : 'copy')
   return reason ? { reason } : { target }
 }
@@ -131,8 +150,8 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
 
 export type Action =
   | 'newFile' | 'openFile' | 'newCourse' | 'newQuiz' | 'newCard' | 'open' | 'openNew' | 'edit' | 'rename'
-  | 'copy' | 'cut' | 'paste' | 'moveTo' | 'delete' | 'save' | 'download' | 'close'
-  | 'driveOpen' | 'driveRemove' | 'driveRetry' | 'ungroup' | 'moveUp' | 'moveDown'
+  | 'copy' | 'cut' | 'paste' | 'moveTo' | 'delete' | 'download' | 'close' | 'upload' | 'share' | 'makeCopy'
+  | 'closedOpen' | 'closedDownload' | 'closedRemove' | 'driveRetry' | 'ungroup' | 'moveUp' | 'moveDown'
 export type Item = {
   action: Action
   label: string
@@ -145,38 +164,60 @@ export type Item = {
   submenu?: Item[]
 }
 export type Entry = 'separator' | Item
-export type MenuContext = { docs: Docs; names: Record<DocId, string>; clipboard: Clip | null; mac: boolean }
+export type MenuContext = {
+  docs: Docs
+  names: Record<DocId, string>
+  clipboard: Clip | null
+  mac: boolean
+  /** Each open file: where it lives and whether it is view only (copy only: out but never in). */
+  files: Record<DocId, { place: 'drive' | 'browser'; readOnly: boolean }>
+  /** The closed libraries listed, by their file node's id. */
+  closed: Record<string, ClosedKind>
+  /** False when Google Drive is not set up here: nothing to upload or share to. */
+  driveSetUp: boolean
+}
+
+/** The open files that are view only. */
+export const readOnlyOf = (files: MenuContext['files']): ReadonlySet<DocId> =>
+  new Set(Object.entries(files).flatMap(([id, f]) => (f.readOnly ? [id] : [])))
 
 /** The menu for the selected nodes `ids` (none: empty space); `at` is the node pointed at, where a paste goes. */
 export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Entry[] {
   const sc = (combo: string) => comboLabel(combo, ctx.mac)
+  const readOnly = readOnlyOf(ctx.files)
   const kind = selectionKind(ids)
   const item = (action: Action, label: string, extra: Partial<Item> = {}): Item => ({ action, label, ...extra })
   const only = (what: string): Partial<Item> => (ids.length > 1 ? { disabled: true, reason: `Pick one ${what}.` } : {})
   const paste = (): Item => {
-    const r = pasteTarget(ctx.docs, ctx.clipboard, at)
+    const r = pasteTarget(ctx.docs, ctx.clipboard, at, readOnly)
     return item('paste', 'Paste', { shortcut: sc('Mod+V'), ...('reason' in r && { disabled: true, reason: r.reason }) })
   }
 
-  if (kind === null) return [item('newFile', 'New file'), item('openFile', 'Open file'), 'separator', paste()]
+  if (kind === null) return [item('newFile', 'New file'), item('openFile', 'Open a copy from this device'), 'separator', paste()]
   if (kind === 'drivefile') {
+    const kinds = new Set(ids.map((id) => ctx.closed[parseDriveNode(id)!.id]))
     return [
-      item('driveOpen', 'Open', only('library')),
+      item('closedOpen', 'Open', only('library')),
       item('paste', 'Paste', { shortcut: sc('Mod+V'), disabled: true, reason: OPEN_FIRST }),
       'separator',
-      item('driveRemove', 'Move to bin', { shortcut: 'Delete', danger: true, ...only('library') }),
+      item('closedDownload', 'Download a copy', only('library')),
+      'separator',
+      item('closedRemove', kinds.size === 1 ? CLOSED_REMOVE[[...kinds][0]] : 'Remove', { shortcut: 'Delete', danger: true }),
     ]
   }
   if (kind === 'drivefailed') return [item('driveRetry', 'Retry')]
   if (kind === 'driveloading') return []
   if (kind === 'doc') {
+    const file = ctx.files[docIds(ids)[0]]
+    const locked = file?.readOnly ? { disabled: true, reason: VIEW_ONLY } : {}
     return [
       item('openNew', 'Open in new tab', only('file')),
-      item('newCourse', 'New course', only('file')),
+      item('newCourse', 'New course', ids.length > 1 ? only('file') : locked),
       paste(),
       'separator',
-      item('save', 'Save'),
-      item('download', 'Download'),
+      ...(file?.readOnly ? [item('makeCopy', 'Make a copy', only('file'))] : file?.place === 'browser' && ctx.driveSetUp ? [item('upload', 'Upload to Google Drive…', only('file'))] : []),
+      ...(ctx.driveSetUp ? [item('share', 'Share…', only('file'))] : []),
+      item('download', 'Download a copy'),
       item('close', 'Close file'),
     ]
   }
@@ -194,17 +235,19 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
       const label = dir === 'up' ? 'Move up' : 'Move down'
       const shortcut = sc(dir === 'up' ? 'Alt+Shift+ArrowUp' : 'Alt+Shift+ArrowDown')
       if (refs.length !== 1) return item(dir === 'up' ? 'moveUp' : 'moveDown', label, { shortcut, disabled: true, reason: `Pick one ${what}.` })
-      if (isPeekRef(refs[0])) return item(dir === 'up' ? 'moveUp' : 'moveDown', label, { shortcut, disabled: true, reason: READ_ONLY })
+      const lock = lockReason(refs[0].doc, readOnly)
+      if (lock) return item(dir === 'up' ? 'moveUp' : 'moveDown', label, { shortcut, disabled: true, reason: lock })
       const t = reorderTarget(ctx.docs, refs[0], dir)
       return item(dir === 'up' ? 'moveUp' : 'moveDown', label, { shortcut, ...('reason' in t && { disabled: true, reason: t.reason }) })
     })
   // Inside a library that is not open: look and copy only.
-  const ro: Partial<Item> = refs.some(isPeekRef) ? { disabled: true, reason: READ_ONLY } : {}
+  const locked = refs.map((r) => lockReason(r.doc, readOnly)).find((reason) => reason !== undefined)
+  const ro: Partial<Item> = locked ? { disabled: true, reason: locked } : {}
   // Its own tab, beside the one that file's pages reuse (asked for: Open reuses the file's tab).
   const openNew = (what: string): Item =>
     item('openNew', 'Open in new tab', refs.some(isPeekRef) ? { disabled: true, reason: OPEN_FIRST } : only(what))
   const oneKind: Partial<Item> = mixed ? { disabled: true, reason: MIXED } : {}
-  const destinations = mixed ? [] : moveDestinations(ctx.docs, ctx.names, refs)
+  const destinations = mixed ? [] : moveDestinations(ctx.docs, ctx.names, refs, readOnly)
   const moveTo = item('moveTo', 'Move to…', ro.disabled ? ro : mixed ? oneKind : destinations.length === 0 ? { disabled: true, reason: 'There is nowhere else to move it.' } : {})
   const copy = item('copy', 'Copy', { shortcut: sc('Mod+C'), ...oneKind })
   const cut = item('cut', 'Cut', { shortcut: sc('Mod+X'), ...oneKind, ...ro })
@@ -272,7 +315,7 @@ export function keyDecision(ctx: MenuContext, e: KeyEvent, ids: string[], at: st
   const action: Action | null = matches(e, 'Mod+C', ctx.mac) ? 'copy'
     : matches(e, 'Mod+X', ctx.mac) ? 'cut'
     : matches(e, 'Mod+V', ctx.mac) ? 'paste'
-    : matches(e, 'Delete', ctx.mac) ? (kind === 'drivefile' ? 'driveRemove' : 'delete')
+    : matches(e, 'Delete', ctx.mac) ? (kind === 'drivefile' ? 'closedRemove' : 'delete')
     : matches(e, 'F2', ctx.mac) ? (kind === 'card' ? 'edit' : 'rename')
     : matches(e, 'Alt+Shift+ArrowUp', ctx.mac) ? 'moveUp'
     : matches(e, 'Alt+Shift+ArrowDown', ctx.mac) ? 'moveDown'
@@ -418,11 +461,12 @@ function topmost(docs: Docs, refs: ItemRef[]): ItemRef[] {
   })
 }
 
-export function deletePlan(docs: Docs, ids: string[], mac: boolean): DeletePlan | { reason: string } {
+export function deletePlan(docs: Docs, ids: string[], mac: boolean, readOnly: ReadonlySet<DocId> = NONE): DeletePlan | { reason: string } {
   if (ids.some((id) => parseDriveNode(id))) return { reason: BIN_FROM_MENU }
   if (docIds(ids).length > 0) return { reason: 'Close a file instead of deleting it.' }
   const refs = itemRefs(ids)
-  if (refs.some(isPeekRef)) return { reason: READ_ONLY }
+  const lock = refs.map((r) => lockReason(r.doc, readOnly)).find((reason) => reason !== undefined)
+  if (lock) return { reason: lock }
   if (refs.length === 0) return { reason: 'Nothing is selected.' }
   const top = topmost(docs, refs)
   const what = top.every((r) => r.kind === top[0].kind) ? kindCount(top[0].kind, top.length) : plural(top.length, 'item')
@@ -475,7 +519,7 @@ export function dragKind(ids: string[]): ItemKind | null {
 export const allowInside = (node: string): boolean => parseNode(node)?.kind !== 'card' && !parseDriveNode(node)
 
 /** Where `ids` dropped at `node` land, or why they can not. */
-export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: Pos): { target: Target } | { reason: string } {
+export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: Pos, readOnly: ReadonlySet<DocId> = NONE): { target: Target } | { reason: string } {
   const g = node === null ? null : parseDriveNode(node)
   if (g) return { reason: OPEN_FIRST }
   const refs = itemRefs(ids)
@@ -489,17 +533,19 @@ export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: 
   }
   if (at?.kind === 'card' && kind === 'group') return { reason: "A group can't go inside a card." }
   const target = targetFor(docs, node, pos, kind)
-  if (target && isPeekDoc(target.doc)) return { reason: READ_ONLY }
+  const lock = target && lockReason(target.doc, readOnly)
+  if (lock) return { reason: lock }
   return target ? { target } : { reason: `A ${kind} can only go in ${PLACE[kind]}.` }
 }
 
-/** What a drag of these does: from a library that is not open it only copies, whatever the keys say. */
-export const dragEffect = (ids: string[], effect: Effect): Effect => (itemRefs(ids).some(isPeekRef) ? 'copy' : effect)
+/** What a drag of these does: from a library that is not open or view only it only copies, whatever the keys say. */
+export const dragEffect = (ids: string[], effect: Effect, readOnly: ReadonlySet<DocId> = NONE): Effect =>
+  itemRefs(ids).some((r) => isPeekRef(r) || readOnly.has(r.doc)) ? 'copy' : effect
 
-export function dropRule(docs: Docs, ids: string[], node: string | null, pos: Pos, effect: Effect): { ok: true } | { ok: false; reason: string } {
-  const t = dropTarget(docs, ids, node, pos)
+export function dropRule(docs: Docs, ids: string[], node: string | null, pos: Pos, effect: Effect, readOnly: ReadonlySet<DocId> = NONE): { ok: true } | { ok: false; reason: string } {
+  const t = dropTarget(docs, ids, node, pos, readOnly)
   if ('reason' in t) return { ok: false, reason: t.reason }
-  const reason = canPlace(docs, itemRefs(ids), t.target, dragEffect(ids, effect))
+  const reason = canPlace(docs, itemRefs(ids), t.target, dragEffect(ids, effect, readOnly))
   return reason ? { ok: false, reason } : { ok: true }
 }
 
@@ -520,15 +566,15 @@ export function placeItems(docs: Docs, refs: ItemRef[], target: Target, effect: 
   }
 }
 
-export function dropPlan(docs: Docs, ids: string[], node: string | null, pos: Pos, effect: Effect, fresh: () => string): Plan {
-  const t = dropTarget(docs, ids, node, pos)
-  return 'reason' in t ? { ok: false, reason: t.reason } : placeItems(docs, itemRefs(ids), t.target, dragEffect(ids, effect), fresh)
+export function dropPlan(docs: Docs, ids: string[], node: string | null, pos: Pos, effect: Effect, fresh: () => string, readOnly: ReadonlySet<DocId> = NONE): Plan {
+  const t = dropTarget(docs, ids, node, pos, readOnly)
+  return 'reason' in t ? { ok: false, reason: t.reason } : placeItems(docs, itemRefs(ids), t.target, dragEffect(ids, effect, readOnly), fresh)
 }
 
 export type Destination = { label: string; target: Target }
 
 /** Where else the items (of one kind) can be moved: every file, course or quiz that takes them, as a path. */
-export function moveDestinations(docs: Docs, names: Record<DocId, string>, refs: ItemRef[]): Destination[] {
+export function moveDestinations(docs: Docs, names: Record<DocId, string>, refs: ItemRef[], readOnly: ReadonlySet<DocId> = NONE): Destination[] {
   if (refs.length === 0) return []
   const kind = refs[0].kind
   const out: Destination[] = []
@@ -537,6 +583,7 @@ export function moveDestinations(docs: Docs, names: Record<DocId, string>, refs:
     if (!here(target) && canPlace(docs, refs, target, 'move') === null) out.push({ label, target })
   }
   for (const [doc, lib] of Object.entries(docs)) {
+    if (readOnly.has(doc)) continue
     const file = names[doc] ?? doc
     if (kind === 'course') add(file, { kind: 'doc', doc })
     for (const course of lib.courses) {

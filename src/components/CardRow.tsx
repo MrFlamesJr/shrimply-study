@@ -17,7 +17,8 @@ type Props = {
   note?: ReactNode
   /** Head the card like the editor's card head (quiz page): its number (`lead`), its sides or kind, the pencil. */
   kind?: boolean
-  onEdit: () => void
+  /** Left out in a view-only file: no pencil. */
+  onEdit?: () => void
   /** With `kind`: a trash button next to the pencil that deletes the card. */
   onDelete?: () => void
 }
@@ -28,7 +29,7 @@ type Props = {
  */
 export function CardRow({ card, lead, blank, note, kind, onEdit, onDelete }: Props) {
   // The pencil comes before the note, so the note takes a row of its own under the text.
-  const edit = (
+  const edit = onEdit && (
     <IconButton className="row-edit" label="Edit card" onClick={onEdit}>
       <PencilIcon />
     </IconButton>

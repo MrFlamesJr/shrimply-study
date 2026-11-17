@@ -191,3 +191,40 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   PaneScreen hands each `ExplorerPane` the workspace as its tab sees it (`explorer` and `setExplorer` for that tab),
   so ExplorerPane is unchanged. Its search text and scroll are per tab while open (each tab's own component), not
   yet kept across a reload (that needs Explorer.tsx to take them as props).
+
+- Asked for, 2026-11-17 (D, Drive-first files): a library is a Google Drive file or a browser library; "On this device" and
+  saving into a `.shrimp` file are gone (`StorageAdapter` keeps `openFiles` and `download`, copies only, no handles).
+  A `.shrimp` file opens as a browser library named after it, with a toast offering Upload to Google Drive. Signed in, a
+  new library is made in the user's Drive; a Drive library of your own autosaves 1.5 s after the last edit and
+  `needsAttention` (not "unsaved") drives the dot, the corner badge and the warn line. A paused save says why (sign in
+  again, offline, changed on Google Drive: Keep mine / Take the Drive version / Cancel, or an error retried after 30 s),
+  never silently. Closing never removes a library: it stays in the Explorer's closed files (`closed` in `workspace.v1`,
+  its `doc.<id>` kept) until Delete from this browser, Move to bin, Remove from list or Sign out. Save all, Ctrl+Alt+S and
+  "Save changes?" on close went with it. Not a library format change, `FORMAT_VERSION` stays 3.
+- Asked for, 2026-11-17 (V, view-only shared libraries): a Drive file not known to be the signed-in user's own is view
+  only, for everyone but its owner. The state refuses writes (`apply`), the screens show no edit affordance and one
+  quiet line with Make a copy. It is always in sync, with no Pull: a checksum check on open, start, focus and every 60 s
+  takes a newer version silently, and `keepIds` carries ids over so pages and a study round keep their place. Copy out
+  of it works in the Explorer, paste in does not. Chosen over "save a copy on Ctrl+S" and "Pull changes" because a
+  student of a shared set cannot lose or fork it by accident.
+- Asked for, 2026-11-17 (A, one account per browser): the sign-in moved from each tab's session storage to one
+  localStorage key, `shrimply-google-sign-in`. New tabs and restarts stay signed in, and signing in or out in one tab
+  reaches the others. Sign out flushes pending saves (asking when one cannot be saved), then closes every Drive library,
+  yours and shared, in every tab and forgets everything about the account; browser libraries stay. The hidden own files
+  of 2026-11-16 (`hiddenDocs`, `isHidden`, `claimOwners`, `ui.owners`, `HiddenFilesNote`, `logic/signOut.ts`) are replaced
+  by this: nothing about a signed-out account is kept, so nothing needs hiding. A 401 pauses saves instead of signing out.
+- Asked for, 2026-11-17 (SH, sharing made plain): the Google Drive dialog is gone. Open (your libraries, Paste a link, a
+  .shrimp copy) and Share (one primary button: Copy link turns sharing on and copies at once; Stop sharing asks first;
+  a browser library uploads first) are separate dialogs; the account is only in the sidebar's account box.
+  `unshareDriveFile` and `driveIdFromLink` are new.
+- Asked for, 2026-11-17 (P, popup address and pane mode): a popped-out window has a real address, its focused group's
+  active tab with `&pane` (`addressIn(win)`, `setPopupAddress`). Reloading it keeps it popped out (the kit takes the
+  reloaded document over again); a controlled popup that boots as the app is sent to `popout.html` first
+  (`POPUP_PREFIX` in `main.tsx`). Pasted in a new tab, the address opens pane mode: one group with one tab, no sidebar
+  (`is-pane`), its layout never written to the saved workspace, and Open full app reloads it without `pane`.
+- Asked for, 2026-11-17: How studying works is a tab (`#/_how-to-study`, `StudyTipsScreen`), opened from a link under the
+  quiz page's study options, replacing the InfoBox and its `tipsPref` key.
+- Asked for, 2026-11-17: drag and drop only onto real targets: the Explorer accepts only courses, quizzes, cards and
+  groups (`TreeView` `drag.accepts`), links and images are not natively draggable and a file dragged from the computer
+  drops only on an image slot (`guardNativeDrags`); editor cards stay in their own section.
+- Asked for, 2026-11-17: the Explorer's head and tip stay put at the top, only the tree scrolls, the Drive line at the bottom.

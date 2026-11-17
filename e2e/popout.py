@@ -1,4 +1,4 @@
-"""Popup windows (kit Popout) on #/_workbench: styles and theme, shared state, dialog, popover, resize, dock, close, reload, watchdog."""
+"""Popup windows (kit Popout) on #/_workbench: styles and theme, shared state, dialog, popover, resize, dock, close, a reload kept in the popup, watchdog."""
 import os
 import sys
 import time
@@ -88,10 +88,22 @@ def run(page, base):
     pop.evaluate('window.close()')
     assert docked(page), 'closing the popup did not dock the panel'
 
+    # A reload keeps the panel in the popup: taken over again, one watchdog, one root, nothing docked.
     pop = pop_out(page)
+    pop.get_by_test_id('count').click()
+    assert pop.get_by_test_id('count').inner_text() == 'Count 3'
     pop.reload()
-    assert docked(page), 'reloading the popup did not dock the panel'
-    assert wait_gone(pop, 3), 'popup stayed open after its reload'
+    pop.wait_for_selector('[data-testid=panel]', timeout=8000)
+    assert not docked(page, 1), 'reloading the popup docked the panel'
+    assert pop.url.endswith('popout.html'), f'popup url after its reload is {pop.url}'
+    assert pop.evaluate(LOOK) == page.evaluate(LOOK), 'reloaded popup lost the main window styles'
+    assert pop.evaluate('document.head.querySelectorAll("script").length') == 1, 'reloaded popup should hold exactly one watchdog script'
+    assert pop.evaluate('document.body.children.length') == 1, 'reloaded popup should hold exactly one root element'
+    pop.get_by_test_id('count').click()
+    assert pop.get_by_test_id('count').inner_text() == 'Count 4', 'reloaded popup does not follow the shared state'
+    pop.get_by_role('button', name='Dock').click()
+    assert docked(page), 'Dock did not work after a reload'
+    assert wait_gone(pop, 3), 'popup stayed open after Dock following a reload'
 
     pop = pop_out(page)
     page.reload()

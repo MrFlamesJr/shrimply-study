@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
 import { edgeZone, endDrag, readDrag, type DragPayload } from './dnd'
+import { isEditable } from './shortcuts'
 import type { GroupId, Node as Tree } from './layout'
 import './split.css'
 
@@ -125,10 +126,15 @@ function Split({ node, path, render, onResize, min }: BranchProps & { node: Extr
   )
 }
 
-type Zone = 'left' | 'right' | 'top' | 'bottom' | 'center'
+export type Zone = 'left' | 'right' | 'top' | 'bottom' | 'center'
 
 /** Overlay on a group (its parent element) while an accepted drag is over it. */
-export function DropZones(p: { accept(payload: DragPayload): boolean; onDrop(payload: DragPayload, zone: Zone): void }) {
+export function DropZones(p: {
+  accept(payload: DragPayload): boolean
+  /** Whether the drag may land in this zone (default: every zone): an edge that can not split is no zone, so no overlay shows for a drop that would do nothing. */
+  acceptZone?(payload: DragPayload, zone: Zone): boolean
+  onDrop(payload: DragPayload, zone: Zone): void
+}) {
   const mark = useRef<HTMLDivElement>(null)
   const latest = useRef(p)
   latest.current = p
@@ -144,8 +150,9 @@ export function DropZones(p: { accept(payload: DragPayload): boolean; onDrop(pay
     }
     const where = (e: DragEvent): Zone | null => {
       const payload = readDrag(e.dataTransfer)
-      if (!payload || !latest.current.accept(payload) || onStrip(e.target)) return null
-      return edgeZone(host.getBoundingClientRect(), e.clientX, e.clientY)
+      if (!payload || !latest.current.accept(payload) || onStrip(e.target) || isEditable(e.target)) return null
+      const z = edgeZone(host.getBoundingClientRect(), e.clientX, e.clientY)
+      return latest.current.acceptZone?.(payload, z) === false ? null : z
     }
     const over = (e: DragEvent) => {
       const z = where(e)

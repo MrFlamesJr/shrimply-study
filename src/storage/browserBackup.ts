@@ -90,7 +90,6 @@ export async function backupSize(): Promise<number> {
 
 const WORKSPACE_KEY = 'workspace.v1'
 const DOC = 'doc.'
-const HANDLE = 'handle.'
 const BROKEN_DOC = 'broken.doc.'
 // The fingerprint (textHash) of the last library.v1 text that became a document, or was found broken and kept aside.
 const MIGRATED = 'migrated.v1'
@@ -100,7 +99,7 @@ async function workspaceKeys(): Promise<string[]> {
   if (!(await openDb().catch(() => null))) return []
   const keys = await run('readonly', (store) => store.getAllKeys())
   return keys.filter(
-    (k): k is string => typeof k === 'string' && (k === WORKSPACE_KEY || k === MIGRATED || k.startsWith(DOC) || k.startsWith(HANDLE)),
+    (k): k is string => typeof k === 'string' && (k === WORKSPACE_KEY || k === MIGRATED || k.startsWith(DOC)),
   )
 }
 
@@ -143,25 +142,10 @@ export async function readDoc(id: string): Promise<DocRecord | null> {
 export const writeWorkspace = (rec: WorkspaceRecord): Promise<boolean> =>
   put(WORKSPACE_KEY, JSON.stringify(rec), { workspace: true })
 
-/** The file handle kept for a document (another tab may have stored it); null when there is none or it can't be read. */
-export async function readHandle(id: string): Promise<FileSystemFileHandle | null> {
-  if (!(await openDb().catch(() => null))) return null
-  const handle: unknown = await run('readonly', (store) => store.get(HANDLE + id)).catch(() => undefined)
-  return (handle as FileSystemFileHandle | undefined) ?? null
-}
-
-/** Keeps (or, with null, forgets) the file handle of a document. */
-export async function writeHandle(id: string, handle: FileSystemFileHandle | null): Promise<void> {
-  if (!(await openDb().catch(() => null))) return
-  if (handle) await run('readwrite', (store) => store.put(handle, HANDLE + id))
-  else await run('readwrite', (store) => store.delete(HANDLE + id))
-}
-
-/** Forgets a document and its file handle. */
+/** Forgets a document. Closing a file does not call this: only Delete from this browser and Sign out do. */
 export async function deleteDoc(id: string): Promise<void> {
   if (!(await openDb().catch(() => null))) return
   await run('readwrite', (store) => store.delete(DOC + id))
-  await run('readwrite', (store) => store.delete(HANDLE + id))
   workspaceTabs?.postMessage({ tab, doc: id })
 }
 
@@ -171,7 +155,6 @@ export const OLDER_TAB_NOTE = 'Changes made in another tab with an older version
 export type ReadWorkspace = {
   workspace: WorkspaceRecord | null
   docs: DocRecord[]
-  handles: Record<string, FileSystemFileHandle>
   /** Documents (or library.v1) that could not be read, copied aside. */
   broken: string[]
   /** Documents in `docs` the browser refused to store (a migrated library.v1): write them again. */
@@ -187,7 +170,7 @@ export type ReadWorkspace = {
  * `migrate`.
  */
 export async function readWorkspace(): Promise<ReadWorkspace> {
-  const none: ReadWorkspace = { workspace: null, docs: [], handles: {}, broken: [], unstored: [], notes: [] }
+  const none: ReadWorkspace = { workspace: null, docs: [], broken: [], unstored: [], notes: [] }
   if (!(await openDb().catch(() => null))) return none
   const get = (key: string): Promise<unknown> => run('readonly', (store) => store.get(key))
   // A copy aside that fails (storage full) loses nothing: the original stays where it is.
@@ -218,8 +201,6 @@ export async function readWorkspace(): Promise<ReadWorkspace> {
       read.broken.push(id)
       continue
     }
-    const handle = await get(HANDLE + id).catch(() => undefined)
-    if (handle) read.handles[id] = handle as FileSystemFileHandle
   }
   await migrate(read, ids, rawWorkspace !== undefined, get, putAside).catch(() => undefined) // library.v1 stays: tried again next start
   return read

@@ -13,9 +13,9 @@ import { QuizScreen } from '../screens/QuizScreen'
 import { EditScreen } from '../screens/EditScreen'
 import { StudyScreen } from '../screens/StudyScreen'
 import { ChangelogScreen } from '../screens/ChangelogScreen'
+import { StudyTipsScreen } from '../screens/StudyTipsScreen'
 import { ExplorerPane } from './ExplorerPane'
-import { CloudIcon } from '../components/Icons'
-import { hiddenFileText } from '../logic/signOut'
+import { fileStorage } from '../storage/fileStorage'
 import { makeTabNav, type TabNavOps } from './tabNav'
 
 /** What every tab's screen shares, from App. */
@@ -28,14 +28,17 @@ export type PaneShared = {
   setPrefs(options: StudyOptions): void
   collapsed: ReadonlySet<string>
   setCollapsed(collapsed: ReadonlySet<string>): void
-  tipsOpen: boolean
-  setTipsOpen(open: boolean): void
   /** The Explorer's tip is gone once the user has right-clicked there. */
   explorerTipSeen: boolean
   onExplorerTipSeen(): void
   openDrive(): void
   openFile(): Promise<boolean>
   openGuide(): Promise<boolean>
+  /** The Explorer's menus: put a library on Google Drive, or share it (the Share dialog). */
+  upload(doc: DocId): void
+  share(doc: DocId): void
+  /** The quiz page's "How studying works" link: that page as a tab in `group` (behind the current one when `background`). */
+  onStudyTips(group: string | null, background: boolean): void
   /** "New course": into the active file (the pane's, once it is pointed at), or a new one; shown in `group`. */
   newCourse(group?: string): void
   /** The Explorer's: where it opens and edits things, and the node to reveal (in that Explorer tab only). */
@@ -68,6 +71,7 @@ const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
 export function PaneScreen({ tab, group, shown, active, s }: Props) {
   const d = tab.data
   if (d.kind === 'changelog') return <ChangelogScreen />
+  if (d.kind === 'studyTips') return <StudyTipsScreen />
   if (d.kind === 'welcome') return <Welcome group={group} s={s} />
   if (d.kind === 'explorer') {
     return (
@@ -83,11 +87,12 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
         onRevealed={s.onRevealed}
         tipSeen={s.explorerTipSeen}
         onTipSeen={s.onExplorerTipSeen}
-        hiddenFiles={s.ws.hiddenDocs}
+        upload={s.upload}
+        share={s.share}
+        downloadLibrary={async (l, n) => void (await fileStorage.download(l, n))}
       />
     )
   }
-  if (d.kind === 'doc' && s.ws.isHidden(d.doc)) return <HiddenFile s={s} />
   // A file's tab (a tab of a file that is gone never stays: closing a file closes its tabs).
   if (d.kind !== 'doc' || !s.ws.docs.some((x) => x.id === d.doc)) return null
   return <DocPane tab={tab as Tab<Extract<TabData, { kind: 'doc' }>>} group={group} shown={shown} active={active} s={s} />
@@ -103,9 +108,9 @@ function Welcome({ group, s }: { group: string | null; s: PaneShared }) {
       <HomeScreen
         lib={lib}
         nav={null}
-        driveSetUp={ws.drive.setUp}
-        loadLabel={ws.loadLabel}
-        loadHint={ws.loadHint}
+        drive={ws.drive}
+        openLabel={ws.openLabel}
+        openHint={ws.openHint}
         openFile={s.openFile}
         openGuide={s.openGuide}
         newCourse={() => s.newCourse(group ?? undefined)}
@@ -117,35 +122,14 @@ function Welcome({ group, s }: { group: string | null; s: PaneShared }) {
   )
 }
 
-// A hidden file's tab (asked for): nothing of the file shows, only why, and Sign in (signed out).
-function HiddenFile({ s }: { s: PaneShared }) {
-  const signedIn = s.ws.drive.signedIn()
-  return (
-    <div className="page">
-      <section className="empty hidden-file">
-        <CloudIcon />
-        <h1>Hidden file</h1>
-        <p className="muted">{hiddenFileText(signedIn)}</p>
-        {!signedIn && (
-          <div className="actions">
-            <button type="button" className="primary" onClick={() => void s.ws.drive.signIn()}>
-              Sign in with Google
-            </button>
-          </div>
-        )}
-      </section>
-    </div>
-  )
-}
-
 function Home({ lib, nav, s }: { lib: LibraryApi; nav: Nav; s: PaneShared }) {
   return (
     <HomeScreen
       lib={lib}
       nav={nav}
-      driveSetUp={s.ws.drive.setUp}
-      loadLabel={s.ws.loadLabel}
-      loadHint={s.ws.loadHint}
+      drive={s.ws.drive}
+      openLabel={s.ws.openLabel}
+      openHint={s.ws.openHint}
       openFile={s.openFile}
       openGuide={s.openGuide}
       newCourse={() => s.newCourse()}
@@ -174,6 +158,11 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
     if (!replacedSince) s.notify('info', `Couldn't find the ${missing} "${name}"`)
     nav.redirect(course ? { name: 'course', course: course.name } : { name: 'home' })
   }, [missing, lib.replaced])
+
+  // A view-only library has no editor: its edit address goes to the quiz page.
+  useEffect(() => {
+    if (lib.readOnly && route.name === 'edit') nav.redirect({ name: 'quiz', course: route.course, quiz: route.quiz })
+  }, [lib.readOnly, route.name])
 
   // The pane scrolls, and its tabs share it: each tab keeps its own place, and a new page opens at the top. Layout
   // effects, so a page never paints scrolled elsewhere. By id, so renaming the page's course or quiz keeps it.
@@ -219,9 +208,8 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
         setPrefs={s.setPrefs}
         collapsed={s.collapsed}
         setCollapsed={s.setCollapsed}
-        tipsOpen={s.tipsOpen}
-        setTipsOpen={s.setTipsOpen}
         nav={nav}
+        onStudyTips={(background) => s.onStudyTips(group, background)}
         notify={s.notify}
         undoLater={ws.undoLater}
         openCard={card}

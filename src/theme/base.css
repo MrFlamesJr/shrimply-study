@@ -24,30 +24,30 @@
   background: var(--border-strong);
   border-radius: var(--radius);
 }
-/* A scroll box inside a box (the feedback sheet's text, a study card, the Drive dialog's list of libraries): a slim
+/* A scroll box inside a box (the feedback sheet's text, a study card, the Drive dialog's list of libraries, the Explorer's tree): a slim
    thumb with the theme's corners, clear of
    the box's ends (and so of a card's rounded corners), brighter while pointed at. Chromium and Safari draw it from the
    -webkit- rules once the standard properties above, which win over them, are back to auto; Firefox keeps the thin
    standard one. */
 @supports selector(::-webkit-scrollbar) {
-  :is(.sheet-text, .card-scroll, .drive-files) {
+  :is(.sheet-text, .card-scroll, .drive-files, .explorer .kit-tree) {
     scrollbar-width: auto;
     scrollbar-color: auto;
   }
 }
-:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar {
+:is(.sheet-text, .card-scroll, .drive-files, .explorer .kit-tree)::-webkit-scrollbar {
   width: var(--space-3);
 }
-:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar-track {
+:is(.sheet-text, .card-scroll, .drive-files, .explorer .kit-tree)::-webkit-scrollbar-track {
   margin-block: var(--space-1);
   background: transparent;
 }
-:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar-thumb {
+:is(.sheet-text, .card-scroll, .drive-files, .explorer .kit-tree)::-webkit-scrollbar-thumb {
   background: var(--border-strong) padding-box;
   border: var(--space-1) solid transparent;
   border-radius: var(--radius);
 }
-:is(.sheet-text, .card-scroll, .drive-files)::-webkit-scrollbar-thumb:hover {
+:is(.sheet-text, .card-scroll, .drive-files, .explorer .kit-tree)::-webkit-scrollbar-thumb:hover {
   background-color: var(--text-muted);
 }
 /* The page ground: --bg, then two layers fixed to the window behind everything: ::before the backdrop, ::after

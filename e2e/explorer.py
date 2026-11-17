@@ -225,7 +225,7 @@ def drive_tests(page, state):
     page.wait_for_timeout(150)
     drive_row(page, 'beta').click(button='right')
     names = page.get_by_role('menuitem').all_inner_texts()
-    need([n.splitlines()[0] for n in names] == ['Open', 'Paste', 'Move to bin'], f'its menu: {names}')
+    need([n.splitlines()[0] for n in names] == ['Open', 'Paste', 'Download a copy', 'Move to bin'], f'its menu: {names}')
     need(page.get_by_role('menuitem', name=re.compile('^Paste')).get_attribute('aria-disabled') == 'true', 'Paste is off in its menu')
     page.keyboard.press('Escape')
 
@@ -267,7 +267,6 @@ def drive_tests(page, state):
     page.keyboard.press('Control+v')
     expand(page, 'course', '2. Term cards')
     wait_for(page, lambda: quiz_name in children(page, 'course', '2. Term cards'), 'the copy from a library not open lands in an open file')
-    need(dot(page, 'Test library'), 'and that file shows the unsaved dot')
     fold(page, 'doc', 'Test library')
 
     # Enter on something inside opens the library, then that item's page.
@@ -468,7 +467,7 @@ def run(page, base):
     wait_for(page, lambda: empty.count() == 1, 'no files: the Explorer shows its empty state')
     need('No files here yet' in empty.inner_text(), 'with a short title')
     buttons = [b.strip() for b in empty.locator('button').all_inner_texts()]
-    need(buttons == ['Sign in with Google', 'New file', 'Open file'], f'and one set of buttons: {buttons}')
+    need(buttons == ['Sign in with Google', 'New file', 'Open a copy from this device'], f'and one set of buttons: {buttons}')
     need(page.locator('.explorer-tip').count() == 0, 'no tip while there is nothing to right-click')
     page.goto(base + '#/_debug')
     page.get_by_role('button', name='Load test library').click()
@@ -537,11 +536,9 @@ def run(page, base):
     drag_row(page, row(page, 'course', mover), row(page, 'doc', 'Test library'))
     wait_for(page, lambda: mover in children(page, 'doc', 'Test library'), 'the course moved into the other file')
     need(children(page, 'doc', 'Guide') == guide_courses[:-1], 'the course left its file')
-    need(dot(page, 'Test library') and dot(page, 'Guide'), 'both files show the unsaved dot')
     page.keyboard.press('Control+z')
     wait_for(page, lambda: children(page, 'doc', 'Guide') == guide_courses, 'Ctrl+Z puts the course back')
     need(children(page, 'doc', 'Test library') == test_courses, 'Ctrl+Z restores the other file too')
-    wait_for(page, lambda: not dot(page, 'Test library') and not dot(page, 'Guide'), 'Ctrl+Z clears both dots')
 
     # A refused drop says why.
     expand(page, 'course', '1. Start here')
@@ -550,7 +547,6 @@ def run(page, base):
     need(drop_label(page) == 'A card can only go in a quiz.', f'a refused drop shows its reason: {drop_label(page)}')
     page.mouse.up()
     page.wait_for_timeout(150)
-    need(not dot(page, 'Guide') and not dot(page, 'Test library'), 'a refused drop changes nothing')
 
     # Copy a quiz and paste it into a course of the other file; names are made free on the second paste.
     quiz = 'Read me first'
@@ -561,7 +557,6 @@ def run(page, base):
     page.keyboard.press('Control+v')
     expand(page, 'course', target)
     wait_for(page, lambda: quiz in children(page, 'course', target), 'the quiz is pasted into the course')
-    need(dot(page, 'Guide') and not dot(page, 'Test library'), 'only the file pasted into shows the dot')
     need(quiz in children(page, 'course', '1. Start here'), 'copy leaves the original')
     row(page, 'course', target).click()
     page.keyboard.press('Control+v')
@@ -695,7 +690,7 @@ def run(page, base):
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
     # Signed out, a Drive file that is open is not "yours" (nobody can tell): the sidebar's words, never "Your".
-    page.evaluate("sessionStorage.removeItem('shrimply-google-sign-in')")
+    page.evaluate("localStorage.removeItem('shrimply-google-sign-in')")
     page.wait_for_timeout(700)  # the workspace record waits out 300ms
     page.reload()
     wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name='Sign in to see your Google Drive').count() == 1, 'signed out again, the link is back')

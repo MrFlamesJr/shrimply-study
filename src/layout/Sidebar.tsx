@@ -1,14 +1,15 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useLayoutEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
 import type { Route } from '../route'
 import { comboLabel, isMac } from '../kit/shortcuts'
 import type { WorkspaceApi } from '../state/useWorkspace'
 import type { DocId } from '../logic/contentOps'
-import { ChevronsLeftIcon, FolderIcon, OpenIcon, ShrimpIcon } from '../components/Icons'
+import { statusText } from '../logic/autosave'
+import { ChevronsLeftIcon, CloudAlertIcon, CloudOffIcon, FolderIcon, OpenIcon, ShrimpIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
 import { FileTree } from './FileTree'
 import { ThemeSelect } from '../components/ThemeSelect'
-import { HiddenFilesNote } from './HiddenFilesNote'
+import { AccountBox } from './AccountBox'
 import type { ThemeId } from '../model'
 
 // `current`: the id of the course or quiz the address tab shows.
@@ -19,8 +20,13 @@ type Props = {
   setOpen: (open: boolean) => void
   theme: ThemeId
   setTheme: (theme: ThemeId) => void
-  /** Opens the Google Drive dialog. */
-  onDrive: () => void
+  /** The Files heading's Open: the Open dialog. */
+  onOpenDialog: () => void
+  /** New file (App asks where it lives when that is a choice). */
+  onNewFile: () => void
+  /** A library's Share dialog, and a browser library's Upload to Google Drive dialog. */
+  onShare: (doc: DocId) => void
+  onUpload: (doc: DocId) => void
   /** A file's own New course and a course's New quiz, in the tree. */
   onNewCourseIn: (doc: DocId) => void
   onNewQuiz: (doc: DocId, course: string) => void
@@ -55,7 +61,7 @@ export function useSidebarOpen() {
   return [open, setOpen] as const
 }
 
-export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, onNewCourseIn, onNewQuiz, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
+export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onOpenDialog, onNewFile, onShare, onUpload, onNewCourseIn, onNewQuiz, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -66,7 +72,19 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
    * workbench, so it glides only by its own part. A click mid-glide starts from where they are. On small screens the
    * drawer covers the page, so nothing else moves.
    */
+  // The corner badge (closed sidebar only): signed out, or a save that needs attention (paused).
+  const needy = ws.docs.filter((d) => d.dirty)
+  const signedOut = ws.drive.setUp && !ws.drive.signedIn()
+  const badge = open ? null : signedOut ? 'signedOut' : needy.length > 0 ? 'paused' : null
+  // Widens the closed corner (shell.css) while the badge shows.
+  useLayoutEffect(() => {
+    document.documentElement.toggleAttribute('data-account', badge !== null)
+    return () => document.documentElement.removeAttribute('data-account')
+  }, [badge])
+
   const toggle = () => {
+    // Closing: the badge grows from the account box's icon to its place in the corner.
+    const origin = open && (signedOut || needy.length > 0) ? document.querySelector('.account-box svg, .account-box')?.getBoundingClientRect() : undefined
     const outer = [...document.querySelectorAll<HTMLElement>('.wb-cell:not([hidden]), .own-page')]
     const strip = document.querySelector<HTMLElement>('.wb-cell:not([hidden]) .wb-group.is-corner > .kit-tabstrip')
     const moving = strip ? [...outer, strip] : outer
@@ -83,6 +101,13 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
       const dx = el === strip && cell >= 0 ? dxs[i] - dxs[cell] : dxs[i]
       if (dx) el.animate({ transform: [`translateX(${dx}px)`, 'none'] }, timing)
     })
+    const to = origin && document.querySelector('.corner-badge')
+    if (to) {
+      const now = to.getBoundingClientRect()
+      const x = origin!.left + origin!.width / 2 - (now.left + now.width / 2)
+      const y = origin!.top + origin!.height / 2 - (now.top + now.height / 2)
+      to.animate({ transform: [`translate(${x}px, ${y}px)`, 'none'] }, timing)
+    }
   }
 
   return (
@@ -103,6 +128,20 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
           <ShrimpIcon />
           <span className="brand-name">Shrimply Study</span>
         </a>
+        {badge && (
+          <button
+            type="button"
+            className={badge === 'paused' ? 'corner-badge is-paused' : 'corner-badge'}
+            aria-label={badge === 'paused' ? statusText(ws.doc(needy[0].id).status) : 'Not signed in. Sign in with Google'}
+            title={badge === 'paused' ? `${statusText(ws.doc(needy[0].id).status)}. Save now` : 'Not signed in: your libraries stay only in this browser. Sign in with Google'}
+            onClick={() => {
+              if (badge === 'paused') needy.forEach((d) => void ws.doc(d.id).saveNow())
+              else void ws.drive.signIn()
+            }}
+          >
+            {badge === 'paused' ? <CloudAlertIcon /> : <CloudOffIcon />}
+          </button>
+        )}
         <button
           type="button"
           className="sidebar-toggle"
@@ -117,6 +156,7 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
       <nav className={open ? 'sidebar' : 'sidebar is-closed'} aria-label="Courses" inert={!open}>
         {/* Stays rendered (inert) while closed, so the width can animate. */}
         <div className="sidebar-body">
+          {ws.drive.setUp && <AccountBox drive={ws.drive} />}
           {/* Every open file as a tree, in a pane of its own (split beside the page when there is room). */}
           <button
             type="button"
@@ -132,14 +172,16 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
           <FileTree
             ws={ws}
             current={current}
-            onDrive={onDrive}
+            onOpenDialog={onOpenDialog}
+            onNewFile={onNewFile}
+            onShare={onShare}
+            onUpload={onUpload}
             onOpen={onOpen}
             closeIfNarrow={closeIfNarrow}
             onNewCourse={onNewCourseIn}
             onNewQuiz={onNewQuiz}
-          >
-            <HiddenFilesNote ws={ws} />
-          </FileTree>
+          />
+          {ws.drive.setUp && <AccountBox drive={ws.drive} bottom />}
           {/* The sidebar's footer, a slim darker strip at its very bottom (asked for): a small What's new link (every
               release's notes in a tab, as the empty page's What's new box has), then the theme, compact. */}
           <footer className="sidebar-bar">

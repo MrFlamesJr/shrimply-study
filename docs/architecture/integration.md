@@ -8,7 +8,7 @@ Everything described here runs: `App` mounts the Workbench (with the Explorer ta
   `Sidebar` and a `wb-cell` holding the `Workbench`, which starts at the top of the window (hidden on the app's own pages: debug, and the welcome page
   when no file is open). The kit demo (`#/_workbench`) is a full-screen page outside the shell; every release's notes (`#/_changelog`) open as a tab. A study
   session alone in the main window keeps the full-screen look (the shell steps aside by CSS; the workbench stays mounted).
-  `lib` is the active file's `LibraryApi` (`ws.doc(ws.active)`), used by the Sidebar, Ctrl+S and the Drive dialog.
+  `lib` is the active file's `LibraryApi` (`ws.doc(ws.active)`), used by the Sidebar and Ctrl+S (saves now: a Drive library at once, a browser library opens the Upload dialog, a view-only one toasts with Make a copy). The Open, Share and Upload dialogs (`OpenDialog`, `ShareDialog`) replaced the Google Drive dialog; the account lives only in the sidebar's `AccountBox`, and a popped-out window's address is `addressFor(ws, ws.addressIn(win), true)` (`&pane`), which pane mode (`useWorkspace(..., { pane })`, `is-pane` on `<html>`) reads back.
 - **The address bar** follows `ws.address`, the main window's active tab when it shows a file. Switching tabs writes that
   tab's page into the hash and the entry names the tab (`history.state` `{ tab }`), replacing the entry; going somewhere inside
   a tab pushes one (`makeTabNav`, only for the tab that owns the address); the same tab on another page from the Sidebar or
@@ -37,9 +37,9 @@ says so when other changes came after it. Replacing a document from outside or c
 with it any step that also changed another file and every step beyond that one (`forget`). Every tab of a document follows a
 rename of its course or quiz, shown or not, once the typing pauses (`followRenames`). A course created with "New course" is a
 draft that goes away if left untouched, and stays once anything changed that very course (here or in the Explorer). Closing a
-file with changes asks Save, Don't save or Cancel, and asks again when changes came in while it saved (`readyToClose`).
-Saving, Drive, the browser backup and restoring on start are done here, through
-`src/storage/` through the `StorageAdapter` (`openFiles`, `saveInPlace`, `saveAs`, `download`, `sameFile`), the one seam for files.
+Drive library flushes its pending save first and asks only when it cannot save (`readyToClose`); closing never removes a library, it moves to `closed`.
+Autosave, Drive, the browser backup and restoring on start are done here, through
+`src/storage/` through the `StorageAdapter` (`openFiles`, `download`: copies only), the one seam for files; Drive saving goes through `googleDrive.ts`, run by the per-document autosave timer.
 
 ## The Workbench
 
@@ -113,8 +113,7 @@ kept with `storage/browserBackup.readWorkspace()` and writes through `writeDoc` 
   own file. `readWorkspace` also reports `unstored` (documents the browser refused to store) and `notes` (the
   older-version message). `useWorkspace` treats `unstored` documents as not yet written (the first backup write after the
   start writes them and warns if that fails), and shows `notes` as info toasts.
-- Another tab's write of a document is taken up together with the file handle stored with it (`readHandle`), and a handle
-  another tab stored is never deleted here.
+- Another tab's write of a document is taken up (`readDoc`). The Google sign-in is one `localStorage` key shared by every tab, so a sign-in or sign-out in one tab reaches the others (`onSignInChange`).
 - Ids never repeat within a file: a move or paste into a file that already uses an id gives the item a new one
   (`contentOps`).
 

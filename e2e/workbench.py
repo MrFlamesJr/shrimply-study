@@ -92,7 +92,7 @@ def run(page, base):
     need(tab_titles(group(page, 0)) == ['Test library', 'Guide'], f'a tab per file: {tab_titles(group(page, 0))}')
 
     # The test library's tab on a course page, then split: the new group shows a copy of it.
-    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
     shown(group(page, 0)).locator('.course-row a').first.click()
     wait_for(page, lambda: len(crumbs(group(page, 0))) == 2, 'the test library tab shows a course')
     course = crumbs(group(page, 0))
@@ -190,6 +190,7 @@ def run(page, base):
     pop_out_one_tab(page)
     address_names_the_page(page, base)
     open_focuses_and_duplicates(page)
+    popout_address(page, base)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
@@ -260,7 +261,7 @@ def address_names_the_page(page, base):
         groups(page).last.get_by_role('button', name='More').click()
         page.get_by_role('menuitem', name='Close all').click()
         page.wait_for_timeout(150)
-    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
     g = group(page, 0)
     wait_for(page, lambda: crumbs(g)[:1] == ['Test library'], 'the test library shows')
     shown(g).locator('.course-row a').first.click()
@@ -272,7 +273,7 @@ def address_names_the_page(page, base):
     # Another group shows the guide; clicking back into the first moves the address back.
     g.get_by_role('button', name='Split right').click()
     wait_for(page, lambda: groups(page).count() == 2, 'split')
-    page.locator('.file-row', has_text='Guide').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Guide').locator('.file-name-text').click()
     wait_for(page, lambda: hash_of(page).endswith('?file=guide'), f'the focused group names the guide: {hash_of(page)}')
     group(page, 0).locator('[role=tab][aria-selected=true]').click()
     wait_for(page, lambda: hash_of(page) == course, f'clicking into the other group names its page: {hash_of(page)}')
@@ -316,7 +317,7 @@ def open_focuses_and_duplicates(page):
     """Opening what is already open focuses its tab, in any window; Ctrl opens another; a file's row shows its home;
     Duplicate tab copies a tab, and a duplicated Explorer keeps its own open nodes, after a reload too."""
     g = group(page, 0)
-    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
     wait_for(page, lambda: trail(group(page, 0)) == ['Test library', 'Your courses'], "a file's row shows its home")
     # The file's first quiz in the sidebar's tree (its first course unfolded when it isn't).
     block = page.locator('.file-block').filter(has=page.locator('.file-name-text', has_text='Test library'))
@@ -332,7 +333,7 @@ def open_focuses_and_duplicates(page):
     quiz.click()
     wait_for(page, lambda: selected() == name, 'a plain click focuses the tab already showing it')
     need(len(tab_titles(g)) == 2, 'and opens no other')
-    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
     wait_for(page, lambda: trail(g) == ['Test library', 'Your courses'] and len(tab_titles(g)) == 2, "the file's row focuses its home tab")
 
     # A tab in a popped-out window: opening its page again brings that window to the front, its tab focused.
@@ -429,7 +430,7 @@ def study_moves(page):
 
 def back_returns_to_its_tab(page):
     """Back goes to the tab its entry belongs to, on that page; the other file's tab stays where it is."""
-    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
     a = active_group(page)
     if len(crumbs(a)) > 1:
         a.locator('.pane-crumbs a').first.click()
@@ -438,7 +439,7 @@ def back_returns_to_its_tab(page):
     wait_for(page, lambda: len(crumbs(active_group(page))) == 2, 'the test library tab goes to a course')
     guide = active_group(page).locator('[role=tab]', has_text='Guide').first
     if guide.count() == 0:
-        page.locator('.file-row', has_text='Guide').locator('.file-pick').click()
+        page.locator('.file-row', has_text='Guide').locator('.file-name-text').click()
     else:
         guide.click()
     wait_for(page, lambda: crumbs(active_group(page))[0] == 'Guide', 'the guide tab is shown')
@@ -448,7 +449,7 @@ def back_returns_to_its_tab(page):
     tabs = active_group(page).locator('[role=tab]', has_text='Guide')
     tabs.first.click()
     wait_for(page, lambda: crumbs(active_group(page)) == guide_trail, 'the guide tab was left where it was')
-    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
 
 
 def news_tabs(page):
@@ -629,7 +630,7 @@ def empty_group_and_brand(page):
     news_tabs(page).first.hover()
     news_tabs(page).first.locator('button').click()
     empty.wait_for()
-    for name in ['Show the Explorer', 'New file', 'Open file', 'Test library', 'Guide']:
+    for name in ['Show the Explorer', 'New file', 'Open', 'Test library', 'Guide']:
         need(empty.get_by_role('button', name=re.compile(name)).count() >= 1, f'the empty group offers {name}')
     empty.get_by_role('button', name=re.compile('^Test library')).click()
     wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], "a file's home opens in the empty group")
@@ -651,3 +652,57 @@ def empty_group_and_brand(page):
     wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], "Go to my courses shows the file's home")
     need(len(tab_titles(group(page, 0))) == before + 1, "in the file's tab there")
 
+
+def popout_address(page, base):
+    """A popped-out window has a real address: the popped tab's page with `pane`. A reload keeps it popped out (same
+    tabs, the main window's groups unchanged) and Dock still works. A new tab at that address shows just that page, no
+    sidebar, with Open full app, which then shows the full app on the same page; the main window's layout survives."""
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close all').click()
+        page.wait_for_timeout(150)
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
+    g = group(page, 0)
+    wait_for(page, lambda: crumbs(g)[:1] == ['Test library'], 'the test library shows')
+    shown(g).locator('.course-row a').first.click()
+    wait_for(page, lambda: len(crumbs(g)) == 2, 'a course of it')
+    course = crumbs(g)
+    route = hash_of(page).split('?')[0]
+    g.get_by_role('button', name='Split right').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'split')
+    with page.context.expect_page() as info:
+        group(page, 1).get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Move group to new window').click()
+    pop = info.value
+    pop.wait_for_selector('.workbench.is-popup [role=tab]')
+    wait_for(page, lambda: groups(page).count() == 1, 'the popped-out group leaves the main window')
+    url = pop.url
+    need(route in url and re.search(r'[?&]pane', url), f"the popup's address is the popped page with pane: {url} (page {route!r} in {url!r}: {route in url}, {bool(re.search(r'[?&]pane', url))})")
+    titles = [t.strip() for t in pop.locator('[role=tab] .kit-tab-title').all_inner_texts()]
+
+    # A reload keeps it popped out.
+    pop.reload()
+    pop.wait_for_selector('.workbench.is-popup [role=tab]', timeout=10000)
+    need([t.strip() for t in pop.locator('[role=tab] .kit-tab-title').all_inner_texts()] == titles, 'the same tabs after the reload')
+    page.wait_for_timeout(500)
+    need(groups(page).count() == 1, 'the main window did not take it back')
+    need(re.search(r'[?&]pane', pop.url) and route in pop.url, f"and the popup keeps its address: {pop.url}")
+    pop.get_by_role('button', name='Dock').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'Dock still works after a reload')
+
+    # A new tab at that address: that page alone, then Open full app.
+    page.wait_for_timeout(700)  # the workspace record waits out 300ms
+    fresh = page.context.new_page()
+    fresh.goto(url)
+    fresh.locator('.wb-cell .wb-group').first.wait_for()
+    need(fresh.locator('.wb-cell .wb-group').count() == 1 and fresh.locator('[role=tab]').count() == 1, 'one group with one tab')
+    need(not fresh.locator('.sidebar').is_visible(), 'no sidebar')
+    wait_for(fresh, lambda: crumbs(fresh.locator('.wb-cell .wb-group').first) == course, f"it shows the popped page: {trail(fresh.locator('.wb-cell .wb-group').first)}")
+    fresh.get_by_role('button', name='Open full app').click()
+    fresh.locator('.sidebar').wait_for(state='visible')
+    need(not re.search(r'[?&]pane', fresh.evaluate('location.hash')), 'the full app has no pane in its address')
+    wait_for(fresh, lambda: crumbs(active_group(fresh)) == course, 'on the same page')
+    fresh.close()
+    page.reload()
+    groups(page).first.wait_for()
+    need(groups(page).count() == 2, "the main tab's saved layout survived")

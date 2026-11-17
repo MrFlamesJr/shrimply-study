@@ -7,10 +7,13 @@ import type { DriveFile, WorkspaceApi } from '../state/useWorkspace'
 import type { Library } from '../model'
 import { translateRef } from '../logic/explorerActions'
 import { nodeOf, type Peek } from '../logic/explorerTree'
-import { Explorer, type ExplorerDoc, type ExplorerDrive } from './Explorer'
+import { Explorer, type ExplorerClosed, type ExplorerDoc, type ExplorerDrive } from './Explorer'
 
 const same = (a: ExplorerDoc, b: ExplorerDoc) =>
-  a.id === b.id && a.name === b.name && a.dirty === b.dirty && a.where === b.where && a.library === b.library && a.driveId === b.driveId
+  a.id === b.id && a.name === b.name && a.dirty === b.dirty && a.where === b.where && a.place === b.place && a.readOnly === b.readOnly && a.library === b.library && a.driveId === b.driveId
+
+// A closed browser library has no Drive id: its file node in the tree takes this one.
+const browserNode = (closedId: string) => `b-${closedId}`
 
 /** The Explorer fed by the workspace: its open files, clipboard, undo and the tree's open and selected nodes. */
 export function ExplorerPane(p: {
@@ -25,14 +28,18 @@ export function ExplorerPane(p: {
   /** The right-click tip: shown until the user has right-clicked once (remembered by the host). */
   tipSeen?: boolean
   onTipSeen?(): void
-  /** Files from Google Drive hidden until sign-in (`ws.hiddenDocs`). */
-  hiddenFiles?: number
+  /** Upload to Google Drive for a browser library (App opens the dialog). */
+  upload(doc: DocId): void
+  /** Share for a library (App opens the dialog). */
+  share(doc: DocId): void
+  /** Downloads a library that is not open as a .shrimp file (App's file storage). */
+  downloadLibrary(library: Library, name: string): Promise<void>
 }): ReactNode {
   const { ws } = p
   const next = ws.docs.map((d): ExplorerDoc => {
     const api = ws.doc(d.id)
-    const where = whereLine({ hasFile: api.file !== null, drive: api.drive.file, yours: api.drive.yours, signedIn: api.drive.signedIn() })
-    return { id: d.id, name: d.name, dirty: d.dirty, where, library: api.library, driveId: api.drive.file?.id ?? null }
+    const where = whereLine({ drive: api.drive.file, yours: api.drive.yours, signedIn: api.drive.signedIn() })
+    return { id: d.id, name: d.name, dirty: d.dirty, where, place: d.where, readOnly: d.readOnly, library: api.library, driveId: api.drive.file?.id ?? null }
   })
   // The same array while nothing in it changed: the tree rebuilds when it is a new one.
   const docs = useRef<ExplorerDoc[]>([])
@@ -51,6 +58,14 @@ export function ExplorerPane(p: {
     latest.current = { ...latest.current, ...change }
     setState(latest.current)
   }
+
+  // ---- Closed libraries: a browser library, or a Drive file opened from a link, stay in the tree after closing
+  const closed = useMemo(
+    () => ws.closed.map((c): ExplorerClosed => (c.drive ? { id: c.drive.id, name: c.name, kind: 'link', closedId: c.id } : { id: browserNode(c.id), name: c.name, kind: 'browser', closedId: c.id })),
+    [ws.closed],
+  )
+  const closedNow = useRef(closed)
+  closedNow.current = closed
 
   // ---- Google Drive: the libraries it can see, listed on mount, on a sign-in change and after open, save, pick or remove
   const driveApi = useRef(ws.drive)
@@ -89,10 +104,11 @@ export function ExplorerPane(p: {
 
   // A library opened from the list becomes an open file of the tree: opened, expanded and selected. Opened for an item
   // inside it (as a peek showed it), that item's page opens, and the item is the selected one.
-  const opening = useRef<{ id: string; then?: ItemRef } | null>(null)
+  // `doc`: the workspace's id of a browser library, which has no Drive file.
+  const opening = useRef<{ id: string; doc?: string; then?: ItemRef } | null>(null)
   useEffect(() => {
     const want = opening.current
-    const doc = want ? docs.current.find((d) => d.driveId === want.id) : undefined
+    const doc = want ? docs.current.find((d) => (want.doc ? d.id === want.doc : d.driveId === want.id)) : undefined
     if (!want || !doc) return
     opening.current = null
     const peeked = peeks[want.id]
@@ -103,15 +119,18 @@ export function ExplorerPane(p: {
     if (item) p.openNode(item)
   })
 
-  // Libraries expanded in the tree while not open: read for a look, never opened.
+  // Libraries expanded in the tree while not open: read for a look, never opened. A browser library is read from its
+  // record, a Drive file from Drive.
   const [peeks, setPeeks] = useState<Record<string, Peek>>({})
   const reading = useRef(new Set<string>())
   const peek = (id: string) => {
     if (reading.current.has(id) || typeof peeks[id] === 'object') return
     reading.current.add(id)
     setPeeks((all) => ({ ...all, [id]: 'loading' }))
+    const entry = closedNow.current.find((c) => c.id === id)
     const version = files?.find((f) => f.id === id)?.modified
-    void driveApi.current.peek(id, version).then((library: Library | null) => {
+    const read = entry?.kind === 'browser' ? ws.readClosed(entry.closedId) : driveApi.current.peek(id, version)
+    void read.then((library: Library | null) => {
       reading.current.delete(id)
       setPeeks((all) => ({ ...all, [id]: library ?? 'failed' }))
     })
@@ -124,24 +143,51 @@ export function ExplorerPane(p: {
     if (stale.length) setPeeks((all) => Object.fromEntries(Object.entries(all).filter(([id]) => !stale.includes(id))))
   }, [files])
 
+  // A library read to download it (not shown): the one in the tree if it was already looked at.
+  const download = async (id: string) => {
+    const entry = closedNow.current.find((c) => c.id === id)
+    const name = entry?.name ?? files?.find((f) => f.id === id)?.name
+    const peeked = peeks[id]
+    const library =
+      typeof peeked === 'object' ? peeked : entry?.kind === 'browser' ? await ws.readClosed(entry.closedId) : await driveApi.current.peek(id, files?.find((f) => f.id === id)?.modified)
+    if (!library || !name) return p.notify('error', "Couldn't read that library.")
+    await p.downloadLibrary(library, name)
+  }
+
   const drive: ExplorerDrive = {
     setUp,
     listing: useMemo(
       () => ({ signedIn: signed, loading, failed, files }),
       [signed, loading, failed, files],
     ),
+    closed,
+    forget: (closedId) => ws.forgetClosed(closedId),
+    download: (id) => void download(id),
     signIn: () => void driveApi.current.signIn().then((ok) => (ok ? refreshed.current() : undefined)),
     pick: () => void driveApi.current.pick().then(() => refreshed.current()),
     refresh: () => void refreshed.current(),
     peeks,
     peek,
     open: (id, then) => {
+      // A closed library reopens as it was; one of the user's Drive libraries not closed before opens from Drive.
+      const entry = closedNow.current.find((c) => c.id === id)
+      if (entry) {
+        opening.current = { id, doc: entry.kind === 'browser' ? entry.closedId : undefined, then }
+        void ws.reopenClosed(entry.closedId)
+        return
+      }
       opening.current = { id, then }
-      void ws.openDrive(id, true).then((ok) => {
+      void driveApi.current.open(id).then((ok) => {
         if (!ok) opening.current = null
       })
     },
-    remove: (file) => void driveApi.current.remove(file).then((ok) => (ok ? refreshed.current() : undefined)),
+    remove: (file) =>
+      void driveApi.current.remove(file).then((ok) => {
+        if (!ok) return
+        // In the bin it is gone from here too, not left as a closed entry.
+        for (const c of ws.closed) if (c.drive?.id === file.id) ws.forgetClosed(c.id)
+        refreshed.current()
+      }),
   }
 
   return (
@@ -165,7 +211,9 @@ export function ExplorerPane(p: {
       libOf={(id) => ws.doc(id)}
       newDoc={() => void ws.newDoc()}
       openFile={() => void ws.openFile()}
-      saveDoc={(id) => void ws.doc(id).save()}
+      uploadDoc={p.upload}
+      shareDoc={p.share}
+      makeCopyDoc={(id) => void ws.doc(id).makeCopy()}
       downloadDoc={(id) => void ws.doc(id).download()}
       closeDoc={(id) => void ws.closeDoc(id)}
       reveal={p.reveal}
@@ -177,7 +225,6 @@ export function ExplorerPane(p: {
       scroll={state.scroll}
       onScroll={(scroll) => put({ scroll })}
       onTipSeen={p.onTipSeen}
-      hiddenFiles={p.hiddenFiles}
     />
   )
 }

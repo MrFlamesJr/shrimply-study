@@ -86,11 +86,13 @@ def run(page, base):
     add('study start 20', start)
     add('results 20', results, 'last Enter to results')
 
-    # bio130 (456 cards with images), through the Open file button.
+    # bio130 (456 cards with images), through the Open dialog's device copy.
     page.goto(base + '#/_debug')
-    page.evaluate('() => { window.showOpenFilePicker = undefined }')
+    page.locator('.files-head').get_by_role('button', name='Open', exact=True).click()
+    dialog = page.locator('dialog[open]')
+    dialog.get_by_text('This device', exact=True).first.click()
     with page.expect_file_chooser() as chooser:
-        replace(page, lambda: page.get_by_role('button', name='Open file').first.click())
+        dialog.get_by_role('button', name='Choose a file', exact=True).click()
     chooser.value.set_files(BIO)
     page.wait_for_timeout(1500)
     page.evaluate('() => { location.hash = "#/_debug" }')

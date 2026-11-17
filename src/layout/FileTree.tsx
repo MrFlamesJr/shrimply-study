@@ -1,25 +1,32 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { href, parseHash, type Route } from '../route'
-import { comboLabel, isMac } from '../kit/shortcuts'
 import { flatten, keyNav, typeahead } from '../kit/tree'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
 import type { DocId } from '../logic/contentOps'
 import { nodeOf, refOf } from '../logic/explorerTree'
 import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from '../logic/fileTree'
+import { statusText } from '../logic/autosave'
 import { plural } from '../logic/plural'
 import { whereLine } from '../logic/whereLine'
 import { ownWindow } from '../components/ownWindow'
 import { IconButton } from '../components/IconButton'
 import {
-  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CourseIcon, CrossIcon, FileIcon, OpenIcon, PlusIcon, PullIcon, QuizIcon, SaveIcon,
+  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CopyIcon, CourseIcon, CrossIcon, FolderIcon, LinkIcon, OpenIcon, PlusIcon, PullIcon,
+  QuizIcon, SaveIcon, UploadIcon,
 } from '../components/Icons'
 
 type Props = {
   ws: WorkspaceApi
   /** The id of the course or quiz the address tab shows. */
   current?: string
-  /** Opens the Google Drive dialog. */
-  onDrive: () => void
+  /** Opens the Open dialog (the Files heading's Open). */
+  onOpenDialog: () => void
+  /** New file: App asks where it lives when that is a choice. */
+  onNewFile: () => void
+  /** A library's Share dialog. */
+  onShare: (doc: DocId) => void
+  /** A browser library's Upload to Google Drive dialog. */
+  onUpload: (doc: DocId) => void
   /** A page of a file, shown in the active group (`newTab`: in a new tab there). */
   onOpen: (doc: DocId, route: Route, newTab: boolean) => void
   closeIfNarrow: () => void
@@ -27,8 +34,6 @@ type Props = {
   onNewCourse: (doc: DocId) => void
   /** A new quiz in this course, then its editor. */
   onNewQuiz: (doc: DocId, course: string) => void
-  /** Rendered at the very end of the section. */
-  children?: ReactNode
 }
 
 // The card opens as soon as the pointer is on a file (asked for: snappy, never a wait).
@@ -36,31 +41,33 @@ const HOVER_MS = 0
 const CARD_GAP = 8
 
 /**
- * Where a file lives: its Google Drive file (whose only as far as anyone can tell: "Your" needs a sign-in and Google's
- * word; signed out, nobody knows), the .shrimp file it is tied to, or none yet (kept only in this browser).
+ * Where a library lives, with its save status after it: its Google Drive file (whose only as far as anyone can tell:
+ * "Your" needs a sign-in and Google's word), or only this browser. A view-only library says so instead.
  */
-function whereOf(doc: LibraryApi): [typeof FileIcon, string] {
-  const drive = doc.drive.file
-  const where = whereLine({ hasFile: doc.file !== null, drive, yours: doc.drive.yours, signedIn: doc.drive.signedIn() })
-  return [drive ? CloudIcon : doc.file ? FileIcon : BrowserIcon, where]
+function whereOf(doc: LibraryApi): [typeof CloudIcon, string] {
+  const icon = doc.where === 'drive' ? CloudIcon : BrowserIcon
+  if (doc.readOnly) return [icon, 'View only']
+  const where = whereLine({ drive: doc.drive.file, yours: doc.drive.yours, signedIn: doc.drive.signedIn() })
+  const status = statusText(doc.status)
+  return [icon, status ? `${where} · ${status}` : where]
 }
 
-// What Save does for this file, for its tooltip.
-function saveHint(doc: LibraryApi): string {
-  const drive = doc.drive.file
-  if (drive) return doc.drive.savesInto ? `Save into ${drive.name} on Google Drive` : `Save a copy of ${drive.name} to your Google Drive`
-  return doc.file ? `Save into ${doc.file.name}` : 'Save as a .shrimp file'
+// The save slot: a Drive library saves now (on only while a save is pending or paused), a browser library uploads, a
+// view-only one makes its own copy.
+function saveSlot(doc: LibraryApi): { label: string; title: string; disabled: boolean } {
+  if (doc.readOnly) return { label: `Make a copy of ${doc.name}`, title: 'Make a copy you can change', disabled: false }
+  if (doc.where === 'browser') return { label: `Upload ${doc.name}`, title: 'Upload to Google Drive', disabled: false }
+  const waiting = doc.status !== 'saved' && doc.status !== 'saving'
+  return { label: `Save ${doc.name}`, title: waiting ? 'Save now' : 'Saved to Google Drive', disabled: !waiting }
 }
 
 const infoOf = (doc: LibraryApi): string[] =>
   fileInfo({
     where: whereOf(doc)[1],
-    fileName: doc.file?.name ?? null,
     driveName: doc.drive.file?.name ?? null,
     shared: !!doc.drive.file?.shared,
-    newer: !!doc.drive.newer,
-    dirty: doc.hasChanges,
-    hasHome: !!doc.file || !!doc.drive.file,
+    problem: doc.hasChanges ? statusText(doc.status) : null,
+    saved: doc.where === 'drive' && doc.status === 'saved',
     counts: countLine(doc.library),
   })
 
@@ -79,11 +86,10 @@ const glyph = (icon: ReactNode, expandable: boolean) => (
 
 /**
  * The sidebar's one tree: every open file, its courses, their quizzes. The active file and the current course unfold
- * by themselves (nothing folds by itself). A file's row has Save, Download and Close while it is pointed at or holds
+ * by themselves (nothing folds by itself). A file's row has its save slot, Share, New course, Download and Close while it is pointed at or holds
  * the focus; pointing at it for a moment shows what it is in a card beside the sidebar.
  */
-export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCourse, onNewQuiz, children }: Props) {
-  const unsaved = ws.docs.some((d) => d.dirty)
+export function FileTree({ ws, current, onOpenDialog, onNewFile, onShare, onUpload, onOpen, closeIfNarrow, onNewCourse, onNewQuiz }: Props) {
   const uid = useId()
   const root = useRef<HTMLElement>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -251,36 +257,18 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
         <span className="files-gap" />
         <IconButton
           label="New file"
-          title="Start an empty library beside the open ones, saved later as a new .shrimp file"
+          title="Start an empty library beside the open ones"
           onClick={() => {
-            ws.newDoc()
+            onNewFile()
             closeIfNarrow()
           }}
         >
           <PlusIcon />
         </IconButton>
-        <IconButton
-          label={ws.loadLabel}
-          title={ws.loadHint}
-          onClick={async () => {
-            if (await ws.openFile()) closeIfNarrow()
-          }}
-        >
-          <FileIcon />
+        <IconButton label="Open" title="Open a library from Google Drive, a link or this device" onClick={onOpenDialog}>
+          <FolderIcon />
         </IconButton>
-        <IconButton label="Google Drive" title="Save to your Google Drive, share a link, or open your Drive libraries" onClick={onDrive}>
-          <CloudIcon />
-        </IconButton>
-        {/* Greyed out with nothing to save, like a file's own Save. */}
-        <IconButton
-          label="Save all"
-          title={unsaved ? `Save every file with changes (${comboLabel('Mod+Alt+S', isMac(navigator.platform))})` : 'No changes to save'}
-          disabled={!unsaved}
-          onClick={() => void ws.saveAll()}
-        >
-          <SaveIcon />
-        </IconButton>
-        {/* Greyed out while nothing shown is unfolded, like Save all with nothing to save. */}
+        {/* Greyed out while nothing shown is unfolded. */}
         <IconButton
           label="Fold all"
           title={rows.some((r) => r.expanded) ? 'Fold every file' : 'Nothing to fold'}
@@ -315,11 +303,10 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
             const docId = refOf(rootId).doc
             const doc = ws.doc(docId)
             const [Icon, where] = whereOf(doc)
-            const drive = doc.drive.file
             const active = docId === ws.active
             const isOpen = expanded.has(rootId)
             const courses = doc.library.courses
-            const nothing = !doc.hasChanges && (!!doc.file || doc.drive.savesInto)
+            const slot = saveSlot(doc)
             const infoId = `${uid}-info-${docId}`
             const rowTab = tabId === rootId ? 0 : -1
             return (
@@ -343,26 +330,34 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
                     {glyph(<Icon />, courses.length > 0)}
                     <span className="file-name">
                       <span className="file-name-text">{doc.name}</span>
-                      {doc.hasChanges && <span className="file-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes" />}
+                      {doc.hasChanges && <span className="file-dot" role="img" aria-label={statusText(doc.status)} title={statusText(doc.status)} />}
                     </span>
                     <span className="file-where">{where}</span>
                   </div>
                   {/* A small toolbar that slides in over the end of the name line while the row is pointed at (or holds the
-                      keyboard focus): Save (greyed out with nothing to save), New course, Download a copy and Close,
-                      each one click away (asked for: no menu, nothing twice). */}
+                      keyboard focus), the same for every library: the save slot, Share, New course, Download a copy
+                      and Close, each one click away (asked for: no menu, nothing twice). */}
                   <span className="file-actions">
                     <IconButton
-                      label={`Save ${doc.name}`}
-                      title={nothing ? 'No changes to save' : saveHint(doc)}
-                      disabled={nothing}
+                      label={slot.label}
+                      title={slot.title}
+                      disabled={slot.disabled}
                       tabIndex={rowTab}
-                      onClick={() => void doc.save()}
+                      onClick={() => {
+                        if (doc.readOnly) void doc.makeCopy()
+                        else if (doc.where === 'browser') onUpload(docId)
+                        else void doc.saveNow()
+                      }}
                     >
-                      <SaveIcon />
+                      {doc.readOnly ? <CopyIcon /> : doc.where === 'browser' ? <UploadIcon /> : <SaveIcon />}
+                    </IconButton>
+                    <IconButton label={`Share ${doc.name}`} title="Share a link to this library" tabIndex={rowTab} onClick={() => onShare(docId)}>
+                      <LinkIcon />
                     </IconButton>
                     <IconButton
                       label={`New course in ${doc.name}`}
-                      title="Add a course to this file"
+                      title={doc.readOnly ? 'View only: make a copy to add courses' : 'Add a course to this file'}
+                      disabled={doc.readOnly}
                       tabIndex={rowTab}
                       onClick={() => {
                         onNewCourse(docId)
@@ -371,30 +366,13 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
                     >
                       <PlusIcon />
                     </IconButton>
-                    <IconButton label={`Download ${doc.name}`} title="Download a copy as a .shrimp file" tabIndex={rowTab} onClick={() => void doc.download()}>
+                    <IconButton label={`Download a copy of ${doc.name}`} title="Download a copy as a .shrimp file" tabIndex={rowTab} onClick={() => void doc.download()}>
                       <PullIcon />
                     </IconButton>
-                    <IconButton
-                      label={`Close ${doc.name}`}
-                      title={doc.hasChanges ? 'Close this file. It asks to save your changes first.' : 'Close this file'}
-                      tabIndex={rowTab}
-                      onClick={() => void doc.close()}
-                    >
+                    <IconButton label={`Close ${doc.name}`} title="Close this file" tabIndex={rowTab} onClick={() => void doc.close()}>
                       <CrossIcon />
                     </IconButton>
                   </span>
-                  {/* Someone else's changes come only when pulled, never on their own (asked for); it warns before replacing. */}
-                  {drive?.shared && !doc.drive.yours && (
-                    <button
-                      type="button"
-                      className="link file-pull"
-                      title="Bring the newest version from Google Drive here. Asks first, as it replaces its courses here."
-                      // The page stays when the pulled library still has it (App moves on quietly when not).
-                      onClick={() => void doc.drive.pull()}
-                    >
-                      <PullIcon /> {doc.drive.newer ? 'Pull new changes' : 'Pull changes'}
-                    </button>
-                  )}
                   <span hidden id={infoId}>
                     {infoOf(doc).join('. ')}
                   </span>
@@ -425,7 +403,8 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
                           <span className="file-add">
                             <IconButton
                               label={`New quiz in ${course.name || 'Untitled course'}`}
-                              title="Add a quiz to this course"
+                              title={doc.readOnly ? 'View only: make a copy to add quizzes' : 'Add a quiz to this course'}
+                              disabled={doc.readOnly}
                               tabIndex={tabId === courseNode ? 0 : -1}
                               onClick={() => {
                                 onNewQuiz(docId, course.id)
@@ -474,11 +453,10 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
         <div className="tree-empty">
           <p>No files open</p>
           <p className="tree-empty-hint">
-            Start one with <strong>New file</strong> or <strong>Open file</strong> above.
+            Start one with <strong>New file</strong> or <strong>Open</strong> above.
           </p>
         </div>
       )}
-      {children}
       <div className="file-info" popover="manual" ref={card}>
         {hover && ws.docs.some((d) => d.id === hover.doc) && <FileCard doc={ws.doc(hover.doc)} />}
       </div>
@@ -488,34 +466,33 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
 
 /**
  * A file's hover card: its icon and name over where it lives, its figures (courses, quizzes, cards) side by side, then
- * a few notes, each with its own mark: the file it is tied to, saved or not, shared, a newer version waiting.
+ * a few notes, each with its own mark: its Drive file, saved or what needs attention, shared.
  */
 function FileCard({ doc }: { doc: LibraryApi }) {
   const [Icon, where] = whereOf(doc)
   const counts = libraryCounts(doc.library)
   const drive = doc.drive.file
-  const home = drive?.name ?? doc.file?.name ?? null
+  const home = drive?.name ?? null
   const figures = [
     [counts.courses, counts.courses === 1 ? 'course' : 'courses'],
     [counts.quizzes, counts.quizzes === 1 ? 'quiz' : 'quizzes'],
     [counts.cards, counts.cards === 1 ? 'card' : 'cards'],
   ] as const
-  // Saved or not says nothing new for a library that lives only in this browser and has nothing new: its where line
-  // already says so.
   const notes = [
     home && (
       <li key="home">
-        {drive ? <CloudIcon /> : <FileIcon />}
+        <CloudIcon />
         <span className="file-info-home">{home}</span>
       </li>
     ),
     doc.hasChanges ? (
       <li key="saved" className="is-unsaved">
         <span className="file-info-dot" />
-        Unsaved changes
+        {statusText(doc.status)}
       </li>
     ) : (
-      home && (
+      doc.where === 'drive' &&
+      doc.status === 'saved' && (
         <li key="saved">
           <CheckIcon />
           All changes saved
@@ -526,11 +503,6 @@ function FileCard({ doc }: { doc: LibraryApi }) {
       <li key="shared">
         <OpenIcon />
         Shared with a link
-      </li>
-    ),
-    doc.drive.newer && (
-      <li key="newer" className="is-info">
-        <PullIcon />A newer version is on Google Drive
       </li>
     ),
   ].filter(Boolean)

@@ -4,7 +4,7 @@ import type { LibraryApi } from '../state/useWorkspace'
 import { plural } from '../logic/plural'
 import { PlusIcon } from './Icons'
 
-export function QuizTiles({ lib, course, nav }: { lib: LibraryApi; course: Course; nav: Nav }) {
+export function QuizTiles({ lib, course, nav, canAdd = true }: { lib: LibraryApi; course: Course; nav: Nav; canAdd?: boolean }) {
   const { goToNew } = nav
   return (
     <div className="tiles">
@@ -14,22 +14,24 @@ export function QuizTiles({ lib, course, nav }: { lib: LibraryApi; course: Cours
           <span className="muted">{plural(quiz.cards.length, 'card')}</span>
         </a>
       ))}
-      <button
-        type="button"
-        className="tile tile-new"
-        onClick={() => {
-          const quiz = lib.addQuiz(course.id)
-          goToNew(quiz.id, { name: 'edit', course: course.name, quiz: quiz.name })
-        }}
-      >
-        <span className="tile-new-plus">
-          <PlusIcon />
-        </span>
-        <span className="tile-new-text">
-          <strong>New quiz</strong>
-          {course.quizzes.length === 0 && <span>No quizzes yet. Make one, then type or paste your cards.</span>}
-        </span>
-      </button>
+      {canAdd && (
+        <button
+          type="button"
+          className="tile tile-new"
+          onClick={() => {
+            const quiz = lib.addQuiz(course.id)
+            goToNew(quiz.id, { name: 'edit', course: course.name, quiz: quiz.name })
+          }}
+        >
+          <span className="tile-new-plus">
+            <PlusIcon />
+          </span>
+          <span className="tile-new-text">
+            <strong>New quiz</strong>
+            {course.quizzes.length === 0 && <span>No quizzes yet. Make one, then type or paste your cards.</span>}
+          </span>
+        </button>
+      )}
     </div>
   )
 }

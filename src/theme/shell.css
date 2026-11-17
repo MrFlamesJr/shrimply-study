@@ -74,6 +74,25 @@
 .app.is-session .wb-group {
   border-radius: 0;
 }
+/* A popped-out window's pane alone (`html.is-pane`, the address names `pane`): no corner and no sidebar, the workbench
+   the full window, and the top-left strip makes no room for the corner. */
+html.is-pane .app {
+  --side: 0px;
+  grid-template-columns: minmax(0, 1fr);
+}
+html.is-pane .app > .corner,
+html.is-pane .app > .sidebar,
+html.is-pane .app > .scrim {
+  display: none;
+}
+html.is-pane .app > .wb-cell,
+html.is-pane .app > .page.own-page {
+  grid-column: 1;
+}
+html.is-pane .app .wb-group.is-corner > .kit-tabstrip,
+html.is-pane .app .wb-cell .wb-group.is-shown > .kit-tabstrip {
+  padding-left: var(--space-2);
+}
 
 /* Corner: heads the open sidebar (same width; its tone is the sidebar's top, under it), the brand left and the
    toggle right, as tall as a tab strip. Closed, it is just the shrimp and the toggle, over the top-left tab strip's
@@ -99,6 +118,116 @@
 }
 .corner.is-closed .brand-name {
   display: none;
+}
+/* The corner badge (D12), only while the sidebar is closed and something needs attention: signed out, or a save that
+   is paused. It sits just after the shrimp at a fixed offset, so it stays put while the corner's width changes, and
+   the corner is one head-h wider while it shows (App's <html data-account>). A plain icon button's look: the icon goes
+   muted to full on hover (base.css); the paused one is a warning. */
+:root[data-account] .app {
+  --corner-closed: calc(var(--space-4) + 24px + var(--space-2) + var(--head-h) + var(--space-2) + var(--head-h));
+}
+.corner-badge,
+.corner-badge:hover:not(:disabled) {
+  position: absolute;
+  top: 0;
+  left: calc(var(--space-4) + 24px + var(--space-2));
+  width: var(--head-h);
+  height: var(--head-h);
+  padding: 0;
+  background: transparent;
+  color: var(--text-muted);
+}
+.corner-badge:hover:not(:disabled) {
+  color: var(--text);
+}
+.corner-badge.is-paused,
+.corner-badge.is-paused:hover:not(:disabled) {
+  color: var(--warn);
+}
+.corner-badge svg {
+  width: 18px;
+  height: 18px;
+}
+/* The account box (D11), right under the corner: where the Google account lives. */
+.account-box {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  flex-shrink: 0;
+  margin: 0 var(--space-2) var(--space-3);
+  padding: var(--space-3);
+  background: var(--surface);
+  border-radius: var(--radius);
+  font-size: var(--text-sm);
+}
+/* A section title like the Files heading: the theme's display font, size and glow. */
+.account-title {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-side-title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-text);
+}
+.account-note {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs-plus);
+}
+.account-sign-in {
+  width: 100%;
+}
+/* Signed in: one slim row on the footer's ground, just above the footer strip (no box, no line between, set apart by
+   tone): a small cloud, the email cut short with an ellipsis, then a quiet Sign out. */
+.account-box.is-signed-in {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
+  min-height: 24px;
+  margin: 0;
+  padding: 0 var(--space-2);
+  background: var(--bg);
+  border-radius: 0;
+  color: var(--text-muted);
+  font-size: var(--text-xs-plus);
+}
+.account-box.is-signed-in svg {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+}
+.account-email {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.account-box.is-signed-in .link {
+  flex-shrink: 0;
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs-plus);
+}
+@media (max-width: 799px) {
+  .account-box.is-signed-in {
+    min-height: var(--tap);
+  }
+  .account-box.is-signed-in .link {
+    min-height: var(--tap);
+  }
+}
+@media (prefers-reduced-motion: no-preference) {
+  /* The sidebar opening: the account box fades in (its icon is where the corner badge grew from on closing). */
+  .sidebar:not(.is-closed) .account-box {
+    animation: account-in var(--dur-slide) var(--ease);
+  }
+  @keyframes account-in {
+    from {
+      opacity: 0;
+    }
+  }
 }
 .brand {
   display: flex;
@@ -174,18 +303,6 @@
 }
 .sidebar-explorer .shortcut {
   margin-left: auto;
-}
-/* Under the open files: how many of the user's own Drive files are hidden while signed out, then Sign in, underlined
-   at rest as it sits in a line of text. */
-.hidden-files {
-  margin: var(--space-1) var(--space-5) var(--space-2);
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-.hidden-files button.link {
-  margin-left: var(--space-1);
-  padding: 0;
-  text-decoration-color: currentColor;
 }
 /* The sidebar's footer (asked for): a slim, compact strip at its very bottom, a little darker than the sidebar (the
    page ground, `--bg`; `--sunken` was too dark, asked for): the small What's new link (the shared .open-link) at its

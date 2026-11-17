@@ -33,7 +33,7 @@ type Props = {
   usable: Card[]
   onExit: () => void
   onBegin: (cards: Card[], only?: Question[]) => void
-  onEdit: (cardId: string) => void
+  onEdit?: (cardId: string) => void
 }
 
 export function Results({ questions, results, cards, usable, onExit, onBegin, onEdit }: Props) {
@@ -138,7 +138,7 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
                         </p>
                       )
                     }
-                    onEdit={() => onEdit(q.cardId)}
+                    onEdit={onEdit && (() => onEdit(q.cardId))}
                   />
                 ),
             )}

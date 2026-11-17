@@ -128,37 +128,64 @@ export function prepareSignIn(): Promise<void> {
   return script
 }
 
-// Each tab signs in on its own, so two tabs can use two Google accounts (asked for), and a reload keeps it (asked for):
-// it is kept in this tab's session storage, which other tabs don't share and which is gone when the tab closes. The
-// token lasts about an hour; after that the tab stays signed in and the next action renews it for the same account.
+// One sign-in for every tab (asked for): the token and the account are kept in local storage, so a new tab or a restart
+// reopens the Drive libraries as they were left, and signing in or out in one tab reaches the others (`onSignInChange`).
+// The token lasts about an hour; after that the tab stays signed in and the next action renews it for the same account.
 type Token = { value: string; until: number }
 const SESSION_KEY = 'shrimply-google-sign-in'
-const fresh = (t: unknown): t is Token =>
-  typeof (t as Token)?.value === 'string' && typeof (t as Token)?.until === 'number' && (t as Token).until > Date.now()
-// What this tab kept from before a reload; nothing when blocked or unreadable (then it simply signs in again).
+const isToken = (t: unknown): t is Token => typeof (t as Token)?.value === 'string' && typeof (t as Token)?.until === 'number'
+const fresh = (t: unknown): t is Token => isToken(t) && t.until > Date.now()
+// What was kept; nothing when blocked or unreadable (then it simply signs in again). A token that ran out still counts
+// as signed in: the next click renews it.
 function readSession(): { token?: Token; account?: string } {
   try {
-    const kept = JSON.parse(sessionStorage.getItem(SESSION_KEY) ?? '{}')
-    return { token: fresh(kept.token) ? kept.token : undefined, account: typeof kept.account === 'string' ? kept.account : undefined }
+    const kept = JSON.parse(localStorage.getItem(SESSION_KEY) ?? '{}')
+    return { token: isToken(kept.token) ? kept.token : undefined, account: typeof kept.account === 'string' ? kept.account : undefined }
   } catch {
     return {}
   }
 }
+// Before this release each tab kept its own sign-in in its session storage, under the same key: the first start after
+// it moves that one into local storage (once), so the user stays signed in and their own files stay theirs.
+function moveOldSession() {
+  try {
+    const old = sessionStorage.getItem(SESSION_KEY)
+    if (old === null) return
+    sessionStorage.removeItem(SESSION_KEY)
+    if (localStorage.getItem(SESSION_KEY) === null) localStorage.setItem(SESSION_KEY, old)
+  } catch {
+    // Blocked: nothing to move.
+  }
+}
+moveOldSession()
 function keepSession() {
   try {
-    if (token || account) sessionStorage.setItem(SESSION_KEY, JSON.stringify({ token, account }))
-    else sessionStorage.removeItem(SESSION_KEY)
+    if (token || account) localStorage.setItem(SESSION_KEY, JSON.stringify({ token, account }))
+    else localStorage.removeItem(SESSION_KEY)
   } catch {
-    // Blocked: the sign-in still works, it just won't outlive a reload.
+    // Blocked: the sign-in still works, it just won't outlive a reload or reach other tabs.
   }
 }
 const kept = readSession()
 let token: Token | undefined = kept.token
 let client: TokenClient | undefined
-// This tab's account, once known: renewing the sign-in asks Google for it again instead of offering a choice.
+// The signed-in account, once known: renewing the sign-in asks Google for it again instead of offering a choice.
 let account: string | undefined = kept.account
 
-/** Signs out in this tab only: other tabs keep their own sign-in, and the next sign-in here offers the account choice. */
+/** Calls the function when another tab signed in, renewed or signed out. Returns the function that stops it. */
+export function onSignInChange(listener: () => void): () => void {
+  const onStorage = (event: StorageEvent) => {
+    if (event.key !== SESSION_KEY && event.key !== null) return
+    const now = readSession()
+    token = now.token
+    account = now.account
+    listener()
+  }
+  window.addEventListener('storage', onStorage)
+  return () => window.removeEventListener('storage', onStorage)
+}
+
+/** Signs out in every tab: the next sign-in offers the account choice. Takes nothing back at Google. */
 export function signOut(): void {
   token = undefined
   account = undefined
@@ -167,11 +194,11 @@ export function signOut(): void {
 
 let pending: { resolve(token: string): void; reject(err: Error): void } | undefined
 
-/** Signed in in this tab: its account is known (renewed on the next action once its hour is up), or a token is fresh. */
-export const signedIn = () => !!account || fresh(token)
+/** Signed in: its account is known, or it has a token (renewed on the next action once its hour is up). */
+export const signedIn = () => !!account || !!token
 /** A token that works right now, without asking Google (a popup) for a new one. */
 export const hasFreshToken = () => fresh(token)
-/** The account this tab is signed in with, once known; null signed out (or before Google said which it is). */
+/** The account signed in with, once known; null signed out (or before Google said which it is). */
 export const signedInAs = (): string | null => account ?? null
 
 /** The signed-in user's access token. Asks Google for one (a popup) when there is none or it ran out. */
@@ -208,7 +235,7 @@ export async function signIn(): Promise<string> {
   return new Promise((resolve, reject) => {
     pending?.reject(new SignInClosed())
     pending = { resolve, reject }
-    // First sign-in in this tab: the account choice. Renewing: the same account, without asking.
+    // First sign-in: the account choice. Renewing: the same account, without asking.
     client!.requestAccessToken(account ? { prompt: '', login_hint: account } : { prompt: 'select_account' })
   })
 }
@@ -272,10 +299,9 @@ async function withToken(url: string, init: RequestInit = {}): Promise<Response>
   try {
     return await call(url, { ...init, headers: { ...init.headers, Authorization: `Bearer ${value}` } })
   } catch (err) {
-    if (err instanceof DriveError && err.status === 401) {
-      token = undefined
-      keepSession()
-    }
+    // Refused (access taken back, or run out early): the next click asks Google again. Only here: the sign-in kept for
+    // every tab stays as it is, as a refusal is no sign-out (asked for).
+    if (err instanceof DriveError && err.status === 401 && token) token = { ...token, until: 0 }
     throw err
   }
 }
@@ -294,12 +320,14 @@ function checkedBytes(library: Library) {
 export async function readDriveFile(id: string, own = false): Promise<{ library: Library; source: DriveSource }> {
   const get = own ? withToken : withKey
   const path = `${API}/${encodeURIComponent(id)}`
-  // The checksum first: should the file change in between, the next check asks once too often, never too few.
-  const meta = await (await get(`${path}?fields=name,md5Checksum,trashed`)).json()
+  // The checksum first: should the file change in between, the next check asks once too often, never too few. Signed
+  // in, whether the user can change it too: a file picked from someone else's Drive is not theirs.
+  const meta = await (await get(`${path}?fields=name,md5Checksum,trashed${own ? ',capabilities/canEdit' : ''}`)).json()
   // Google Docs, Sheets and Slides have no checksum, and are no .shrimp.
   if (typeof meta.md5Checksum !== 'string') throw new DriveError('This is not a Shrimply Study file (.shrimp).')
   const bytes = new Uint8Array(await (await get(`${path}?alt=media`)).arrayBuffer())
-  return { library: decodeLibrary(bytes), source: { id, name: meta.name, md5: meta.md5Checksum, shared: !own, mine: own, trashed: meta.trashed === true } }
+  const mine = own && meta.capabilities?.canEdit === true
+  return { library: decodeLibrary(bytes), source: { id, name: meta.name, md5: meta.md5Checksum, shared: !own, mine, trashed: meta.trashed === true } }
 }
 
 /** A shared file's checksum and name now (renamed in Drive, it keeps its id), `gone` when it is no longer shared or was deleted. */
@@ -398,6 +426,18 @@ export async function shareDriveFile(id: string): Promise<void> {
       throw new DriveError("Your Google account doesn't allow sharing with a link (school accounts often don't). A personal Google account works.", 403)
     }
     throw err
+  }
+}
+
+/** Removes "Anyone with the link can view": lists the file's permissions, then deletes the `anyone` one. */
+export async function unshareDriveFile(id: string): Promise<void> {
+  const url = `${API}/${encodeURIComponent(id)}/permissions`
+  try {
+    const answer = await (await withToken(`${url}?fields=permissions(id,type)`)).json()
+    const anyone = (answer.permissions ?? []).find((p: { type: string }) => p.type === 'anyone')
+    if (anyone) await withToken(`${url}/${encodeURIComponent(anyone.id)}`, { method: 'DELETE' })
+  } catch (err) {
+    throw refused(err) ? notYours() : err
   }
 }
 

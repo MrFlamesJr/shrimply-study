@@ -1,7 +1,7 @@
 import { useState, type MouseEvent } from 'react'
 import { comboLabel, isMac } from '../kit/shortcuts'
 import { href } from '../route'
-import { BrowserIcon, CloudIcon, FileIcon, FolderIcon, OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
+import { BrowserIcon, CloudIcon, FolderIcon, OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
 import { InfoBox } from '../components/InfoBox'
 import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
 import { RELEASES } from '../releaseNotes'
@@ -14,7 +14,8 @@ type Props = {
   docs: DocMeta[]
   onExplorer(): void
   onNewFile(): void
-  onOpenFile(): void
+  /** Opens the Open dialog. */
+  onOpen(): void
   /** Opens a file's home in this group. */
   onOpenDoc(id: string): void
   /** How many tabs are in popped-out windows: Show them brings the newest window to the front; Dock all. */
@@ -25,7 +26,7 @@ type Props = {
   onWhatsNew(background: boolean): void
 }
 
-const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
+const WHERE_ICON = { drive: CloudIcon, browser: BrowserIcon }
 
 /**
  * A group with no tab: a calm page in the style of the empty sidebar, a large faded shrimp (a watermark, not text to
@@ -33,7 +34,7 @@ const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
  * file's home; how many tabs are in popped-out windows, with ways to them; then What's new (asked for: here, no
  * longer on home), the newest release's notes in a box that minimizes to its title, with the way to its tab.
  */
-export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, elsewhere, onShowElsewhere, onDockAll, onWhatsNew }: Props) {
+export function EmptyPane({ docs, onExplorer, onNewFile, onOpen, onOpenDoc, elsewhere, onShowElsewhere, onDockAll, onWhatsNew }: Props) {
   const mac = isMac(navigator.platform)
   const [notesOpen, setNotesOpen] = useState(true)
   const openNews = (e: MouseEvent, background: boolean) => {
@@ -59,8 +60,8 @@ export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, 
           </button>
         </li>
         <li>
-          <button type="button" className="link" onClick={onOpenFile}>
-            <FileIcon /> Open file
+          <button type="button" className="link" onClick={onOpen}>
+            <FolderIcon /> Open
           </button>
         </li>
       </ul>
