@@ -12,6 +12,7 @@ import type { ItemRef } from './logic/contentOps'
 import { fileStorage, loadGuide } from './storage/fileStorage'
 import { loadTheme, saveTheme } from './storage/themePref'
 import { loadTipsOpen, saveTipsOpen } from './storage/tipsPref'
+import { loadExplorerTipSeen, saveExplorerTipSeen } from './storage/explorerTipPref'
 import { loadStudyOptions, saveStudyOptions } from './storage/studyPref'
 import { loadSeenRelease, saveSeenRelease } from './storage/welcomePref'
 import { RELEASES } from './releaseNotes'
@@ -123,6 +124,12 @@ export function App() {
   const [theme, setTheme] = useState(loadTheme)
   // The quiz page's "How studying works" box: whole, or minimized to its title (remembered in this browser).
   const [tipsOpen, setTipsOpen] = useState(loadTipsOpen)
+  // The Explorer's one-line tip stays until the first right-click there (remembered in this browser).
+  const [explorerTipSeen, setExplorerTipSeen] = useState(loadExplorerTipSeen)
+  const tipSeen = () => {
+    saveExplorerTipSeen()
+    setExplorerTipSeen(true)
+  }
   const toggleTips = (open: boolean) => {
     saveTipsOpen(open)
     setTipsOpen(open)
@@ -399,6 +406,8 @@ export function App() {
     setCollapsed,
     tipsOpen,
     setTipsOpen: toggleTips,
+    explorerTipSeen,
+    onExplorerTipSeen: tipSeen,
     openDrive: () => setDriveOpen(true),
     openFile: async () => (await ws.openFile()) !== null,
     openGuide: async () => (await ws.openLibrary(loadGuide, 'Guide')) !== null,

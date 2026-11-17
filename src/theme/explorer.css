@@ -44,8 +44,54 @@
   flex: 1;
   min-height: 0;
 }
+/* No files: a faded mark, a short title and one compact set of buttons (the empty pane's style). */
 .explorer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-2);
+  color: var(--text-muted);
+  text-align: center;
+}
+.explorer-empty-mark {
+  /* One quiet tone (the muted text's), a watermark rather than a logo. */
+  --brand-shell: currentColor;
+  --brand-head: currentColor;
+  opacity: var(--dim-empty);
+}
+.explorer-empty-mark svg {
+  width: 96px;
+  height: 96px;
+}
+.explorer-empty-title {
   margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+}
+.explorer-empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(100%, 14rem);
+}
+.explorer-empty-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.explorer-empty-actions button svg {
+  width: 16px;
+  height: 16px;
+}
+/* The first one is the way in when there is Google Drive: bolder, never a second gold button. */
+.explorer-empty-actions .is-lead {
+  border-color: var(--border-strong);
+  font-weight: var(--weight-bold);
 }
 .explorer .kit-row-icon:empty {
   display: none;
@@ -113,10 +159,19 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: var(--space-2);
-  padding: 0 var(--space-1);
+  gap: var(--space-1) var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+/* Link buttons in the Explorer are the app's `.link`; their text lines up with the tree's rows. */
+.explorer-drive .link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.explorer-drive .link svg {
+  width: 16px;
+  height: 16px;
 }
 /* What is inside a library that is not open (a look, read-only), and its loading and failure rows, read quieter. */
 .explorer .kit-row[data-id^="c:p-"],

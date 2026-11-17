@@ -191,14 +191,13 @@ def drive_tests(page, state):
     place (Enter, expanding), Move to bin, the choose-files link, a failed list."""
     collapse_all(page)
     box = page.locator('.explorer-drive')
-    wait_for(page, lambda: box.count() == 1 and box.get_by_role('button', name='Sign in with Google').count() == 1, 'signed out, a button asks to sign in')
-    need('to see your Google Drive libraries' in box.inner_text(), 'and says why')
+    wait_for(page, lambda: box.count() == 1 and box.get_by_role('button', name='Sign in to see your Google Drive').count() == 1, 'signed out, one quiet link asks to sign in')
     need(page.locator('.kit-tree .kit-row[data-id^="g:"]').count() == 0, 'no Drive row is in the tree when signed out')
     need(page.get_by_role('button', name='Refresh Google Drive').count() == 0, 'Refresh waits for a sign-in')
     need(state['lists'] == 0, 'nothing is listed before signing in')
-    box.get_by_role('button', name='Sign in with Google').click()
+    box.get_by_role('button', name='Sign in to see your Google Drive').click()
     wait_for(page, lambda: drive_rows(page) == ['alpha.shrimp', 'beta.shrimp', 'gamma.shrimp'], f'signed in, every library is listed: {drive_rows(page)}')
-    link = page.locator('.explorer-drive').get_by_role('button', name=re.compile("Don't see a file"))
+    link = page.locator('.explorer-drive').get_by_role('button', name=re.compile('Choose files in Google Drive'))
     need(link.count() == 1 and 'Choose files in Google Drive' in link.inner_text(), 'a link chooses more files')
     need(page.get_by_role('button', name='Refresh Google Drive').count() == 1, 'Refresh shows once signed in')
 
@@ -313,12 +312,22 @@ def drive_tests(page, state):
     need(page.locator('.kit-tree .kit-row[data-id^="g:"]').count() == 0, 'it is not a tree row')
     state['fail'] = False
     box.get_by_role('button', name='Retry').click()
-    wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name=re.compile("Don't see a file")).count() == 1, 'Retry lists again')
+    wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name=re.compile('Choose files in Google Drive')).count() == 1, 'Retry lists again')
 
 
 def run(page, base):
     state = {'files': [{'id': i, 'name': f'{i}.shrimp'} for i in ('alpha', 'beta', 'gamma')], 'fail': False, 'lists': 0, 'trashed': []}
     stub_google(page, state)
+    # With no file open the Explorer is a calm empty state: a title and one set of buttons.
+    page.goto(base)
+    page.locator('body').click(position={'x': 5, 'y': 790})
+    page.keyboard.press('Control+Shift+E')
+    empty = page.locator('.explorer-empty')
+    wait_for(page, lambda: empty.count() == 1, 'no files: the Explorer shows its empty state')
+    need('No files here yet' in empty.inner_text(), 'with a short title')
+    buttons = [b.strip() for b in empty.locator('button').all_inner_texts()]
+    need(buttons == ['Sign in with Google', 'New file', 'Open file'], f'and one set of buttons: {buttons}')
+    need(page.locator('.explorer-tip').count() == 0, 'no tip while there is nothing to right-click')
     page.goto(base + '#/_debug')
     page.get_by_role('button', name='Load test library').click()
     page.get_by_text('Loaded the test library.').first.wait_for()
@@ -342,6 +351,10 @@ def run(page, base):
     # The tip, the (i) that explains everything (Esc closes it), and the chevron that reacts like the app's other chevrons.
     need('Right-click anything' in page.locator('.explorer-tip').inner_text(), 'a tip says to right-click')
     need(page.locator('.explorer-tip').bounding_box()['y'] < page.locator('.kit-tree').bounding_box()['y'], 'above the tree')
+    row(page, 'doc', 'Guide').click(button='right')
+    page.get_by_role('menuitem').first.wait_for()
+    page.keyboard.press('Escape')
+    wait_for(page, lambda: page.locator('.explorer-tip').count() == 0, 'the tip is gone after the first right-click')
     page.get_by_role('button', name='What the Explorer can do').click()
     info = page.locator('.explorer-info')
     wait_for(page, lambda: info.is_visible(), 'the (i) opens the explanation')
@@ -530,7 +543,7 @@ def run(page, base):
     page.evaluate("sessionStorage.removeItem('shrimply-google-sign-in')")
     page.wait_for_timeout(700)  # the workspace record waits out 300ms
     page.reload()
-    wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name='Sign in with Google').count() == 1, 'signed out again, the button is back')
+    wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name='Sign in to see your Google Drive').count() == 1, 'signed out again, the link is back')
     where = [f[2] for f in top_level(page) if f[0] in ('alpha.shrimp', 'beta.shrimp')]
     need(len(where) == 2 and all(w in ('On Google Drive', 'Shared on Google Drive') for w in where), f'a Drive file open while signed out is not "your": {where}')
 

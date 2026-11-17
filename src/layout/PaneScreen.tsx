@@ -30,6 +30,9 @@ export type PaneShared = {
   setCollapsed(collapsed: ReadonlySet<string>): void
   tipsOpen: boolean
   setTipsOpen(open: boolean): void
+  /** The Explorer's tip is gone once the user has right-clicked there. */
+  explorerTipSeen: boolean
+  onExplorerTipSeen(): void
   openDrive(): void
   openFile(): Promise<boolean>
   openGuide(): Promise<boolean>
@@ -74,6 +77,9 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
         editNode={s.editNode}
         reveal={s.reveal}
         onRevealed={s.onRevealed}
+        tipSeen={s.explorerTipSeen}
+        onTipSeen={s.onExplorerTipSeen}
+        hiddenFiles={s.ws.hiddenDocs}
       />
     )
   }

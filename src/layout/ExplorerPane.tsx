@@ -21,6 +21,11 @@ export function ExplorerPane(p: {
   editNode(ref: ItemRef): void
   reveal: string | null
   onRevealed(): void
+  /** The right-click tip: shown until the user has right-clicked once (remembered by the host). */
+  tipSeen?: boolean
+  onTipSeen?(): void
+  /** Files from Google Drive hidden until sign-in (`ws.hiddenDocs`). */
+  hiddenFiles?: number
 }): ReactNode {
   const { ws } = p
   const next = ws.docs.map((d): ExplorerDoc => {
@@ -160,6 +165,9 @@ export function ExplorerPane(p: {
       reveal={p.reveal}
       onRevealed={p.onRevealed}
       drive={drive}
+      tipSeen={p.tipSeen}
+      onTipSeen={p.onTipSeen}
+      hiddenFiles={p.hiddenFiles}
     />
   )
 }

@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AutoText } from '../components/AutoText'
 import type { askConfirm } from '../components/ConfirmDialog'
-import { BrowserIcon, ChevronsUpIcon, CloudIcon, FileIcon, FolderIcon, InfoIcon, PlusIcon, RefreshIcon } from '../components/Icons'
+import { BrowserIcon, ChevronsUpIcon, ShrimpIcon, CloudIcon, FileIcon, FolderIcon, InfoIcon, PlusIcon, RefreshIcon } from '../components/Icons'
 import { IconButton } from '../components/IconButton'
 import { Modal, closeModal } from '../components/Modal'
 import { ownWindow } from '../components/ownWindow'
@@ -18,6 +18,7 @@ import {
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
 import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type Peek } from '../logic/explorerTree'
+import { hiddenNote as hiddenFilesNote } from '../logic/signOut'
 import type { Library } from '../model'
 import { newId } from '../model'
 
@@ -70,10 +71,16 @@ export type ExplorerProps = {
   reveal: string | null
   onRevealed(): void
   drive?: ExplorerDrive
+  /** The one-line right-click tip shows until this is true; `onTipSeen` is called at the first right-click. */
+  tipSeen?: boolean
+  onTipSeen?(): void
+  /** How many files from Google Drive are kept out of the tree until the user signs in (a quiet note; none: nothing). */
+  hiddenFiles?: number
 }
 
 // Everything the Explorer can do, for its (i): short and grouped.
 const HELP: [string, string][] = [
+  ['Right-click', 'Right-click anything to see what you can do with it. On a touch screen, press and hold.'],
   ['Open and expand', 'Press Enter or double click to open a file, course, quiz or card in a tab beside the Explorer. The arrow keys move: Right opens a node, Left closes it. Expanding a file that is not open only shows what is inside it.'],
   ['Select several', 'Hold Ctrl to add or remove one, Shift to pick a range, Ctrl+A for all. Copy, cut, move and drag need items of one kind. Delete takes any mix.'],
   ['Copy, cut and paste', 'Ctrl+C, Ctrl+X and Ctrl+V work on courses, quizzes and cards, also between files. A pasted copy gets a free name, like "Biology (2)". Inside a file that is not open you can only copy.'],
@@ -294,6 +301,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const idsFor = (node: string | null) => (node === null ? [] : p.selection.ids.includes(node) ? ordered(p.selection, order) : [node])
 
   const onContextMenu = (target: string | null, at: { x: number; y: number }) => {
+    if (!p.tipSeen) p.onTipSeen?.()
     const ids = idsFor(target)
     const items: MenuItem[] = menuFor(context(), ids, target).map((e) =>
       e === 'separator'
@@ -358,6 +366,34 @@ export function Explorer(p: ExplorerProps): ReactNode {
     }
   })
 
+  // One quiet line at the bottom for Google Drive, whatever the state; the long explanations are in the (i).
+  const hasItems = source.roots.length > 0
+  let driveLine: ReactNode = null
+  if (drive) {
+    const l = drive.listing
+    if (!l.signedIn) {
+      // With no files the empty state already has its Sign in button.
+      if (hasItems) driveLine = <button type="button" className="link" onClick={drive.signIn}><CloudIcon /> Sign in to see your Google Drive</button>
+    } else if (l.files !== null) {
+      driveLine = <button type="button" className="link" onClick={drive.pick}>Choose files in Google Drive</button>
+    } else if (l.failed) {
+      driveLine = (
+        <>
+          <span>Couldn't load your Google Drive.</span>
+          <button type="button" className="link" onClick={drive.refresh}>Retry</button>
+        </>
+      )
+    } else if (l.loading) {
+      driveLine = <span>Loading your Google Drive…</span>
+    } else {
+      // Signed in earlier but the sign-in has run out: listing asks Google again, so it waits for a click.
+      driveLine = <button type="button" className="link" onClick={drive.refresh}>Show my Google Drive libraries</button>
+    }
+  }
+  if (driveLine) driveLine = <div className="explorer-drive">{driveLine}</div>
+  // The same words as the sidebar's note: never "your" while nobody is signed in.
+  const hiddenNote = drive && p.hiddenFiles ? <p className="explorer-drive">{hiddenFilesNote(p.hiddenFiles, drive.listing.signedIn)}</p> : null
+
   const destinations = moving ? moveDestinations(docs, names, moving) : []
 
   return (
@@ -392,13 +428,9 @@ export function Explorer(p: ExplorerProps): ReactNode {
           />
         </div>
       </div>
-      {drive && !drive.listing.signedIn && (
-        <div className="explorer-drive">
-          <button type="button" onClick={drive.signIn}>Sign in with Google</button>
-          <span>to see your Google Drive libraries</span>
-        </div>
+      {hasItems && !p.tipSeen && (
+        <p className="explorer-tip">Right-click anything to see what you can do with it. On a touch screen, press and hold.</p>
       )}
-      <p className="explorer-tip">Right-click anything to see what you can do with it. On a touch screen, press and hold.</p>
       <div className="explorer-tree">
         <TreeView
           label="Open files"
@@ -448,26 +480,23 @@ export function Explorer(p: ExplorerProps): ReactNode {
               return (r && r.kind !== 'doc' ? renameProblem(docs, r, name) : undefined) ?? null
             },
           }}
-          empty={<p className="explorer-empty">No files open. Use New file or Open file above.</p>}
+          empty={
+            <div className="explorer-empty">
+              <span className="explorer-empty-mark"><ShrimpIcon /></span>
+              <h3 className="explorer-empty-title">No files here yet</h3>
+              <div className="explorer-empty-actions">
+                {drive && !drive.listing.signedIn && (
+                  <button type="button" className="is-lead" onClick={drive.signIn}><CloudIcon /> Sign in with Google</button>
+                )}
+                <button type="button" onClick={p.newDoc}><PlusIcon /> New file</button>
+                <button type="button" onClick={p.openFile}><FolderIcon /> Open file</button>
+              </div>
+            </div>
+          }
         />
       </div>
-      {drive?.listing.signedIn && (
-        <div className="explorer-drive">
-          {drive.listing.files !== null ? (
-            <button type="button" className="link" onClick={drive.pick}>Don't see a file? Choose files in Google Drive</button>
-          ) : drive.listing.failed ? (
-            <>
-              <span>Couldn't load your Google Drive.</span>
-              <button type="button" onClick={drive.refresh}>Retry</button>
-            </>
-          ) : drive.listing.loading ? (
-            <span>Loading your Google Drive…</span>
-          ) : (
-            // Signed in earlier but the sign-in has run out: listing asks Google again, so it waits for a click.
-            <button type="button" onClick={drive.refresh}>Show my Google Drive libraries</button>
-          )}
-        </div>
-      )}
+      {hiddenNote}
+      {driveLine}
       {moving && (
         <Modal title={`Move ${kindCount(moving[0].kind, moving.length)} to`} narrow onClose={() => setMoving(null)}>
           {destinations.length === 0 ? (
