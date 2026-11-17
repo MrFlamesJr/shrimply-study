@@ -45,6 +45,7 @@ This app maps them in the last block of `src/theme/tokens.css`, on `:root`:
 | `--kit-accent`, `--kit-accent-soft`, `--kit-accent-line` | the one action color, its tint, its thin line | `--accent`, `--accent-soft`, `--accent-line` |
 | `--kit-focus` | focus ring | `--focus` |
 | `--kit-danger` | deleting | `--danger` |
+| `--kit-invalid` | a refused name or drop, its reason | `--bad` (the app's field error color) |
 | `--kit-radius` | corner radius | `--radius` |
 | `--kit-font` | font family | `--font-body` |
 | `--kit-text-sm`, `--kit-text-xs` | text sizes | `--text-sm`, `--text-xs` |

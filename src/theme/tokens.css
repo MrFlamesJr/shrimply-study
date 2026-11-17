@@ -248,6 +248,7 @@
   --kit-accent-line: var(--accent-line);
   --kit-focus: var(--focus);
   --kit-danger: var(--danger);
+  --kit-invalid: var(--bad);
   --kit-radius: var(--radius);
   --kit-font: var(--font-body);
   --kit-text-sm: var(--text-sm);
