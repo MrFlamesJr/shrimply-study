@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs, ItemRef } from './contentOps'
 import {
-  addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
+  reorderTarget, ungroupPlan, addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
   dragEffect, keyDecision, menuFor, translateRef, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
   type Clip, type Item, type MenuContext,
 } from './explorerActions'
@@ -70,7 +70,7 @@ describe('menus', () => {
   })
   it('a course', () => {
     const m = menuFor(ctx(), ['c:a:c1'], 'c:a:c1')
-    expect(labels(m)).toEqual(['Open', 'New quiz', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Delete'])
+    expect(labels(m)).toEqual(['Open', 'New quiz', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
     expect(find(m, 'Rename').shortcut).toBe('F2')
     expect(find(m, 'Copy').shortcut).toBe('Ctrl+C')
     expect(find(m, 'Cut').shortcut).toBe('Ctrl+X')
@@ -79,8 +79,8 @@ describe('menus', () => {
     expect(find(m, 'Move to…').disabled).toBeUndefined()
   })
   it('a quiz and a card', () => {
-    expect(labels(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1'))).toEqual(['Open', 'Edit cards', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Delete'])
-    expect(labels(menuFor(ctx(), ['k:a:c1:q1:k1'], 'k:a:c1:q1:k1'))).toEqual(['Edit', 'Copy', 'Cut', 'Paste', 'Move to…', 'Delete'])
+    expect(labels(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1'))).toEqual(['Open', 'Edit cards', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
+    expect(labels(menuFor(ctx(), ['k:a:c1:q1:k1'], 'k:a:c1:q1:k1'))).toEqual(['Edit', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
   })
   it('several of one kind: one-item entries are disabled with a reason, the rest work', () => {
     const m = menuFor(ctx(), ['c:a:c1', 'c:a:c2'], 'c:a:c1')
@@ -376,5 +376,136 @@ describe('inside a library that is not open (read-only)', () => {
     expect(translateRef(docs.a, other, pq('q1'), 'new')).toEqual({ kind: 'quiz', doc: 'new', course: 'z1', quiz: 'zq1' })
     expect(translateRef(docs.a, other, pc('c1'), 'new')).toEqual({ kind: 'course', doc: 'new', course: 'z1' })
     expect(translateRef(docs.a, { ...other, courses: [] }, pc('c1'), 'new')).toBeNull()
+  })
+})
+
+describe('groups in the Explorer', () => {
+  const quizWith = (): Library => ({
+    version: FORMAT_VERSION,
+    courses: [
+      {
+        id: 'c1',
+        name: 'Bio',
+        quizzes: [
+          { id: 'q1', name: 'Cells', groups: [{ id: 'g1', name: 'G1', color: 'coral' }, { id: 'g2', name: 'G2', color: 'sky' }], cards: [card('k1'), card('k2'), { ...card('k3'), group: 'g1' }, { ...card('k4'), group: 'g1' }, { ...card('k5'), group: 'g2' }] as Card[] },
+          { id: 'q2', name: 'Other', groups: [], cards: [] },
+        ],
+      },
+    ],
+  })
+  const gd: Docs = { a: quizWith(), b: { version: FORMAT_VERSION, courses: [{ id: 'cb', name: 'Chem', quizzes: [{ id: 'qb', name: 'Atoms', groups: [{ id: 'g1', name: 'G1', color: 'rose' }], cards: [] }] }] } }
+  const gref = (id: string): ItemRef => ({ kind: 'group', doc: 'a', course: 'c1', quiz: 'q1', group: id })
+  const cardsOf = (d: Docs, doc = 'a', q = 0) => d[doc].courses[0].quizzes[q].cards.map((c) => `${c.id}${c.group ? '@' + c.group : ''}`)
+
+  it('a group has its own menu: copy, cut, paste, move, reorder, rename, ungroup, delete', () => {
+    const m = menuFor(ctx(null, gd), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')
+    expect(labels(m)).toEqual(['Open', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Ungroup', 'Delete'])
+    expect(find(m, 'Move up')).toMatchObject({ disabled: true, reason: 'It is already first.' })
+    expect(find(m, 'Move down').disabled).toBeUndefined()
+    expect(find(menuFor(ctx(null, gd), ['p:a:c1:q1:g2'], 'p:a:c1:q1:g2'), 'Move down')).toMatchObject({ disabled: true, reason: 'It is already last.' })
+  })
+  it('keeps the one-kind rule', () => {
+    const m = menuFor(ctx(null, gd), ['p:a:c1:q1:g1', 'k:a:c1:q1:k1'], 'p:a:c1:q1:g1')
+    expect(find(m, 'Copy')).toMatchObject({ disabled: true, reason: 'Pick items of one kind.' })
+  })
+  it('reorder targets: courses, quizzes, groups, and cards within their section', () => {
+    expect(reorderTarget(gd, { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q2' }, 'up')).toEqual({ target: { kind: 'course', doc: 'a', course: 'c1', index: 0 } })
+    expect(reorderTarget(gd, { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1' }, 'down')).toEqual({ target: { kind: 'course', doc: 'a', course: 'c1', index: 2 } })
+    expect(reorderTarget(gd, gref('g2'), 'up')).toEqual({ target: { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 0 } })
+    // k4 is the second card of g1: up goes before k3 (flat place 2); k3 down goes after k4 (flat place 4)
+    const card4: ItemRef = { kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'k4' }
+    expect(reorderTarget(gd, card4, 'up')).toEqual({ target: { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 2, group: 'g1' } })
+    expect(reorderTarget(gd, card4, 'down')).toEqual({ reason: 'It is already last.' })
+    expect(reorderTarget(gd, { ...card4, card: 'k1' }, 'up')).toEqual({ reason: 'It is already first.' })
+    expect(reorderTarget(gd, { ...card4, card: 'k1' }, 'down')).toEqual({ target: { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 2, group: null } })
+  })
+  it('reordering moves one place, the groups keep their cards, and cards never leave their group', () => {
+    const up = reorderTarget(gd, gref('g2'), 'up')
+    const plan = 'target' in up ? placeItems(gd, [gref('g2')], up.target, 'move', fresh) : null
+    expect(plan?.ok && plan.docs.a.courses[0].quizzes[0].groups.map((g) => g.id)).toEqual(['g2', 'g1'])
+    expect(plan?.ok && cardsOf(plan.docs)).toEqual(['k1', 'k2', 'k5@g2', 'k3@g1', 'k4@g1'])
+    const t = reorderTarget(gd, { kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'k4' }, 'up')
+    const moved = 'target' in t ? placeItems(gd, [{ kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'k4' }], t.target, 'move', fresh) : null
+    expect(moved?.ok && cardsOf(moved.docs)).toEqual(['k1', 'k2', 'k4@g1', 'k3@g1', 'k5@g2'])
+  })
+  it('dropping a card onto a group adds it to the end of that group', () => {
+    const plan = dropPlan(gd, ['k:a:c1:q1:k1'], 'p:a:c1:q1:g2', 'inside', 'move', fresh)
+    expect(plan.ok && cardsOf(plan.docs)).toEqual(['k2', 'k3@g1', 'k4@g1', 'k5@g2', 'k1@g2'])
+  })
+  it('dropping a card before a card of a group takes that group; onto a quiz makes it loose at the end', () => {
+    const into = dropPlan(gd, ['k:a:c1:q1:k1'], 'k:a:c1:q1:k4', 'before', 'move', fresh)
+    expect(into.ok && cardsOf(into.docs)).toEqual(['k2', 'k3@g1', 'k1@g1', 'k4@g1', 'k5@g2'])
+    const out = dropPlan(gd, ['k:a:c1:q1:k5'], 'q:a:c1:q1', 'inside', 'move', fresh)
+    expect(out.ok && cardsOf(out.docs)).toEqual(['k1', 'k2', 'k5', 'k3@g1', 'k4@g1'])
+  })
+  it('a group is copied with its cards, a free name, its color and fresh ids', () => {
+    const plan = dropPlan(gd, ['p:a:c1:q1:g1'], 'q:b:cb:qb', 'inside', 'copy', fresh)
+    expect(plan).toMatchObject({ ok: true, label: 'Copy 1 group' })
+    if (!plan.ok) return
+    const target = plan.docs.b.courses[0].quizzes[0]
+    expect(target.groups.map((g) => [g.name, g.color])).toEqual([['G1', 'rose'], ['G1 (2)', 'coral']])
+    expect(target.cards).toHaveLength(2)
+    expect(target.cards.every((c) => c.group === target.groups[1].id && /^n\d+$/.test(c.id))).toBe(true)
+    expect(gd.a.courses[0].quizzes[0].groups).toHaveLength(2)
+  })
+  it('a group moved to another quiz leaves with its cards; a refused drop says why', () => {
+    const plan = dropPlan(gd, ['p:a:c1:q1:g1'], 'q:a:c1:q2', 'inside', 'move', fresh)
+    expect(plan.ok && plan.docs.a.courses[0].quizzes[0].groups.map((g) => g.id)).toEqual(['g2'])
+    expect(plan.ok && plan.docs.a.courses[0].quizzes[1].cards.map((c) => c.id)).toEqual(['k3', 'k4'])
+    expect(dropRule(gd, ['q:a:c1:q2'], 'p:a:c1:q1:g1', 'inside', 'move')).toEqual({ ok: false, reason: "A quiz can't go inside a group." })
+    expect(dropRule(gd, ['c:a:c1'], 'p:a:c1:q1:g1', 'inside', 'move')).toEqual({ ok: false, reason: "A course can't go inside a group." })
+    expect(dropRule(gd, ['p:a:c1:q1:g1'], 'p:a:c1:q1:g2', 'inside', 'move')).toEqual({ ok: false, reason: "A group can't go inside a group." })
+    expect(dropRule(gd, ['p:a:c1:q1:g1'], 'k:a:c1:q1:k1', 'after', 'move')).toEqual({ ok: false, reason: "A group can't go inside a card." })
+    expect(dropRule(gd, ['k:a:c1:q1:k1'], 'p:a:c1:q1:g2', 'before', 'move')).toEqual({ ok: false, reason: 'Drop a card onto the group to add it to it.' })
+    expect(dropRule(gd, ['p:a:c1:q1:g1'], 'c:a:c1', 'inside', 'move')).toEqual({ ok: false, reason: 'A group can only go in a quiz.' })
+  })
+  it('deleting a group asks and says what goes; its cards are not counted twice', () => {
+    expect((deletePlan(gd, ['p:a:c1:q1:g1'], false) as { question: string }).question).toBe('Delete the group "G1" and its 2 cards?\n\nCtrl+Z brings it back.')
+    const both = deletePlan(gd, ['p:a:c1:q1:g1', 'k:a:c1:q1:k3', 'k:a:c1:q1:k1'], false) as { label: string }
+    expect(both.label).toBe('Delete 2 items')
+  })
+  it('ungrouping keeps the cards, after the loose ones, and asks as the editor does', () => {
+    const plan = ungroupPlan(gd, gref('g1') as Extract<ItemRef, { kind: 'group' }>)
+    expect(plan?.question).toBe('Remove the group "G1"? Its cards stay in the quiz.')
+    expect(plan && cardsOf(plan.docs)).toEqual(['k1', 'k2', 'k3', 'k4', 'k5@g2'])
+    expect(plan?.docs.a.courses[0].quizzes[0].groups.map((g) => g.id)).toEqual(['g2'])
+  })
+  it('renames a group within its quiz, refusing a taken name', () => {
+    expect(renameProblem(gd, gref('g1'), 'g2')).toBe('Another group is already named "G2"')
+    expect(renameItem(gd, gref('g1'), ' Mitosis ')?.a.courses[0].quizzes[0].groups[0].name).toBe('Mitosis')
+  })
+  it('describes a group by its card count, and shows its quiz open to a moved card', () => {
+    expect(describeNode(gd, 'p:a:c1:q1:g1')).toBe('2 cards')
+    expect(ancestorNodes({ kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'k3' }, gd)).toEqual(['d:a', 'c:a:c1', 'q:a:c1:q1', 'p:a:c1:q1:g1'])
+  })
+  it('keys: Alt+Shift+arrows move, refused at the ends', () => {
+    expect(keyDecision(ctx(null, gd), key('ArrowDown', { altKey: true, shiftKey: true }), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')).toEqual({ action: 'moveDown' })
+    expect(keyDecision(ctx(null, gd), key('ArrowUp', { altKey: true, shiftKey: true }), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')).toEqual({ refuse: 'It is already first.' })
+  })
+  it('pastes a group after a group, and cards into one', () => {
+    expect(pasteTarget(gd, { mode: 'copy', refs: [gref('g1')] }, 'p:a:c1:q1:g2')).toMatchObject({ target: { kind: 'quiz', quiz: 'q1', index: 2 } })
+    expect(pasteTarget(gd, { mode: 'copy', refs: [{ kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'k1' }] }, 'p:a:c1:q1:g2')).toMatchObject({ target: { kind: 'quiz', group: 'g2' } })
+  })
+})
+
+describe('New card submenu', () => {
+  it('lists every kind, worded as the editor does, in a quiz and a group menu', () => {
+    const q = items(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1')).find((i) => i.label === 'New card')!
+    expect(q.submenu?.map((s) => s.label)).toEqual(['Front and back', 'Fill in the blank', 'True or false', 'Choice question', 'Sequence'])
+    expect(q.submenu?.map((s) => s.arg)).toEqual(['term', 'cloze', 'true-false', 'choice', 'sequence'])
+    const gd2: Docs = { a: { ...docs.a, courses: [{ ...docs.a.courses[0], quizzes: [{ ...docs.a.courses[0].quizzes[0], groups: [{ id: 'g1', name: 'G', color: 'coral' }] }, docs.a.courses[0].quizzes[1]] }, docs.a.courses[1]] }, b: docs.b }
+    const g = items(menuFor(ctx(null, gd2), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')).find((i) => i.label === 'New card')!
+    expect(g.submenu).toHaveLength(5)
+  })
+  it('makes each kind as the editor does, in a group when asked', () => {
+    const kinds = (['term', 'cloze', 'true-false', 'choice', 'sequence'] as const).map((k) => addCard(docs, 'a', 'c1', 'q2', `n-${k}`, k)!.docs.a.courses[0].quizzes[1].cards[0])
+    expect(kinds[1]).toMatchObject({ type: 'cloze', statement: '', explanation: [] })
+    expect(kinds[2]).toMatchObject({ type: 'true-false', answer: true })
+    expect(kinds[3]).toMatchObject({ type: 'choice', mode: 'one', right: [''], wrong: ['', ''] })
+    expect(kinds[4]).toMatchObject({ type: 'sequence', steps: ['', '', ''] })
+    const withGroup: Docs = { ...docs, a: { ...docs.a, courses: [{ ...docs.a.courses[0], quizzes: [docs.a.courses[0].quizzes[0], { ...docs.a.courses[0].quizzes[1], groups: [{ id: 'g1', name: 'G', color: 'coral' }] }] }, docs.a.courses[1]] } }
+    const made = addCard(withGroup, 'a', 'c1', 'q2', 'x', 'choice', 'g1')!
+    expect(made.docs.a.courses[0].quizzes[1].cards[0]).toMatchObject({ id: 'x', group: 'g1' })
+    expect(addCard(withGroup, 'a', 'c1', 'q2', 'x', 'term', 'nope')).toBeNull()
   })
 })

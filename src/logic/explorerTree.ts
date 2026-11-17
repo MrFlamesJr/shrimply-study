@@ -1,7 +1,8 @@
 // The Explorer's tree over the open files. Node ids: "d:<doc>", "c:<doc>:<course>", "q:<doc>:<course>:<quiz>",
-// "k:<doc>:<course>:<quiz>:<card>" (ids are UUIDs, so never hold ':').
+// "p:<doc>:<course>:<quiz>:<group>" (a quiz's group), "k:<doc>:<course>:<quiz>:<card>" (ids are UUIDs, so never hold ':').
 import type { Library } from '../model'
 import type { TreeSource } from '../kit/tree'
+import { sections } from './groups'
 import { itemName, type DocId, type Docs, type Fragment, type ItemRef, type Target } from './contentOps'
 
 export type OpenDoc = { id: DocId; name: string; library: Library; /** The Google Drive file it is (an open library is a root, so the list does not show it again). */ driveId?: string | null }
@@ -11,11 +12,13 @@ export function nodeOf(ref: ItemRef | DocRef): string {
   if (ref.kind === 'doc') return `d:${ref.doc}`
   if (ref.kind === 'course') return `c:${ref.doc}:${ref.course}`
   if (ref.kind === 'quiz') return `q:${ref.doc}:${ref.course}:${ref.quiz}`
+  if (ref.kind === 'group') return `p:${ref.doc}:${ref.course}:${ref.quiz}:${ref.group}`
   return `k:${ref.doc}:${ref.course}:${ref.quiz}:${ref.card}`
 }
 
 export function refOf(nodeId: string): ItemRef | DocRef {
   const [tag, doc, course, quiz, card] = nodeId.split(':')
+  if (tag === 'p') return { kind: 'group', doc, course, quiz, group: card }
   if (tag === 'd') return { kind: 'doc', doc }
   if (tag === 'c') return { kind: 'course', doc, course }
   if (tag === 'q') return { kind: 'quiz', doc, course, quiz }
@@ -93,7 +96,18 @@ export function explorerSource(open: OpenDoc[], drive?: DriveListing, peeks?: Re
       const course = lib.courses.find((c) => c.id === r.course)
       if (r.kind === 'course') return (course?.quizzes ?? []).map((q) => nodeOf({ kind: 'quiz', doc: r.doc, course: r.course, quiz: q.id }))
       const quiz = course?.quizzes.find((q) => q.id === r.quiz)
-      if (r.kind === 'quiz') return (quiz?.cards ?? []).map((k) => nodeOf({ kind: 'card', doc: r.doc, course: r.course, quiz: r.quiz, card: k.id }))
+      // A quiz shows its ungrouped cards, then its groups; a group shows its cards.
+      if (r.kind === 'quiz') {
+        if (!quiz) return []
+        const [loose, ...groups] = sections(quiz.cards, quiz.groups)
+        return [
+          ...loose.cards.map((k) => nodeOf({ kind: 'card', doc: r.doc, course: r.course, quiz: r.quiz, card: k.id })),
+          ...groups.map((g) => nodeOf({ kind: 'group', doc: r.doc, course: r.course, quiz: r.quiz, group: g.group!.id })),
+        ]
+      }
+      if (r.kind === 'group') {
+        return (quiz?.cards ?? []).filter((k) => k.group === r.group).map((k) => nodeOf({ kind: 'card', doc: r.doc, course: r.course, quiz: r.quiz, card: k.id }))
+      }
       return []
     },
     label(id) {
@@ -108,10 +122,11 @@ export function explorerSource(open: OpenDoc[], drive?: DriveListing, peeks?: Re
   }
 }
 
-const LEVEL = { course: 0, quiz: 1, card: 2 } as const
+const LEVEL = { course: 0, quiz: 1, card: 2, group: 2 } as const
 
 /**
- * Where a drop or paste of `kind` lands relative to a node. Inside a quiz: its end, no group. Before or after a card:
+ * Where a drop or paste of `kind` lands relative to a node. Inside a quiz: its end, no group (a group: its last group).
+ * Inside a group: a card joins it. Before or after a group: that place among the quiz's groups. Before or after a card:
  * that place in its quiz, in that card's group. Before or after a quiz or course: that place in its parent. On a file
  * (any position) or no node (the last file): the end of its courses. A kind that can not go there walks up to the
  * nearest parent that takes it, after the child it came from (before it, for "before"); null when none does.
@@ -123,12 +138,26 @@ export function targetFor(docs: Docs, nodeId: string | null, pos: 'before' | 'in
   const lib = docs[r.doc]
   if (!lib) return null
   // path[0] is the file, then the course, quiz and card ids the node names
-  const path = r.kind === 'doc' ? [r.doc] : r.kind === 'course' ? [r.doc, r.course] : r.kind === 'quiz' ? [r.doc, r.course, r.quiz] : [r.doc, r.course, r.quiz, r.card]
+  const path =
+    r.kind === 'doc'
+      ? [r.doc]
+      : r.kind === 'course'
+        ? [r.doc, r.course]
+        : r.kind === 'quiz'
+          ? [r.doc, r.course, r.quiz]
+          : [r.doc, r.course, r.quiz, r.kind === 'group' ? r.group : r.card]
   const course = lib.courses.find((c) => c.id === path[1])
   const quiz = course?.quizzes.find((q) => q.id === path[2])
-  const lists = [lib.courses, course?.quizzes, quiz?.cards]
+  // (a group node is placed among the quiz's groups, a card among its cards)
+  const lists = [lib.courses, course?.quizzes, r.kind === 'group' ? quiz?.groups : quiz?.cards]
   const at = (level: number) => lists[level - 1]?.findIndex((x) => x.id === path[level]) ?? -1
   if (path.slice(1).some((_, i) => at(i + 1) < 0)) return null
+
+  // Cards join a group dropped on; nothing else goes into a group, and a group never goes beside a card.
+  if (r.kind === 'group' && kind === 'card') {
+    return pos === 'inside' ? { kind: 'quiz', doc: path[0], course: path[1], quiz: path[2], group: r.group } : null
+  }
+  if (r.kind === 'card' && kind === 'group') return null
 
   const need = LEVEL[kind]
   let level = path.length - 1

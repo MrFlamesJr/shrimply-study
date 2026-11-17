@@ -39,13 +39,16 @@ export function ExplorerPane(p: {
 
   // Several calls in one event (open the parents, then select) must build on each other, so the latest is kept here
   // until the next render brings it back from the workspace.
-  const latest = useRef(ws.explorer)
-  latest.current = ws.explorer
+  // The Explorer's own state (open nodes, selection): the only place it is read or written, so it can come from elsewhere.
+  const state = ws.explorer
+  const setState = ws.setExplorer
+  const latest = useRef(state)
+  latest.current = state
   const expanded = useRef<{ list: string[]; set: Set<string> }>({ list: [], set: new Set() })
-  if (expanded.current.list !== ws.explorer.expanded) expanded.current = { list: ws.explorer.expanded, set: new Set(ws.explorer.expanded) }
-  const put = (change: Partial<typeof ws.explorer>) => {
+  if (expanded.current.list !== state.expanded) expanded.current = { list: state.expanded, set: new Set(state.expanded) }
+  const put = (change: Partial<typeof state>) => {
     latest.current = { ...latest.current, ...change }
-    ws.setExplorer(latest.current)
+    setState(latest.current)
   }
 
   // ---- Google Drive: the libraries it can see, listed on mount, on a sign-in change and after open, save, pick or remove
@@ -145,7 +148,7 @@ export function ExplorerPane(p: {
       docs={docs.current}
       expanded={expanded.current.set}
       onExpanded={(set) => put({ expanded: [...set] })}
-      selection={ws.explorer.selection}
+      selection={state.selection}
       onSelection={(selection) => put({ selection })}
       clipboard={ws.clipboard}
       apply={(label, update) => ws.apply(label, update)}

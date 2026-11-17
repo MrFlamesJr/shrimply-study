@@ -243,3 +243,11 @@
     margin-bottom: calc(var(--space-1) / 2);
   }
 }
+/* A group's color dot (the editor's group head's, from the theme's --group-<color> through [data-color]). */
+.explorer-group-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--group);
+}

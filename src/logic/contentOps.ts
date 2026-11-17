@@ -12,41 +12,49 @@ export type ItemRef =
   | { kind: 'course'; doc: DocId; course: string }
   | { kind: 'quiz'; doc: DocId; course: string; quiz: string }
   | { kind: 'card'; doc: DocId; course: string; quiz: string; card: string }
+  | { kind: 'group'; doc: DocId; course: string; quiz: string; group: string }
 export type Target =
   | { kind: 'doc'; doc: DocId; index?: number }
   | { kind: 'course'; doc: DocId; course: string; index?: number }
+  // `index`: a card's place among the quiz's cards, or a group's place among its groups; `group`: for cards, the group they
+  // join (null: none, undefined: the one they came from, by name).
   | { kind: 'quiz'; doc: DocId; course: string; quiz: string; index?: number; group?: string | null }
 export type Fragment =
   | { kind: 'course'; courses: Course[]; sideTypes: Sides[] }
   | { kind: 'quiz'; quizzes: Quiz[]; sideTypes: Sides[] }
   | { kind: 'card'; cards: { card: Card; group: Group | null }[]; sideTypes: Sides[] }
+  | { kind: 'group'; groups: { group: Group; cards: Card[] }[]; sideTypes: Sides[] }
 
 const GONE = 'That is no longer there.'
-const WHERE = { course: 'a file', quiz: 'a course', card: 'a quiz' } as const
-const TARGET_KIND = { course: 'doc', quiz: 'course', card: 'quiz' } as const
+const WHERE = { course: 'a file', quiz: 'a course', card: 'a quiz', group: 'a quiz' } as const
+const TARGET_KIND = { course: 'doc', quiz: 'course', card: 'quiz', group: 'quiz' } as const
 
 // Where an item is: its places in the lists (-1 when the level does not apply).
-type Loc = { ref: ItemRef; doc: number; c: number; q: number; k: number }
+type Loc = { ref: ItemRef; doc: number; c: number; q: number; k: number; g: number }
 
 function locate(docs: Docs, ref: ItemRef): Loc | null {
   const doc = Object.keys(docs).indexOf(ref.doc)
   if (doc < 0) return null
   const c = docs[ref.doc].courses.findIndex((x) => x.id === ref.course)
   if (c < 0) return null
-  if (ref.kind === 'course') return { ref, doc, c, q: -1, k: -1 }
+  if (ref.kind === 'course') return { ref, doc, c, q: -1, k: -1, g: -1 }
   const quiz = docs[ref.doc].courses[c].quizzes
   const q = quiz.findIndex((x) => x.id === ref.quiz)
   if (q < 0) return null
-  if (ref.kind === 'quiz') return { ref, doc, c, q, k: -1 }
+  if (ref.kind === 'quiz') return { ref, doc, c, q, k: -1, g: -1 }
+  if (ref.kind === 'group') {
+    const g = quiz[q].groups.findIndex((x) => x.id === ref.group)
+    return g < 0 ? null : { ref, doc, c, q, k: -1, g }
+  }
   const k = quiz[q].cards.findIndex((x) => x.id === ref.card)
-  return k < 0 ? null : { ref, doc, c, q, k }
+  return k < 0 ? null : { ref, doc, c, q, k, g: -1 }
 }
 
 // The items in document order, each once. Throws when one is missing.
 function locateAll(docs: Docs, refs: ItemRef[]): Loc[] {
   const locs = refs.map((r) => locate(docs, r) ?? fail(GONE))
-  locs.sort((a, b) => a.doc - b.doc || a.c - b.c || a.q - b.q || a.k - b.k)
-  return locs.filter((l, i) => i === 0 || l.doc !== locs[i - 1].doc || l.c !== locs[i - 1].c || l.q !== locs[i - 1].q || l.k !== locs[i - 1].k)
+  locs.sort((a, b) => a.doc - b.doc || a.c - b.c || a.q - b.q || a.k - b.k || a.g - b.g)
+  return locs.filter((l, i) => i === 0 || l.doc !== locs[i - 1].doc || l.c !== locs[i - 1].c || l.q !== locs[i - 1].q || l.k !== locs[i - 1].k || l.g !== locs[i - 1].g)
 }
 
 function fail(reason: string): never {
@@ -54,10 +62,11 @@ function fail(reason: string): never {
 }
 
 // The key of the list an item sits in, and of the list a target holds.
+// (A quiz holds two lists: its cards and its groups.)
 const itemParent = (r: ItemRef): string =>
-  r.kind === 'course' ? r.doc : r.kind === 'quiz' ? `${r.doc}:${r.course}` : `${r.doc}:${r.course}:${r.quiz}`
-const targetList = (t: Target): string =>
-  t.kind === 'doc' ? t.doc : t.kind === 'course' ? `${t.doc}:${t.course}` : `${t.doc}:${t.course}:${t.quiz}`
+  r.kind === 'course' ? r.doc : r.kind === 'quiz' ? `${r.doc}:${r.course}` : `${r.doc}:${r.course}:${r.quiz}${r.kind === 'group' ? '#groups' : ''}`
+const targetList = (t: Target, kind: ItemRef['kind']): string =>
+  t.kind === 'doc' ? t.doc : t.kind === 'course' ? `${t.doc}:${t.course}` : `${t.doc}:${t.course}:${t.quiz}${kind === 'group' ? '#groups' : ''}`
 
 const ownPairs = (cards: Card[], into: Sides[]): Sides[] =>
   cards.reduce((types, c) => (isTermCard(c) && c.sides && !isPreset(c.sides) ? addSideType(types, c.sides) : types), into)
@@ -77,6 +86,14 @@ export function extract(docs: Docs, refs: ItemRef[]): Fragment {
   if (kind === 'quiz') {
     const quizzes = locs.map((l) => clone(docs[l.ref.doc].courses[l.c].quizzes[l.q]))
     return { kind, quizzes, sideTypes: quizzes.reduce((t, q) => ownPairs(q.cards, t), [] as Sides[]) }
+  }
+  if (kind === 'group') {
+    const groups = locs.map((l) => {
+      const quiz = docs[l.ref.doc].courses[l.c].quizzes[l.q]
+      const group = quiz.groups[l.g]
+      return { group: clone(group), cards: clone(quiz.cards.filter((c) => c.group === group.id)) }
+    })
+    return { kind, groups, sideTypes: ownPairs(groups.flatMap((e) => e.cards), []) }
   }
   const cards = locs.map((l) => {
     const quiz = docs[l.ref.doc].courses[l.c].quizzes[l.q]
@@ -108,12 +125,13 @@ const insertAt = <T>(list: T[], index: number | undefined, items: T[]): T[] => {
 }
 
 // The list a target holds, for comparing before and after.
-function listOf(docs: Docs, t: Target): { id: string; group?: string }[] {
+function listOf(docs: Docs, t: Target, kind: ItemRef['kind']): { id: string; group?: string }[] {
   const lib = docs[t.doc]
   if (t.kind === 'doc') return lib.courses
   const course = lib.courses.find((c) => c.id === t.course)!
   if (t.kind === 'course') return course.quizzes
-  return course.quizzes.find((q) => q.id === t.quiz)!.cards
+  const quiz = course.quizzes.find((q) => q.id === t.quiz)!
+  return kind === 'group' ? quiz.groups : quiz.cards
 }
 
 /** null when allowed, else a plain reason. */
@@ -124,9 +142,9 @@ export function canPlace(docs: Docs, refs: ItemRef[], target: Target, effect: 'm
   const wrong = targetProblem(docs, kind, target)
   if (wrong) return wrong
   if (refs.some((r) => !locate(docs, r))) return GONE
-  if (effect === 'move' && refs.every((r) => itemParent(r) === targetList(target))) {
-    const before = listOf(docs, target)
-    const after = listOf(moveCore(docs, locateAll(docs, refs), target).docs, target)
+  if (effect === 'move' && refs.every((r) => itemParent(r) === targetList(target, kind))) {
+    const before = listOf(docs, target, kind)
+    const after = listOf(moveCore(docs, locateAll(docs, refs), target).docs, target, kind)
     if (before.length === after.length && before.every((x, i) => x.id === after[i].id && x.group === after[i].group)) {
       return 'That is already there.'
     }
@@ -229,12 +247,33 @@ function place(docs: Docs, fragment: Fragment, target: Target, fresh: (() => str
       created: cards.map((c) => ({ kind: 'card', doc: target.doc, course: course.id, quiz: quiz.id, card: c.id })),
     }
   }
+  if (fragment.kind === 'group' && target.kind === 'quiz') {
+    const course = lib.courses.find((c) => c.id === target.course)!
+    const quiz = course.quizzes.find((q) => q.id === target.quiz)!
+    const names = quiz.groups.map((g) => g.name)
+    const added = fragment.groups.map(({ group, cards }) => {
+      const name = copyName(group.name, names)
+      names.push(name)
+      const id = fresh ? fresh() : quiz.groups.some((x) => x.id === group.id) ? newId() : group.id
+      return { group: { ...group, id, name }, cards: cards.map((c) => ({ ...c, ...(fresh && { id: fresh() }), group: id }) as Card) }
+    })
+    const groups = insertAt(quiz.groups, target.index, added.map((e) => e.group))
+    const next = { ...quiz, groups, cards: inGroupOrder([...quiz.cards, ...added.flatMap((e) => e.cards)], groups) }
+    return {
+      docs: set({
+        ...lib,
+        courses: lib.courses.map((c) => (c === course ? { ...course, quizzes: course.quizzes.map((q) => (q === quiz ? next : q)) } : c)),
+      }),
+      created: added.map((e) => ({ kind: 'group', doc: target.doc, course: course.id, quiz: quiz.id, group: e.group.id })),
+    }
+  }
   return fail(`A ${fragment.kind} can only go in ${WHERE[fragment.kind]}.`)
 }
 
 /** Copies the fragment into the target with fresh ids. Throws (nothing changed) when the target does not take it. */
 export function insert(docs: Docs, fragment: Fragment, target: Target, newIdFn: () => string): { docs: Docs; created: ItemRef[] } {
-  const count = fragment.kind === 'course' ? fragment.courses.length : fragment.kind === 'quiz' ? fragment.quizzes.length : fragment.cards.length
+  const count =
+    fragment.kind === 'course' ? fragment.courses.length : fragment.kind === 'quiz' ? fragment.quizzes.length : fragment.kind === 'group' ? fragment.groups.length : fragment.cards.length
   if (count === 0) fail('Nothing is selected.')
   return place(docs, clone(fragment), target, newIdFn)
 }
@@ -254,8 +293,11 @@ export function remove(docs: Docs, refs: ItemRef[]): Docs {
           const course = c.quizzes
             .filter((q) => !gone.has(itemKey({ kind: 'quiz', doc, course: c.id, quiz: q.id })))
             .map((q) => {
-              const cards = q.cards.filter((k) => !gone.has(itemKey({ kind: 'card', doc, course: c.id, quiz: q.id, card: k.id })))
-              return cards.length === q.cards.length ? q : { ...q, cards }
+              // A group goes with its cards.
+              const dead = new Set(q.groups.filter((g) => gone.has(itemKey({ kind: 'group', doc, course: c.id, quiz: q.id, group: g.id }))).map((g) => g.id))
+              const cards = q.cards.filter((k) => !gone.has(itemKey({ kind: 'card', doc, course: c.id, quiz: q.id, card: k.id })) && !(k.group && dead.has(k.group)))
+              if (dead.size === 0) return cards.length === q.cards.length ? q : { ...q, cards }
+              return { ...q, cards, groups: q.groups.filter((g) => !dead.has(g.id)) }
             })
           return course.length === c.quizzes.length && course.every((q, i) => q === c.quizzes[i]) ? c : { ...c, quizzes: course }
         }),
@@ -264,14 +306,15 @@ export function remove(docs: Docs, refs: ItemRef[]): Docs {
   return next
 }
 
-const itemKey = (r: ItemRef): string => `${r.kind}:${itemParent(r)}:${r.kind === 'course' ? r.course : r.kind === 'quiz' ? r.quiz : r.card}`
+const itemKey = (r: ItemRef): string =>
+  `${r.kind}:${itemParent(r)}:${r.kind === 'course' ? r.course : r.kind === 'quiz' ? r.quiz : r.kind === 'group' ? r.group : r.card}`
 
 // A move that has been checked: take the items out, then put them in, the index counted before the move.
 function moveCore(docs: Docs, locs: Loc[], target: Target): { docs: Docs; moved: ItemRef[] } {
   const refs = locs.map((l) => l.ref)
   const fragment = extract(docs, refs)
-  const here = locs.filter((l) => itemParent(l.ref) === targetList(target))
-  const position = (l: Loc) => (l.ref.kind === 'course' ? l.c : l.ref.kind === 'quiz' ? l.q : l.k)
+  const here = locs.filter((l) => itemParent(l.ref) === targetList(target, l.ref.kind))
+  const position = (l: Loc) => (l.ref.kind === 'course' ? l.c : l.ref.kind === 'quiz' ? l.q : l.ref.kind === 'group' ? l.g : l.k)
   const index = target.index === undefined ? undefined : target.index - here.filter((l) => position(l) < target.index!).length
   const placed = place(remove(docs, refs), fragment, { ...target, index }, null)
   return { docs: placed.docs, moved: placed.created }
@@ -303,5 +346,30 @@ export function itemName(docs: Docs, ref: ItemRef): string {
   if (ref.kind === 'course') return course.name
   const quiz = course.quizzes[l.q]
   if (ref.kind === 'quiz') return quiz.name
+  if (ref.kind === 'group') return quiz.groups[l.g].name
   return firstText(quiz.cards[l.k]).trim() || 'Empty card'
+}
+
+/** Takes a group apart: its cards stay in the quiz, ungrouped (after the cards that were). Throws when it is gone. */
+export function ungroup(docs: Docs, ref: Extract<ItemRef, { kind: 'group' }>): Docs {
+  if (!locate(docs, ref)) fail(GONE)
+  const lib = docs[ref.doc]
+  const courses = lib.courses.map((c) =>
+    c.id !== ref.course
+      ? c
+      : {
+          ...c,
+          quizzes: c.quizzes.map((q) => {
+            if (q.id !== ref.quiz) return q
+            const groups = q.groups.filter((g) => g.id !== ref.group)
+            const cards = q.cards.map((k) => {
+              if (k.group !== ref.group) return k
+              const { group: _gone, ...rest } = k
+              return rest as Card
+            })
+            return { ...q, groups, cards: inGroupOrder(cards, groups) }
+          }),
+        },
+  )
+  return { ...docs, [ref.doc]: { ...lib, courses } }
 }

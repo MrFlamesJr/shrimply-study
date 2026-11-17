@@ -557,7 +557,7 @@ export function dropDraft(w: Workspace, id: DocId, draft: Course): Workspace {
 
 // ---- Clipboard ----
 
-const count = (f: Fragment) => (f.kind === 'course' ? f.courses.length : f.kind === 'quiz' ? f.quizzes.length : f.cards.length)
+const count = (f: Fragment) => (f.kind === 'course' ? f.courses.length : f.kind === 'quiz' ? f.quizzes.length : f.kind === 'group' ? f.groups.length : f.cards.length)
 const what = (f: Fragment) => {
   const n = count(f)
   return n === 1 ? f.kind : f.kind === 'quiz' ? plural(n, 'quiz', 'quizzes') : plural(n, f.kind)

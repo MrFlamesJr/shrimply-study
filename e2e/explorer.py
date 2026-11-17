@@ -10,7 +10,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from kit import center  # noqa: E402
 
-KIND = {'doc': 'd', 'course': 'c', 'quiz': 'q', 'card': 'k', 'drive': 'g'}
+KIND = {'doc': 'd', 'course': 'c', 'quiz': 'q', 'card': 'k', 'drive': 'g', 'group': 'p'}
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Google's sign-in script, as the app calls it: a token client that answers at once.
@@ -315,6 +315,84 @@ def drive_tests(page, state):
     wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name=re.compile('Choose files in Google Drive')).count() == 1, 'Retry lists again')
 
 
+def group_tests(page):
+    """Groups in the tree: colored dots, a card dropped into a group, a group copied to another file, quizzes reordered by
+    drag and by Alt+Shift+Arrow, a refused drop, and the New card submenu."""
+    collapse_all(page)
+    expand(page, 'doc', 'Test library')
+    expand(page, 'course', '4. Groups')
+    expand(page, 'quiz', 'Groups and colors')
+    dots = page.evaluate(
+        "[...document.querySelectorAll('.kit-tree .explorer-group-dot')].map(e => [e.dataset.color, getComputedStyle(e).backgroundColor])"
+    )
+    need(len(dots) >= 3 and all(c and bg != 'rgba(0, 0, 0, 0)' for c, bg in dots), f'groups show their colored dots: {dots}')
+    need(row(page, 'group', 'Opposites').locator('.kit-row-desc').inner_text() == '5 cards', 'a group says how many cards it holds')
+    loose = children(page, 'quiz', 'Groups and colors')[:2]
+    need(loose == ['One', 'Two'], f'the loose cards come first: {loose}')
+
+    # A card dropped onto a group joins it.
+    drag_row(page, row(page, 'card', 'One'), row(page, 'group', 'Number words'))
+    wait_for(page, lambda: row(page, 'group', 'Number words').locator('.kit-row-desc').inner_text() == '6 cards', 'a card dropped onto a group joins it')
+    need(children(page, 'quiz', 'Groups and colors')[0] == 'Two', 'and leaves the loose cards')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: row(page, 'group', 'Number words').locator('.kit-row-desc').inner_text() == '5 cards', 'Ctrl+Z puts it back in one step')
+
+    # A group is copied into a quiz of another file, with its cards, name and color.
+    row(page, 'group', 'Opposites').click()
+    page.keyboard.press('Control+c')
+    expand(page, 'doc', 'Guide')
+    guide_course = children(page, 'doc', 'Guide')[0]
+    expand(page, 'course', guide_course)
+    guide_quiz = children(page, 'course', guide_course)[0]
+    row(page, 'quiz', guide_quiz).click()
+    page.keyboard.press('Control+v')
+    expand(page, 'quiz', guide_quiz)
+    wait_for(page, lambda: 'Opposites' in children(page, 'quiz', guide_quiz), 'the group is pasted into the other file')
+    pasted = page.locator('.kit-tree .kit-row[data-id^="p:a"], .kit-tree .kit-row[data-id^="p:"]').filter(has=page.locator('.kit-row-label', has_text=re.compile('^Opposites$')))
+    need(pasted.count() == 2 and pasted.last.locator('.kit-row-desc').inner_text() == '5 cards', 'with its cards')
+    need(row(page, 'group', 'Opposites', 0).locator('.explorer-group-dot').get_attribute('data-color') == pasted.last.locator('.explorer-group-dot').get_attribute('data-color'), 'and its color')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: 'Opposites' not in children(page, 'quiz', guide_quiz), 'Undo takes the copy back out')
+    fold(page, 'doc', 'Guide')
+
+    # A refused drop: a quiz onto a group.
+    fold(page, 'quiz', 'Ten groups') if row(page, 'quiz', 'Ten groups').count() else None
+    drag_row(page, row(page, 'quiz', 'Ten groups'), row(page, 'group', 'Number words'), release=False)
+    need(drop_label(page) == "A quiz can't go inside a group.", f'a quiz dropped on a group is refused: {drop_label(page)}')
+    page.mouse.up()
+    page.wait_for_timeout(150)
+
+    # Reorder two quizzes by drag, then back by Alt+Shift+Arrow.
+    fold(page, 'quiz', 'Groups and colors')
+    before = children(page, 'course', '4. Groups')
+    need(before == ['Groups and colors', 'Ten groups'], f'quizzes in order: {before}')
+    drag_row(page, row(page, 'quiz', 'Ten groups'), row(page, 'quiz', 'Groups and colors'), dy=0.1)
+    wait_for(page, lambda: children(page, 'course', '4. Groups') == ['Ten groups', 'Groups and colors'], 'dropping before a sibling reorders')
+    row(page, 'quiz', 'Ten groups').click()
+    page.keyboard.press('Alt+Shift+ArrowDown')
+    wait_for(page, lambda: children(page, 'course', '4. Groups') == before, 'Alt+Shift+ArrowDown moves it one place down')
+    page.keyboard.press('Alt+Shift+ArrowDown')
+    need(children(page, 'course', '4. Groups') == before, 'the last one stays last')
+    page.keyboard.press('Alt+Shift+ArrowUp')
+    wait_for(page, lambda: children(page, 'course', '4. Groups') == ['Ten groups', 'Groups and colors'], 'Alt+Shift+ArrowUp moves it up')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: children(page, 'course', '4. Groups') == before, 'a move is one undo step')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: children(page, 'course', '4. Groups') == ['Ten groups', 'Groups and colors'], 'and the one before it')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: children(page, 'course', '4. Groups') == before, 'back to the start')
+
+    # New card is a submenu of every kind, worded as the editor's.
+    row(page, 'quiz', 'Groups and colors').click(button='right')
+    page.get_by_role('menuitem', name=re.compile('^New card')).hover()
+    wait_for(page, lambda: page.get_by_role('menuitem', name='Choice question').count() == 1, 'New card opens a submenu')
+    names = [n.strip() for n in page.get_by_role('menuitem').all_inner_texts()]
+    for kind in ('Front and back', 'Fill in the blank', 'True or false', 'Choice question', 'Sequence'):
+        need(kind in names, f'{kind} is in it: {names}')
+    page.keyboard.press('Escape')
+    page.keyboard.press('Escape')
+
+
 def run(page, base):
     state = {'files': [{'id': i, 'name': f'{i}.shrimp'} for i in ('alpha', 'beta', 'gamma')], 'fail': False, 'lists': 0, 'trashed': []}
     stub_google(page, state)
@@ -533,6 +611,7 @@ def run(page, base):
     page.locator('.kit-tree .kit-row').first.wait_for()
     wait_for(page, lambda: selected(page) == ['Opposites'] and shape() == shape_before, f'the selection and open nodes are restored: {shape()} vs {shape_before}')
 
+    group_tests(page)
     drive_tests(page, state)
     # The stubbed list that was made to fail is the one console error expected.
     page.errors[:] = [e for e in page.errors if 'status of 500' not in e]

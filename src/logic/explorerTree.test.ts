@@ -29,7 +29,10 @@ describe('explorerSource', () => {
     expect(src.roots).toEqual(['d:a', 'd:b'])
     expect(src.children('d:a')).toEqual(['c:a:c1', 'c:a:c2'])
     expect(src.children('c:a:c1')).toEqual(['q:a:c1:q1', 'q:a:c1:q2'])
-    expect(src.children('q:a:c1:q1')).toEqual(['k:a:c1:q1:k1', 'k:a:c1:q1:k2'])
+    // a quiz shows its ungrouped cards, then its groups, each with its cards
+    expect(src.children('q:a:c1:q1')).toEqual(['k:a:c1:q1:k1', 'p:a:c1:q1:g1'])
+    expect(src.children('p:a:c1:q1:g1')).toEqual(['k:a:c1:q1:k2'])
+    expect(src.label('p:a:c1:q1:g1')).toBe('G')
     expect(src.children('k:a:c1:q1:k1')).toEqual([])
     expect(src.children('d:b')).toEqual([])
     expect(['d:a', 'c:a:c1', 'q:a:c1:q1', 'k:a:c1:q1:k2'].map(src.label)).toEqual(['one.shrimp', 'Bio', 'Cells', 'Tk2'])
@@ -38,7 +41,7 @@ describe('explorerSource', () => {
 
 describe('refOf / nodeOf', () => {
   it('round trip', () => {
-    for (const id of ['d:a', 'c:a:c1', 'q:a:c1:q1', 'k:a:c1:q1:k1']) expect(nodeOf(refOf(id))).toBe(id)
+    for (const id of ['d:a', 'c:a:c1', 'q:a:c1:q1', 'k:a:c1:q1:k1', 'p:a:c1:q1:g1']) expect(nodeOf(refOf(id))).toBe(id)
     expect(refOf('q:a:c1:q1')).toEqual({ kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1' })
     expect(() => refOf('x:1')).toThrow()
   })
@@ -142,3 +145,24 @@ describe('Google Drive libraries among the files', () => {
   })
 })
 
+describe('targetFor with groups', () => {
+  it('a card dropped on a group joins it; before or after a group is no place for it', () => {
+    expect(targetFor(docs, 'p:a:c1:q1:g1', 'inside', 'card')).toEqual({ kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', group: 'g1' })
+    expect(targetFor(docs, 'p:a:c1:q1:g1', 'before', 'card')).toBeNull()
+  })
+  it('a group goes in a quiz: its end, or before and after another group by its place among the groups', () => {
+    expect(targetFor(docs, 'q:a:c1:q1', 'inside', 'group')).toEqual({ kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: undefined, group: null })
+    expect(targetFor(docs, 'p:a:c1:q1:g1', 'before', 'group')).toMatchObject({ kind: 'quiz', quiz: 'q1', index: 0 })
+    expect(targetFor(docs, 'p:a:c1:q1:g1', 'after', 'group')).toMatchObject({ kind: 'quiz', quiz: 'q1', index: 1 })
+  })
+  it('a group has no place beside a card, in a course or in a file', () => {
+    expect(targetFor(docs, 'k:a:c1:q1:k1', 'after', 'group')).toBeNull()
+    expect(targetFor(docs, 'c:a:c1', 'inside', 'group')).toBeNull()
+    expect(targetFor(docs, 'd:a', 'inside', 'group')).toBeNull()
+    expect(targetFor(docs, 'q:a:c1:q1', 'after', 'group')).toBeNull()
+  })
+  it('a quiz or a course walks up from a group to its place in the parent', () => {
+    expect(targetFor(docs, 'p:a:c1:q1:g1', 'after', 'quiz')).toEqual({ kind: 'course', doc: 'a', course: 'c1', index: 1 })
+    expect(targetFor(docs, 'p:a:c1:q1:g1', 'before', 'course')).toEqual({ kind: 'doc', doc: 'a', index: 0 })
+  })
+})

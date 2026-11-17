@@ -13,7 +13,7 @@ import { flatten, pathTo } from '../kit/tree'
 import { TreeView } from '../kit/TreeView'
 import { itemName, exists, type DocId, type Docs, type ItemRef, type Target } from '../logic/contentOps'
 import {
-  addCard, addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
+  addCard, addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, type Item, type NewCardKind, reorderTarget, ungroupPlan, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
@@ -84,7 +84,9 @@ const HELP: [string, string][] = [
   ['Open and expand', 'Press Enter or double click to open a file, course, quiz or card in a tab beside the Explorer. The arrow keys move: Right opens a node, Left closes it. Expanding a file that is not open only shows what is inside it.'],
   ['Select several', 'Hold Ctrl to add or remove one, Shift to pick a range, Ctrl+A for all. Copy, cut, move and drag need items of one kind. Delete takes any mix.'],
   ['Copy, cut and paste', 'Ctrl+C, Ctrl+X and Ctrl+V work on courses, quizzes and cards, also between files. A pasted copy gets a free name, like "Biology (2)". Inside a file that is not open you can only copy.'],
-  ['Drag', 'Drag to move. Hold Ctrl (Option on a Mac) to copy. The label says which, and a drop that is refused says why. Esc cancels.'],
+  ['Drag', 'Drag to move. Hold Ctrl (Option on a Mac) to copy. The label says which, and a drop that is refused says why. Esc cancels. Drop between two items of the same kind to put it there.'],
+  ['Groups', 'A quiz shows its ungrouped cards, then its groups, each with its color. Drop a card onto a group to add it. Groups copy, cut, paste, drag and move with their cards. Ungroup keeps the cards; Delete removes the group and its cards.'],
+  ['Reorder', 'Drag an item before or after another, or press Alt+Shift+Up or Down (also Move up and Move down in the menu). Cards stay in their group.'],
   ['Move to', 'Right-click, then Move to…, to pick the destination from a list.'],
   ['New', 'New file and Open file are at the top. Right-click a file for New course, a course for New quiz and a quiz for New card. A new course or quiz starts with its name ready to type.'],
   ['Rename', 'Press F2 to rename a course or quiz. Names stay unique in their place. On a card, F2 edits it.'],
@@ -186,9 +188,9 @@ export function Explorer(p: ExplorerProps): ReactNode {
     pending.current = { id, focus: true }
   }, [p.reveal])
 
-  const show = (refs: ItemRef[], opts: { focus?: boolean; select?: boolean } = {}) => {
+  const show = (refs: ItemRef[], opts: { focus?: boolean; select?: boolean } = {}, after: Docs = docsNow()) => {
     const nodes = refs.map(nodeOf)
-    p.onExpanded(new Set([...p.expanded, ...refs.flatMap(ancestorNodes)]))
+    p.onExpanded(new Set([...p.expanded, ...refs.flatMap((r) => ancestorNodes(r, after))]))
     if (opts.select !== false) p.onSelection({ ids: nodes, anchor: nodes[0], focus: nodes[nodes.length - 1] })
     pending.current = { id: nodes[nodes.length - 1], focus: opts.focus ?? false }
   }
@@ -199,7 +201,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
       return false
     }
     p.apply(plan.label, () => plan.docs)
-    show(plan.created)
+    show(plan.created, {}, plan.docs)
     return true
   }
 
@@ -231,11 +233,13 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   // Enter, double click and Open: show the page. Inside a library that is not open, that opens the library first.
   const openNode = (r: ItemRef | DocRef) => {
+    // A group has no page of its own: its quiz's.
+    const page: ItemRef | DocRef = r.kind === 'group' ? { kind: 'quiz', doc: r.doc, course: r.course, quiz: r.quiz } : r
     if (r.kind !== 'doc' && isPeekDoc(r.doc)) drive?.open(peekDriveId(r.doc), r)
-    else p.open(r)
+    else p.open(page)
   }
 
-  const run = (action: Action, ids: string[], at: string | null) => {
+  const run = (action: Action, ids: string[], at: string | null, kind?: NewCardKind) => {
     const first = ids[0] === undefined ? null : parseNode(ids[0])
     const refs = itemRefs(ids)
     switch (action) {
@@ -260,8 +264,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
         return
       }
       case 'newCard': {
-        if (first?.kind !== 'quiz') return
-        const ref = create(addCard(docsNow(), first.doc, first.course, first.quiz, newId()), 'New card')
+        if (first?.kind !== 'quiz' && first?.kind !== 'group') return
+        const ref = create(addCard(docsNow(), first.doc, first.course, first.quiz, newId(), kind, first.kind === 'group' ? first.group : undefined), 'New card')
         if (ref) {
           show([ref])
           p.edit(ref)
@@ -278,6 +282,22 @@ export function Explorer(p: ExplorerProps): ReactNode {
         return 'reason' in r ? p.notify('info', r.reason) : p.paste(r.target)
       }
       case 'moveTo': return setMoving(refs)
+      case 'moveUp':
+      case 'moveDown': {
+        if (refs.length !== 1) return
+        const t = reorderTarget(docsNow(), refs[0], action === 'moveUp' ? 'up' : 'down')
+        if ('reason' in t) return p.notify('info', t.reason)
+        return void planned(placeItems(docsNow(), refs, t.target, 'move', newId, action === 'moveUp' ? 'Move up' : 'Move down'))
+      }
+      case 'ungroup': {
+        const plan = refs[0]?.kind === 'group' ? ungroupPlan(docsNow(), refs[0]) : null
+        if (!plan) return
+        return void p.ask(plan.question, 'Ungroup').then((yes) => {
+          if (!yes) return
+          const again = refs[0].kind === 'group' ? ungroupPlan(docsNow(), refs[0]) : null
+          if (again) p.apply(again.label, () => again.docs)
+        })
+      }
       case 'delete': return void remove(ids)
       case 'driveOpen': {
         const g = parseDriveNode(ids[0])
@@ -303,11 +323,15 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const onContextMenu = (target: string | null, at: { x: number; y: number }) => {
     if (!p.tipSeen) p.onTipSeen?.()
     const ids = idsFor(target)
-    const items: MenuItem[] = menuFor(context(), ids, target).map((e) =>
-      e === 'separator'
-        ? e
-        : { label: e.label, shortcut: e.shortcut, disabled: e.disabled, reason: e.reason, danger: e.danger, onSelect: () => run(e.action, ids, target) },
-    )
+    const toItem = (e: Item): MenuItem => ({
+      label: e.label,
+      shortcut: e.shortcut,
+      disabled: e.disabled,
+      reason: e.reason,
+      danger: e.danger,
+      ...(e.submenu ? { submenu: e.submenu.map(toItem) } : { onSelect: () => run(e.action, ids, target, e.arg) }),
+    })
+    const items: MenuItem[] = menuFor(context(), ids, target).map((e) => (e === 'separator' ? e : toItem(e)))
     if (items.length > 0) openMenu(items, { ...at, doc: root.current!.ownerDocument })
   }
 
@@ -340,6 +364,10 @@ export function Explorer(p: ExplorerProps): ReactNode {
     const g = parseDriveNode(id)
     if (g) return <span className="explorer-icon" title={fileStatus(meta, id, listing && { listing })?.where}><CloudIcon /></span>
     const r = parseNode(id)
+    if (r?.kind === 'group') {
+      const color = docsAll[r.doc]?.courses.find((c) => c.id === r.course)?.quizzes.find((q) => q.id === r.quiz)?.groups.find((x) => x.id === r.group)?.color
+      return <span className="explorer-group-dot" data-color={color} />
+    }
     if (r?.kind !== 'doc') return null
     const doc = p.docs.find((d) => d.id === r.doc)
     if (!doc) return null
