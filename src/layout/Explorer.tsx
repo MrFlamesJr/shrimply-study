@@ -31,6 +31,8 @@ export type ExplorerProps = {
   clipboard: { mode: 'copy' | 'cut'; refs: ItemRef[] } | null
   /** One undoable step. Never called with an update that throws. */
   apply(label: string, update: (docs: Docs) => Docs): void
+  /** Undoes the last step: offered on the toast after a delete. */
+  undo?(): void
   copy(refs: ItemRef[]): void
   cut(refs: ItemRef[]): void
   paste(target: Target): void
@@ -170,7 +172,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
       return
     }
     p.apply(plan.label, () => done.docs)
-    p.notify('info', plan.notice)
+    const undo = latest.current.undo
+    p.notify('info', plan.notice, undefined, undo && { label: 'Undo', run: undo })
   }
 
   const run = (action: Action, ids: string[], at: string | null) => {
