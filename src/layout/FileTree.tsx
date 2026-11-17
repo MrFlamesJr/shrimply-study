@@ -63,9 +63,16 @@ const infoOf = (doc: LibraryApi): string[] =>
     counts: countLine(doc.library),
   })
 
-const chevron = (expandable: boolean) => (
-  <span className="file-chevron" data-chevron={expandable ? '' : undefined} aria-hidden>
-    {expandable && <ChevronDownIcon />}
+// A row's icon, which turns into its fold chevron while the row is pointed at (asked for); with something to fold,
+// the cell takes the fold click.
+const glyph = (icon: ReactNode, expandable: boolean) => (
+  <span className="file-glyph" data-chevron={expandable ? '' : undefined} aria-hidden>
+    {icon}
+    {expandable && (
+      <span className="file-chevron">
+        <ChevronDownIcon />
+      </span>
+    )}
   </span>
 )
 
@@ -326,8 +333,7 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
                     aria-describedby={infoId}
                     tabIndex={rowTab}
                   >
-                    {chevron(courses.length > 0)}
-                    <Icon />
+                    {glyph(<Icon />, courses.length > 0)}
                     <span className="file-name">
                       <span className="file-name-text">{doc.name}</span>
                       {doc.hasChanges && <span className="file-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes" />}
@@ -406,8 +412,7 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
                             tabIndex={tabId === courseNode ? 0 : -1}
                             title={`${course.name || 'Untitled course'}: ${plural(course.quizzes.length, 'quiz', 'quizzes')}`}
                           >
-                            {chevron(course.quizzes.length > 0)}
-                            <CourseIcon />
+                            {glyph(<CourseIcon />, course.quizzes.length > 0)}
                             <span className="file-label">{course.name || 'Untitled course'}</span>
                           </a>
                           <span className="file-add">
@@ -440,8 +445,7 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
                                       tabIndex={tabId === quizNode ? 0 : -1}
                                       title={`${quiz.name || 'Untitled quiz'}: ${plural(quiz.cards.length, 'card')}`}
                                     >
-                                      {chevron(false)}
-                                      <QuizIcon />
+                                      {glyph(<QuizIcon />, false)}
                                       <span className="file-label">{quiz.name || 'Untitled quiz'}</span>
                                     </a>
                                   </li>

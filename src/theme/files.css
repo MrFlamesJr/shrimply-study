@@ -124,27 +124,20 @@
   display: grid;
   grid-column: 1 / -1;
   grid-row: 1;
-  grid-template-columns: 16px auto minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   column-gap: var(--space-2);
   padding: var(--space-1) var(--space-3) var(--space-2) var(--tree-pad);
 }
-.file-pick > svg {
-  grid-row: 1 / span 2;
-  grid-column: 2;
-}
-.file-pick .file-chevron {
+.file-pick > .file-glyph {
   grid-row: 1 / span 2;
 }
-.file-pick > svg {
-  color: var(--text-muted);
-}
-.file-block.is-active .file-pick > svg {
+.file-block.is-active .file-pick > .file-glyph {
   color: var(--text);
 }
 .file-name {
   display: flex;
-  grid-column: 3;
+  grid-column: 2;
   align-items: center;
   gap: var(--space-2);
   min-width: 0;
@@ -170,7 +163,7 @@
   border-radius: 50%;
 }
 .file-where {
-  grid-column: 3;
+  grid-column: 2;
   font-size: var(--text-xs-plus);
 }
 /* The Pull link and the toolbar sit over the row's own button, which takes a stacking layer of its own once it is
@@ -219,7 +212,7 @@
   grid-column: 1 / -1;
   grid-row: 3;
   justify-self: start;
-  margin: calc(-1 * var(--space-2)) 0 var(--space-1) calc(var(--tree-pad) + 16px + var(--space-2) + 18px + var(--space-2) - var(--space-1));
+  margin: calc(-1 * var(--space-2)) 0 var(--space-1) calc(var(--tree-pad) + 16px + var(--space-2) - var(--space-1));
   font-size: var(--text-xs-plus);
 }
 .file-pull svg {
@@ -227,29 +220,60 @@
   height: 14px;
 }
 
-/* The fold chevron: a 16px cell that points right while shut and down while open. */
-.file-chevron {
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* A row's icon and its fold chevron share one 16px cell: the icon at rest; while the row is pointed at or holds the
+   keyboard focus, the icon shrinks away as the chevron grows in its place (asked for), pointing right while shut and
+   down while open. With nothing to fold the icon stays; on touch, with nothing to point at, the chevron does. Moved by
+   transform alone. */
+.file-glyph {
+  display: grid;
+  place-items: center;
   width: 16px;
   height: 16px;
   color: var(--text-muted);
 }
-.file-chevron[data-chevron] {
-  cursor: pointer;
+.file-glyph > svg,
+.file-chevron {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--dur) var(--ease),
+    scale var(--dur) var(--ease);
 }
-.file-chevron:hover {
+.file-glyph > svg {
+  width: 16px;
+  height: 16px;
+}
+.file-chevron {
+  display: flex;
   color: var(--text);
+  cursor: pointer;
+  opacity: 0;
+  scale: 0.4;
 }
 .file-chevron svg {
   width: 16px;
   height: 16px;
 }
-[aria-expanded='false'] > .file-chevron svg {
+:is(.file-pick, .file-course):is(:hover, :focus-visible) > .file-glyph[data-chevron] > svg {
+  opacity: 0;
+  scale: 0.4;
+}
+:is(.file-pick, .file-course):is(:hover, :focus-visible) > .file-glyph[data-chevron] > .file-chevron {
+  opacity: 1;
+  scale: 1;
+}
+@media (hover: none) {
+  .file-glyph[data-chevron] > svg {
+    opacity: 0;
+  }
+  .file-glyph[data-chevron] > .file-chevron {
+    opacity: 1;
+    scale: 1;
+  }
+}
+[aria-expanded='false'] > .file-glyph .file-chevron svg {
   rotate: -90deg;
 }
-[aria-expanded='true'] > .file-chevron svg {
+[aria-expanded='true'] > .file-glyph .file-chevron svg {
   rotate: none;
 }
 
@@ -284,7 +308,7 @@
 .file-course,
 .file-quiz {
   display: grid;
-  grid-template-columns: 16px 16px minmax(0, 1fr);
+  grid-template-columns: 16px minmax(0, 1fr);
   align-items: center;
   column-gap: var(--space-2);
   min-height: 32px;
@@ -321,15 +345,9 @@
 }
 /* Each level reads as its own kind: a file's name biggest, then a course in bold with its book, then a quiz in plain
    muted text with its cards; their icons muted until the row is pointed at or is the page shown. */
-.file-course > svg,
-.file-quiz > svg {
-  width: 16px;
-  height: 16px;
-  color: var(--text-muted);
-}
-.file-course:hover > svg,
-.file-quiz:hover > svg,
-[aria-current='page'] > svg {
+.file-course:hover .file-glyph,
+.file-quiz:hover .file-glyph,
+[aria-current='page'] .file-glyph {
   color: var(--text);
 }
 .file-course .file-label {
