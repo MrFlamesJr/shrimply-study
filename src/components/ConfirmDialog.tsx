@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client'
+import { activeWindow } from '../kit/windows'
 import { Modal, closeModal } from './Modal'
 
 /** One button of `askChoice`. */
@@ -11,8 +12,10 @@ export type Choice<V> = { label: string; value: V; primary?: boolean; danger?: b
  */
 export function askChoice<V>(question: string, choices: Choice<V>[], options?: { title?: string }): Promise<V | null> {
   return new Promise((resolve) => {
-    const host = document.createElement('div')
-    document.body.appendChild(host)
+    // In the active window's document (a popped-out pane's popup, or the main one), so the question shows where you work.
+    const { document: doc } = activeWindow()
+    const host = doc.createElement('div')
+    doc.body.appendChild(host)
     const root = createRoot(host)
     let chosen: V | null = null
     const onClose = () => {
