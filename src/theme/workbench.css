@@ -211,15 +211,16 @@
 }
 
 /* The pane head: a compact, plain row of breadcrumbs on the pane's own ground, the top of the pane (nothing scrolls
-   under it, so it needs no glass). It starts at the pane's left (asked for), in line with the first tab's text above
-   it (the strip's inset plus the tab's own: kit tabs.css), in every pane, popup and width. */
+   under it, so it needs no glass), slim (asked for: 24px, small text; 44px to touch below 800px). It starts at the
+   pane's left (asked for), in line with the first tab's text above it (the strip's inset plus the tab's own: kit
+   tabs.css), in every pane, popup and width. */
 .pane-head {
   display: flex;
   flex: none;
   align-items: center;
-  height: 32px;
+  height: 24px;
   padding-inline: calc(var(--space-2) + var(--kit-space-3)) var(--space-3);
-  font-size: var(--text-sm);
+  font-size: var(--text-xs-plus);
   white-space: nowrap;
 }
 .pane-crumbs {
@@ -262,8 +263,8 @@
   color: var(--text-muted);
 }
 .pane-icon svg {
-  width: 14px;
-  height: 14px;
+  width: 12px;
+  height: 12px;
 }
 /* The app's own pages: the shrimp in the same one muted tone. */
 .pane-icon.is-app {
