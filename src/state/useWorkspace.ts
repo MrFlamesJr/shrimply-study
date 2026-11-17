@@ -189,7 +189,7 @@ export type WorkspaceApi = {
   /** Shows a file: its tab in the active group, else its tab used last, else a new tab on its home. */
   activate(id: DocId): void
   /** Shows a place of a file in a group (default: the active one), in its tab there unless `newTab`; the tab's id. */
-  openPlace(doc: DocId, route: Route, o?: { group?: GroupId; newTab?: boolean; background?: boolean; keepTabs?: boolean }): TabId | null
+  openPlace(doc: DocId, route: Route, o?: { group?: GroupId; newTab?: boolean; background?: boolean }): TabId | null
   /** The page a tab shows. */
   setTabRoute(tabId: TabId, route: Route): void
   activateTab(tabId: TabId): void

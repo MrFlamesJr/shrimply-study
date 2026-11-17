@@ -39,7 +39,8 @@ export type Doc = {
 /** The libraries of some documents, as a history entry keeps them. */
 export type Snap = Record<DocId, Library>
 export type Clipboard = { mode: 'copy' | 'cut'; refs: ItemRef[]; fragment: Fragment }
-export type Explorer = { expanded: string[]; selection: Selection }
+// `search` and `scroll`: the filter text and the tree's scroll place, kept with the tab.
+export type Explorer = { expanded: string[]; selection: Selection; search?: string; scroll?: number }
 export type Workspace = {
   docs: Record<DocId, Doc>
   /** The open documents in the order the sidebar lists them. */
@@ -234,14 +235,13 @@ export function openPlace(
   doc: DocId,
   route: Route,
   tabId: L.TabId,
-  o: { group?: L.GroupId; newTab?: boolean; background?: boolean; keepTabs?: boolean } = {},
+  o: { group?: L.GroupId; newTab?: boolean; background?: boolean } = {},
 ): { workspace: Workspace; tab: L.TabId | null } {
   if (!w.docs[doc]) return { workspace: w, tab: null }
   const open = o.newTab ? null : showing(w, doc, route)
   if (open) return { workspace: activateTab(w, open), tab: open }
   const group = o.group && w.layout.groups[o.group] ? o.group : openingGroup(w)
-  // `keepTabs`: the group's tab of the file keeps its page; a new tab shows this one.
-  const reuse = o.newTab || o.keepTabs ? undefined : tabIn(w.layout, group, doc)
+  const reuse = o.newTab ? undefined : tabIn(w.layout, group, doc)
   if (reuse) {
     const routed = setTabRoute(w, reuse, route)
     return { workspace: withLayout(routed, L.activate(routed.layout, reuse)), tab: reuse }
@@ -768,11 +768,16 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
 }
 
 export function readExplorer(raw: unknown): Explorer {
-  const x = raw as { expanded?: unknown; selection?: Partial<Selection> } | null
+  const x = raw as { expanded?: unknown; selection?: Partial<Selection>; search?: unknown; scroll?: unknown } | null
   const s = x?.selection
   const nullable = (v: unknown) => v === null || isString(v)
   return x && strings(x.expanded) && s && strings(s.ids) && nullable(s.anchor) && nullable(s.focus)
-    ? { expanded: x.expanded, selection: { ids: s.ids, anchor: s.anchor ?? null, focus: s.focus ?? null } }
+    ? {
+        expanded: x.expanded,
+        selection: { ids: s.ids, anchor: s.anchor ?? null, focus: s.focus ?? null },
+        ...(isString(x.search) && x.search !== '' && { search: x.search }),
+        ...(typeof x.scroll === 'number' && x.scroll > 0 && { scroll: x.scroll }),
+      }
     : emptyExplorer()
 }
 

@@ -1,7 +1,7 @@
 // What the Explorer lets the user do, decided as data: menus per kind of node, keys, creating, renaming, deleting,
 // dragging and moving. All pure (the inputs are never changed); the component only carries the decisions out.
 import { comboLabel, matches } from '../kit/shortcuts'
-import { KIND_NAME, isTermCard, type Card, type Library } from '../model'
+import { KIND_NAME, isTermCard, type Card, type Library, type Sides } from '../model'
 import { canPlace, exists, extract, insert, itemName, move, remove, ungroup, type DocId, type Docs, type ItemRef, type Target } from './contentOps'
 import { whereLine } from './whereLine'
 import { isPeekDoc, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type DriveNode } from './explorerTree'
@@ -308,7 +308,36 @@ export const NEW_CARD_KINDS: { kind: NewCardKind; label: string }[] = [
   { kind: 'sequence', label: 'Sequence' },
 ]
 
-/** An empty card of a kind at the end of the quiz (or of a group), as the editor makes one. */
+/** An empty card of a kind, as the editor makes one (a choice question: One answer, 1 correct and 2 wrong boxes). */
+export function blankCard(kind: NewCardKind, id: string, sides?: Sides, group?: string): Card {
+  const where = group ? { group } : {}
+  return kind === 'cloze'
+    ? { id, type: 'cloze', statement: '', explanation: [], ...where }
+    : kind === 'true-false'
+      ? { id, type: 'true-false', statement: '', answer: true, ...where }
+      : kind === 'choice'
+        ? { id, type: 'choice', question: '', mode: 'one', right: [''], wrong: ['', ''], ...where }
+        : kind === 'sequence'
+          ? { id, type: 'sequence', title: '', steps: ['', '', ''], ...where }
+          : { id, term: '', definition: '', ...(sides && { sides }), ...where }
+}
+
+/** Puts a card at the end of the quiz (or of its group). Null when the quiz or the group is gone. */
+export function insertCard(docs: Docs, doc: DocId, course: string, quiz: string, card: Card): { docs: Docs; ref: ItemRef } | null {
+  const lib = docs[doc]
+  const c = lib?.courses.find((x) => x.id === course)
+  const q = c?.quizzes.find((x) => x.id === quiz)
+  if (!lib || !c || !q) return null
+  if (card.group && !q.groups.some((g) => g.id === card.group)) return null
+  const nextQuiz = { ...q, cards: inGroupOrder([...q.cards, card], q.groups) }
+  const nextCourse = { ...c, quizzes: c.quizzes.map((x) => (x === q ? nextQuiz : x)) }
+  return {
+    docs: { ...docs, [doc]: { ...lib, courses: lib.courses.map((x) => (x === c ? nextCourse : x)) } },
+    ref: { kind: 'card', doc, course, quiz, card: card.id },
+  }
+}
+
+/** An empty card of a kind at the end of the quiz (or of a group). */
 export function addCard(
   docs: Docs,
   doc: DocId,
@@ -318,29 +347,8 @@ export function addCard(
   kind: NewCardKind = 'term',
   group?: string,
 ): { docs: Docs; ref: ItemRef } | null {
-  const lib = docs[doc]
-  const c = lib?.courses.find((x) => x.id === course)
-  const q = c?.quizzes.find((x) => x.id === quiz)
-  if (!lib || !c || !q) return null
-  if (group && !q.groups.some((g) => g.id === group)) return null
-  const where = group ? { group } : {}
-  const sides = lastSides(q.cards)
-  const card: Card =
-    kind === 'cloze'
-      ? { id, type: 'cloze', statement: '', explanation: [], ...where }
-      : kind === 'true-false'
-        ? { id, type: 'true-false', statement: '', answer: true, ...where }
-        : kind === 'choice'
-          ? { id, type: 'choice', question: '', mode: 'one', right: [''], wrong: ['', ''], ...where }
-          : kind === 'sequence'
-            ? { id, type: 'sequence', title: '', steps: ['', '', ''], ...where }
-            : { id, term: '', definition: '', ...(sides && { sides }), ...where }
-  const nextQuiz = { ...q, cards: inGroupOrder([...q.cards, card], q.groups) }
-  const nextCourse = { ...c, quizzes: c.quizzes.map((x) => (x === q ? nextQuiz : x)) }
-  return {
-    docs: { ...docs, [doc]: { ...lib, courses: lib.courses.map((x) => (x === c ? nextCourse : x)) } },
-    ref: { kind: 'card', doc, course, quiz, card: id },
-  }
+  const q = docs[doc]?.courses.find((x) => x.id === course)?.quizzes.find((x) => x.id === quiz)
+  return q ? insertCard(docs, doc, course, quiz, blankCard(kind, id, lastSides(q.cards), group)) : null
 }
 
 // ---- Rename

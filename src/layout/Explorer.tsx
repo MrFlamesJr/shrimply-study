@@ -3,6 +3,7 @@ import { AutoText } from '../components/AutoText'
 import type { askConfirm } from '../components/ConfirmDialog'
 import { BrowserIcon, ChevronsUpIcon, ShrimpIcon, CloudIcon, FileIcon, FolderIcon, InfoIcon, PlusIcon, RefreshIcon } from '../components/Icons'
 import { IconButton } from '../components/IconButton'
+import { CardDialog } from '../components/CardDialog'
 import { Modal, closeModal } from '../components/Modal'
 import { ownWindow } from '../components/ownWindow'
 import type { Notify } from '../components/Toasts'
@@ -13,14 +14,16 @@ import { flatten, pathTo } from '../kit/tree'
 import { TreeView } from '../kit/TreeView'
 import { itemName, exists, type DocId, type Docs, type ItemRef, type Target } from '../logic/contentOps'
 import {
-  addCard, addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, type Item, type NewCardKind, reorderTarget, ungroupPlan, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
+  addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, blankCard, insertCard, deletePlan, describeNode, type Item, type NewCardKind, reorderTarget, ungroupPlan, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
 import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type Peek } from '../logic/explorerTree'
 import { hiddenNote as hiddenFilesNote } from '../logic/signOut'
-import type { Library } from '../model'
+import type { Card, Library } from '../model'
 import { newId } from '../model'
+import { lastSides } from '../logic/sides'
+import type { LibraryApi } from '../state/useWorkspace'
 
 export type ExplorerDoc = { id: DocId; name: string; library: Library; dirty: boolean; where: string; driveId?: string | null }
 /** The user's Google Drive libraries, listed among the open files (the ones not open yet). The host does the listing and the calls. */
@@ -62,8 +65,8 @@ export type ExplorerProps = {
   open(node: ItemRef | DocRef): void
   /** A quiz: its editor; a card: the card dialog. */
   edit(ref: ItemRef): void
-  /** A card it just made (New card): its quiz's editor in a tab beside it, the card focused. */
-  editNew(ref: ItemRef): void
+  /** One file's API, for the card dialog (New card opens it right here). */
+  libOf(doc: DocId): LibraryApi
   newDoc(): void
   openFile(): void
   saveDoc(id: DocId): void
@@ -76,6 +79,12 @@ export type ExplorerProps = {
   /** The one-line right-click tip shows until this is true; `onTipSeen` is called at the first right-click. */
   tipSeen?: boolean
   onTipSeen?(): void
+  /** The search text (kept by the host, with the tab) and its change. */
+  filter?: string
+  onFilter?(next: string): void
+  /** The tree's scroll place: restored on mount, reported once scrolling stops. */
+  scroll?: number
+  onScroll?(top: number): void
   /** How many files from Google Drive are kept out of the tree until the user signs in (a quiet note; none: nothing). */
   hiddenFiles?: number
 }
@@ -118,10 +127,12 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const latest = useRef(p)
   latest.current = p
   const pending = useRef<{ id: string; focus: boolean } | null>(null)
-  const [filter, setFilter] = useState('')
+  const filter = p.filter ?? ''
+  const setFilter = (next: string) => p.onFilter?.(next)
   const [renaming, setRenaming] = useState<string | null>(null)
   const [moving, setMoving] = useState<ItemRef[] | null>(null)
   const [touch, setTouch] = useState(false)
+  const [adding, setAdding] = useState<{ doc: DocId; course: string; quiz: string; group?: string; kind: NewCardKind; key: number; card: Card } | null>(null)
   const helpId = useId()
 
   const docs = useMemo(() => toDocs(p.docs), [p.docs])
@@ -149,6 +160,23 @@ export function Explorer(p: ExplorerProps): ReactNode {
     on()
     mq.addEventListener('change', on)
     return () => mq.removeEventListener('change', on)
+  }, [])
+
+  // The tree's scroll place: put back on mount, and reported once the scrolling has stopped.
+  useEffect(() => {
+    const box = root.current!.querySelector<HTMLElement>('.kit-tree')!
+    if (p.scroll) box.scrollTop = p.scroll
+    const w = win()
+    let timer = 0
+    const on = () => {
+      w.clearTimeout(timer)
+      timer = w.setTimeout(() => latest.current.onScroll?.(Math.round(box.scrollTop)), 300)
+    }
+    box.addEventListener('scroll', on)
+    return () => {
+      w.clearTimeout(timer)
+      box.removeEventListener('scroll', on)
+    }
   }, [])
 
   // Forgets selected nodes that are gone (deleted, moved away, a file closed).
@@ -267,12 +295,11 @@ export function Explorer(p: ExplorerProps): ReactNode {
       }
       case 'newCard': {
         if (first?.kind !== 'quiz' && first?.kind !== 'group') return
-        const ref = create(addCard(docsNow(), first.doc, first.course, first.quiz, newId(), kind, first.kind === 'group' ? first.group : undefined), 'New card')
-        if (ref) {
-          show([ref])
-          p.editNew(ref)
-        }
-        return
+        const quiz = docsNow()[first.doc]?.courses.find((c) => c.id === first.course)?.quizzes.find((q) => q.id === first.quiz)
+        if (!quiz) return p.notify('error', 'That is no longer there.')
+        // Nothing is made until Save: the dialog opens on an empty card of the kind, here in the Explorer.
+        const group = first.kind === 'group' ? first.group : undefined
+        return setAdding({ doc: first.doc, course: first.course, quiz: first.quiz, group, kind: kind ?? 'term', key: 0, card: blankCard(kind ?? 'term', newId(), lastSides(quiz.cards), group) })
       }
       case 'open': return first && openNode(first)
       case 'edit': return first && first.kind !== 'doc' && p.edit(first)
@@ -424,6 +451,19 @@ export function Explorer(p: ExplorerProps): ReactNode {
   // The same words as the sidebar's note: never "your" while nobody is signed in.
   const hiddenNote = drive && p.hiddenFiles ? <p className="explorer-drive">{hiddenFilesNote(p.hiddenFiles, drive.listing.signedIn)}</p> : null
 
+  // Save in the New card dialog: the card goes in as one undoable step, is selected, and the tree takes the focus back;
+  // Save and add another opens a fresh dialog for the same kind in the same place.
+  const saveNew = (card: Card, again: boolean) => {
+    if (!adding) return
+    const made = insertCard(docsNow(), adding.doc, adding.course, adding.quiz, card)
+    if (!made) return p.notify('error', 'That is no longer there.')
+    p.apply('New card', () => made.docs)
+    show([made.ref], { focus: !again }, made.docs)
+    if (!again) return
+    const quiz = made.docs[adding.doc].courses.find((c) => c.id === adding.course)!.quizzes.find((q) => q.id === adding.quiz)!
+    setAdding({ ...adding, key: adding.key + 1, card: blankCard(adding.kind, newId(), lastSides(quiz.cards), adding.group) })
+  }
+
   const destinations = moving ? moveDestinations(docs, names, moving) : []
 
   return (
@@ -527,6 +567,21 @@ export function Explorer(p: ExplorerProps): ReactNode {
       </div>
       {hiddenNote}
       {driveLine}
+      {adding && (
+        <CardDialog
+          key={adding.key}
+          card={adding.card}
+          index={docsNow()[adding.doc]?.courses.find((c) => c.id === adding.course)?.quizzes.find((q) => q.id === adding.quiz)?.cards.length ?? 0}
+          lib={p.libOf(adding.doc)}
+          isNew
+          onSave={(card) => saveNew(card, false)}
+          onSaveAndAdd={(card) => saveNew(card, true)}
+          onClose={() => {
+            const k = adding.key
+            setAdding((cur) => (cur && cur.key === k ? null : cur))
+          }}
+        />
+      )}
       {moving && (
         <Modal title={`Move ${kindCount(moving[0].kind, moving.length)} to`} narrow onClose={() => setMoving(null)}>
           {destinations.length === 0 ? (

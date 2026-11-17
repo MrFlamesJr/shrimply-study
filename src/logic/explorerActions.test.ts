@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs, ItemRef } from './contentOps'
 import {
-  reorderTarget, ungroupPlan, addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
+  blankCard, insertCard, reorderTarget, ungroupPlan, addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
   dragEffect, keyDecision, menuFor, translateRef, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
   type Clip, type Item, type MenuContext,
 } from './explorerActions'
@@ -507,5 +507,27 @@ describe('New card submenu', () => {
     const made = addCard(withGroup, 'a', 'c1', 'q2', 'x', 'choice', 'g1')!
     expect(made.docs.a.courses[0].quizzes[1].cards[0]).toMatchObject({ id: 'x', group: 'g1' })
     expect(addCard(withGroup, 'a', 'c1', 'q2', 'x', 'term', 'nope')).toBeNull()
+  })
+})
+
+describe('blankCard and insertCard', () => {
+  it('makes an empty card of each kind, as the editor does, keeping the sides of the last term card', () => {
+    expect(blankCard('term', 'a', ['Q', 'A'])).toEqual({ id: 'a', term: '', definition: '', sides: ['Q', 'A'] })
+    expect(blankCard('choice', 'b', undefined, 'g1')).toEqual({ id: 'b', type: 'choice', question: '', mode: 'one', right: [''], wrong: ['', ''], group: 'g1' })
+    expect(blankCard('sequence', 'c')).toEqual({ id: 'c', type: 'sequence', title: '', steps: ['', '', ''] })
+  })
+  it('inserts a card at the end of its quiz or group, keeping group order, and changes nothing else', () => {
+    const grouped: Docs = {
+      a: { ...docs.a, courses: [{ ...docs.a.courses[0], quizzes: [{ ...docs.a.courses[0].quizzes[0], groups: [{ id: 'g1', name: 'G', color: 'coral' }, { id: 'g2', name: 'H', color: 'sky' }], cards: [{ ...card('k1') }, { ...card('k2'), group: 'g1' }, { ...card('k3'), group: 'g2' }] as Card[] }, docs.a.courses[0].quizzes[1]] }, docs.a.courses[1]] },
+      b: docs.b,
+    }
+    const loose = insertCard(grouped, 'a', 'c1', 'q1', { id: 'n1', term: 'x', definition: 'y' })!
+    expect(loose.docs.a.courses[0].quizzes[0].cards.map((c) => c.id)).toEqual(['k1', 'n1', 'k2', 'k3'])
+    const inGroup = insertCard(grouped, 'a', 'c1', 'q1', { id: 'n2', term: 'x', definition: 'y', group: 'g1' })!
+    expect(inGroup.docs.a.courses[0].quizzes[0].cards.map((c) => c.id)).toEqual(['k1', 'k2', 'n2', 'k3'])
+    expect(inGroup.ref).toEqual({ kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'n2' })
+    expect(insertCard(grouped, 'a', 'c1', 'q1', { id: 'n3', term: '', definition: '', group: 'gone' })).toBeNull()
+    expect(insertCard(grouped, 'a', 'c1', 'nope', { id: 'n4', term: '', definition: '' })).toBeNull()
+    expect(grouped.a.courses[0].quizzes[0].cards).toHaveLength(3)
   })
 })

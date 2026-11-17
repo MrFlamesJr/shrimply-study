@@ -15,7 +15,13 @@ export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'expl
  * An Explorer tab's own view (asked for: duplicated Explorers show different parts side by side): its open nodes and
  * selection. A tab without one shows the workspace's.
  */
-export type ExplorerView = { expanded: string[]; selection: { ids: string[]; anchor: string | null; focus: string | null } }
+export type ExplorerView = {
+  expanded: string[]
+  selection: { ids: string[]; anchor: string | null; focus: string | null }
+  /** The search text and the tree's scroll place of this Explorer tab. */
+  search?: string
+  scroll?: number
+}
 export type AppPage = 'changelog' | 'welcome'
 /** The app's own pages' tab titles. */
 export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome' }

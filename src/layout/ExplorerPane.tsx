@@ -19,8 +19,6 @@ export function ExplorerPane(p: {
   ask: typeof askConfirm
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
-  /** New card: the card's quiz editor in a tab, the card focused. */
-  editNew(ref: ItemRef): void
   reveal: string | null
   onRevealed(): void
   /** The right-click tip: shown until the user has right-clicked once (remembered by the host). */
@@ -162,7 +160,7 @@ export function ExplorerPane(p: {
       ask={p.ask}
       open={p.openNode}
       edit={p.editNode}
-      editNew={p.editNew}
+      libOf={(id) => ws.doc(id)}
       newDoc={() => void ws.newDoc()}
       openFile={() => void ws.openFile()}
       saveDoc={(id) => void ws.doc(id).save()}
@@ -172,6 +170,10 @@ export function ExplorerPane(p: {
       onRevealed={p.onRevealed}
       drive={drive}
       tipSeen={p.tipSeen}
+      filter={state.search ?? ''}
+      onFilter={(search) => put({ search })}
+      scroll={state.scroll}
+      onScroll={(scroll) => put({ scroll })}
       onTipSeen={p.onTipSeen}
       hiddenFiles={p.hiddenFiles}
     />

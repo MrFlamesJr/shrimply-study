@@ -348,15 +348,17 @@ def group_tests(page):
     page.keyboard.press('Control+v')
     expand(page, 'quiz', guide_quiz)
     wait_for(page, lambda: 'Opposites' in children(page, 'quiz', guide_quiz), 'the group is pasted into the other file')
-    pasted = page.locator('.kit-tree .kit-row[data-id^="p:a"], .kit-tree .kit-row[data-id^="p:"]').filter(has=page.locator('.kit-row-label', has_text=re.compile('^Opposites$')))
-    need(pasted.count() == 2 and pasted.last.locator('.kit-row-desc').inner_text() == '5 cards', 'with its cards')
-    need(row(page, 'group', 'Opposites', 0).locator('.explorer-group-dot').get_attribute('data-color') == pasted.last.locator('.explorer-group-dot').get_attribute('data-color'), 'and its color')
+    copy_row = row(page, 'group', 'Opposites', 0)  # the Guide is first in the list: its quiz holds the copy
+    need(copy_row.locator('.kit-row-desc').inner_text() == '5 cards', 'with its cards')
+    need(copy_row.locator('.explorer-group-dot').get_attribute('data-color') == 'lagoon', 'and its color')
     page.keyboard.press('Control+z')
     wait_for(page, lambda: 'Opposites' not in children(page, 'quiz', guide_quiz), 'Undo takes the copy back out')
     fold(page, 'doc', 'Guide')
 
     # A refused drop: a quiz onto a group.
     fold(page, 'quiz', 'Ten groups') if row(page, 'quiz', 'Ten groups').count() else None
+    page.evaluate("document.querySelector('.kit-tree').scrollTop = 9999")
+    page.wait_for_timeout(200)
     drag_row(page, row(page, 'quiz', 'Ten groups'), row(page, 'group', 'Number words'), release=False)
     need(drop_label(page) == "A quiz can't go inside a group.", f'a quiz dropped on a group is refused: {drop_label(page)}')
     page.mouse.up()
@@ -391,6 +393,68 @@ def group_tests(page):
         need(kind in names, f'{kind} is in it: {names}')
     page.keyboard.press('Escape')
     page.keyboard.press('Escape')
+
+    # A new card is made in a dialog right here: nothing exists until Save, Cancel adds nothing, and Save and add another
+    # keeps going. The Explorer stays the shown tab, and no tab opens.
+    def new_card(kind):
+        row(page, 'quiz', 'Groups and colors').click(button='right')
+        page.get_by_role('menuitem', name=re.compile('^New card')).hover()
+        page.get_by_role('menuitem', name=kind).click()
+        dialog = page.locator('dialog[open]')
+        dialog.wait_for()
+        return dialog
+
+    tabs = page.locator('[role=tab]').count()
+    expand(page, 'quiz', 'Groups and colors')
+    before_cards = children(page, 'quiz', 'Groups and colors')
+    dialog = new_card('Front and back')
+    need('New card' in dialog.inner_text(), 'the dialog says it is a new card')
+    need(children(page, 'quiz', 'Groups and colors') == before_cards, 'nothing is made before Save')
+    dialog.get_by_role('button', name='Cancel').click()
+    page.locator('dialog[open]').wait_for(state='detached')
+    need(children(page, 'quiz', 'Groups and colors') == before_cards, 'Cancel adds nothing')
+    dialog = new_card('Front and back')
+    need(dialog.get_by_role('button', name='Save', exact=True).is_disabled() and dialog.get_by_role('button', name='Save and add another').is_disabled(), 'an empty card can not be saved')
+    boxes = dialog.locator('textarea')
+    boxes.nth(0).fill('Added one')
+    boxes.nth(1).fill('first')
+    dialog.get_by_role('button', name='Save and add another').click()
+    wait_for(page, lambda: 'Added one' in children(page, 'quiz', 'Groups and colors'), 'Save and add another saves the card')
+    wait_for(page, lambda: page.locator('dialog[open] textarea').count() >= 2 and page.locator('dialog[open] textarea').nth(0).input_value() == '', 'and opens a fresh dialog')
+    dialog = page.locator('dialog[open]')
+    dialog.locator('textarea').nth(0).fill('Added two')
+    dialog.locator('textarea').nth(1).fill('second')
+    dialog.get_by_role('button', name='Save', exact=True).click()
+    page.locator('dialog[open]').wait_for(state='detached')
+    wait_for(page, lambda: children(page, 'quiz', 'Groups and colors')[:4] == before_cards[:2] + ['Added one', 'Added two'], f'both cards are under the quiz: {before_cards[:3]} {children(page, "quiz", "Groups and colors")[:4]}')
+    need(selected(page) == ['Added two'], 'the saved card is selected')
+    need(page.evaluate("document.activeElement.closest('.kit-tree') !== null"), 'and the tree has the focus')
+    need(page.locator('[role=tab]').count() == tabs, 'no tab opened')
+    page.keyboard.press('Control+z')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: children(page, 'quiz', 'Groups and colors') == before_cards, 'each saved card is one undo step')
+
+    # Each Explorer tab keeps its search text and scroll place across a reload.
+    page.evaluate("document.querySelector('.kit-tree').scrollTop = 0")
+    expand(page, 'course', '1. Start here')
+    for q in children(page, 'course', '1. Start here'):
+        expand(page, 'quiz', q)
+    page.set_viewport_size({'width': 1280, 'height': 520})  # a short window, so the tree has to scroll
+    need(page.evaluate("document.querySelector('.kit-tree').scrollHeight > document.querySelector('.kit-tree').clientHeight"), 'the tree scrolls inside its box')
+    page.locator('.explorer-search textarea').fill('Opp')
+    page.wait_for_timeout(900)
+    page.reload()
+    page.locator('.kit-tree .kit-row').first.wait_for()
+    wait_for(page, lambda: page.locator('.explorer-search textarea').input_value() == 'Opp', 'the search text is kept')
+    need('Opposites' in labels(page, 'quiz') and 'Read me first' not in labels(page, 'quiz'), f'and still filters: {labels(page, "quiz")}')
+    page.locator('.explorer-search textarea').fill('')
+    wait_for(page, lambda: len(labels(page)) > 10, 'clearing shows the tree again')
+    page.evaluate("document.querySelector('.kit-tree').scrollTop = 120")
+    page.wait_for_timeout(900)
+    page.reload()
+    page.locator('.kit-tree .kit-row').first.wait_for()
+    wait_for(page, lambda: page.evaluate("document.querySelector('.kit-tree').scrollTop") > 60, 'the scroll place is kept')
+    page.set_viewport_size({'width': 1280, 'height': 800})
 
 
 def run(page, base):

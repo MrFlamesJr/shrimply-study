@@ -244,7 +244,6 @@ export function App() {
   // card dialog (the Explorer's Edit on a card).
   const [reveal, setReveal] = useState<{ tab: string; node: string } | null>(null)
   const [openCard, setOpenCard] = useState<{ tab: string; card: string } | null>(null)
-  const [newCard, setNewCard] = useState<{ tab: string; card: string } | null>(null)
   // The Explorer acted in: the active tab when it is one, else the one used last (there may be several).
   const explorerTabOf = () => {
     const active = ws.layout.groups[ws.layout.activeGroup]?.active
@@ -286,18 +285,6 @@ export function App() {
     const into = ws.recentGroup(home)
     const shown = into ? ws.openPlace(node.doc, route, { group: into }) : ws.openPlace(node.doc, route, { group: home ?? undefined, newTab: true })
     if (shown && edit && node.kind === 'card') setOpenCard({ tab: shown, card: node.card })
-    bringForward()
-  }
-  // A card the Explorer just made (asked for): its quiz's editor, focused where a tab shows it, else in a new tab beside
-  // the Explorer (never over another page of the file), the card scrolled into view with its first field focused.
-  const editNew = (ref: ItemRef) => {
-    if (ref.kind !== 'card') return
-    const route = placeOf({ kind: 'quiz', doc: ref.doc, course: ref.course, quiz: ref.quiz }, true)
-    if (!route) return
-    const tab = explorerTabOf()
-    const home = tab ? groupOf(ws.layout, tab.id) : null
-    const shown = ws.openPlace(ref.doc, route, { group: ws.recentGroup(home) ?? home ?? undefined, keepTabs: true })
-    if (shown) setNewCard({ tab: shown, card: ref.card })
     bringForward()
   }
   // The Explorer's node for the place a tab shows.
@@ -464,13 +451,10 @@ export function App() {
     newCourse,
     openNode: (node) => openFromExplorer(node),
     editNode: (ref) => openFromExplorer(ref, true),
-    editNew,
     reveal,
     onRevealed: () => setReveal(null),
     openCard,
     onCardOpened: () => setOpenCard(null),
-    newCard,
-    onNewCardShown: () => setNewCard(null),
   }
 
   // The tree in the sidebar marks the page the active file's tab shows.
