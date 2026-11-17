@@ -35,8 +35,33 @@ yet (the Workbench and the Explorer are being mounted).
   workspace's `explorer`) as props, opens `ContextMenu`s from `explorerActions.menuFor`, and runs every move, copy, paste,
   rename, create and delete through `apply`, so each is one undoable step that marks every file it touched as unsaved.
   `contentOps` does the work on the libraries; `explorerActions` decides what is allowed and why not.
+- **`src/layout/ExplorerPane`** is the glue from `WorkspaceApi` to `Explorer`: it builds the open files' rows from `ws.docs`
+  and `ws.doc(id)` (the file's place in words from `logic/whereLine`), keeps `ws.explorer` (`expanded`, `selection`) in step
+  through `ws.setExplorer`, and passes `ws.apply`, `ws.undo`, `ws.copy`, `ws.cut`, `ws.paste` and each file's save,
+  download and close. Nothing renders it yet; the Explorer tab is being mounted.
 - **Per-tab navigation** (`logic/tabNav.buildTabNav`, `layout/tabNav.makeTabNav`): a tab's `go`, `redirect`, `goToNew` and
   `takeCreated`, writing the hash only for the tab that owns the address bar. Nothing calls `makeTabNav` yet.
+
+## Storage and the browser backup
+
+`useWorkspace` reads everything with `storage/browserBackup.readWorkspace()` and writes through `writeDoc` and
+`writeWorkspace` (one IndexedDB record per document, one for the workspace). Rules as built:
+
+- A record that can not be read is copied aside and skipped; the other documents still load, and a warning toast says how
+  many were set aside.
+- The old single-library backup (`library.v1`) moves in once per text, keyed by its content: the document `v1-<fingerprint>`
+  (the same id in every tab, so a retry or two tabs never duplicate it), recorded in `migrated.v1` only after the document is
+  stored. `library.v1` is never changed or deleted. A text that changed later (an older version in another tab) becomes its
+  own file. `readWorkspace` also reports `unstored` (documents the browser refused to store) and `notes` (the
+  older-version message); `useWorkspace` does not use these two yet.
+- Ids never repeat within a file: a move or paste into a file that already uses an id gives the item a new one
+  (`contentOps`).
+
+## The editor's cards
+
+`EditScreen` renders each card as a memoized `EditorCard` (`src/screens/edit/EditorCard.tsx`). The screen keeps the latest
+card actions and the library in refs, so a card's props change only when that card does: typing in one card of a 2000-card
+quiz re-renders that card. `useSortableCard` (`SortableCard.tsx`) gives each card its drag handle (dnd-kit, within one list).
 
 ## Kit use
 
@@ -46,6 +71,8 @@ yet (the Workbench and the Explorer are being mounted).
 - **History.** `applyEdit` records `{ before, after }` snapshots of only the documents the update changed
   (`kit/history`, with a `merge` for snapshots). Undo and redo put those libraries back. A document replaced from outside
   (another tab, a Drive pull, a reload) drops its entries (`forget`).
+- **Touch.** `TabStrip` and `TreeView` open their menus on a long press (`kit/longPress`), and `ContextMenu` ignores the
+  lifting finger, so tab and Explorer menus work on a phone.
 - **Windows.** `kit/windows` knows the app's windows; `components/ownWindow` gives an element's own window. The toast stack
   (`useSyncExternalStore` on `subscribeWindows` and `activeWindow`) and `useKeydown` (`appWindows`) already follow the
   windows; nothing calls `openPopup` outside the kit demo yet. Components measure with their element's own window.

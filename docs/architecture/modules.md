@@ -17,8 +17,11 @@ Rules for every file in `src/kit/`:
   `el.ownerDocument` and `el.ownerDocument.defaultView` (the element may live in a popup window), and never
   `instanceof HTMLElement` (fails across windows: use `nodeType` / `nodeName`).
 
-`src/kit/longPress.ts` (a touch or pen long press as a stand-in for a right click: `createLongPress(onPress)`, used by
-`TabStrip` and `TreeView`) is a kit file too; it has no contract of its own above.
+`src/kit/longPress.ts` is a kit file too: `createLongPress(onPress: (x, y) => void)` returns `{ fired, down, move, end, cancel }`,
+a touch or pen long press (500 ms, cancelled by moving over 8 px; `onPress` runs 80 ms after the finger lifts) as the stand-in
+for a right click. `TabStrip` and `TreeView` use it (a long press calls their `onContextMenu`; the click and drag after it
+are ignored while `fired`), and `ContextMenu` picks an item by click only when a pointer went down inside the menu, so the
+lifting finger picks nothing. See `docs/kit/longpress.md`.
 
 Host variables: `--kit-ground --kit-surface --kit-surface-2 --kit-popup --kit-text --kit-muted --kit-border
 --kit-border-strong --kit-accent --kit-accent-soft --kit-accent-line --kit-focus --kit-danger --kit-radius --kit-font
@@ -94,6 +97,7 @@ export function undo<S>(h: History<S>): { history: History<S>; entry: Entry<S> }
 export function redo<S>(h: History<S>): { history: History<S>; entry: Entry<S> } | null
 export function drop<S>(h: History<S>, pred: (e: Entry<S>) => boolean): History<S>  // from past and future
 export function seal<S>(h: History<S>): History<S>   // the next record never merges into the current last entry
+// Built: `undo` and `redo` return a sealed history, so typing after an undo starts a new step.
 export const undoLabel: <S>(h: History<S>) => string | null
 export const redoLabel: <S>(h: History<S>) => string | null
 ```
@@ -282,6 +286,8 @@ export function exists(docs: Docs, ref: ItemRef): boolean
 export function itemName(docs: Docs, ref: ItemRef): string          // a course or quiz name, a card's first text; "Empty card" when it has none
 ```
 
+Built: `move` keeps ids, except an id the target file already uses (a move from a file with the same ids, such as two copies of
+one backup) gets a new one, so ids never repeat within a file; a group moved with a card from another quiz gets a new id.
 `insert` and `move` give a taken name (by slug) the next free "Name (2)", carry groups (re-created with their color when
 missing) and own side types, and throw before changing anything when not allowed.
 
@@ -455,6 +461,50 @@ when the page is hidden.
   `crumbs(tab)`, `onCrumb(tabId, route)`, `canPopOut` and `on`: `activate`, `activateGroup`, `close`, `closeOthers`,
   `closeAll`, `move`, `split`, `join`, `resize`, `popOut` (the host calls `openPopup` synchronously inside it), `dock`,
   `saveDoc`, `saveAll`, `revealInExplorer`, `copyText`.
+- `ExplorerPane(p: { ws: WorkspaceApi; notify; ask; openNode; editNode; reveal; onRevealed })`: the glue from the workspace to
+  `Explorer`. It builds `ExplorerDoc[]` from `ws.docs` and `ws.doc(id)` (the `where` text from `whereLine`), keeps that array
+  the same object while nothing in it changed (the tree rebuilds on a new one), turns `ws.explorer` (`expanded` as a
+  `string[]`) into the set `Explorer` wants, composes several changes in one event, and wires `apply`, `undo`, `copy`,
+  `cut`, `paste`, `newDoc`, `openFile`, and each file's save, download and close to the workspace. `Explorer` also takes an
+  optional `undo()`, shown as an Undo action on the toast of a drop or paste.
 - `PaneHead({ crumbs, onCrumb })`: breadcrumbs for a pane; `Crumb = { label; route? }`.
 - Mounted today: `Sidebar` (lists the open files from `ws.docs`) and `TopBar`. The kit demo `#/_workbench`
   (`src/kit/demo/WorkbenchDemo`) uses only the kit.
+
+### `src/logic/whereLine.ts` (pure)
+
+`whereLine(f: { hasFile: boolean; drive: { shared: boolean; trashed: boolean } | null; yours: boolean; signedIn: boolean }): string`:
+where an open file lives, in words: "On this device", "Only in this browser", or for a Drive file "Your Google Drive" (needs
+a sign-in and Google's word), "Someone else's Google Drive" (signed in, not yours), "Shared on Google Drive" or "On Google
+Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Used by `ExplorerPane`.
+
+### `src/screens/edit/EditorCard.tsx`, `SortableCard.tsx` (mounted)
+
+- `EditorCard` (`memo`): one card of the editor's list. Props: `card`, `index`, `groups`, `lib`, `flagged`, `nudge`, and
+  `actions: RefObject<CardActions>`. `CardActions` is `{ patch(id, patch), remove(id), move(card, group), advance(card),
+  shift(card, by) }`. `EditScreen` keeps the latest of these in a ref and gives each card a stand-in for the library, so a
+  card's props stay the same until it changes itself: typing in one card or moving one re-renders only the cards whose own
+  props changed, not all of a 2000-card quiz. It renders `EditCard` with `editor.sortable` from `useSortableCard`.
+- `SortableCard.tsx`: `CardSortables` (the dnd-kit context and list, cards move up and down only, with screen reader
+  announcements by card number), `SectionSortable`, and `useSortableCard(id, n): CardSortable`.
+
+### `src/storage/` additions for the workspace
+
+- `workspaceRecord.ts`: `DocRecord` (`id`, `library`, `dirty`, `drive`, `file: { name, size, modified } | null`),
+  `WorkspaceRecord` (`{ version: 1; docs; layout; explorer; ui }`), `parseDocRecord`, `docRecordText`,
+  `parseWorkspaceRecord`, `readDrive`, `migrateBackup(backupText, newId): DocRecord` (the old single-library backup as a
+  document) and `textHash(text)` (cyrb53, 14 hex digits).
+- `browserBackup.ts`: one IndexedDB record per document (`doc.<id>`), one for the workspace (`workspace.v1`), file handles
+  (`handle.<id>`), unreadable records copied aside (`broken.doc.<id>`). `readWorkspace()` returns `{ workspace, docs,
+  handles, broken, unstored, notes }`: a record that can not be read is copied aside and listed in `broken`, and the others
+  still load; storage that is blocked reads as an empty workspace.
+- Migration of the old backup (`library.v1`, written by versions before the workspace): once per text. The key
+  `migrated.v1` holds the fingerprint of the last text taken. A new text becomes the document `v1-<fingerprint>`, the same id
+  in every tab, so a retry or two tabs at once write one record. A document already stored under that id, or open with the
+  same courses, is never overwritten or duplicated. The fingerprint is written only once the document is stored; if the
+  browser refuses the write, the document is in `docs` and its id in `unstored` (written again later) and the migration is
+  tried again next start. An old backup that can not be read is kept aside (`keepBrokenBackup`) and listed in `broken`.
+  When `library.v1` changed after it became a document (an older version of the app in another tab), the text becomes its own
+  file and `notes` holds `OLDER_TAB_NOTE`: "Changes made in another tab with an older version of the app were opened as
+  their own file." `library.v1` itself is always left as it is.
+- Built: `useWorkspace` reads `broken` (a warning toast) but does not yet use `unstored` or `notes`.

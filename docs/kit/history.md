@@ -85,6 +85,8 @@ console.log(undoLabel(history)) // null
   the run.
 - `merge` is for snapshots that are not plain values, for example a record of changed documents where two entries touch
   different documents.
+- `undo` and `redo` seal the history they return: whatever is recorded next never merges into an older entry, so typing
+  after an undo starts a new step.
 - `drop` does not renumber or merge anything. Use it when a snapshot can no longer be applied (for example its file
   was replaced from outside).
 - `undo` and `redo` do not apply anything. The host decides how to put a snapshot back and must not record that

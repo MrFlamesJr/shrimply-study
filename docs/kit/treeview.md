@@ -132,6 +132,10 @@ export function Files() {
 
 ## Limitations and edge cases
 
+- Touch: a long press (500 ms, see [longpress.md](longpress.md)) on a row or on empty space does what a right click does: it
+  selects the row if it was not selected and calls `onContextMenu(target, { x, y })` where the finger went down. The click,
+  double click and drag that follow the lift are ignored. `tree.css` turns off the touch callout. Row height for touch is
+  the host's choice through `rowHeight` (this app uses 44 on touch).
 - Virtualization assumes a fixed row height: every row is exactly `rowHeight` px tall and positioned at `index * rowHeight`.
   Pointer positions are turned into rows by arithmetic, not by looking at the DOM, so rows of other heights break clicks,
   drops and scrolling. Wrapping text must be clipped.

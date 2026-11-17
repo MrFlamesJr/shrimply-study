@@ -86,6 +86,9 @@ Import `tabs.css` along with the component (the component does it itself) and ma
 
 ## Limitations and edge cases
 
+- Touch: a long press on a tab (see [longpress.md](longpress.md)) calls `onContextMenu(id, { x, y })`; the click and drag
+  that follow the lift are ignored. Under `@media (pointer: coarse)` tabs are `--kit-tap` tall and the close button is
+  32 px.
 - Same-kind drops from another strip (or window) reach `onDrop`, not `onMove`: the strip only calls `onMove` for a single
   id it already holds.
 - A drag is accepted only when `canDrop` returns true; otherwise the strip does not call `preventDefault`, so the browser

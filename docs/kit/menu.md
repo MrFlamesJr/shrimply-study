@@ -77,6 +77,9 @@ To open it from a button, pass `{ anchor: buttonElement }`.
 
 ## Limitations and edge cases
 
+- Touch: a menu opened by a long press (see [longpress.md](longpress.md)) appears under the finger. The finger that lifts
+  next must not pick an item, so an item is chosen by a click only after a pointer went down inside the menu. Under
+  `@media (pointer: coarse)` items are at least `--kit-tap` tall. A menu is at most 320 px wide.
 - Popup windows: the menu is created in the target document (`anchor.ownerDocument`, or `at.doc`). The popover,
   positioning, timers (`defaultView.setTimeout`) and the viewport size all use that document's window. Without `doc` a
   point opens in the main window, so pass `doc` when the click came from a popup. The css file is loaded for the main
