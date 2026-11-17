@@ -52,8 +52,6 @@ export function ExplorerPane(p: {
   const run = useRef(0)
   const setUp = ws.drive.setUp
   const signed = setUp && ws.drive.signedIn()
-  // Listing asks Google for a token when the hour is up (a popup), which only a click may do: until then, signed out.
-  const shownSigned = signed && (driveApi.current.canListQuietly() || files !== null)
 
   const refresh = async (): Promise<void> => {
     const api = driveApi.current
@@ -120,8 +118,8 @@ export function ExplorerPane(p: {
   const drive: ExplorerDrive = {
     setUp,
     listing: useMemo(
-      () => ({ signedIn: shownSigned, loading, failed, files }),
-      [shownSigned, loading, failed, files],
+      () => ({ signedIn: signed, loading, failed, files }),
+      [signed, loading, failed, files],
     ),
     signIn: () => void driveApi.current.signIn().then((ok) => (ok ? refreshed.current() : undefined)),
     pick: () => void driveApi.current.pick().then(() => refreshed.current()),

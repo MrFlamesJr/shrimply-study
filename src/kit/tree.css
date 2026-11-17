@@ -39,9 +39,9 @@
 .kit-row-chevron svg {
   width: 16px;
   height: 16px;
-  transition: transform var(--kit-dur) var(--kit-ease);
+  transition: rotate var(--kit-dur) var(--kit-ease);
 }
-.kit-row-chevron.is-open svg { transform: rotate(90deg); }
+.kit-row-chevron.is-open svg { rotate: 90deg; }
 .kit-row-icon { flex: none; display: inline-flex; align-items: center; }
 .kit-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kit-row-label mark { background: none; color: var(--kit-accent); }

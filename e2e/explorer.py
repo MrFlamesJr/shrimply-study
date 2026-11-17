@@ -127,7 +127,7 @@ def fold(page, kind, label, nth=0):
 
 
 def dot(page, file):
-    return row(page, 'doc', file).locator('.explorer-dot').count() == 1
+    return row(page, 'doc', file).locator('.file-dot').count() == 1
 
 
 def menu(page, r, item):
@@ -172,10 +172,10 @@ def drive_row(page, name):
 
 
 def top_level(page):
-    """Every file in the tree, open or not, in order, with its status text."""
+    """Every file in the tree, open or not, in order: name, its status in words, the place (the icon's tooltip)."""
     return page.evaluate(
         "[...document.querySelectorAll('.kit-tree .kit-row[aria-level=\"1\"]')].map(r => [r.querySelector('.kit-row-label').textContent,"
-        " r.querySelector('.kit-row-desc')?.textContent])"
+        " r.querySelector('.kit-row-desc')?.textContent, r.querySelector('.explorer-icon')?.title])"
     )
 
 
@@ -206,8 +206,10 @@ def drive_tests(page, state):
     files = top_level(page)
     sorted_names = ['alpha.shrimp', 'beta.shrimp', 'gamma.shrimp', 'Guide', 'Test library']
     need([f[0] for f in files] == sorted_names, f'open and not open files are sorted together: {files}')
-    need(files[0][1] == 'Not open · Your Google Drive', f'a library not open says so: {files[0]}')
-    need(files[3][1].startswith('Open · '), f'an open file says so: {files[3]}')
+    need(files[0][1].startswith('Not open') and files[0][2] == 'On Google Drive', f'a library not open says so, and where: {files[0]}')
+    need(drive_row(page, 'alpha').locator('.explorer-chip').inner_text() == 'Not open', 'with a chip')
+    need(files[3][1].startswith('Open, ') and files[3][2] == 'Only in this browser', f'an open file says so, and where: {files[3]}')
+    need(row(page, 'doc', 'Guide').locator('.explorer-chip').count() == 0, 'an open file has no chip')
 
     # Search covers them.
     search = page.locator('.explorer-search textarea')
@@ -292,7 +294,7 @@ def drive_tests(page, state):
     need(drive_rows(page) == ['gamma.shrimp'], f'an open library is not listed twice: {drive_rows(page)}')
     files = top_level(page)
     need([f[0] for f in files] == sorted_names, f'it stays in its place: {files}')
-    need(files[0][1].startswith('Open · ') and 'Google Drive' in files[0][1], f'and now says it is open: {files[0]}')
+    need(files[0][1].startswith('Open, ') and 'Google Drive' in files[0][2], f'and now says it is open: {files[0]}')
 
     # Move to bin asks first, then lists again.
     menu(page, drive_row(page, 'gamma'), 'Move to bin')
@@ -336,6 +338,23 @@ def run(page, base):
     wait_for(page, lambda: page.locator('.kit-tree').count() == 1, 'Ctrl+Shift+E opens the Explorer')
     need(labels(page, 'doc') == ['Guide', 'Test library'], f'both files are in the tree, sorted by name: {labels(page, "doc")}')
     need(not dot(page, 'Test library') and not dot(page, 'Guide'), 'no file starts with unsaved changes')
+
+    # The tip, the (i) that explains everything (Esc closes it), and the chevron that reacts like the app's other chevrons.
+    need('Right-click anything' in page.locator('.explorer-tip').inner_text(), 'a tip says to right-click')
+    page.get_by_role('button', name='What the Explorer can do').click()
+    info = page.locator('.explorer-info')
+    wait_for(page, lambda: info.is_visible(), 'the (i) opens the explanation')
+    need('Google Drive' in info.inner_text() and 'Ctrl+Z' in info.inner_text() and 'F2' in info.inner_text(), 'it covers the features')
+    page.keyboard.press('Escape')
+    wait_for(page, lambda: not info.is_visible(), 'Esc closes it')
+    chevron = row(page, 'doc', 'Guide').locator('[data-chevron]')
+    before = row(page, 'doc', 'Guide').bounding_box()
+    chevron.hover()
+    page.wait_for_timeout(400)
+    need(chevron.evaluate('e => getComputedStyle(e).cursor') == 'pointer', 'the chevron shows the pointer')
+    need(chevron.locator('svg').evaluate('e => e.getBoundingClientRect().width') > 20, 'and springs up a size')
+    need(row(page, 'doc', 'Guide').bounding_box() == before and chevron.bounding_box()['width'] == 16, 'inside its fixed cell: nothing moves')
+    page.mouse.move(700, 600)
 
     # Keyboard: arrows open and move, Home and End jump.
     row(page, 'doc', 'Test library').click()
@@ -505,3 +524,12 @@ def run(page, base):
     page.errors[:] = [e for e in page.errors if 'status of 500' not in e]
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
+
+    # Signed out, a Drive file that is open is not "yours" (nobody can tell): the sidebar's words, never "Your".
+    page.evaluate("sessionStorage.removeItem('shrimply-google-sign-in')")
+    page.wait_for_timeout(700)  # the workspace record waits out 300ms
+    page.reload()
+    wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name='Sign in with Google').count() == 1, 'signed out again, the button is back')
+    where = [f[2] for f in top_level(page) if f[0] in ('alpha.shrimp', 'beta.shrimp')]
+    need(len(where) == 2 and all(w in ('On Google Drive', 'Shared on Google Drive') for w in where), f'a Drive file open while signed out is not "your": {where}')
+

@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AutoText } from '../components/AutoText'
 import type { askConfirm } from '../components/ConfirmDialog'
-import { BrowserIcon, ChevronsUpIcon, CloudIcon, FileIcon, FolderIcon, PlusIcon, RefreshIcon } from '../components/Icons'
+import { BrowserIcon, ChevronsUpIcon, CloudIcon, FileIcon, FolderIcon, InfoIcon, PlusIcon, RefreshIcon } from '../components/Icons'
 import { IconButton } from '../components/IconButton'
 import { Modal, closeModal } from '../components/Modal'
 import { ownWindow } from '../components/ownWindow'
@@ -13,7 +13,7 @@ import { flatten, pathTo } from '../kit/tree'
 import { TreeView } from '../kit/TreeView'
 import { itemName, exists, type DocId, type Docs, type ItemRef, type Target } from '../logic/contentOps'
 import {
-  addCard, addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, dragKind, dragLabel, dropPlan, dropRule,
+  addCard, addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
@@ -72,6 +72,22 @@ export type ExplorerProps = {
   drive?: ExplorerDrive
 }
 
+// Everything the Explorer can do, for its (i): short and grouped.
+const HELP: [string, string][] = [
+  ['Open and expand', 'Press Enter or double click to open a file, course, quiz or card in a tab beside the Explorer. The arrow keys move: Right opens a node, Left closes it. Expanding a file that is not open only shows what is inside it.'],
+  ['Select several', 'Hold Ctrl to add or remove one, Shift to pick a range, Ctrl+A for all. Copy, cut, move and drag need items of one kind. Delete takes any mix.'],
+  ['Copy, cut and paste', 'Ctrl+C, Ctrl+X and Ctrl+V work on courses, quizzes and cards, also between files. A pasted copy gets a free name, like "Biology (2)". Inside a file that is not open you can only copy.'],
+  ['Drag', 'Drag to move. Hold Ctrl (Option on a Mac) to copy. The label says which, and a drop that is refused says why. Esc cancels.'],
+  ['Move to', 'Right-click, then Move to…, to pick the destination from a list.'],
+  ['New', 'New file and Open file are at the top. Right-click a file for New course, a course for New quiz and a quiz for New card. A new course or quiz starts with its name ready to type.'],
+  ['Rename', 'Press F2 to rename a course or quiz. Names stay unique in their place. On a card, F2 edits it.'],
+  ['Delete', 'Delete removes cards at once, with Undo on the message. Quizzes and courses ask first. A file is closed, never deleted.'],
+  ['Search', 'Search filters every file, open or not, and keeps the parents of what matches. Esc clears it.'],
+  ['Google Drive', 'Sign in with Google to list your libraries among the files. The ones that are not open say "Not open". Refresh looks again, "Choose files in Google Drive" adds files the app can not see yet, and Move to bin sends one to the bin in your Drive.'],
+  ['Undo', 'Ctrl+Z undoes the last change in any file, Ctrl+Shift+Z does it again.'],
+  ['Unsaved changes', 'Every change marks its file as unsaved, with a dot, until you save it.'],
+]
+
 const ROW = 32
 const ROW_TOUCH = 44
 
@@ -95,6 +111,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const [renaming, setRenaming] = useState<string | null>(null)
   const [moving, setMoving] = useState<ItemRef[] | null>(null)
   const [touch, setTouch] = useState(false)
+  const helpId = useId()
 
   const docs = useMemo(() => toDocs(p.docs), [p.docs])
   const names = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, d.name])), [p.docs])
@@ -297,18 +314,31 @@ export function Explorer(p: ExplorerProps): ReactNode {
     else p.apply(`Rename ${ref.kind}`, () => next)
   }
 
+  // After a file's name: the dot for unsaved changes, a chip for a library not open, and the whole status in words for
+  // a screen reader (the place is the icon's tooltip). Other rows: a card's sides or kind.
+  const describeOf = (id: string): ReactNode => {
+    const st = fileStatus(meta, id, listing && { listing })
+    if (!st) return describeNode(docsAll, id)
+    return (
+      <>
+        {st.dirty && <span className="file-dot" title="Unsaved changes" />}
+        {!st.open && <span className="explorer-chip">Not open</span>}
+        <span className="explorer-sr">{st.words}</span>
+      </>
+    )
+  }
+
   const iconOf = (id: string): ReactNode => {
     const g = parseDriveNode(id)
-    if (g) return <span className="explorer-icon"><CloudIcon /></span>
+    if (g) return <span className="explorer-icon" title={fileStatus(meta, id, listing && { listing })?.where}><CloudIcon /></span>
     const r = parseNode(id)
     if (r?.kind !== 'doc') return null
     const doc = p.docs.find((d) => d.id === r.doc)
     if (!doc) return null
     const kind = whereIcon(doc.where)
     return (
-      <span className="explorer-icon">
+      <span className="explorer-icon" title={doc.where}>
         {kind === 'cloud' ? <CloudIcon /> : kind === 'browser' ? <BrowserIcon /> : <FileIcon />}
-        {doc.dirty && <span className="explorer-dot" title="Unsaved changes" />}
       </span>
     )
   }
@@ -337,6 +367,17 @@ export function Explorer(p: ExplorerProps): ReactNode {
         <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
         {drive?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
         <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
+        <IconButton className="explorer-info-btn" label="What the Explorer can do" popoverTarget={helpId}><InfoIcon /></IconButton>
+        <div id={helpId} popover="auto" className="explorer-info">
+          <dl>
+            {HELP.map(([title, text]) => (
+              <div key={title}>
+                <dt>{title}</dt>
+                <dd>{text}</dd>
+              </div>
+            ))}
+          </dl>
+        </div>
       </div>
       <div className="explorer-search">
         <AutoText
@@ -366,7 +407,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
           onSelection={p.onSelection}
           filter={filter}
           icon={iconOf}
-          description={(id) => describeNode(docsAll, meta, id, listing && { listing })}
+          description={(id) => describeOf(id)}
           dimmed={(id) => cutNodes.has(id)}
           onActivate={(id) => {
             const g = parseDriveNode(id)
@@ -409,18 +450,22 @@ export function Explorer(p: ExplorerProps): ReactNode {
       </div>
       {drive?.listing.signedIn && (
         <div className="explorer-drive">
-          {drive.listing.files !== null || (!drive.listing.loading && !drive.listing.failed) ? (
+          {drive.listing.files !== null ? (
             <button type="button" className="link" onClick={drive.pick}>Don't see a file? Choose files in Google Drive</button>
           ) : drive.listing.failed ? (
             <>
               <span>Couldn't load your Google Drive.</span>
               <button type="button" onClick={drive.refresh}>Retry</button>
             </>
-          ) : (
+          ) : drive.listing.loading ? (
             <span>Loading your Google Drive…</span>
+          ) : (
+            // Signed in earlier but the sign-in has run out: listing asks Google again, so it waits for a click.
+            <button type="button" onClick={drive.refresh}>Show my Google Drive libraries</button>
           )}
         </div>
       )}
+      <p className="explorer-tip">Right-click anything to see what you can do with it. On a touch screen, press and hold.</p>
       {moving && (
         <Modal title={`Move ${kindCount(moving[0].kind, moving.length)} to`} narrow onClose={() => setMoving(null)}>
           {destinations.length === 0 ? (

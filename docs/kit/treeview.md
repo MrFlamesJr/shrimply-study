@@ -20,7 +20,7 @@ type DropRule = { ok: true } | { ok: false; reason: string }
 - `expanded: ReadonlySet<string>`, `onExpanded(next: Set<string>)`: the open ids, held by the host.
 - `selection: Selection`, `onSelection(next: Selection)`: held by the host (see selection.md).
 - `filter?: string`: passed to `flatten`; matches are highlighted with `<mark>`.
-- `icon?(id): ReactNode`, `description?(id): string | null`, `dimmed?(id): boolean`: optional per-row extras (`dimmed`
+- `icon?(id): ReactNode`, `description?(id): ReactNode` (text, or small badges), `dimmed?(id): boolean`: optional per-row extras (`dimmed`
   adds the class `is-dimmed`, for example for cut items).
 - `onActivate(id)`: Enter or double click.
 - `onContextMenu(target: string | null, at: { x; y })`: right click, the ContextMenu key or Shift+F10. `null` target:

@@ -10,9 +10,10 @@
 .explorer-head {
   display: flex;
   align-items: center;
-  justify-content: flex-end;
   gap: var(--space-1);
-  padding: 0 var(--space-2);
+  padding: 0;
+  /* The first icon starts where the tree's chevrons do (the buttons are wider than their icons). */
+  margin-left: calc(var(--space-1) * -1.5);
 }
 .explorer-search {
   padding: 0 var(--space-2);
@@ -42,15 +43,31 @@
   width: 16px;
   height: 16px;
 }
-/* Unsaved changes: a small dot on the file's icon (the row's description says it in words too). */
-.explorer-dot {
+/* After a file's name: the unsaved dot (the sidebar's and the tabs'), and a quiet chip for a library not open. */
+.explorer .kit-row-desc {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.explorer .file-dot {
+  color: var(--text);
+}
+.explorer-chip {
+  flex: none;
+  padding: 0 var(--space-1);
+  border: var(--line) solid currentColor;
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+/* The status in words for a screen reader. */
+.explorer-sr {
   position: absolute;
-  top: -2px;
-  right: -3px;
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: var(--text);
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
 }
 .explorer-dest {
   display: flex;
@@ -86,4 +103,60 @@
 .explorer .kit-row[data-id^="g:l:"],
 .explorer .kit-row[data-id^="g:x:"] {
   color: var(--text-muted);
+}
+/* The tree's chevron is a button: its cell stays 16px (the row never moves) and centres the icon as it springs up
+   (base.css: the shared icon pop); only a chevron that has an icon (a node that can open) shows the pointer. */
+.explorer .kit-row-chevron {
+  align-items: center;
+  justify-content: center;
+}
+.explorer .kit-row-chevron svg {
+  flex: none;
+}
+.explorer .kit-row-chevron:has(svg) {
+  cursor: pointer;
+}
+/* The tip under the tree. */
+.explorer-tip {
+  margin: 0;
+  padding: 0 var(--space-2) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+/* The (i): what the Explorer can do, popping out under it, solid like every popup (as the Drive dialog's). */
+.explorer-info-btn {
+  anchor-name: --explorer-info;
+}
+.explorer-info {
+  width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  max-height: min(32rem, 70vh);
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--popup);
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.explorer-info dl {
+  margin: 0;
+}
+.explorer-info dt {
+  font-weight: var(--weight-bold);
+}
+.explorer-info dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+.explorer-info dl > div + div {
+  margin-top: var(--space-3);
+}
+@supports (position-area: bottom) {
+  .explorer-info {
+    inset: auto;
+    margin: var(--space-1) 0 0;
+    position-anchor: --explorer-info;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-block;
+  }
 }

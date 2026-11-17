@@ -35,7 +35,7 @@ export function TreeView(p: {
   expanded: ReadonlySet<string>; onExpanded(next: Set<string>): void
   selection: Selection; onSelection(next: Selection): void
   filter?: string
-  icon?(id: string): ReactNode; description?(id: string): string | null; dimmed?(id: string): boolean
+  icon?(id: string): ReactNode; description?(id: string): ReactNode; dimmed?(id: string): boolean
   onActivate(id: string): void
   onContextMenu(target: string | null, at: { x: number; y: number }): void
   onKeyDown?(e: KeyboardEvent, focus: string | null): boolean

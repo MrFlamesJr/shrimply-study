@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs, ItemRef } from './contentOps'
 import {
-  addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
+  addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
   dragEffect, keyDecision, menuFor, translateRef, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
   type Clip, type Item, type MenuContext,
 } from './explorerActions'
@@ -274,12 +274,10 @@ describe('removeItems and describeNode', () => {
     expect(r.ok && r.docs.a.courses.map((c) => c.id)).toEqual(['c2'])
     expect(removeItems(docs, [course('gone')])).toEqual({ ok: false, reason: 'That is no longer there.' })
   })
-  it('describes files and cards only', () => {
-    const meta = { a: { where: 'On this device', dirty: true }, b: { where: 'On Google Drive', dirty: false } }
-    expect(describeNode(docs, meta, 'd:a')).toBe('Open · Unsaved · On this device')
-    expect(describeNode(docs, meta, 'd:b')).toBe('Open · On Google Drive')
-    expect(describeNode(docs, meta, 'k:a:c1:q1:k1')).toBe('Front / Back')
-    expect(describeNode(docs, meta, 'c:a:c1')).toBeNull()
+  it('describes cards only: files have a status of icons and chips', () => {
+    expect(describeNode(docs, 'k:a:c1:q1:k1')).toBe('Front / Back')
+    expect(describeNode(docs, 'c:a:c1')).toBeNull()
+    expect(describeNode(docs, 'd:a')).toBeNull()
   })
 })
 
@@ -309,13 +307,15 @@ describe('Google Drive rows', () => {
     expect(find(m, 'Copy').reason).toBe('Pick items of one kind.')
     expect(deletePlan(docs, [file, 'c:a:c1'], false)).toEqual({ reason: 'Move a Google Drive library to the bin from its own menu.' })
   })
-  it('says whether a file is open, and where it is', () => {
+  it('says whether a file is open, where it is and whether it has unsaved changes, with words for a screen reader', () => {
     const listing = { signedIn: true, loading: false, failed: false, files: [{ id: 'abc', name: 'x.shrimp', modified: '2026-11-01T10:00:00Z' }] }
-    expect(describeNode(docs, {}, file, { listing })).toBe('Not open · Your Google Drive')
-    expect(describeNode(docs, {}, 'g:f:other', { listing })).toBeNull()
-    const meta = { a: { where: 'On this device', dirty: false }, b: { where: 'Your Google Drive', dirty: true } }
-    expect(describeNode(docs, meta, 'd:a')).toBe('Open · On this device')
-    expect(describeNode(docs, meta, 'd:b')).toBe('Open · Unsaved · Your Google Drive')
+    // The list does not say whose a library is, so it never says "Your".
+    expect(fileStatus({}, file, { listing })).toEqual({ open: false, dirty: false, where: 'On Google Drive', words: 'Not open, On Google Drive' })
+    expect(fileStatus({}, 'g:f:other', { listing })).toBeNull()
+    const meta = { a: { where: 'On this device', dirty: false }, b: { where: 'Shared on Google Drive', dirty: true } }
+    expect(fileStatus(meta, 'd:a')).toEqual({ open: true, dirty: false, where: 'On this device', words: 'Open, On this device' })
+    expect(fileStatus(meta, 'd:b')).toEqual({ open: true, dirty: true, where: 'Shared on Google Drive', words: 'Open, unsaved changes, Shared on Google Drive' })
+    expect(fileStatus(meta, 'c:a:c1')).toBeNull()
   })
 })
 

@@ -23,8 +23,8 @@ const READ_ONLY = 'Open the library to change it.'
 
 /** Whether the item is inside a Google Drive library that is only looked at (not open): read-only, copy only. */
 export const isPeekRef = (r: ItemRef): boolean => isPeekDoc(r.doc)
-// A library in the list is in the signed-in user's Drive (what the app saved, or what they picked).
-const NOT_OPEN_WHERE = whereLine({ hasFile: false, drive: { shared: false, trashed: false }, yours: true, signedIn: true })
+// The list does not say whose a library is (what the app saved, or what the user picked), so no "your" here.
+const NOT_OPEN_WHERE = whereLine({ hasFile: false, drive: { shared: false, trashed: false }, yours: false, signedIn: false })
 const BIN_FROM_MENU = 'Move a Google Drive library to the bin from its own menu.'
 
 /** "1 card", "3 quizzes". */
@@ -70,28 +70,32 @@ export const cardDescription = (card: Card): string => {
   return KIND_NAME[card.type]
 }
 
+/** A file row's state: open or not, whether it has unsaved changes, where it lives, and all of it in words. */
+export type FileStatus = { open: boolean; dirty: boolean; where: string; words: string }
+
 /**
- * The muted text after a row's name: a file's state and place ("Open · On this device", marked when it has unsaved
- * changes; "Not open · Your Google Drive" for a library in the list), or a card's sides or kind.
+ * What a file row shows as icons and chips: the place (the icon's tooltip), a dot for unsaved changes, a chip for a
+ * library not open; `words` says all of it for a screen reader. Null for a node that is not a file.
  */
-export function describeNode(
-  docs: Docs,
+export function fileStatus(
   meta: Record<DocId, { where: string; dirty: boolean }>,
   node: string,
   drive?: { listing: DriveListing },
-): string | null {
+): FileStatus | null {
   const g = parseDriveNode(node)
   if (g) {
     const found = g.kind === 'file' && drive?.listing.files?.some((f) => f.id === g.id)
-    return found ? `Not open · ${NOT_OPEN_WHERE}` : null
+    return found ? { open: false, dirty: false, where: NOT_OPEN_WHERE, words: `Not open, ${NOT_OPEN_WHERE}` } : null
   }
   const r = parseNode(node)
-  if (!r) return null
-  if (r.kind === 'doc') {
-    const m = meta[r.doc]
-    return m ? `Open · ${m.dirty ? 'Unsaved · ' : ''}${m.where}` : null
-  }
-  if (r.kind !== 'card') return null
+  const m = r?.kind === 'doc' ? meta[r.doc] : undefined
+  return m ? { open: true, dirty: m.dirty, where: m.where, words: `Open, ${m.dirty ? 'unsaved changes, ' : ''}${m.where}` } : null
+}
+
+/** The muted text after a course, quiz or card: a card's sides or kind. Files have chips instead (`fileStatus`). */
+export function describeNode(docs: Docs, node: string): string | null {
+  const r = parseNode(node)
+  if (!r || r.kind !== 'card') return null
   const found = docs[r.doc]?.courses.find((c) => c.id === r.course)?.quizzes.find((q) => q.id === r.quiz)?.cards.find((c) => c.id === r.card)
   return found ? cardDescription(found) : null
 }
