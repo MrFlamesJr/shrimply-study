@@ -16,9 +16,9 @@ study data. The app composes it with its own domain code.
    and the Explorer's state. Content changes go through one path, `apply`, which records history, marks the files
    touched as unsaved and schedules the browser backup. The layout is a set of tabs in groups, split panes and windows; a
    file may show in several tabs, and closing tabs never closes a file.
-5. `src/layout/`, `src/screens/`, `src/components/`: the UI. Screens get `lib: LibraryApi` (one document) and an
-   `nav: Nav` (their tab) as props. `App` mounts `Sidebar` and the `Workbench` (no top row), whose tabs show
-   `PaneScreen`s: a file's page, the Explorer or every release's notes.
+5. `src/layout/`, `src/screens/`, `src/components/`: the UI. Screens get `lib: LibraryApi` (one document) and
+   `nav: Nav` (their tab) as props. `App` mounts the `Sidebar` and the `Workbench` (there is no top bar), whose tabs
+   show `PaneScreen`s: a file's page, the Explorer or every release's notes. With no file open the app shows the welcome page.
 
 ## One state, many windows
 

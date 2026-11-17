@@ -267,8 +267,8 @@ export function Confetti(p: { level: 'done' | 'perfect'; colors: string[] }): Re
 
 ## The app
 
-Everything below runs: `App` renders the `Workbench` (tabs, split panes, popped-out windows), the Explorer tab and the
-Sidebar (see `integration.md`; there is no top row). `#/_workbench` is a demo host that uses only the kit.
+Everything below runs: `App` renders the `Workbench` (tabs, split panes, popped-out windows), the Explorer tab and the Sidebar
+beside it (there is no top bar; see `integration.md`). `#/_workbench` is a demo host that uses only the kit.
 
 ### `src/logic/contentOps.ts` (pure): copying, moving and deleting across open files
 
@@ -302,15 +302,14 @@ export function nodeOf(ref: ItemRef | { kind: 'doc'; doc: DocId }): string
 export function targetFor(docs: Docs, nodeId: string | null, pos: 'before' | 'inside' | 'after', kind: Fragment['kind']): Target | null
 ```
 
-Google Drive in the tree (`explorerTree.ts`): after the open files comes one root, `g:root` ("Google Drive"), listing the
-libraries the app can see that are not open (an open library is a root of its own, so Drive does not list it again).
-Node ids: `g:root`, `g:signin`, `g:loading`, `g:failed`, `g:pick`, `g:f:<drive file id>` (a closed library) and
-`g:w:<drive file id>` (its one placeholder child, "Opening...", so its row can be expanded). Exports: `DriveFileInfo`
-(`{ id, name, modified }`), `DriveListing` (`{ signedIn, loading, failed, files: DriveFileInfo[] | null }`), `DriveNode`,
-`DRIVE_ROOT`, `DRIVE_CLOSED` (a marker in the expanded list: the Drive root is open unless it is there, so a first visit
-shows it open), `driveNodeOf`, `parseDriveNode(nodeId): DriveNode | null` and `driveRows(listing, open)` (the root's rows:
-the sign-in row, "loading", the failure, or every library not open followed by "Don't see a file? Choose files in Google
-Drive").
+Google Drive in the tree (`explorerTree.ts`): there is no Drive root. The user's Google Drive libraries that are not open
+are roots among the open files, in one list sorted by name (`Intl.Collator`, ignoring case and accents, "2" before "10"; the
+sort is stable, so equal names keep the open files first). An open library is already a root (its place says it is on
+Drive), so the list never shows it twice. Node ids: `g:f:<drive file id>` (a closed library) and `g:w:<drive file id>`
+(its one placeholder child, "Opening...", so its row can be expanded). Exports: `DriveFileInfo` (`{ id, name, modified }`),
+`DriveListing` (`{ signedIn, loading, failed, files: DriveFileInfo[] | null }`), `DriveNode` (`{ kind: 'file' | 'wait'; id }`),
+`driveNodeOf`, `parseDriveNode(nodeId): DriveNode | null` and `closedDriveFiles(listing, open)` (the listed libraries that are
+not open; none when signed out or not listed yet). `explorerSource(open, drive?)` builds the roots from both.
 
 `targetFor` (Built, more than the one-line contract): inside a quiz is its end with no group; before or after a card is
 that place in its quiz and that card's group; before or after a quiz or course is that place in its parent; on a file
@@ -349,14 +348,14 @@ export type Destination; export function moveDestinations, ancestorNodes
 Functions return a result instead of throwing (a refusal is a `reason`). Files cannot be dragged or deleted from the tree
 (close them instead).
 
-Google Drive additions to `explorerActions`: `Action` gains `driveOpen`, `driveRemove`, `driveSignIn`, `drivePick` and
-`driveRefresh`; `MenuContext` gains `driveSignedIn?`; `describeNode(docs, meta, node, drive?)` takes an optional
-`{ listing, when(iso) }` and shows a library's modified time. Menus: a Drive library has Open, a disabled Paste ("Open the
-library first.") and Move to bin (Delete); the root has Refresh (signed in) or Sign in with Google; the sign-in row Sign in
-with Google; a failed row Retry; the "Choose files" row Choose files in Google Drive; the loading row has none. Refusals:
-pasting or dropping on a Drive node says "Open the library first." (a library) or "Drop items on an open file." (other Drive
-rows); deleting a Drive node from the tree says "Move a Google Drive library to the bin from its own menu."; nothing can be
-dropped inside a Drive node (`allowInside`). `keyDecision` maps Delete on a Drive library to `driveRemove`.
+Google Drive in `explorerActions`: `NodeKind` also has `'drivefile'`; `Action` has `driveOpen` and `driveRemove`;
+`describeNode(docs, meta, node, drive?)` takes an optional `{ listing }`. A row's muted text is its state and place: "Open ·
+On this device" (or "Open · Unsaved · ..."), "Open · Only in this browser", "Open · Your Google Drive", and for a library that
+is not open "Not open · Your Google Drive". A Drive library's menu has Open, a disabled Paste ("Open the library first.") and
+Move to bin (Delete). Refusals: pasting or dropping on a Drive library says "Open the library first."; deleting one from the
+tree says "Move a Google Drive library to the bin from its own menu."; nothing can be dropped inside it (`allowInside`).
+`keyDecision` maps Delete on a Drive library to `driveRemove`. Sign in, Refresh and Choose files are buttons of the Explorer
+itself, not menu actions.
 
 ### `src/logic/workbenchActions.ts` (pure): what the Workbench shows and does, as data
 
@@ -373,7 +372,7 @@ export type GroupContext; export type MenuAction; export type MenuEntry
 export function tabMenu(tab, docs, g: GroupContext, mac: boolean): MenuEntry[]; export function groupMenu(g: GroupContext): MenuEntry[]
 ```
 
-`TabData` is declared here for the Workbench with the same shape as in `state/workspace.ts`. The file imports `resolve`
+`TabData` is declared here (`doc`, `explorer`, `changelog`) and re-exported by `state/workspace.ts`. The file imports `resolve`
 from `src/route.ts`.
 
 ### `src/logic/routes.ts` (pure) and `src/route.ts`
@@ -403,7 +402,7 @@ takeCreated(id): boolean }` (id first). Every screen takes its tab's `nav` (requ
 ### `src/state/workspace.ts` (pure): the workspace and its transitions (run by `useWorkspace`)
 
 ```ts
-export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'welcome' } | { kind: 'changelog' }
+export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'changelog' }   // declared in logic/workbenchActions, re-exported here
 export type Doc = { id; library; saved: Library | null; name; file: FileRef | null; drive: DriveSource | null; replaced: number; newer: boolean }
 export type Workspace = { docs: Record<DocId, Doc>; order: DocId[]; layout: Layout<TabData>; history: History<Snap>;
   clipboard: Clipboard | null; explorer: Explorer; recent: TabId[] }   // recent: tabs, the one active last first, across groups and windows
@@ -417,8 +416,9 @@ one, and read no clock or random source (times and new ids are arguments; `useWo
 - Documents: `emptyWorkspace`, `makeDoc`, `docName`, `where`, `freeDocName`, `libraries`.
 - Layout (a file may show in several tabs, each with its own page; closing tabs never closes a file): `activeTab`,
   `activeDoc` (the active tab's file, else the file of the tab active last), `addressTab` (the main window's active tab, which
-  the address bar follows), `tabsOf`, `addDoc`, `activateDoc`, `openPlace(w, doc, route, tabId, { group?, newTab?,
-  background? })` (a place of a file in a group: in that group's tab of the file unless `newTab`), `setTabRoute`,
+  the address bar follows), `tabsOf`, `addDoc`, `openingGroup` (the group a file opens in when none is named: the active one, unless it shows the Explorer,
+  which stays in view; then the group used last besides it), `activateDoc`, `openPlace(w, doc, route, tabId, { group?, newTab?,
+  background? })` (a place of a file in a group, by default the one it opens in: in that group's tab of the file unless `newTab`), `setTabRoute`,
   `activateTab`, `activateGroup`, `closeTabs`, `closeOthers`, `closeAll`, `moveTab`, `joinGroups`, `resizeSplit`,
   `dockWindow`, `splitGroup` (a new group beside one; a dragged tab moves into it, else a copy of a file's tab; the
   Explorer is never copied), `popOutGroup` (the main window's only group first gets an empty group beside it, so the main
@@ -428,21 +428,32 @@ one, and read no clock or random source (times and new ids are arguments; `useWo
   is now (any group or window), becomes active on the entry's page. With no such tab (a typed address) the main window's
   tab takes the page only when its file has it (`resolve` finds no `missing`); otherwise nothing changes.
 - Content: `applyEdit(w, label, update, at, key?)` is the one write path; it records only the documents that changed and
-  merges entries of the same key within 1.5 s. `undoEdit` and `redoEdit` return `{ workspace, entry }` or null.
-  `forget(history, id)`, `patchDoc`, `replaceDoc` (the whole library replaced from outside: saved as it comes, `replaced`
-  counted, that document's history entries dropped), `takeRecord` (another tab wrote the document), `markSaved`,
-  `closeDoc` (its tabs and history go; a cut from it becomes a copy), `dropDraft`.
+  merges entries of the same key within 1.5 s. `undoEdit` and `redoEdit` return `{ workspace, entry }` or null. `lastStep(w)`
+  is the step undo would undo and `undoStep(w, step)` undoes that step only while it is still the last (a toast's Undo): null
+  once anything came after it. `forget(history, id)` takes a document out of the history (it closed, or was replaced from
+  outside): its own entries go; an entry that also changed another document (a move between files) cannot be undone in half,
+  so it goes with every step beyond it (older ones in the past, those redone after it in the future). `patchDoc`,
+  `replaceDoc` (the whole library replaced from outside: saved as it comes, `replaced` counted, then `forget`), `takeRecord(w,
+  rec, handle)` (another tab wrote the document; `handle` is the file handle stored with it now, so the stored handle is
+  never forgotten here), `markSaved`, `closeDoc` (its tabs and history go; a cut from it becomes a copy),
+  `readyToClose(dirty, ask, save)` (async: with unsaved changes asks Save, Don't save or Cancel and saves; changes made while it
+  saved are asked about again; false when the document stays open), `followRenames(w, doc, before)` (every tab of the document,
+  shown or not, takes the new name of a renamed course or quiz, found again by id; a page whose course or quiz is gone keeps its
+  route), `dropDraft(w, id, draft: Course)` (a draft course is dropped as if never made only while the library still holds that
+  very course object: never renamed, given a quiz, pasted or moved into, anywhere; otherwise it stays).
 - Clipboard: `toClipboard`, `paste` (a cut moves when its items still exist, else the copy goes in with new ids; throws
   the reason when refused).
 - Files: `changedOnDisk`, `reopenFile`, `docWithDrive`.
 - Persistence: `docRecord`, `workspaceRecord`, `readRoute`, `defaultLayout` (one group, a tab per document),
   `readLayout`, `readExplorer`, `restore`. `readLayout` checks a stored layout: tabs of documents no longer open go, at most
-  one Explorer and one changelog tab stay, popped-out groups come back docked, a file may have no tab, and anything malformed gives the default
+  one Explorer and one changelog tab stay (a welcome tab kept by an earlier build is left out), popped-out groups come back docked, a file may have no tab, and anything malformed gives the default
   layout.
 
 ### `src/state/useWorkspace.ts`
 
-`useWorkspace(adapter, notify, ask, askChoice)` replaces the earlier `useLibrary`.
+`useWorkspace(adapter, notify, ask, askChoice)` replaces the earlier `useLibrary`. `adapter` (`StorageAdapter`) is the one seam
+for files: the hook calls nothing else for opening, saving in place, saving as, downloading and comparing files. `Notify` is
+declared in `logic/pushToast` and `Choice` in `model.ts`, so the state layer imports no component.
 
 ```ts
 export type DocMeta = { id: DocId; name: string; where: 'device' | 'drive' | 'browser'; dirty: boolean }
@@ -468,6 +479,7 @@ export type WorkspaceApi = {
   recentGroup(except: GroupId | null): GroupId | null
   apply(label: string, update: (docs: Docs) => Docs, key?: string): void   // the one content write path
   undo(): void; redo(): void; undoLabel: string | null; redoLabel: string | null
+  undoLater(): () => void                          // call right after a change: the function it returns undoes that step later (a toast's Undo), only while it is still the last
   clipboard: Clipboard | null
   copy(refs: ItemRef[]): void; cut(refs: ItemRef[]): void; paste(target: Target): void
   newDoc(at?: Route): DocId
@@ -483,7 +495,7 @@ export type WorkspaceApi = {
 ```
 
 `LibraryApi` (one document; what screens use) has: `ready`, `id`, `name`, `library`, `replaced`, `hasChanges`,
-`loadLabel`, `saveLabel`, `loadHint`, `saveHint`, `findCourse`, `findQuiz`, `addCourse`, `leaveCourse`, `renameCourse`,
+`loadLabel`, `saveLabel`, `loadHint`, `saveHint`, `findCourse`, `findQuiz`, `addCourse` (a draft until anything changes it, here or in the Explorer), `leaveCourse` (drops an untouched draft), `renameCourse`,
 `deleteCourse`, `addQuiz`, `renameQuiz`, `deleteQuiz`, `setCards`, `addSideType`, `renameSideType`, `deleteSideType`,
 `updateCard`, `replace`, `save`, `download`, `close`, `file`, `fileName` and `drive: DriveApi` (`setUp`, `file`,
 `signedIn`, `yours`, `newer`, `savesInto`, `signOut`, `account`, `prepare`, `signIn`, `canSave`, `open`, `refresh`,
@@ -496,15 +508,20 @@ bar follows `address` (see `integration.md`).
 
 ### `src/layout/`: Explorer, ExplorerPane, Workbench, PaneHead, PaneScreen, Sidebar
 
-- `Explorer(p: ExplorerProps)`: every open file as a tree, driven only by its props. Props: `docs: ExplorerDoc[]`
-  (`{ id, name, library, dirty, where, driveId? }`), `drive?: ExplorerDrive`, `expanded`, `onExpanded`, `selection`, `onSelection`, `clipboard`, `apply(label,
-  update)`, `copy`, `cut`, `paste`, `notify`, `ask`, `open(node)`, `edit(ref)`, `newDoc`, `openFile`, `saveDoc`,
-  `downloadDoc`, `closeDoc`, `reveal: string | null` and `onRevealed`. It renders a `TreeView` (row height 32, 44 on touch),
-  opens `ContextMenu`s from `explorerActions.menuFor`, and runs every change through `apply`.
+- `Explorer(p: ExplorerProps)`: every file as a tree, driven only by its props. The roots are one list, sorted by name: the open
+  files and the Google Drive libraries that are not open. Props: `docs: ExplorerDoc[]` (`{ id, name, library, dirty, where,
+  driveId? }`), `drive?: ExplorerDrive`, `expanded`, `onExpanded`, `selection`, `onSelection`, `clipboard`, `apply(label,
+  update)`, `undoLater?(): () => void` (called right after a delete: gives back the way to undo that step, offered on the toast
+  only while it is still the latest), `copy`, `cut`, `paste`, `notify`, `ask`, `open(node)`, `edit(ref)`, `newDoc`, `openFile`,
+  `saveDoc`, `downloadDoc`, `closeDoc`, `reveal: string | null` and `onRevealed`. It renders a `TreeView` (row height 32, 44 on
+  touch), opens `ContextMenu`s from `explorerActions.menuFor`, and runs every change through `apply`. Each row's muted text
+  says "Open" or "Not open" and where it lives (`describeNode`).
   `ExplorerDrive` is `{ setUp, listing: DriveListing, signIn(), pick(), refresh(), open(id), remove(file) }`: the host does the
-  listing and the calls; with `setUp` false there is no Drive root. A Refresh button sits in the Explorer's head beside Collapse
-  all. Enter or expanding a closed Drive library opens it as a file (it stays shut in the Drive list: the open file is a root of
-  its own). The selection is pruned against the open files' nodes and the Drive nodes currently listed.
+  listing and the calls; with `setUp` false nothing about Drive shows. Signed out, a "Sign in with Google to see your Google
+  Drive libraries" row sits under the tree; signed in, a Refresh button joins Collapse all in the head, and under the tree a
+  "Don't see a file? Choose files in Google Drive" link, or "Loading your Google Drive..." while it lists, or "Couldn't load
+  your Google Drive." with Retry. Enter or expanding a closed Drive library opens it as a file (a root of its own). The
+  selection is pruned against the open files' nodes and the Drive libraries currently listed.
 - `Workbench(p: WorkbenchProps)`: the main window's `SplitView` of groups (each a `TabStrip`, a `PaneHead` and the tabs'
   screens, hidden ones kept mounted per `mountedTabs`) and a `Popout` for each other window of the layout. Props:
   `layout`, `docs: Record<string, WorkbenchDoc>`, `popups: Record<WindowId, Window>`, `renderTab(tab, shown)`,
@@ -517,21 +534,21 @@ bar follows `address` (see `integration.md`).
 - `ExplorerPane(p: { ws: WorkspaceApi; notify; ask; openNode; editNode; reveal; onRevealed })`: the glue from the workspace to
   `Explorer`. It builds `ExplorerDoc[]` from `ws.docs` and `ws.doc(id)` (the `where` text from `whereLine`), keeps that array
   the same object while nothing in it changed (the tree rebuilds on a new one), turns `ws.explorer` (`expanded` as a
-  `string[]`) into the set `Explorer` wants, composes several changes in one event, and wires `apply`, `undo`, `copy`,
+  `string[]`) into the set `Explorer` wants, composes several changes in one event, and wires `apply`, `undoLater`, `copy`,
   `cut`, `paste`, `newDoc`, `openFile`, and each file's save, download and close to the workspace. `Explorer` also takes an
-  optional `undo()`, shown as an Undo action on the toast of a drop or paste. Google Drive in `ExplorerPane`: it lists
+  optional `undoLater()` (`ws.undoLater`), whose Undo action on the toast of a drop, paste or delete undoes only that step. Google Drive in `ExplorerPane`: it lists
 the libraries with `ws.drive.list()` on mount, when the sign-in changes, and after an open, save (unsaved to saved), save
 under a new file, choose (`pick`) or remove (the refresh key is the sign-in state plus each open file's id, Drive id, name
 and unsaved mark). It never asks Google for a token without a click: signed in with a token that has run out and nothing
-listed yet, the tree shows the sign-in row until the user clicks it (`hasFreshToken`). A listing that arrives after a newer
+listed yet, the Explorer shows the sign-in button until the user clicks it (`hasFreshToken`). A listing that arrives after a newer
 one was started is dropped. An open from the list becomes an open file: expanded and selected.
-- `PaneHead({ crumbs, onCrumb })`: breadcrumbs for a pane; `Crumb = { label; route? }`. A plain click goes through the
-  pane's own tab (`onCrumb`); Ctrl, Shift, Alt or another button is left to the browser. In a narrow pane (below 480px of the
-  pane's own width, not the window's: `workbench.css`) the trail gives way to one "‹ <parent>" link, when the page has a parent.
-  `App.crumbs(tab)` builds the trail: the file first (under its name as it is now), then the course and quiz the tab's page
-  names, followed by id through a rename (`followRename`), so the trail stays right while the tab's route catches up after the
-  typing pauses; a page that is gone shows the file alone; none for a study session or the Explorer (each has a head of its
-  own, the same height); a changelog tab is "All releases".
+- `PaneHead({ crumbs, onCrumb })`: a compact, plain row of breadcrumbs above the pane's page, with no frosted glass or fade;
+  `Crumb = { label; route? }`. A plain click goes through the pane's own tab (`onCrumb`); Ctrl, Shift, Alt or another button is
+  left to the browser. In a narrow pane (below 480px of the pane's own width, not the window's: `workbench.css`) the trail gives
+  way to one "‹ <parent>" link, when the page has a parent. `App.crumbs(tab)` builds the trail: the file first (under its name
+  as it is now), then the course and quiz the tab's page names, followed by id through a rename (`followRename`); a page that
+  is gone shows the file alone; none for a study session or the Explorer (each has a head of its own, the same height); a
+  changelog tab is "All releases".
 - `PaneScreen(p: { tab; group; shown; active; s: PaneShared })`: one tab's screen. An Explorer tab renders `ExplorerPane`; a
   changelog tab renders `ChangelogScreen` (its way back closes the tab); a tab whose file is gone renders nothing; a file tab renders `DocPane`: its own `Nav`
   from `makeTabNav`, `usePlaceFor` for the course and quiz its route names (a deleted one leads to the nearest page with a
@@ -543,10 +560,22 @@ one was started is dropped. An open from the list becomes an open file: expanded
   `reveal` and `openCard`).
 - `Sidebar` (`{ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }`): the open
   files from `ws.docs`, the course tree of the active file (`onOpen(route, newTab)` shows a page in the active group), the
-  Explorer button, the Files heading (New file, Open file, Google Drive, Save all), "+ New course" and the theme select.
-- `App` composes them: the shell is `Sidebar` and a `wb-cell` holding the `Workbench` (hidden on the debug page
-  and the welcome page). A study session alone in the main window keeps the full-screen look. The kit demo is a full-screen
-  page outside the shell; the changelog is a tab.
+  Explorer button, "+ New course" and the theme select. Under the brand a "Files" heading carries the file actions that a
+  top bar used to hold: New file, Open file, Google Drive and Save all (greyed out with nothing to save).
+- `App` composes them: the shell is the `Sidebar` and a `wb-cell` holding the `Workbench`, which starts at the top of the window (hidden on the debug page
+  and the welcome page). A study session alone in the main window keeps the full-screen look. The kit demo is a full-screen page outside the
+  shell. In the main window the group at the top-left corner has a tab strip that makes room for the sidebar's corner while the
+  sidebar is closed (`is-corner`).
+
+### `src/logic/toastLift.ts` (pure) and `Toasts`
+
+`toastLift(viewH, height, edge, gap, controls: Span[]): number`: how far (px) the toast stack rises from its corner so it covers
+none of `controls` (`Span = { top; bottom }`, window px). The stack is `height` tall with its bottom `edge` above the window's
+bottom and keeps `gap` from every control; the lowest clear spot wins; with no clear spot (a short window), the one that covers
+the fewest controls. `components/Toasts` measures the controls of a study question and its feedback sheet under the stack's
+column (not the flip card, not the results list) and sets `--toasts-lift`, again whenever the page changes, and never while the
+stack is pointed at or focused. `Notify` (`(kind, text, ms?, action?) => void`) is declared in `logic/pushToast`; `Toasts`
+re-exports it. `askChoice` (ConfirmDialog) resolves null when its window goes away (a popped-out pane's popup closed).
 
 ### `src/logic/whereLine.ts` (pure)
 
@@ -565,14 +594,35 @@ Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Us
 - `SortableCard.tsx`: `CardSortables` (the dnd-kit context and list, cards move up and down only, with screen reader
   announcements by card number), `SectionSortable`, and `useSortableCard(id, n): CardSortable`.
 
+### `src/storage/StorageAdapter.ts`: the one seam for files
+
+```ts
+export type FileRef = { name: string; handle: FileSystemFileHandle | null; size: number; modified: number }   // handle null where the browser can't write back (Firefox, Safari)
+export type Opened = { ok: true; library: Library; file: FileRef } | { ok: false; name: string; error: string }
+export type SaveResult = { status: 'saved'; file: FileRef } | { status: 'changed'; modified: number } | { status: 'denied' } | { status: 'error'; message: string }
+export type StorageAdapter = {
+  loadLabel: string; saveLabel: string; loadHint: string; saveHint: string
+  openFiles(): Promise<Opened[] | null>        // null when nothing was picked; a file that can't be read is reported in its place, never thrown
+  saveInPlace(handle, library, expected: number | null, force?: boolean): Promise<SaveResult>   // 'changed' when the file has another modified time than `expected`, unless `force`
+  saveAs(library, suggestedName?): Promise<FileRef | null>   // the picked file, kept with a handle where the browser allows, else a download; null when cancelled
+  download(library, name?): Promise<string | null>           // a copy as a file; never ties the library to it
+  sameFile(a: FileRef, b: FileRef): Promise<boolean>
+}
+```
+
+`fileStorage` implements it (the file picker, File System Access where available, else a download); `useWorkspace` calls
+nothing else for files. A new backend is a new adapter. The old `load()` / `save()` pair is gone, and so is the single-backup
+API of `browserBackup` (`readBackup`, `writeBackup`, `onBackupWritten`, `Backup`) and its BroadcastChannel; the workspace's own
+channel (`shrimply-workspace`) remains.
+
 ### `src/storage/` additions for the workspace
 
 - `workspaceRecord.ts`: `DocRecord` (`id`, `library`, `dirty`, `drive`, `file: { name, size, modified } | null`),
   `WorkspaceRecord` (`{ version: 1; docs; layout; explorer; ui }`), `parseDocRecord`, `docRecordText`,
-  `parseWorkspaceRecord`, `readDrive`, `migrateBackup(backupText, newId): DocRecord` (the old single-library backup as a
+  `parseWorkspaceRecord`, `migrateBackup(backupText, newId): DocRecord` (the old single-library backup as a
   document) and `textHash(text)` (cyrb53, 14 hex digits).
 - `browserBackup.ts`: one IndexedDB record per document (`doc.<id>`), one for the workspace (`workspace.v1`), file handles
-  (`handle.<id>`), unreadable records copied aside (`broken.doc.<id>`). `readWorkspace()` returns `{ workspace, docs,
+  (`handle.<id>`, read back with `readHandle(id)`, which another tab's write also uses so a stored handle is never forgotten), unreadable records copied aside (`broken.doc.<id>`). `readWorkspace()` returns `{ workspace, docs,
   handles, broken, unstored, notes }`: a record that can not be read is copied aside and listed in `broken`, and the others
   still load; storage that is blocked reads as an empty workspace.
 - Migration of the old backup (`library.v1`, written by versions before the workspace): once per text. The key
@@ -583,6 +633,6 @@ Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Us
   tried again next start. An old backup that can not be read is kept aside (`keepBrokenBackup`) and listed in `broken`.
   When `library.v1` changed after it became a document (an older version of the app in another tab), the text becomes its own
   file and `notes` holds `OLDER_TAB_NOTE`: "Changes made in another tab with an older version of the app were opened as
-  their own file." `library.v1` itself is always left as it is.
+  their own file." `library.v1` itself is read once and never written or deleted now.
 - `useWorkspace` shows `broken` as a warning toast and `notes` as info toasts, and treats `unstored` documents as not yet
   written, so the first backup write after the start writes them.
