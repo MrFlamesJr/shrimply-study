@@ -22,7 +22,7 @@ time.
 ## Dependencies
 
 `react`, `react-dom/client` (`createRoot`), and `./menu.css`. The css uses: `--kit-accent-soft --kit-border-strong
---kit-danger --kit-dim --kit-dur --kit-ease --kit-focus --kit-font --kit-line --kit-line-thick --kit-muted --kit-popup
+--kit-danger-ink --kit-dim --kit-dur --kit-ease --kit-focus --kit-font --kit-ground --kit-line --kit-line-thick --kit-muted --kit-popup
 --kit-radius --kit-space-1 --kit-space-2 --kit-space-3 --kit-tap --kit-text --kit-text-sm --kit-text-xs`.
 
 ## Inputs and outputs

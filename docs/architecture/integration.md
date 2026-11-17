@@ -6,18 +6,21 @@ Everything described here runs: `App` mounts the Workbench, the Explorer tab, th
 
 - **`App`** (`src/App.tsx`) calls `useWorkspace(fileStorage, notify, askConfirm, askChoice)` once and builds the shell: a
   `Sidebar`, a `TopBar` and a `wb-cell` holding the `Workbench` (hidden on the app's own pages: debug, and the welcome page
-  when no file is open). The changelog and the kit demo (`#/_workbench`) are full-screen pages outside the shell. A study
+  when no file is open). The kit demo (`#/_workbench`) is a full-screen page outside the shell; every release's notes (`#/_changelog`) open as a tab. A study
   session alone in the main window keeps the full-screen look (the shell steps aside by CSS; the workbench stays mounted).
   `lib` is the active file's `LibraryApi` (`ws.doc(ws.active)`), used by the Sidebar, Ctrl+S and the Drive dialog.
 - **The address bar** follows `ws.address`, the main window's active tab when it shows a file. Switching tabs writes that
-  tab's page into the hash (replacing the entry); going somewhere inside a tab pushes one (`makeTabNav`, only for the tab that
-  owns the address); back, forward and a typed address move that tab only, applied in the event itself. On start the address
-  wins. The app's own pages and Drive links are left alone.
+  tab's page into the hash and the entry names the tab (`history.state` `{ tab }`), replacing the entry; going somewhere inside
+  a tab pushes one (`makeTabNav`, only for the tab that owns the address); the same tab on another page from the Sidebar or
+  the Explorer adds an entry too. Back, Forward and a typed address are handled in the `popstate` and `hashchange` events
+  (at once, `flushSync`): the entry's own tab, wherever it is now, becomes active on that page (`ws.followHistory`), and an
+  entry with no tab (a typed address) goes to the main window's tab only when its file has that page. On start the address
+  wins. The debug page and Drive links are left alone; `#/_changelog` opens the notes as a tab (`ws.showChangelog`).
 - **Keys** (`useKeydown`): Ctrl+S saves the active file; Ctrl+Alt+S saves every file with changes; undo and redo
   (`Mod+Z`, `Mod+Shift+Z`, `Ctrl+Y`) are app-wide through `ws.undo` and `ws.redo` and left to the browser inside text
   fields (`isEditable`); `Mod+Shift+E` shows the Explorer; `Mod+\` splits the active group; Ctrl+Alt+Shift+D toggles the debug bar.
-- **Screens** get `lib: LibraryApi` (one document) and `nav: Nav` (their tab's, from `makeTabNav`); none touches the
-  address bar. History entries name their tab (`history.state.tab`); Back and Forward return to it.
+- **Screens** get `lib: LibraryApi` (one document) and `nav: Nav` (their tab's, from `makeTabNav`; always given, since
+  `route.ts` no longer has global navigation functions); none touches the address bar.
 
 ## State: `useWorkspace`
 
@@ -35,17 +38,23 @@ changed, merged per key for typing. Saving, Drive, the browser backup and restor
 
 - **`src/layout/Workbench`** renders `SplitView` for the main window and a `Popout` with a `SplitView` for each other
   window of the layout. Each group is a `TabStrip`, a `PaneHead` (crumbs) and the tabs' screens (the shown one plus the
-  most recent hidden ones, `mountedTabs`, stay mounted), with `DropZones` on the pane for tab drops. Its decisions (titles,
+  most recent hidden ones, `mountedTabs`, stay mounted), with `DropZones` on the pane for tab drops. Each tab's screen renders into a node of its own (one per tab and window) that its
+  group's slot adopts, so moving a tab to another group of the same window keeps its screen and state (a study round goes on);
+  moved to another window it starts afresh there. Its decisions (titles,
   menus, disabled reasons, whether a pane may split) are `logic/workbenchActions`. It takes the layout and callbacks as props;
   `App` wires them to `WorkspaceApi`.
 - **Popping a pane out.** `App.popOut` calls `openPopup` synchronously in the click, keeps the `Window` in its `popups` state
   by window id, then calls `ws.popOut(groupId, win)`. `Workbench` renders a `Popout` for each such window; closing or
   reloading the popup docks its groups back (`ws.dock`). If the browser blocks the popup a warning toast says so. A window of
   the layout with no popup (after a reload) comes back docked.
-- **`src/layout/PaneScreen`** renders one tab: the Explorer (`ExplorerPane`), the welcome page, or a file's page. A file's
+- **`src/layout/PaneScreen`** renders one tab: the Explorer (`ExplorerPane`), every release's notes (a changelog tab; its way
+  back closes the tab), or a file's page. A file's
   tab gets its own `Nav` (`makeTabNav`), follows renames in its route (`usePlaceFor`), keeps its own scroll position, and
   follows links to pages of its file inside the tab (Ctrl or middle button: a new tab beside it). Screens get `lib:
-  LibraryApi`, an optional `nav: Nav`, and for study `active` (only the active pane's keys work).
+  LibraryApi`, `nav: Nav`, and for study `active` (only the active pane's keys work).
+- **Breadcrumbs.** Each pane's `PaneHead` shows the trail built by `App.crumbs`: the file's name first, then the course and
+  quiz, followed by id through renames; none for a study session or the Explorer; "All releases" for a changelog tab. In a pane
+  narrower than 480px the trail becomes one "‹ parent" link. A click goes through that pane's own tab.
 - **Sidebar** (`src/layout/Sidebar.tsx`) lists `ws.docs` as file rows (Save, Download, Close; `ws.activate`), New library,
   Open file, the course tree of the active file (a click shows the page in the active group, Ctrl or middle in a new tab), and
   the Explorer button.
@@ -55,11 +64,17 @@ changed, merged per key for typing. Saving, Drive, the browser backup and restor
 - **`src/layout/ExplorerPane`** is the glue from `WorkspaceApi` to `Explorer`: it builds the open files' rows from `ws.docs`
   and `ws.doc(id)` (the file's place in words from `logic/whereLine`), keeps `ws.explorer` (`expanded`, `selection`) in step
   through `ws.setExplorer`, and passes `ws.apply`, `ws.undo`, `ws.copy`, `ws.cut`, `ws.paste` and each file's save,
-  download and close.
+  download and close. It also lists the user's Google Drive libraries (below).
 - **`src/layout/Explorer`** feeds `TreeView` with `explorerSource(docs)`, opens `ContextMenu`s from
   `explorerActions.menuFor`, and runs every move, copy, paste, rename, create and delete through `apply`, so each is one
   undoable step that marks every file it touched as unsaved. `contentOps` does the work on the libraries;
   `explorerActions` decides what is allowed and why not.
+- **Google Drive in the Explorer.** After the open files the tree has a Google Drive root (when Drive is set up on the site)
+  listing the libraries the app can see that are not open: a sign-in row when signed out, "loading", a failure row with Retry,
+  each library (name, modified time), and "Choose files in Google Drive". `ExplorerPane` lists them through `ws.drive.list()`
+  and refreshes after a sign-in change, an open, a save, a pick or a removal; it never asks Google for a token without a click.
+  Enter or expanding a library opens it as a file of the tree; Delete or Move to bin on a library asks, then moves it to the
+  bin. Pasting or dropping on a Drive node is refused ("Open the library first."), and so is deleting one from the tree.
 - **Showing it.** `App.showExplorer` (Sidebar button, `Mod+Shift+E`, a tab's Reveal in Explorer) activates the Explorer
   tab where it shows; otherwise it splits on the left of the active group when the window is 1000px or wider and the group has
   room (`canSplit`), else opens it as a tab. There is at most one. What the Explorer opens goes to the group used last

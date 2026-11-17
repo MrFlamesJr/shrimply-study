@@ -45,6 +45,8 @@ This app maps them in the last block of `src/theme/tokens.css`, on `:root`:
 | `--kit-accent`, `--kit-accent-soft`, `--kit-accent-line` | the one action color, its tint, its thin line | `--accent`, `--accent-soft`, `--accent-line` |
 | `--kit-focus` | focus ring | `--focus` |
 | `--kit-danger` | deleting | `--danger` |
+| `--kit-danger-ink` | a danger menu item's text (the danger color eased toward the text, so it keeps 4.5:1 on the popup) | `color-mix(in oklch, var(--danger) 62%, var(--text))` |
+| `--kit-invalid` | a refused value (a rename field with an error) | `--bad` |
 | `--kit-invalid` | a refused name or drop, its reason | `--bad` (the app's field error color) |
 | `--kit-radius` | corner radius | `--radius` |
 | `--kit-font` | font family | `--font-body` |

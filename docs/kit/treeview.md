@@ -38,8 +38,8 @@ type DropRule = { ok: true } | { ok: false; reason: string }
 ## Dependencies
 
 `react`, `./dnd`, `./selection`, `./shortcuts` (`isMac`), `./tree`, and `./tree.css`. The css uses: `--kit-accent
---kit-accent-line --kit-accent-soft --kit-border-strong --kit-danger --kit-dim --kit-dur --kit-ease --kit-focus
---kit-font --kit-line --kit-line-thick --kit-muted --kit-popup --kit-radius --kit-space-1 --kit-space-2 --kit-space-3
+--kit-accent-line --kit-accent-soft --kit-border-strong --kit-dim --kit-dur --kit-ease --kit-focus
+--kit-font --kit-invalid --kit-line --kit-line-thick --kit-muted --kit-popup --kit-radius --kit-space-1 --kit-space-2 --kit-space-3
 --kit-surface-2 --kit-text --kit-text-sm --kit-text-xs`.
 
 ## Inputs and outputs

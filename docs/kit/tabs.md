@@ -89,6 +89,13 @@ Import `tabs.css` along with the component (the component does it itself) and ma
 - Touch: a long press on a tab (see [longpress.md](longpress.md)) calls `onContextMenu(id, { x, y })`; the click and drag
   that follow the lift are ignored. Under `@media (pointer: coarse)` tabs are `--kit-tap` tall and the close button is
   32 px.
+- Narrow strips: the active tab scrolls fully into view when it changes, and again when the strip or its tabs change size
+  (a window resize, a sidebar opening), using a `ResizeObserver`; when it has to scroll right, it stops at the left edge of
+  the next tab, so the tab before it is never left as a lone close button. `tabs.css` keeps every tab's close button. This
+  app's host stylesheet (`src/theme/workbench.css`, below 800px) hides the close button of every tab that is neither active
+  nor unsaved (`.kit-tab:not(.is-active):not(.is-dirty) .kit-tab-close { display: none }`), and gives tabs and the close
+  button a 44px touch size; those tabs close from their menu or with `Delete`. A host that wants the same writes the same
+  rule; the kit does not.
 - Same-kind drops from another strip (or window) reach `onDrop`, not `onMove`: the strip only calls `onMove` for a single
   id it already holds.
 - A drag is accepted only when `canDrop` returns true; otherwise the strip does not call `preventDefault`, so the browser
