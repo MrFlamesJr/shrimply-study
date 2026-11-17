@@ -3,6 +3,7 @@
 import { comboLabel, matches } from '../kit/shortcuts'
 import { KIND_NAME, isTermCard, type Card, type Library, type Sides } from '../model'
 import { canPlace, exists, extract, insert, itemName, move, remove, ungroup, type DocId, type Docs, type ItemRef, type Target } from './contentOps'
+import { RENAME_VIEW_ONLY_TEXT } from './autosave'
 import { whereLine } from './whereLine'
 import { isPeekDoc, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type DriveNode } from './explorerTree'
 import { inGroupOrder } from './groups'
@@ -213,6 +214,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
     return [
       item('openNew', 'Open in new tab', only('file')),
       item('newCourse', 'New course', ids.length > 1 ? only('file') : locked),
+      item('rename', 'Rename', { shortcut: sc('F2'), ...(ids.length > 1 ? only('file') : file?.readOnly ? { disabled: true, reason: RENAME_VIEW_ONLY_TEXT } : {}) }),
       paste(),
       'separator',
       ...(file?.readOnly ? [item('makeCopy', 'Make a copy', only('file'))] : file?.place === 'browser' && ctx.driveSetUp ? [item('upload', 'Upload to Google Drive…', only('file'))] : []),

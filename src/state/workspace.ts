@@ -105,6 +105,8 @@ export const docNames = (w: Workspace): string[] => [...Object.values(w.docs).ma
 
 /** `base`, or "base 2" and so on: a name no open or closed library has. */
 export const freeDocName = (w: Workspace, base: string): string => freeName(base, docNames(w))
+/** A browser library's own name changed (a Drive file's name is Google's, see `renameDriveFile`). Not an edit: no history. */
+export const renameDoc = (w: Workspace, id: DocId, name: string): Workspace => patchDoc(w, id, (d) => (d.name === name ? null : { name }))
 
 // ---- View only (asked for): a Drive file not known to be the signed-in user's own (someone else's, or any while
 // signed out) is shown and studied, never changed: no content change, undo step or cut ever touches it. ----

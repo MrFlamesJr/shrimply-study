@@ -185,7 +185,8 @@ export function ExplorerPane(p: {
       openNew={p.openNodeNew}
       edit={p.editNode}
       libOf={(id) => ws.doc(id)}
-      newDoc={() => void ws.newDoc()}
+      newDoc={() => ws.newDoc()}
+      renameDoc={(id, name) => void ws.renameDoc(id, name)}
       openFile={() => void ws.openFile()}
       uploadDoc={p.upload}
       shareDoc={p.share}

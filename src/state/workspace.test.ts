@@ -53,6 +53,7 @@ import {
   readLayout,
   readRoute,
   readyToClose,
+  renameDoc,
   redoEdit,
   replaceDoc,
   restore,
@@ -114,6 +115,17 @@ describe('documents and tabs', () => {
     w = closeDoc(w, 'y')
     expect(freeDocName(w, 'New library')).toBe('New library 4')
     expect(freeDocName(forgetClosed(w, 'y'), 'New library')).toBe('New library 2')
+  })
+})
+
+describe('renameDoc', () => {
+  it('names a document without touching its history or saved mark', () => {
+    const w = addDoc(emptyWorkspace('g'), makeDoc('x', emptyLibrary(), 'New library'), HOME, 'tx')
+    const r = renameDoc(w, 'x', 'Biology')
+    expect(r.docs.x.name).toBe('Biology')
+    expect(r.history).toBe(w.history)
+    expect(hasChanges(r.docs.x)).toBe(false)
+    expect(renameDoc(r, 'x', 'Biology')).toBe(r)
   })
 })
 

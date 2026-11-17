@@ -22,6 +22,7 @@ export type SaveStatus = 'saved' | 'pending' | 'saving' | 'viewOnly' | 'browser'
 
 /** The library is view only: someone else's Drive file, or any Drive file while signed out (asked for). */
 export const VIEW_ONLY_TEXT = 'This library is view only. Make a copy to change it.'
+export const RENAME_VIEW_ONLY_TEXT = "You can't rename someone else's file. Make a copy to change it."
 
 /** What a document's saving depends on (a workspace document fits). */
 export type SaveDoc = { library: object; saved: object | null; drive: { mine: boolean } | null; problem: SaveProblem | null }

@@ -18,6 +18,7 @@ import {
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, readOnlyOf, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
+import { fileNameProblem } from '../logic/names'
 import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, mergeClosed, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type ExplorerClosed, type Peek } from '../logic/explorerTree'
 import type { Card, Library } from '../model'
 import { newId } from '../model'
@@ -92,7 +93,10 @@ export type ExplorerProps = {
   edit(ref: ItemRef): void
   /** One file's API, for the card dialog (New card opens it right here). */
   libOf(doc: DocId): LibraryApi
-  newDoc(): void
+  /** Gives the new library's id, so its name can be asked for on its row. */
+  newDoc(): DocId
+  /** Renames an open file (refusals are said with a toast). */
+  renameDoc(id: DocId, name: string): void
   /** Opens a .shrimp copy from this device. */
   openFile(): void
   /** Upload to Google Drive: a browser library's dialog. */
@@ -128,7 +132,7 @@ const HELP: [string, string][] = [
   ['Reorder', 'Drag an item before or after another, or press Alt+Shift+Up or Down (also Move up and Move down in the menu). Cards stay in their group.'],
   ['Move to', 'Right-click, then Move to…, to pick the destination from a list.'],
   ['New', 'New file and Open a copy from this device are at the top. Right-click a file for New course, a course for New quiz and a quiz for New card. A new course or quiz starts with its name ready to type.'],
-  ['Rename', 'Press F2 to rename a course or quiz. Names stay unique in their place. On a card, F2 edits it.'],
+  ['Rename', 'Press F2 to rename a file, course or quiz. Courses and quizzes stay unique in their place. On a card, F2 edits it.'],
   ['Delete', 'Delete removes cards at once, with Undo on the message. Quizzes and courses ask first. A file is closed, never deleted: a closed file stays in the list until you delete it from this browser, move it to the bin or remove it from the list.'],
   ['Search', 'Search filters every file, open or not, and keeps the parents of what matches. Esc clears it.'],
   ['Closed files', 'Open files carry an "Open" chip, the others are closed: press Enter or Open to open one again. Sign in with Google to list your Google Drive libraries too. Refresh looks again, "Choose files in Google Drive" adds files the app can not see yet.'],
@@ -329,7 +333,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
     const first = ids[0] === undefined ? null : parseNode(ids[0])
     const refs = itemRefs(ids)
     switch (action) {
-      case 'newFile': return p.newDoc()
+      case 'newFile': return setRenaming(nodeOf({ kind: 'doc', doc: p.newDoc() }))
       case 'openFile': return p.openFile()
       case 'newCourse': {
         if (first?.kind !== 'doc') return
@@ -360,7 +364,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
       case 'open': return first && openNode(first)
       case 'openNew': return first && first.kind !== 'card' && !(first.kind !== 'doc' && isPeekDoc(first.doc)) && p.openNew(first)
       case 'edit': return first && first.kind !== 'doc' && p.edit(first)
-      case 'rename': return first && first.kind !== 'doc' && first.kind !== 'card' && setRenaming(ids[0])
+      case 'rename': return first && first.kind !== 'card' && setRenaming(ids[0])
       case 'copy': return p.copy(refs, refs.some((r) => isPeekDoc(r.doc)) ? peekDocs(latest.current.drive?.peeks) : undefined)
       case 'cut': return p.cut(refs)
       case 'paste': {
@@ -426,7 +430,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const commitRename = (id: string, name: string) => {
     setRenaming(null)
     const ref = parseNode(id)
-    if (!ref || ref.kind === 'doc') return
+    if (!ref) return
+    if (ref.kind === 'doc') return p.renameDoc(ref.doc, name)
     const now = docsNow()
     if (!exists(now, ref) || name.trim() === itemName(now, ref)) return
     const next = renameItem(now, ref, name)
@@ -536,7 +541,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
     <div className="explorer" ref={root} role="region" aria-label="Explorer">
       <div className="explorer-top">
         <div className="explorer-head">
-          <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
+          <IconButton label="New file" onClick={() => setRenaming(nodeOf({ kind: 'doc', doc: p.newDoc() }))}><PlusIcon /></IconButton>
           <IconButton label="Open a copy from this device" onClick={p.openFile}><FolderIcon /></IconButton>
           {google?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={google.refresh}><RefreshIcon /></IconButton>}
           <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
@@ -615,7 +620,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
             cancel: () => setRenaming(null),
             check: (id, name) => {
               const r = parseNode(id)
-              return (r && r.kind !== 'doc' ? renameProblem(docs, r, name) : undefined) ?? null
+              return (r?.kind === 'doc' ? (name.trim() ? fileNameProblem(name.trim()) : 'A library needs a name.') : r ? renameProblem(docs, r, name) : undefined) ?? null
             },
           }}
           empty={
@@ -626,7 +631,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
                 {google && !google.listing.signedIn && (
                   <button type="button" className="is-lead" onClick={google.signIn}><CloudIcon /> Sign in with Google</button>
                 )}
-                <button type="button" onClick={p.newDoc}><PlusIcon /> New file</button>
+                <button type="button" onClick={() => setRenaming(nodeOf({ kind: 'doc', doc: p.newDoc() }))}><PlusIcon /> New file</button>
                 <button type="button" onClick={p.openFile}><FolderIcon /> Open a copy from this device</button>
               </div>
             </div>

@@ -402,6 +402,20 @@ export async function updateDriveFile(id: string, library: Library): Promise<str
   }
 }
 
+/** Renames the user's Drive file (named as `createDriveFile` names it, with ".shrimp"); resolves its name there. */
+export async function renameDriveFile(id: string, name: string): Promise<string> {
+  try {
+    const response = await withToken(`${API}/${encodeURIComponent(id)}?fields=name`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.toLowerCase().endsWith('.shrimp') ? name : `${name}.shrimp` }),
+    })
+    return (await response.json()).name
+  } catch (err) {
+    throw refused(err) ? notYours() : err
+  }
+}
+
 /** Moves the file to the bin in the signed-in user's Drive (Google keeps it there for 30 days). */
 export async function trashDriveFile(id: string): Promise<void> {
   try {

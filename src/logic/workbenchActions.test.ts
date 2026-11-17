@@ -54,6 +54,12 @@ describe('titles', () => {
     expect(tabTitle(gone, docs)).toBe('Cell Biology')
     expect(tabTitle(tab({ kind: 'doc', doc: 'x', route: { name: 'home' } }), docs)).toBe('Missing file')
   })
+  it('takes the names the host found by id while a rename is followed, never falling back to the file', () => {
+    const renaming = tab({ kind: 'doc', doc: 'd', route: { name: 'quiz', course: 'Cell Biology', quiz: 'Quiz' } })
+    expect(tabTitle(renaming, docs)).toBe('Cell Biology')
+    expect(tabTitle(renaming, docs, () => ({ course: 'Cell Biology', quiz: 'Quiz 1' }))).toBe('Quiz 1')
+    expect(tabDescription(renaming, docs, () => ({ course: 'Cell Biology', quiz: 'Quiz 1' }))).toBe('Biology.shrimp')
+  })
   it('names the other kinds', () => {
     expect(tabTitle(tab({ kind: 'explorer' }), docs)).toBe('Explorer')
     expect(tabTitle(tab({ kind: 'changelog' }), docs)).toBe("What's new")

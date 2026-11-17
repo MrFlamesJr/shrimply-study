@@ -122,6 +122,8 @@ def run(page, base):
     assert page.locator('.sidebar-bar').get_by_role('button', name='New course').count() == 0, 'no New course at the bottom'
     page.locator('.files-head').get_by_role('button', name='New file', exact=True).click()
     wait_for(page, lambda: page.locator('.file-row').count() == 3, 'a new file opens')
+    page.locator('.file-rename-field').wait_for()
+    page.keyboard.press('Enter')  # it asks for its name first; Enter keeps New library
     fresh = page.locator('.file-block').filter(has=page.locator('.file-name-text', has_text='New library'))
     assert fresh.locator('.file-course').count() == 0 and fresh.locator('.file-empty').count() == 0, 'nothing under an empty file'
     fresh.locator('.file-row').hover()

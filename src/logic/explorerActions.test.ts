@@ -68,22 +68,27 @@ describe('menus', () => {
   })
   it('a Drive file: share, download a copy, close', () => {
     const m = menuFor(ctx(), ['d:a'], 'd:a')
-    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Paste', 'Share…', 'Download a copy', 'Close file'])
+    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Share…', 'Download a copy', 'Close file'])
     expect(find(m, 'Close file').disabled).toBeUndefined()
     expect(find(menuFor(ctx(), ['d:a', 'd:b'], 'd:a'), 'New course')).toMatchObject({ disabled: true, reason: 'Pick one file.' })
   })
   it('a browser library: upload, share, download a copy, close', () => {
-    expect(labels(menuFor(ctx(), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Paste', 'Upload to Google Drive…', 'Share…', 'Download a copy', 'Close file'])
+    expect(labels(menuFor(ctx(), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Upload to Google Drive…', 'Share…', 'Download a copy', 'Close file'])
   })
   it('without Google Drive set up there is nothing to upload or share to', () => {
-    expect(labels(menuFor(ctx(null, docs, files, false), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Paste', 'Download a copy', 'Close file'])
+    expect(labels(menuFor(ctx(null, docs, files, false), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Download a copy', 'Close file'])
   })
   it('a view-only library: make a copy, share, download a copy, close; nothing goes in', () => {
     const f = { ...files, a: { place: 'drive' as const, readOnly: true } }
     const m = menuFor(ctx({ mode: 'copy', refs: [course('c1')] }, docs, f), ['d:a'], 'd:a')
-    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Paste', 'Make a copy', 'Share…', 'Download a copy', 'Close file'])
+    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Make a copy', 'Share…', 'Download a copy', 'Close file'])
     expect(find(m, 'New course')).toMatchObject({ disabled: true, reason: 'This library is view only. Make a copy to change it.' })
     expect(find(m, 'Paste')).toMatchObject({ disabled: true, reason: 'This library is view only. Make a copy to change it.' })
+    expect(find(m, 'Rename')).toMatchObject({ disabled: true, reason: "You can't rename someone else's file. Make a copy to change it." })
+  })
+  it('a library renames with F2 unless it is view only', () => {
+    expect(find(menuFor(ctx(), ['d:a'], 'd:a'), 'Rename')).toMatchObject({ shortcut: 'F2' })
+    expect(find(menuFor(ctx(), ['d:a', 'd:b'], 'd:a'), 'Rename')).toMatchObject({ disabled: true, reason: 'Pick one file.' })
   })
   it('a course', () => {
     const m = menuFor(ctx(), ['c:a:c1'], 'c:a:c1')

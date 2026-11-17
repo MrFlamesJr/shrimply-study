@@ -7,8 +7,11 @@ import type { DocId } from '../logic/contentOps'
 import { closedEntries, libraryTotal, nodeOf, refOf } from '../logic/explorerTree'
 import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from '../logic/fileTree'
 import { needsAttention, statusText, type SaveProblem } from '../logic/autosave'
+import { fileNameProblem } from '../logic/names'
 import { plural } from '../logic/plural'
 import { whereLine, whereWithStatus } from '../logic/whereLine'
+import { bareName } from '../state/workspace'
+import { AutoText } from '../components/AutoText'
 import { ownWindow } from '../components/ownWindow'
 import { IconButton } from '../components/IconButton'
 import {
@@ -24,8 +27,8 @@ type Props = {
   driveFiles: DriveFiles
   /** Opens the Open dialog (the Files heading's Open). */
   onOpenDialog: () => void
-  /** New file: App asks where it lives when that is a choice. */
-  onNewFile: () => void
+  /** New file: App asks where it lives when that is a choice. Gives the new library's id when it is there to be named. */
+  onNewFile: () => DocId | null
   /** A library's Share dialog. */
   onShare: (doc: DocId) => void
   /** A browser library's Upload to Google Drive dialog. */
@@ -92,6 +95,47 @@ const glyph = (icon: ReactNode, expandable: boolean) => (
   </span>
 )
 
+const nameProblem = (name: string) => (name.trim() ? fileNameProblem(name.trim()) : 'A library needs a name.')
+
+/**
+ * A library's name as a one-line field (rename, or naming a new one): Enter or leaving keeps the text, Esc keeps the
+ * old name. Text that can not be a name shows why under the field and is not kept.
+ */
+function RenameField({ start, onCommit, onCancel }: { start: string; onCommit: (name: string, focusRow: boolean) => void; onCancel: (focusRow: boolean) => void }) {
+  const [text, setText] = useState(start)
+  const done = useRef(false)
+  const finish = (name: string | null, focusRow: boolean) => {
+    if (done.current) return
+    done.current = true
+    if (name === null) onCancel(focusRow)
+    else onCommit(name, focusRow)
+  }
+  return (
+    <span className="file-rename" onClick={(e) => e.stopPropagation()} onDoubleClick={(e) => e.stopPropagation()}>
+      <AutoText
+        className="file-rename-field"
+        aria-label="Library name"
+        value={text}
+        onChange={setText}
+        selectOnMount
+        required
+        check={nameProblem}
+        onEnter={(box) => {
+          if (!nameProblem(box.value)) finish(box.value, true)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Escape') {
+            e.preventDefault()
+            e.stopPropagation()
+            finish(null, true)
+          }
+        }}
+        onBlur={(e) => finish(nameProblem(e.currentTarget.value) ? null : e.currentTarget.value, false)}
+      />
+    </span>
+  )
+}
+
 /**
  * The sidebar's one tree: every open file, its courses, their quizzes. The active file and the current course unfold
  * by themselves (nothing folds by itself). A file's row has its save slot, Share, New course, Download and Close while it is pointed at or holds
@@ -106,6 +150,8 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
   const typed = useRef({ text: '', at: 0 })
   const [focusId, setFocusId] = useState<string | null>(null)
   // The file whose card shows, and the middle of its row (the card's arrow points there).
+  // The library whose name is a field now (a double click, F2, or a library just made).
+  const [renaming, setRenaming] = useState<DocId | null>(null)
   const [hover, setHover] = useState<{ doc: DocId; mid: number } | null>(null)
 
   const activeLib = ws.active ? ws.doc(ws.active).library : null
@@ -151,6 +197,16 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
     closeIfNarrow()
   }
 
+  // Rename: a view-only library says why instead (`renameDoc` refuses it with the reason).
+  const startRename = (doc: DocId) => {
+    const lib = ws.doc(doc)
+    if (lib.readOnly) void ws.renameDoc(doc, bareName(lib.name))
+    else {
+      hideCard()
+      setRenaming(doc)
+    }
+  }
+
   // ---- the hover card
   const hideCard = () => {
     if (root.current) ownWindow(root.current).clearTimeout(timer.current)
@@ -191,6 +247,11 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
     const target = e.target as HTMLElement
     if (target.getAttribute('role') !== 'treeitem' || e.ctrlKey || e.metaKey || e.altKey) return
     const id = target.dataset.id!
+    if (e.key === 'F2' && refOf(id).kind === 'doc') {
+      e.preventDefault()
+      startRename(refOf(id).doc)
+      return
+    }
     if (e.key === ' ') {
       e.preventDefault()
       openNode(id)
@@ -277,8 +338,9 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
           label="New file"
           title="Start an empty library beside the open ones"
           onClick={() => {
-            onNewFile()
-            closeIfNarrow()
+            const made = onNewFile()
+            if (made) setRenaming(made)
+            else closeIfNarrow()
           }}
         >
           <PlusIcon />
@@ -347,7 +409,24 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                   >
                     {glyph(<Icon />, courses.length > 0)}
                     <span className="file-name">
-                      <span className="file-name-text">{doc.name}</span>
+                      {renaming === docId ? (
+                        <RenameField
+                          start={bareName(doc.name)}
+                          onCommit={(name, focusRow) => {
+                            setRenaming(null)
+                            if (focusRow) pending.current = rootId
+                            void ws.renameDoc(docId, name)
+                          }}
+                          onCancel={(focusRow) => {
+                            setRenaming(null)
+                            if (focusRow) pending.current = rootId
+                          }}
+                        />
+                      ) : (
+                        <span className="file-name-text" title={`${doc.name}. Double-click to rename`} onDoubleClick={() => startRename(docId)}>
+                          {doc.name}
+                        </span>
+                      )}
                       {doc.hasChanges && <span className="file-dot" role="img" aria-label={statusText(doc.status)} title={statusText(doc.status)} />}
                     </span>
                     <span className="file-where">{where}</span>
@@ -355,7 +434,7 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                   {/* A small toolbar that slides in over the end of the name line while the row is pointed at (or holds the
                       keyboard focus), the same for every library: the save slot, Share, New course, Download a copy
                       and Close, each one click away (asked for: no menu, nothing twice). */}
-                  <span className="file-actions">
+                  <span className={renaming === docId ? 'file-actions is-hidden' : 'file-actions'}>
                     {slot && (
                       <IconButton
                         label={slot.label}

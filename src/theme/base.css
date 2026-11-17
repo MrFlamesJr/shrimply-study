@@ -531,15 +531,15 @@ textarea:focus {
 /* Every underlined field shows its state on its line the same way (asked for): brighter while it is pointed at (its
    box, its floating label, or the eraser inside it), the accent while focused, red when its text is missing or
    refused. Each state wins over the one before it (same specificity, in this order); no other file sets them. */
-:is(.pair-field, .float-field, .entry, .cloze-box) textarea:hover,
+:is(.pair-field, .float-field, .entry, .cloze-box, .file-rename) textarea:hover,
 .float-field:hover textarea,
 .auto-text-erasable:hover textarea {
   border-color: var(--border-strong);
 }
-:is(.pair-field, .float-field, .entry, .cloze-box) textarea:focus {
+:is(.pair-field, .float-field, .entry, .cloze-box, .file-rename) textarea:focus {
   border-color: var(--accent);
 }
-:is(.pair-field, .float-field, .entry, .cloze-box) textarea[aria-invalid='true'] {
+:is(.pair-field, .float-field, .entry, .cloze-box, .file-rename) textarea[aria-invalid='true'] {
   border-color: var(--bad);
 }
 /* A field's floating label (FloatField), asked for. Empty, the name sits in the box where its text will start and at

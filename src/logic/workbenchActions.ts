@@ -37,21 +37,31 @@ export const KEPT_ALIVE = 7
 
 type Place = { doc: WorkbenchDoc; course?: string; quiz?: string }
 
+/**
+ * The course and quiz names a doc tab shows, as the host finds them: while a course or quiz is being renamed the
+ * tab's route still holds the old name (it follows 300ms after the typing pauses), and the host finds the page again
+ * by id, so the title never falls back to the file's name in between.
+ */
+export type FindPlace = (tab: Tab<TabData>) => { course?: string; quiz?: string } | null
+
 // The file a doc tab shows and the course and quiz its route names, as far as they exist.
-function placeOf(data: TabData, docs: Docs): Place | null {
+function placeOf(tab: Tab<TabData>, docs: Docs, find?: FindPlace): Place | null {
+  const data = tab.data
   if (data.kind !== 'doc') return null
   const doc = docs[data.doc]
   if (!doc) return null
+  const found = find?.(tab)
+  if (found) return { doc, ...found }
   const { course, quiz } = resolve(doc.library, data.route)
   return { doc, course: course?.name, quiz: quiz?.name }
 }
 
 /** A tab's title: for a document its page (the quiz or course name, the file's name at its home). */
-export function tabTitle(tab: Tab<TabData>, docs: Docs): string {
+export function tabTitle(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string {
   const d = tab.data
   if (d.kind === 'explorer') return 'Explorer'
   if (d.kind !== 'doc') return APP_PAGE_TITLE[d.kind]
-  const place = placeOf(d, docs)
+  const place = placeOf(tab, docs, find)
   return place ? (place.quiz ?? place.course ?? place.doc.name) : 'Missing file'
 }
 
@@ -69,14 +79,14 @@ export function elsewhereText(count: number, is = false): string {
 }
 
 /** The muted text after a title: the file's name when the tab is not at its home. */
-export function tabDescription(tab: Tab<TabData>, docs: Docs): string | undefined {
-  const place = placeOf(tab.data, docs)
+export function tabDescription(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string | undefined {
+  const place = placeOf(tab, docs, find)
   return place && (place.course !== undefined || place.quiz !== undefined) ? place.doc.name : undefined
 }
 
 /** "Biology.shrimp/Cell Biology/Quiz 1": the file, then its course and quiz as far as the tab shows them. Null for a tab with no file. */
-export function copyPathText(tab: Tab<TabData>, docs: Docs): string | null {
-  const place = placeOf(tab.data, docs)
+export function copyPathText(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string | null {
+  const place = placeOf(tab, docs, find)
   return place && [place.doc.name, place.course, place.quiz].filter((p) => p !== undefined).join('/')
 }
 
@@ -85,9 +95,9 @@ export function tabDirty(tab: Tab<TabData>, docs: Docs): boolean {
 }
 
 /** A tab's native tooltip: its path, and whether the file has unsaved changes. */
-export function tabTooltip(tab: Tab<TabData>, docs: Docs): string {
-  const path = copyPathText(tab, docs)
-  if (path === null) return tabTitle(tab, docs)
+export function tabTooltip(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string {
+  const path = copyPathText(tab, docs, find)
+  if (path === null) return tabTitle(tab, docs, find)
   return tabDirty(tab, docs) ? `${path} (unsaved changes)` : path
 }
 

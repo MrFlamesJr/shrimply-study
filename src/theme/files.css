@@ -172,6 +172,46 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.file-rename {
+  position: relative;
+  flex: 1;
+  min-width: 0;
+}
+/* A library's name as a field: the name's own size, one line that scrolls inside the box, only its underline showing
+   (the quiet underlined field of base.css, here without a label). The row keeps its height. */
+.file-rename-field {
+  box-sizing: border-box;
+  height: calc(1lh + var(--line-thick));
+  /* The underline hangs below the text's line, so the row keeps its height. */
+  margin-bottom: calc(-1 * var(--line-thick));
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+  /* Its states (pointed at, focused, refused) are base.css's shared field rules. */
+  border-bottom: var(--line-thick) solid var(--border);
+  border-radius: 0;
+  color: var(--text);
+  font-weight: inherit;
+  line-height: inherit;
+  white-space: nowrap;
+  field-sizing: fixed;
+}
+/* The reason a name is refused hangs under the row, so the row keeps its height. */
+.file-rename .auto-text-error {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 2;
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  background: var(--popup);
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: var(--text-xs-plus);
+  font-weight: var(--weight);
+  white-space: nowrap;
+}
 .file-dot {
   flex-shrink: 0;
   width: 8px;
@@ -599,4 +639,8 @@
     flex: none;
     overflow: visible;
   }
+}
+/* The toolbar steps aside while the name is a field. */
+.file-row .file-actions.is-hidden {
+  display: none;
 }

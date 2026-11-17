@@ -237,10 +237,13 @@ export function App() {
     await ws.drive.pick()
     setOpenDialog(true)
   }
-  // New file: signed in, the new library goes straight to Google Drive (the Upload step asks for its name).
+  // New file: signed in, the new library goes straight to Google Drive (the Upload step asks for its name). Otherwise
+  // its id comes back, for the sidebar to ask for its name right on its row.
   const newFile = () => {
     const id = ws.newDoc()
-    if (ws.drive.signedIn()) setShareDialog({ docId: id, mode: 'upload' })
+    if (!ws.drive.signedIn()) return id
+    setShareDialog({ docId: id, mode: 'upload' })
+    return null
   }
   const driveId = hashRoute.name === 'drive' ? hashRoute.id : undefined
   const handledLink = useRef<string>(undefined)
@@ -594,6 +597,11 @@ export function App() {
           <Workbench
             layout={ws.layout}
             docs={wbDocs}
+            findPlace={(tab) => {
+              if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return null
+              const { course, quiz } = foundPlace(tab.id, wbDocs[tab.data.doc].library, tab.data.route)
+              return { course: course?.name, quiz: quiz?.name }
+            }}
             popups={popups}
             popupAddresses={popupAddresses}
             onOpenFullApp={pane ? openFullApp : undefined}
@@ -649,7 +657,14 @@ export function App() {
           />
         </div>
         {openDialog && <OpenDialog ws={ws} onClose={() => setOpenDialog(false)} onPick={() => void pickFromDrive()} />}
-        {shareDialog && <ShareDialog lib={ws.doc(shareDialog.docId)} mode={shareDialog.mode} onClose={() => setShareDialog(null)} />}
+        {shareDialog && (
+          <ShareDialog
+            lib={ws.doc(shareDialog.docId)}
+            mode={shareDialog.mode}
+            onClose={() => setShareDialog(null)}
+            onRename={(name) => void ws.renameDoc(shareDialog.docId, name)}
+          />
+        )}
       </div>
       )}
       {/* Outside the shell so running timers survive the app's own pages. */}

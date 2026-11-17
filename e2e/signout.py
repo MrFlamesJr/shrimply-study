@@ -57,7 +57,7 @@ def new_state():
     """What the stubbed Google holds and has been asked: `files` by id, switches `fail` (uploads answer 400) and `expired`
     (uploads answer 401), and counts."""
     return {'files': {}, 'next': 1, 'saves': 0, 'creates': [], 'reads': {}, 'fail': False, 'expired': False, 'lists': 0,
-            'trashed': [], 'shared': [], 'unshared': []}
+            'trashed': [], 'shared': [], 'unshared': [], 'renames': []}
 
 
 def add_file(state, file_id, name, data=None, mine=True, shared=False):
@@ -139,6 +139,11 @@ def stub_google(context, state):
             if req.method == 'PATCH':
                 if not f or not f['mine']:
                     return refuse(404, 'notFound')
+                body = json.loads(req.post_data or '{}')
+                if 'name' in body:
+                    f['name'] = body['name']
+                    state['renames'].append((m.group(1), body['name']))
+                    return route.fulfill(headers=CORS, json={'name': f['name']})
                 f['trashed'] = True
                 state['trashed'].append(m.group(1))
                 return route.fulfill(headers=CORS, json={'id': m.group(1)})

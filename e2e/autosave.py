@@ -144,8 +144,7 @@ def run(page, base):
     need(state['saves'] == saves + 1, 'typing merged into one save')
     need('Changed here' in str(library_of(state['files']['alpha']['data'])), 'the saved file holds the edit')
     need(row(page, 'alpha.shrimp').locator('.file-dot').count() == 0, 'no dot while all is well')
-    save_slot = row_button(page, 'alpha.shrimp', 'Save alpha.shrimp')
-    need(save_slot.is_disabled(), 'the Save button is greyed out while everything is saved')
+    need(row(page, 'alpha.shrimp').get_by_role('button', name='Save alpha.shrimp').count() == 0, 'no Save button while it saves as it should (asked for)')
 
     # An expired token pauses the save; the button resumes it.
     state['expired'] = True
@@ -156,7 +155,7 @@ def run(page, base):
     state['expired'] = False
     saves = state['saves']
     save_slot = row_button(page, 'alpha.shrimp', 'Save alpha.shrimp')
-    need(save_slot.is_enabled(), 'the Save button is on while paused')
+    need(save_slot.is_visible() and save_slot.get_attribute('title') == 'Sign in again and save', 'a paused save shows its fix button')
     save_slot.click()
     wait_for(page, lambda: state['saves'] == saves + 1 and 'Saved' in where(page, 'alpha.shrimp'), 'the button resumes it')
 

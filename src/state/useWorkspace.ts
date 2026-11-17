@@ -2,13 +2,13 @@ import { useEffect, useRef, useState } from 'react'
 import { emptyLibrary, newId } from '../model'
 import type { Card, Choice, Course, Group, Library, Quiz, Sides } from '../model'
 import { addSideType, deleteSideType, renameSideType } from '../logic/sides'
-import { copyName, freeName } from '../logic/names'
+import { copyName, fileNameProblem, freeName } from '../logic/names'
 import { plural } from '../logic/plural'
 import { cardsEdit } from '../logic/cardsEdit'
 import type { Docs, ItemRef, Target } from '../logic/contentOps'
 import type { Notify } from '../logic/pushToast'
 import { fileKeys, parseAddress, type Route } from '../logic/routes'
-import { AUTOSAVE_DELAY, RETRY_DELAY, SYNC_EVERY, isViewOnly, needsAttention, saveStatus, type SaveProblem, type SaveStatus } from '../logic/autosave'
+import { AUTOSAVE_DELAY, RENAME_VIEW_ONLY_TEXT, RETRY_DELAY, SYNC_EVERY, isViewOnly, needsAttention, saveStatus, type SaveProblem, type SaveStatus } from '../logic/autosave'
 import { keepIds } from '../logic/keepIds'
 import { closedNote } from '../logic/whereLine'
 import * as backup from '../storage/browserBackup'
@@ -259,6 +259,12 @@ export type WorkspaceApi = {
   openLibrary(load: () => Promise<Library>, name: string, at?: Route): Promise<DocId | null>
   /** A Google Drive file as a new document (or the one it is already open in). */
   openDrive(id: string, own?: boolean): Promise<boolean>
+  /**
+   * Renames a library: a browser library's own name, or the user's Drive file (waiting for its create; a failure
+   * keeps the old name). Names need not be unique. Refused with a toast: an empty name, one that can't be a file
+   * name, someone else's file. Not in the undo history. Resolves whether it is now named so.
+   */
+  renameDoc(id: DocId, name: string): Promise<boolean>
   /** Closes a library (see `LibraryApi.close`). */
   closeDoc(id: DocId): Promise<boolean>
   /** The files closed here, the one closed last first: listed in the Explorer to open again. */
@@ -1283,6 +1289,42 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     return id
   }
 
+  const renameDoc = async (id: DocId, name: string) => {
+    const next = W.bareName(name.trim())
+    const problem = !next ? 'A library needs a name.' : fileNameProblem(next)
+    if (problem) {
+      say('error', problem)
+      return false
+    }
+    const d = cur(id)
+    if (!d) return false
+    if (isViewOnly(d, ref.current.signedIn)) {
+      say('error', RENAME_VIEW_ONLY_TEXT)
+      return false
+    }
+    if (W.bareName(W.docName(d)) === next) return true
+    if (!d.drive && !running.current.has(id)) {
+      update((w) => W.renameDoc(w, id, next))
+      return true
+    }
+    return once(id, async () => {
+      const drive = cur(id)?.drive
+      if (!drive) {
+        update((w) => W.renameDoc(w, id, next))
+        return true
+      }
+      try {
+        const named = await google.renameDriveFile(drive.id, next)
+        signedInNow()
+        learn(id, drive.id, { name: named })
+        return true
+      } catch (err) {
+        report(err, 'Not renamed. ')
+        return false
+      }
+    })
+  }
+
   const makeCopy = async (id: DocId): Promise<DocId | null> => {
     const shown = cur(id)
     if (!shown) return null
@@ -1608,6 +1650,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     openFile,
     openLibrary,
     openDrive,
+    renameDoc,
     closeDoc,
     closed: ws.closed,
     reopenClosed,

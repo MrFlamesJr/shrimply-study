@@ -5,7 +5,7 @@ import type { LibraryApi } from '../state/useWorkspace'
 import { AutoText } from './AutoText'
 import { askChoice, askConfirm } from './ConfirmDialog'
 import { CheckIcon } from './Icons'
-import { Modal } from './Modal'
+import { Modal, closeModal } from './Modal'
 
 const shareUrl = (id: string) => `${location.origin}${location.pathname}${href({ name: 'drive', id })}`
 // How long "Copied" shows on the copy button.
@@ -22,7 +22,11 @@ const ENDING = /\.shrimp$/i
  * `lib` is the library's current API: the host passes `ws.doc(id)` on every render, so the dialog follows the library
  * becoming a Drive file. Upload closes the dialog once done.
  */
-export function ShareDialog({ lib, mode, onClose }: { lib: LibraryApi; mode: 'share' | 'upload'; onClose: () => void }) {
+/**
+ * `onRename`: the name typed for a library kept in this browser (the dialog closed without uploading: Keep in this
+ * browser, the ✕, Esc or a click outside) renames it all the same (asked for).
+ */
+export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi; mode: 'share' | 'upload'; onClose: () => void; onRename: (name: string) => void }) {
   const drive = lib.drive
   const file = drive.file
   // Something is running: a click meanwhile is ignored, and nothing greys out for it (so no button flashes).
@@ -105,6 +109,13 @@ export function ShareDialog({ lib, mode, onClose }: { lib: LibraryApi; mode: 'sh
       if (mode === 'upload') dialog?.close()
       else setWantLink(true)
     })
+  }
+
+  // Closed without uploading: a library still only in this browser takes the name typed for it.
+  const close = () => {
+    const text = name.trim()
+    if (!lib.drive.file && text && !nameProblem && text !== lib.name.replace(ENDING, '')) onRename(text)
+    onClose()
   }
 
   const stopSharing = () =>
@@ -211,6 +222,11 @@ export function ShareDialog({ lib, mode, onClose }: { lib: LibraryApi; mode: 'sh
           </span>
         )}
         <div className="actions">
+          {mode === 'upload' && (
+            <button type="button" title="Don't upload: keep it only in this browser, under this name" onClick={(e) => closeModal(e.currentTarget)}>
+              Keep in this browser
+            </button>
+          )}
           <button
             type="button"
             className="primary"
@@ -225,7 +241,7 @@ export function ShareDialog({ lib, mode, onClose }: { lib: LibraryApi; mode: 'sh
   }
 
   return (
-    <Modal title={title} narrow onClose={onClose}>
+    <Modal title={title} narrow onClose={close}>
       <div className="share-body">{body}</div>
     </Modal>
   )

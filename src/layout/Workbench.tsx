@@ -14,7 +14,7 @@ import { TabStrip } from '../kit/TabStrip'
 import type { Route } from '../route'
 import {
   canSplit, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
-  type GroupContext, type MenuAction, type MenuEntry, type TabData, type WorkbenchDoc,
+  type FindPlace, type GroupContext, type MenuAction, type MenuEntry, type TabData, type WorkbenchDoc,
 } from '../logic/workbenchActions'
 import { PaneHead, type Crumb } from './PaneHead'
 
@@ -26,6 +26,8 @@ const SPLIT_KEY = 'Mod+\\'
 export type WorkbenchProps = {
   layout: Layout<TabData>
   docs: Record<string, WorkbenchDoc>
+  /** The course and quiz a doc tab shows, found by id while a rename is followed (titles never flicker). */
+  findPlace?: FindPlace
   /** WindowId -> its open popup (the host opened it in the click). */
   popups: Record<string, Window>
   /** WindowId -> the address its popup shows (the host's own page for what the window shows; none keeps the popup page's). */
@@ -120,7 +122,7 @@ export function Workbench(p: WorkbenchProps) {
         .map((w) => {
           const first = layout.groups[groupsIn(layout, w)[0]]
           const active = first?.active ? layout.tabs[first.active] : undefined
-          const title = active ? tabTitle(active, p.docs) : 'Shrimply Study'
+          const title = active ? tabTitle(active, p.docs, p.findPlace) : 'Shrimply Study'
           return (
             // No title row: the browser's own bar names the window, and the tab strip comes right under it.
             <Popout
@@ -262,7 +264,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
       else if (a === 'duplicate') on.duplicate(id)
       else if (a === 'reveal') on.revealInExplorer(tab)
       else if (a === 'copyPath') {
-        const text = copyPathText(tab, docs)
+        const text = copyPathText(tab, docs, p.findPlace)
         if (text !== null) on.copyText(text)
       }
     }
@@ -290,7 +292,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
   const openElsewhereMenu = (anchor: Element) => {
     if (!elsewhere) return
     const windows: MenuItem[] = elsewhere.map((w) => ({
-      label: w.tabs.flatMap((id) => (layout.tabs[id] ? [tabTitle(layout.tabs[id], docs)] : [])).join(', '),
+      label: w.tabs.flatMap((id) => (layout.tabs[id] ? [tabTitle(layout.tabs[id], docs, p.findPlace)] : [])).join(', '),
       onSelect: () => p.popups[w.win]?.focus(),
     }))
     openMenu([...windows, 'separator', { label: 'Dock all', onSelect: () => elsewhere.forEach((w) => on.dock(w.win)) }], { anchor })
@@ -332,9 +334,9 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
         group={`Tab group ${allGroups(layout).indexOf(g.id) + 1}`}
         tabs={tabs.map((t) => ({
           id: t.id,
-          title: tabTitle(t, docs),
-          description: tabDescription(t, docs),
-          tooltip: tabTooltip(t, docs),
+          title: tabTitle(t, docs, p.findPlace),
+          description: tabDescription(t, docs, p.findPlace),
+          tooltip: tabTooltip(t, docs, p.findPlace),
           dirty: tabDirty(t, docs),
         }))}
         active={g.active}

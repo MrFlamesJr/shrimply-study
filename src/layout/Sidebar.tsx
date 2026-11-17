@@ -26,7 +26,7 @@ type Props = {
   /** The Files heading's Open: the Open dialog. */
   onOpenDialog: () => void
   /** New file (App asks where it lives when that is a choice). */
-  onNewFile: () => void
+  onNewFile: () => string | null
   /** A library's Share dialog, and a browser library's Upload to Google Drive dialog. */
   onShare: (doc: DocId) => void
   onUpload: (doc: DocId) => void
