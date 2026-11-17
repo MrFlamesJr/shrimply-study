@@ -101,7 +101,7 @@ def editor_checks(page, base, quiz):
     field = editor_card(page, EVEN)
     need(checked_mode(field) == 'All that apply', 'the mode was not kept after Done and a reload')
     # A new Choice question starts as One answer with 1 correct and 2 wrong answer boxes.
-    page.get_by_role('button', name=re.compile('Choice question')).first.click()
+    page.get_by_role('button', name=re.compile('^Choice question')).first.click()
     page.wait_for_timeout(300)
     first = page.locator('.choice-field').first
     need(first.locator('textarea').first.input_value() == '', 'the new choice card should be first and empty')

@@ -1,6 +1,6 @@
 // A tab's navigation, as decisions: what a go, redirect or goToNew does to the tab's route and to the address bar.
 // The host supplies the effects (`makeTabNav` in layout/tabNav.ts); this part holds no state of its own.
-import type { Nav, Route } from '../route'
+import type { Nav, Route } from './routes'
 
 export type TabNavEffects = {
   /** Puts the route in the tab (the host's layout). */

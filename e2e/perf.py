@@ -12,7 +12,7 @@ BIO = os.path.join(ROOT, 'samples', 'bio130-les-vers.shrimp')
 STRESS = '#/stress-test/2000-cards'
 # Ceilings in ms, several times what a normal run takes.
 CEILINGS = {
-    'page 2000': 4000, 'editor 2000': 8000, 'type a character': 250,  # 150 once the :has() rules go (shell.css, dialogs.css)
+    'page 2000': 4000, 'editor 2000': 8000, 'type a character': 150,
      'move a card': 1500,
     'study start 2000': 4000, 'answer a card': 500, 'results 20': 1500, 'bio editor': 8000,
 }

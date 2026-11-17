@@ -2,11 +2,23 @@ import { describe, expect, it } from 'vitest'
 import { emptyLibrary, type Course, type Library } from '../model'
 import type { FileRef } from '../storage/fileStorage'
 import type { DocRecord } from '../storage/workspaceRecord'
+import { MAIN, groupOf, groupsIn } from '../kit/layout'
 import {
   activeDoc,
   activeTab,
+  activateTab,
   addDoc,
+  addressTab,
   activateDoc,
+  closeTabs,
+  dockWindow,
+  moveTab,
+  openPlace,
+  popOutGroup,
+  recentGroup,
+  setTabRoute,
+  showExplorer,
+  splitGroup,
   applyEdit,
   closeDoc,
   docRecord,
@@ -23,7 +35,6 @@ import {
   reopenFile,
   replaceDoc,
   restore,
-  setRoute,
   takeRecord,
   toClipboard,
   undoEdit,
@@ -39,12 +50,22 @@ const rename = (doc: string, courseId: string, name: string) => (docs: Record<st
   [doc]: { ...docs[doc], courses: docs[doc].courses.map((c) => (c.id === courseId ? { ...c, name } : c)) },
 })
 
-// Two open documents: a (courses a1, a2) and b (course b1); b is active (opened last).
+// Fresh ids for what a transition creates (tabs, groups).
+const ids = () => {
+  let n = 0
+  return () => `id${++n}`
+}
+
+// Two open documents: a (courses a1, a2) in tab ta and b (course b1) in tab tb; b is active (opened last).
 function two(): Workspace {
   let w = emptyWorkspace('g')
-  w = addDoc(w, makeDoc('a', lib(course('a1'), course('a2')), 'A'), HOME)
-  w = addDoc(w, makeDoc('b', lib(course('b1')), 'B'), HOME)
+  w = addDoc(w, makeDoc('a', lib(course('a1'), course('a2')), 'A'), HOME, 'ta')
+  w = addDoc(w, makeDoc('b', lib(course('b1')), 'B'), HOME, 'tb')
   return w
+}
+const route = (w: Workspace, tab: string) => {
+  const d = w.layout.tabs[tab]?.data
+  return d?.kind === 'doc' ? d.route : null
 }
 
 describe('documents and tabs', () => {
@@ -52,21 +73,21 @@ describe('documents and tabs', () => {
     const w = two()
     expect(w.order).toEqual(['a', 'b'])
     expect(activeDoc(w)).toBe('b')
-    expect(activeDoc(activateDoc(w, 'a'))).toBe('a')
+    expect(activeDoc(activateDoc(w, 'a', 'x'))).toBe('a')
   })
 
   it('keeps the page each tab shows', () => {
-    let w = setRoute(two(), { name: 'course', course: 'b1' })
-    w = activateDoc(w, 'a')
+    let w = setTabRoute(two(), 'tb', { name: 'course', course: 'b1' })
+    w = activateDoc(w, 'a', 'x')
     expect(activeTab(w)?.data).toEqual({ kind: 'doc', doc: 'a', route: HOME })
-    w = activateDoc(w, 'b')
+    w = activateDoc(w, 'b', 'x')
     expect(activeTab(w)?.data).toEqual({ kind: 'doc', doc: 'b', route: { name: 'course', course: 'b1' } })
-    expect(setRoute(w, { name: 'course', course: 'b1' })).toBe(w)
+    expect(setTabRoute(w, 'tb', { name: 'course', course: 'B1' })).toBe(w)
   })
 
   it('names new documents uniquely among the open ones', () => {
     let w = emptyWorkspace('g')
-    for (const id of ['x', 'y', 'z']) w = addDoc(w, makeDoc(id, emptyLibrary(), freeDocName(w, 'New library')), HOME)
+    for (const id of ['x', 'y', 'z']) w = addDoc(w, makeDoc(id, emptyLibrary(), freeDocName(w, 'New library')), HOME, `t${id}`)
     expect(w.order.map((id) => w.docs[id].name)).toEqual(['New library', 'New library 2', 'New library 3'])
     w = closeDoc(w, 'y')
     expect(freeDocName(w, 'New library')).toBe('New library 2')
@@ -214,22 +235,22 @@ describe('opening a file that is already open', () => {
   const file = (modified: number, size = 10): FileRef => ({ name: 'x.shrimp', handle: null, size, modified })
 
   it('activates its document; changed on disk, it reloads when there is nothing to lose', () => {
-    let w = addDoc(two(), makeDoc('f', lib(course('f1')), 'x.shrimp', { file: file(1) }), HOME)
-    w = activateDoc(w, 'a')
-    const same = reopenFile(w, 'f', lib(course('z')), file(1))
+    let w = addDoc(two(), makeDoc('f', lib(course('f1')), 'x.shrimp', { file: file(1) }), HOME, 'tf')
+    w = activateDoc(w, 'a', 'x')
+    const same = reopenFile(w, 'f', lib(course('z')), file(1), 'x')
     expect(activeDoc(same.workspace)).toBe('f')
     expect(same.workspace.docs.f.library.courses[0].id).toBe('f1')
     const fresh = lib(course('z'))
-    const changed = reopenFile(w, 'f', fresh, file(2))
+    const changed = reopenFile(w, 'f', fresh, file(2), 'x')
     expect(changed.ask).toBe(false)
     expect(changed.workspace.docs.f.library).toBe(fresh)
     expect(changed.workspace.docs.f.file?.modified).toBe(2)
   })
 
   it('asks first when there are unsaved changes', () => {
-    let w = addDoc(two(), makeDoc('f', lib(course('f1')), 'x.shrimp', { file: file(1) }), HOME)
+    let w = addDoc(two(), makeDoc('f', lib(course('f1')), 'x.shrimp', { file: file(1) }), HOME, 'tf')
     w = applyEdit(w, 'Rename course', rename('f', 'f1', 'Mine'), 0)
-    const r = reopenFile(w, 'f', lib(course('z')), file(2))
+    const r = reopenFile(w, 'f', lib(course('z')), file(2), 'x')
     expect(r.ask).toBe(true)
     expect(r.workspace.docs.f.library.courses[0].name).toBe('Mine')
   })
@@ -239,10 +260,10 @@ describe('what the browser keeps', () => {
   it('restores documents (unsaved ones unsaved), names, the layout and the active one', () => {
     let w = two()
     w = applyEdit(w, 'A', rename('a', 'a1', 'One'), 0)
-    w = activateDoc(w, 'a')
-    w = setRoute(w, { name: 'course', course: 'One' })
+    w = activateDoc(w, 'a', 'x')
+    w = setTabRoute(w, 'ta', { name: 'course', course: 'One' })
     const records = w.order.map((id) => docRecord(w.docs[id]))
-    const back = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: JSON.parse(JSON.stringify(records)), handles: {} }, 'g2')
+    const back = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: JSON.parse(JSON.stringify(records)), handles: {} }, 'g2', ids())
     expect(back.order).toEqual(['a', 'b'])
     expect(back.docs.a.name).toBe('A')
     expect(hasChanges(back.docs.a)).toBe(true)
@@ -253,21 +274,141 @@ describe('what the browser keeps', () => {
 
   it('falls back to one tab per document when the layout is malformed, and names unnamed documents', () => {
     const docs: DocRecord[] = ['p', 'q'].map((id) => ({ id, library: emptyLibrary(), dirty: false, drive: null, file: null }))
-    const w = restore({ workspace: { version: 1, docs: ['p', 'q'], layout: { tabs: 3 }, explorer: 'x', ui: null }, docs, handles: {} }, 'g')
+    const w = restore({ workspace: { version: 1, docs: ['p', 'q'], layout: { tabs: 3 }, explorer: 'x', ui: null }, docs, handles: {} }, 'g', ids())
     expect(w.order.map((id) => w.docs[id].name)).toEqual(['New library', 'New library 2'])
     expect(activeDoc(w)).toBe('p')
     expect(Object.keys(w.layout.tabs)).toHaveLength(2)
     expect(w.explorer).toEqual({ expanded: [], selection: { ids: [], anchor: null, focus: null } })
   })
 
-  it('drops tabs of documents no longer open and adds tabs for the others', () => {
-    const l = readLayout(workspaceRecord(two()).layout, ['b', 'c'], 'g')
-    expect(Object.values(l.tabs).map((t) => (t.data.kind === 'doc' ? t.data.doc : '')).sort()).toEqual(['b', 'c'])
+  it('drops tabs of files no longer open; a file may stay open with no tab', () => {
+    const l = readLayout(workspaceRecord(two()).layout, ['b', 'c'], 'g', ids())
+    expect(Object.values(l.tabs).map((t) => (t.data.kind === 'doc' ? t.data.doc : ''))).toEqual(['b'])
   })
 
-  it('never keeps a Drive link as a page', () => {
+  it('restores splits, the Explorer (once) and pages, with popped-out groups docked', () => {
+    let w = splitGroup(setTabRoute(two(), 'tb', { name: 'course', course: 'b1' }), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = showExplorer(w, 'g2', { split: false, tabId: 'te', groupId: 'g3' })
+    w = popOutGroup(w, 'g2', 'pop', 'spare')
+    const raw = JSON.parse(JSON.stringify(workspaceRecord(w).layout))
+    raw.tabs.te2 = { id: 'te2', data: { kind: 'explorer' } }
+    raw.groups.g.tabs.push('te2')
+    const l = readLayout(raw, ['a', 'b'], 'x', ids())
+    expect(Object.keys(l.windows)).toEqual([MAIN])
+    expect(Object.values(l.tabs).filter((t) => t.data.kind === 'explorer')).toHaveLength(1)
+    const tb2 = l.tabs.tb2.data
+    expect(tb2.kind === 'doc' && tb2.route).toEqual({ name: 'course', course: 'b1' })
+    expect(groupsIn(l, MAIN)).toEqual(['g', 'g2'])
+  })
+
+  it('never keeps a Drive link as a page, and an app page becomes the file\'s home', () => {
     expect(readRoute({ name: 'drive', id: 'x' })).toBeNull()
+    expect(readRoute({ name: 'debug' })).toEqual({ name: 'home' })
     expect(readRoute({ name: 'study', course: 'c', quiz: 'q', format: 'typing' })).toEqual({ name: 'study', course: 'c', quiz: 'q', format: 'typing' })
     expect(readRoute({ name: 'study', course: 'c', quiz: 'q', format: 'nope' })).toBeNull()
+  })
+})
+
+describe('tabs, groups and windows', () => {
+  it('opens a place in the group\'s tab of that file, or in a new tab when asked', () => {
+    let w = two()
+    const quiz = { name: 'course', course: 'b1' } as const
+    let r = openPlace(w, 'b', quiz, 'new')
+    expect(r.tab).toBe('tb')
+    expect(route(r.workspace, 'tb')).toEqual(quiz)
+    w = r.workspace
+    r = openPlace(w, 'b', HOME, 'tb3', { newTab: true })
+    expect(r.tab).toBe('tb3')
+    expect(Object.keys(r.workspace.layout.tabs)).toEqual(['ta', 'tb', 'tb3'])
+    expect(route(r.workspace, 'tb')).toEqual(quiz)
+    expect(openPlace(w, 'zzz', HOME, 'x').tab).toBeNull()
+  })
+
+  it('a background tab opens without being shown', () => {
+    const r = openPlace(two(), 'a', { name: 'course', course: 'a2' }, 'bg', { newTab: true, background: true })
+    expect(activeTab(r.workspace)?.id).toBe('tb')
+    expect(r.workspace.layout.groups.g.tabs).toContain('bg')
+  })
+
+  it('splits with a copy of the active tab; two tabs of one file keep their own pages', () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    expect(groupsIn(w.layout, MAIN)).toEqual(['g', 'g2'])
+    expect(w.layout.groups.g2.tabs).toEqual(['tb2'])
+    expect(w.layout.groups.g.tabs).toEqual(['ta', 'tb'])
+    w = setTabRoute(w, 'tb2', { name: 'course', course: 'b1' })
+    expect(route(w, 'tb')).toEqual(HOME)
+    expect(activeDoc(w)).toBe('b')
+  })
+
+  it('a dragged tab moves into the new group instead', () => {
+    const w = splitGroup(two(), 'g', 'row', 'before', 'g2', { tabId: 'unused', move: 'ta' })
+    expect(w.layout.groups.g2.tabs).toEqual(['ta'])
+    expect(w.layout.groups.g.tabs).toEqual(['tb'])
+    expect(w.layout.tabs.unused).toBeUndefined()
+  })
+
+  it('closing tabs never closes a file, and the active file follows the tab used last', () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = activateTab(w, 'ta')
+    expect(activeDoc(w)).toBe('a')
+    w = closeTabs(w, ['ta', 'tb'])
+    expect(w.order).toEqual(['a', 'b'])
+    expect(groupsIn(w.layout, MAIN)).toEqual(['g2'])
+    expect(activeDoc(w)).toBe('b')
+    w = closeTabs(w, ['tb2'])
+    expect(activeDoc(w)).toBeNull()
+    expect(Object.keys(w.layout.groups)).toHaveLength(1)
+  })
+
+  it('moves a tab across groups', () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = moveTab(w, 'ta', 'g2', 0)
+    expect(w.layout.groups.g2.tabs).toEqual(['ta', 'tb2'])
+    expect(groupOf(w.layout, 'ta')).toBe('g2')
+  })
+
+  it('the address bar follows the main window\'s active tab, not a popped-out one', () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = activateTab(w, 'ta')
+    w = popOutGroup(w, 'g2', 'pop', 'spare')
+    w = activateTab(w, 'tb2')
+    expect(activeTab(w)?.id).toBe('tb2')
+    expect(addressTab(w)?.id).toBe('ta')
+  })
+
+  it('popping out the main window\'s only group leaves it an empty group; docking brings the tabs back', () => {
+    let w = popOutGroup(two(), 'g', 'pop', 'spare')
+    expect(groupsIn(w.layout, MAIN)).toEqual(['spare'])
+    expect(groupsIn(w.layout, 'pop')).toEqual(['g'])
+    expect(addressTab(w)).toBeNull()
+    w = dockWindow(w, 'pop')
+    expect(Object.keys(w.layout.windows)).toEqual([MAIN])
+    expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
+  })
+
+  it('shows one Explorer: split on the left with room, else a tab; again only activates it', () => {
+    let w = showExplorer(two(), 'g', { split: true, tabId: 'te', groupId: 'ge' })
+    expect(groupsIn(w.layout, MAIN)).toEqual(['ge', 'g'])
+    expect(activeTab(w)?.data).toEqual({ kind: 'explorer' })
+    w = activateTab(w, 'tb')
+    const again = showExplorer(w, 'g', { split: true, tabId: 'te2', groupId: 'ge2' })
+    expect(Object.keys(again.layout.tabs)).not.toContain('te2')
+    expect(activeTab(again)?.id).toBe('te')
+    const tabbed = showExplorer(two(), 'g', { split: false, tabId: 'te', groupId: 'ge' })
+    expect(tabbed.layout.groups.g.tabs).toContain('te')
+  })
+
+  it('the Explorer opens things in the group used last besides its own', () => {
+    let w = showExplorer(two(), 'g', { split: true, tabId: 'te', groupId: 'ge' })
+    expect(recentGroup(w, 'ge')).toBe('g')
+    w = closeTabs(w, ['ta', 'tb'])
+    expect(recentGroup(w, 'ge')).toBeNull()
+  })
+
+  it('closing a file closes all its tabs, in every group', () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = closeDoc(w, 'b')
+    expect(Object.keys(w.layout.tabs)).toEqual(['ta'])
+    expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
   })
 })

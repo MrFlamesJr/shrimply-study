@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { go, href } from '../route'
+import { href } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { QuizTiles } from '../components/QuizTiles'
 import { PageHead } from '../components/Page'
@@ -43,8 +43,8 @@ export function HomeScreen({ lib, driveSetUp, loadLabel, loadHint, openFile, ope
   const [learnMore, setLearnMore] = useState(false)
   const open = async (from: () => Promise<boolean>) => {
     if (!(await from())) return
+    // What opened shows in a tab of its own, on its home.
     endWelcome()
-    go({ name: 'home' })
   }
   // What's new is always on home, on the welcome page and the course list alike (asked for).
   const whatsNew = (

@@ -57,16 +57,10 @@
 .dialog-body > * + * {
   margin-top: var(--space-4);
 }
-/* The page behind stays still while a dialog is open. The scrollbar's room is always kept (not only while a
-   dialog is open), so hiding the scrollbar never shifts the page, and neither does adding a gutter to a page
-   that had no scrollbar. A study session fills the window and scrolls inside, so it never needs the room. */
-html {
-  scrollbar-gutter: stable;
-}
-html:has(.session) {
-  scrollbar-gutter: auto;
-}
-html:has(.dialog[open]) {
+/* The page behind stays still while a dialog is open (Modal counts the open ones on its document's <html>: a
+   :has() rule here would be rechecked on every change on the page). The app's window never scrolls (its panes do),
+   so this only holds the app's own full-screen pages. */
+html[data-modals] {
   overflow: hidden;
 }
 /* Every image opens big (ZoomImage). A click opens it or, where a click already does something else

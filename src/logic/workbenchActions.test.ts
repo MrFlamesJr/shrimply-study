@@ -73,6 +73,9 @@ describe('menus', () => {
     expect(find(m, 'copyPath').disabled).toBe(true)
     expect(find(m, 'save').reason).toBe('Nothing to save here.')
   })
+  it('splits a lone file tab (the new group shows a copy)', () => {
+    expect(find(tabMenu(quiz, docs, { ...ctx, tabCount: 1 }, false), 'splitRight').disabled).toBeUndefined()
+  })
   it('refuses a split of a small pane and a window on touch', () => {
     const m = tabMenu(quiz, docs, { ...ctx, size: { width: 500, height: 700 }, canPopOut: false }, false)
     expect(find(m, 'splitRight').disabled).toBe(true)

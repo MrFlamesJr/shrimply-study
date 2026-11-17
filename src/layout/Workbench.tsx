@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { BackToTop } from '../components/BackToTop'
 import { IconButton } from '../components/IconButton'
 import { MoreIcon, SplitIcon } from '../components/Icons'
 import { ownWindow } from '../components/ownWindow'
@@ -38,7 +39,11 @@ export type WorkbenchProps = {
     closeOthers(tabId: string): void
     closeAll(groupId: string): void
     move(tabId: string, toGroup: string, index: number): void
-    split(groupId: string, dir: 'row' | 'column', side: 'before' | 'after', tabId?: string): void
+    /**
+     * A new group beside `groupId`. `move`: the dragged tab `tabId` moves into it; otherwise it shows a copy of
+     * `tabId` (default: the group's active tab).
+     */
+    split(groupId: string, dir: 'row' | 'column', side: 'before' | 'after', tabId?: string, move?: boolean): void
     join(from: string, into: string): void
     resize(win: string, path: number[], sizes: number[]): void
     /** The host calls kit/windows openPopup synchronously inside this call (it comes from a click). */
@@ -107,6 +112,8 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
+  // The pane's scroller, for its back-to-top button (outside it, so the button stays put while the page scrolls).
+  const [body, setBody] = useState<HTMLDivElement | null>(null)
   const focused = layout.activeGroup === g.id
   const tabs = g.tabs.map((id) => layout.tabs[id]).filter(Boolean)
   const activeTab = g.active !== null ? layout.tabs[g.active] : undefined
@@ -125,11 +132,10 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
     return () => watch.disconnect()
   }, [])
 
-  // The tab to carry into a new group: none from a group with only one, which would leave it empty.
-  const carried = tabs.length > 1 && g.active !== null ? g.active : undefined
+  // The new group shows a copy of the active tab (the host decides what a copy is).
   const splitHere = (dir: 'row' | 'column') => {
     if (size && !canSplit(size, dir)) return
-    on.split(g.id, dir, 'after', carried)
+    on.split(g.id, dir, 'after')
   }
 
   const context = (): GroupContext => ({
@@ -192,7 +198,7 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
     if (zone === 'center') return dropTabs(payload, g.tabs.length)
     const dir = zone === 'left' || zone === 'right' ? 'row' : 'column'
     if (size && !canSplit(size, dir)) return
-    on.split(g.id, dir, zone === 'left' || zone === 'top' ? 'before' : 'after', payload.ids[0])
+    on.split(g.id, dir, zone === 'left' || zone === 'top' ? 'before' : 'after', payload.ids[0], true)
   }
 
   const keyDown = (e: KeyboardEvent<HTMLElement>) => {
@@ -208,6 +214,7 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
   return (
     <div
       ref={root}
+      data-group={g.id}
       className={`wb-group${shown ? ' is-shown' : ''}${focused ? ' is-focused' : ''}`}
       onPointerDownCapture={() => !focused && on.activateGroup(g.id)}
       onFocus={() => !focused && on.activateGroup(g.id)}
@@ -248,7 +255,7 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
         }
       />
       <div className="wb-pane">
-        <div className="pane-body">
+        <div className="pane-body" ref={setBody}>
           {activeTab && crumbs.length > 0 && <PaneHead crumbs={crumbs} onCrumb={(route) => p.onCrumb(activeTab.id, route)} />}
           {tabs
             .filter((t) => keep.has(t.id))
@@ -259,6 +266,7 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
             ))}
           {tabs.length === 0 && <p className="wb-empty">No tab open</p>}
         </div>
+        {body && <BackToTop scroller={body} />}
         <DropZones accept={(payload) => payload.kind === TAB_KIND} onDrop={dropOnPane} />
       </div>
     </div>

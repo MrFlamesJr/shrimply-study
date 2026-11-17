@@ -1,31 +1,71 @@
-/* App shell: corner, top row, sidebar and page column. */
+/* App shell: corner, top row, sidebar and the workbench. */
 /* Where the page ground begins, for a backdrop image placed beside the open sidebar (--backdrop-position): on
-   :root, so the theme tokens there can use it. Below 800px the sidebar covers the page instead of pushing it. */
+   :root, so the theme tokens there can use it. Below 800px the sidebar covers the page instead of pushing it.
+   App sets data-sidebar (a :has() rule here would be rechecked on every change on the page). */
 :root {
   --ground-x: 0px;
 }
 @media (min-width: 800px) {
-  :root:has(.sidebar:not(.is-closed)) {
+  :root[data-sidebar='open'] {
     --ground-x: var(--sidebar-w);
   }
 }
-/* App shell: a 2x2 grid. Corner (brand + sidebar toggle) | top row, then sidebar | page. Areas are set
-   apart by tone (sidebar --surface-side, page --bg) and space, not divider lines. The first column is --side,
-   the sidebar's width; closed it is 0, the corner shrinks to brand + toggle and the page has the full width.
-   --side snaps (the page is laid out once, not every frame): the sidebar slides by transform, and its toggle
-   glides the page and crumbs from where they were (Sidebar.tsx). */
+/* App shell: a 2x2 grid, one window high. Corner (brand + sidebar toggle) | top row, then sidebar | workbench (the
+   tab groups, each pane its own scroller; the window never scrolls). Areas are set apart by tone (sidebar and tab
+   strips --surface-side, panes the ground) and space, not divider lines. The first column is --side, the sidebar's
+   width; closed (`is-side-closed`, set by App) it is 0, the corner shrinks to brand + toggle and the workbench has
+   the full width. --side snaps (laid out once, not every frame): the sidebar slides by transform, and its toggle
+   glides the workbench from where it was (Sidebar.tsx). */
 .app {
   --side: var(--sidebar-w);
   --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
   display: grid;
   grid-template-columns: var(--side) minmax(0, 1fr);
-  grid-template-rows: auto 1fr;
-  min-height: 100dvh;
-  /* The page sticks out to the right while it glides back after a close; no sideways scrollbar for that. */
+  grid-template-rows: var(--topbar-h) minmax(0, 1fr);
+  height: 100dvh;
+  /* The workbench sticks out to the right while it glides back after a close; no sideways scrollbar for that. */
   overflow-x: clip;
 }
-.app:has(.sidebar.is-closed) {
+.app.is-side-closed {
   --side: 0px;
+}
+.app[hidden],
+.wb-cell[hidden] {
+  display: none;
+}
+/* The workbench fills the page cell. */
+.wb-cell {
+  display: flex;
+  grid-column: 2;
+  grid-row: 2;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+}
+/* The app's own pages (debug, the welcome page with no file open) take the page cell instead, scrolling in it. */
+.page.own-page {
+  min-height: 0;
+  overflow-y: auto;
+}
+/* A study session alone in the main window: full screen, as it always was. The shell and the pane's tab strip step
+   aside; the workbench stays (other tabs and popped-out windows keep their state). */
+.app.is-session {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-rows: minmax(0, 1fr);
+}
+.app.is-session > .corner,
+.app.is-session > .sidebar,
+.app.is-session > .topbar,
+.app.is-session > .scrim,
+.app.is-session .wb-group > .kit-tabstrip {
+  display: none;
+}
+.app.is-session > .wb-cell {
+  grid-column: 1;
+  grid-row: 1;
+}
+.app.is-session .wb-group {
+  border-radius: 0;
 }
 
 /* Corner: heads the open sidebar (same width; its tone is the sidebar's top, under it), the brand left and
@@ -77,11 +117,10 @@
   rotate: 180deg;
 }
 
-/* Top row: breadcrumbs and file actions, on the page background. It sits above the page in the same column
-   with the same --page-pad, so the crumbs start where the page content does, but never under the corner. */
+/* Top row: what belongs to no one file (Open file, Google Drive), on the page background, at the window's right
+   edge (each pane heads its page with its own breadcrumbs). */
 .topbar {
-  position: sticky;
-  top: 0;
+  position: relative;
   z-index: 2;
   grid-column: 2;
   grid-row: 1;
@@ -109,39 +148,6 @@
   backdrop-filter: blur(var(--glass-bar-blur));
   mask-image: linear-gradient(var(--bg) calc(100% - var(--glass-bar-fade)), transparent);
   pointer-events: none;
-}
-.crumbs {
-  display: flex;
-  flex: 1 1 0;
-  min-width: 0;
-  padding: 0;
-  list-style: none;
-  color: var(--text-muted);
-}
-.crumbs li {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-.crumbs li + li::before {
-  content: '›';
-  margin: 0 var(--space-2);
-}
-.crumbs li:not(:last-child) {
-  flex-shrink: 0;
-  max-width: 14rem;
-}
-.crumbs li:last-child {
-  flex-shrink: 1;
-  color: var(--text);
-}
-.parent {
-  display: none;
-  flex: 1 1 0;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: var(--text-muted);
 }
 .topbar-actions {
   display: flex;
@@ -334,6 +340,25 @@
     margin-top: 0;
   }
 }
+/* Explorer, at the top of the sidebar: a quiet row like the tree's, its shortcut at its end. */
+.sidebar-explorer,
+.sidebar-explorer:hover:not(:disabled) {
+  flex-shrink: 0;
+  justify-content: flex-start;
+  gap: var(--space-3);
+  margin: 0 var(--space-2) var(--space-2);
+  padding: 0 var(--space-3);
+  background: transparent;
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.sidebar-explorer:hover:not(:disabled) {
+  background: var(--surface-2);
+  color: var(--text);
+}
+.sidebar-explorer .shortcut {
+  margin-left: auto;
+}
 .sidebar-label {
   padding: var(--space-2) var(--space-5) var(--space-1);
   color: var(--text-muted);
@@ -488,13 +513,11 @@
     gap: var(--space-3);
     padding-left: var(--space-2);
   }
-  .crumbs,
-  .load,
-  .drive-save {
+  .load {
     display: none;
   }
-  .parent {
-    display: block;
+  .wb-cell {
+    grid-column: 1 / -1;
   }
   /* The open sidebar is a drawer the full height of the window: the corner (brand + toggle) stays where it is
      and heads it; outside it, a click closes it.

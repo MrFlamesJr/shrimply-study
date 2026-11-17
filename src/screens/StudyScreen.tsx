@@ -11,7 +11,9 @@ import { CardDialog } from '../components/CardDialog'
 import { StudyQuestion, type Result } from './study/Question'
 import { Results } from './study/Results'
 
-type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions; nav?: Nav }
+// `active`: the session is shown in the active group (another pane or window may hold another session); only then
+// do its keys work.
+type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions; nav?: Nav; active?: boolean }
 
 const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 'Multiple choice', typing: 'Typing' }
 
@@ -19,7 +21,7 @@ const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 
 // Never flashcards and never the hidden answer: a card's size must not give its answer away.
 const WIDE_TEXT = 400
 
-export function StudyScreen({ lib, notify, quizId, format, prefs, nav }: Props) {
+export function StudyScreen({ lib, notify, quizId, format, prefs, nav, active = true }: Props) {
   const found = lib.findQuiz(quizId)
   const { redirect } = nav ?? windowNav({ name: 'study', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '', format })
   const usable = found ? usableCards(found.quiz.cards) : []
@@ -73,7 +75,7 @@ export function StudyScreen({ lib, notify, quizId, format, prefs, nav }: Props) 
 
   useKeydown((e) => {
     // A dialog (the card editor, the image viewer) handles its own keys (Esc closes it, not the session).
-    if (editing || (e.target as HTMLElement).closest('dialog')) return
+    if (!active || editing || (e.target as HTMLElement).closest('dialog')) return
     // A field that already handled the key prevents its default.
     if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
     if (e.key === 'Escape') exit()
@@ -137,7 +139,7 @@ export function StudyScreen({ lib, notify, quizId, format, prefs, nav }: Props) 
         format={format}
         usable={usable}
         result={results[index]}
-        paused={editing !== null}
+        paused={editing !== null || !active}
         onRecord={record}
         onNext={next}
         onEdit={setEditing}

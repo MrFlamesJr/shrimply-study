@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import type { Route } from '../route'
+import type { Route } from './routes'
 import { buildTabNav } from './tabNav'
 
 const setup = () => {

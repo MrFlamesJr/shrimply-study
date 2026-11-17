@@ -2,7 +2,7 @@
 // layout (one tab per document for now), the undo history, the clipboard and the Explorer's state. Nothing here
 // touches the DOM, storage or the clock: times and new ids come in as arguments.
 import { FORMATS, type Library } from '../model'
-import type { Route } from '../route'
+import { href, type Route } from '../logic/routes'
 import type { DriveSource } from '../storage/googleDrive'
 import type { FileRef } from '../storage/fileStorage'
 import type { DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
@@ -43,6 +43,8 @@ export type Workspace = {
   history: History<Snap>
   clipboard: Clipboard | null
   explorer: Explorer
+  /** Tabs, the one active most recently first (across groups and windows). */
+  recent: L.TabId[]
 }
 
 export const emptyExplorer = (): Explorer => ({ expanded: [], selection: emptySelection })
@@ -54,6 +56,7 @@ export const emptyWorkspace = (groupId: string): Workspace => ({
   history: emptyHistory(),
   clipboard: null,
   explorer: emptyExplorer(),
+  recent: [],
 })
 
 export const hasChanges = (d: Doc): boolean => d.library !== d.saved
@@ -83,9 +86,19 @@ export function libraries(w: Workspace): Docs {
   return docs
 }
 
-// ---- Layout: one tab per document for now; the active tab is the active document ----
+// ---- Layout: tabs in groups, splits and windows. A file may show in several tabs, each with its own page. The
+// active tab is the active group's; `recent` remembers which tabs were active last, across groups. ----
 
-export const tabIdOf = (doc: DocId): L.TabId => `doc:${doc}`
+export type DocTab = L.Tab<Extract<TabData, { kind: 'doc' }>>
+const HOME: Route = { name: 'home' }
+
+/** Puts a new layout in, with the tab now active first in `recent`. */
+function withLayout(w: Workspace, layout: L.Layout<TabData>): Workspace {
+  if (layout === w.layout) return w
+  const active = layout.groups[layout.activeGroup]?.active ?? null
+  const recent = [...(active ? [active] : []), ...w.recent.filter((t) => t !== active && layout.tabs[t])]
+  return { ...w, layout, recent }
+}
 
 /** The active group's active tab. */
 export function activeTab(w: Workspace): L.Tab<TabData> | null {
@@ -93,39 +106,162 @@ export function activeTab(w: Workspace): L.Tab<TabData> | null {
   return (id && w.layout.tabs[id]) || null
 }
 
-export function activeDoc(w: Workspace): DocId | null {
-  const tab = activeTab(w)
-  return tab?.data.kind === 'doc' && w.docs[tab.data.doc] ? tab.data.doc : null
+const docTab = (w: Workspace, id: L.TabId | null | undefined): DocTab | null => {
+  const tab = id ? w.layout.tabs[id] : undefined
+  return tab && tab.data.kind === 'doc' && w.docs[tab.data.doc] ? (tab as DocTab) : null
 }
 
-const tabsOf = (l: L.Layout<TabData>, doc: DocId): L.TabId[] =>
+/** The active file: the active tab's, else the file of the tab most recently active; null when no tab shows one. */
+export function activeDoc(w: Workspace): DocId | null {
+  const tab = docTab(w, activeTab(w)?.id) ?? w.recent.map((id) => docTab(w, id)).find(Boolean)
+  return tab ? tab.data.doc : null
+}
+
+/**
+ * The tab the address bar follows: the main window's active tab (the active group's when it is in the main window,
+ * else the main group used last), when it shows a file.
+ */
+export function addressTab(w: Workspace): DocTab | null {
+  const main = L.groupsIn(w.layout, L.MAIN)
+  let group = main.includes(w.layout.activeGroup) ? w.layout.activeGroup : undefined
+  for (const t of w.recent) {
+    if (group) break
+    const g = L.groupOf(w.layout, t)
+    if (g && main.includes(g)) group = g
+  }
+  return docTab(w, w.layout.groups[group ?? main[0]]?.active)
+}
+
+export const tabsOf = (l: L.Layout<TabData>, doc: DocId): L.TabId[] =>
   Object.values(l.tabs).flatMap((t) => (t.data.kind === 'doc' && t.data.doc === doc ? [t.id] : []))
 
-/** Adds a document with a tab showing `route`, both active. */
-export function addDoc(w: Workspace, doc: Doc, route: Route): Workspace {
-  return {
-    ...w,
-    docs: { ...w.docs, [doc.id]: doc },
-    order: [...w.order, doc.id],
-    layout: L.openTab(w.layout, { id: tabIdOf(doc.id), data: { kind: 'doc', doc: doc.id, route } }),
+// The tab of `doc` to reuse in a group: the group's active one when it shows the file, else the one used last there.
+function tabIn(l: L.Layout<TabData>, group: L.GroupId, doc: DocId): L.TabId | undefined {
+  const g = l.groups[group]
+  if (!g) return undefined
+  const mine = (t: L.TabId) => {
+    const d = l.tabs[t]?.data
+    return d?.kind === 'doc' && d.doc === doc
   }
+  return g.active && mine(g.active) ? g.active : (g.mru.find(mine) ?? g.tabs.find(mine))
 }
 
-/** Makes the document active (its tab), opening a tab on its home when it has none. */
-export function activateDoc(w: Workspace, id: DocId): Workspace {
+const docTabData = (doc: DocId, route: Route): TabData => ({ kind: 'doc', doc, route })
+
+/** Adds a file, shown at `route` in a new tab (`tabId`) of the active group. */
+export function addDoc(w: Workspace, doc: Doc, route: Route, tabId: L.TabId): Workspace {
+  const added = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
+  return withLayout(added, L.openTab(w.layout, { id: tabId, data: docTabData(doc.id, route) }))
+}
+
+/** Shows a file: its tab in the active group, else its tab used last anywhere, else a new tab (`tabId`) on its home. */
+export function activateDoc(w: Workspace, id: DocId, tabId: L.TabId): Workspace {
   if (!w.docs[id]) return w
-  const tab = tabsOf(w.layout, id)[0]
-  const layout = tab ? L.activate(w.layout, tab) : L.openTab(w.layout, { id: tabIdOf(id), data: { kind: 'doc', doc: id, route: { name: 'home' } } })
-  return layout === w.layout ? w : { ...w, layout }
+  const mine = (t: L.TabId) => docTab(w, t)?.data.doc === id
+  const tab = tabIn(w.layout, w.layout.activeGroup, id) ?? w.recent.find(mine) ?? tabsOf(w.layout, id)[0]
+  return withLayout(w, tab ? L.activate(w.layout, tab) : L.openTab(w.layout, { id: tabId, data: docTabData(id, HOME) }))
 }
 
-const sameRoute = (a: Route, b: Route) => JSON.stringify(a) === JSON.stringify(b)
+/**
+ * Shows a place of a file in a group (default: the active one): in that group's tab of the file, unless `newTab`,
+ * else in a new tab (`tabId`) after the group's active tab. Says which tab shows it.
+ */
+export function openPlace(
+  w: Workspace,
+  doc: DocId,
+  route: Route,
+  tabId: L.TabId,
+  o: { group?: L.GroupId; newTab?: boolean; background?: boolean } = {},
+): { workspace: Workspace; tab: L.TabId | null } {
+  if (!w.docs[doc]) return { workspace: w, tab: null }
+  const group = o.group && w.layout.groups[o.group] ? o.group : w.layout.activeGroup
+  const reuse = o.newTab ? undefined : tabIn(w.layout, group, doc)
+  if (reuse) {
+    const routed = setTabRoute(w, reuse, route)
+    return { workspace: withLayout(routed, L.activate(routed.layout, reuse)), tab: reuse }
+  }
+  return { workspace: withLayout(w, L.openTab(w.layout, { id: tabId, data: docTabData(doc, route) }, { group, activate: !o.background })), tab: tabId }
+}
 
-/** The page the active tab shows (the address bar's), unless it already shows it. */
-export function setRoute(w: Workspace, route: Route): Workspace {
-  const tab = activeTab(w)
-  if (!tab || tab.data.kind !== 'doc' || sameRoute(tab.data.route, route)) return w
-  return { ...w, layout: L.updateTab(w.layout, tab.id, { ...tab.data, route }) }
+/** The page a tab shows, unless it already shows it (compared as written in the address). */
+export function setTabRoute(w: Workspace, tabId: L.TabId, route: Route): Workspace {
+  const tab = w.layout.tabs[tabId]
+  if (!tab || tab.data.kind !== 'doc' || href(tab.data.route) === href(route)) return w
+  return { ...w, layout: L.updateTab(w.layout, tabId, { ...tab.data, route }) }
+}
+
+export const activateTab = (w: Workspace, tabId: L.TabId): Workspace => withLayout(w, L.activate(w.layout, tabId))
+export const activateGroup = (w: Workspace, group: L.GroupId): Workspace => withLayout(w, L.activateGroup(w.layout, group))
+/** Closing tabs never closes a file (it stays in the sidebar and the Explorer). */
+export const closeTabs = (w: Workspace, tabIds: L.TabId[]): Workspace => withLayout(w, L.closeTabs(w.layout, tabIds))
+export const closeOthers = (w: Workspace, tabId: L.TabId): Workspace => withLayout(w, L.closeOthers(w.layout, tabId))
+export const closeAll = (w: Workspace, group: L.GroupId): Workspace => withLayout(w, L.closeAll(w.layout, group))
+export const moveTab = (w: Workspace, tabId: L.TabId, toGroup: L.GroupId, index: number): Workspace =>
+  withLayout(w, L.moveTab(w.layout, tabId, toGroup, index))
+export const joinGroups = (w: Workspace, from: L.GroupId, into: L.GroupId): Workspace => withLayout(w, L.join(w.layout, from, into))
+export const resizeSplit = (w: Workspace, win: L.WindowId, path: number[], sizes: number[]): Workspace =>
+  withLayout(w, L.resize(w.layout, win, path, sizes))
+export const dockWindow = (w: Workspace, win: L.WindowId): Workspace => withLayout(w, L.dock(w.layout, win))
+
+/**
+ * A new group (`groupId`) beside `group`. A dragged tab (`move`) moves into it. Otherwise it shows a copy of a tab
+ * (`copy`, default the group's active one) as a new tab (`tabId`) of the same file at the same page; a tab of another
+ * kind is never copied (there is one Explorer): it moves when its group keeps another tab, else the new group starts empty.
+ */
+export function splitGroup(
+  w: Workspace,
+  group: L.GroupId,
+  dir: 'row' | 'column',
+  side: 'before' | 'after',
+  groupId: L.GroupId,
+  o: { tabId: L.TabId; move?: L.TabId; copy?: L.TabId },
+): Workspace {
+  const g = w.layout.groups[group]
+  if (!g) return w
+  if (o.move) return w.layout.tabs[o.move] ? withLayout(w, L.split(w.layout, group, dir, side, groupId, w.layout.tabs[o.move])) : w
+  const source = w.layout.tabs[o.copy ?? g.active ?? '']
+  if (source?.data.kind === 'doc') return withLayout(w, L.split(w.layout, group, dir, side, groupId, { id: o.tabId, data: { ...source.data } }))
+  const carried = source && g.tabs.length > 1 ? source : undefined
+  return withLayout(w, L.split(w.layout, group, dir, side, groupId, carried))
+}
+
+/**
+ * Moves a group into window `win` (a popup). The main window's only group first gets an empty group beside it
+ * (`spareGroupId`), so the main window never ends up with nothing.
+ */
+export function popOutGroup(w: Workspace, group: L.GroupId, win: L.WindowId, spareGroupId: L.GroupId): Workspace {
+  let l = w.layout
+  if (L.windowOf(l, group) === L.MAIN && L.groupsIn(l, L.MAIN).length === 1) l = L.split(l, group, 'row', 'after', spareGroupId)
+  const next = L.popOut(l, group, win)
+  return next === l ? w : withLayout(w, next)
+}
+
+export const explorerTab = (w: Workspace): L.Tab<TabData> | undefined => Object.values(w.layout.tabs).find((t) => t.data.kind === 'explorer')
+
+/** Whether a tab is the one its group shows. */
+export const isShown = (w: Workspace, tabId: L.TabId): boolean => Object.values(w.layout.groups).some((g) => g.active === tabId)
+
+/**
+ * Shows the Explorer (there is one at most). Shown in a group already: that group becomes active. Otherwise, with
+ * `split` (room for it), it goes into a new group (`groupId`) on the left of `beside`; else it shows as a tab
+ * (its own place, or a new tab `tabId` in `beside`).
+ */
+export function showExplorer(w: Workspace, beside: L.GroupId, o: { split: boolean; tabId: L.TabId; groupId: L.GroupId }): Workspace {
+  const tab = explorerTab(w)
+  if (tab && isShown(w, tab.id)) return withLayout(w, L.activate(w.layout, tab.id))
+  const target = w.layout.groups[beside] ? beside : w.layout.activeGroup
+  const explorer: L.Tab<TabData> = tab ?? { id: o.tabId, data: { kind: 'explorer' } }
+  if (o.split) return withLayout(w, L.split(w.layout, target, 'row', 'before', o.groupId, explorer))
+  return withLayout(w, tab ? L.activate(w.layout, tab.id) : L.openTab(w.layout, explorer, { group: target }))
+}
+
+/** The group used most recently other than `except` (where the Explorer opens things), or null when there is none. */
+export function recentGroup(w: Workspace, except: L.GroupId | null): L.GroupId | null {
+  for (const t of w.recent) {
+    const g = L.groupOf(w.layout, t)
+    if (g && g !== except) return g
+  }
+  return L.allGroups(w.layout).find((g) => g !== except) ?? null
 }
 
 // ---- Content changes and the history ----
@@ -231,14 +367,14 @@ export function closeDoc(w: Workspace, id: DocId): Workspace {
   const docs = { ...w.docs }
   delete docs[id]
   const cb = w.clipboard
-  return {
+  const rest: Workspace = {
     ...w,
     docs,
     order: w.order.filter((x) => x !== id),
-    layout: L.closeTabs(w.layout, tabsOf(w.layout, id)),
     history: forget(w.history, id),
     clipboard: cb && cb.mode === 'cut' && cb.refs.some((r) => r.doc === id) ? { ...cb, mode: 'copy' } : cb,
   }
+  return withLayout(rest, L.closeTabs(w.layout, tabsOf(w.layout, id)))
 }
 
 /**
@@ -301,10 +437,10 @@ export const changedOnDisk = (d: Doc, file: FileRef): boolean =>
  * The file `id` is tied to was opened again: its document becomes active, and when the file changed on disk it is
  * reloaded, unless there are unsaved changes here (then `ask`: the caller asks first, then `replaceDoc`).
  */
-export function reopenFile(w: Workspace, id: DocId, library: Library, file: FileRef): { workspace: Workspace; ask: boolean } {
+export function reopenFile(w: Workspace, id: DocId, library: Library, file: FileRef, tabId: L.TabId): { workspace: Workspace; ask: boolean } {
   const d = w.docs[id]
   if (!d) return { workspace: w, ask: false }
-  const active = activateDoc(w, id)
+  const active = activateDoc(w, id, tabId)
   if (!changedOnDisk(d, file)) return { workspace: d.file?.handle || !file.handle ? active : patchDoc(active, id, { file }), ask: false }
   if (hasChanges(d)) return { workspace: active, ask: true }
   return { workspace: replaceDoc(active, id, library, { file }), ask: false }
@@ -324,24 +460,28 @@ export const docRecord = (d: Doc): DocRecord => ({
   file: d.file && { name: d.file.name, size: d.file.size, modified: d.file.modified },
 })
 
-/** The workspace's own record: the open documents in order, the layout, the Explorer and each document's own name. */
+/**
+ * The workspace's own record: the open documents in order, the layout, the Explorer, each document's own name and
+ * which tabs were active last.
+ */
 export const workspaceRecord = (w: Workspace): WorkspaceRecord => ({
   version: 1,
   docs: w.order,
   layout: w.layout,
   explorer: w.explorer,
-  ui: { names: Object.fromEntries(w.order.map((id) => [id, w.docs[id].name])) },
+  ui: { names: Object.fromEntries(w.order.map((id) => [id, w.docs[id].name])), recent: w.recent },
 })
 
 const isString = (x: unknown): x is string => typeof x === 'string'
 const strings = (x: unknown): x is string[] => Array.isArray(x) && x.every(isString)
 
-const PLAIN = ['home', 'debug', 'changelog', 'workbench']
+// Pages of the app itself, not of a file: a tab that held one (before tabs had their own pages) shows its file's home.
+const OWN = ['home', 'debug', 'changelog', 'workbench']
 /** A route as a tab keeps it, or null (a Drive link is never kept: it would open again). */
 export function readRoute(r: unknown): Route | null {
   const x = r as Record<string, unknown> | null
   if (!x || typeof x !== 'object' || !isString(x.name)) return null
-  if (PLAIN.includes(x.name)) return { name: x.name } as Route
+  if (OWN.includes(x.name)) return HOME
   if (!isString(x.course)) return null
   if (x.name === 'course') return { name: 'course', course: x.course }
   if (!isString(x.quiz)) return null
@@ -367,19 +507,20 @@ const isNode = (n: unknown): n is L.Node => {
   )
 }
 
-/** One group with a tab per document, the first active. */
-export function defaultLayout(docIds: DocId[], groupId: string): L.Layout<TabData> {
+/** One group with a tab per document (`newId` names the tabs), the first active. */
+export function defaultLayout(docIds: DocId[], groupId: string, newId: () => string): L.Layout<TabData> {
   return docIds.reduce<L.Layout<TabData>>(
-    (l, id, i) => L.openTab(l, { id: tabIdOf(id), data: { kind: 'doc', doc: id, route: { name: 'home' } } }, { activate: i === 0, index: i }),
+    (l, id, i) => L.openTab(l, { id: newId(), data: docTabData(id, HOME) }, { activate: i === 0, index: i }),
     L.emptyLayout(groupId),
   )
 }
 
 /**
- * The stored layout, checked: tabs of documents no longer open (and pages that can't be read) go, popped-out groups
- * come back docked, and every open document has a tab. Anything malformed gives the default layout.
+ * The stored layout, checked: tabs of documents no longer open (and pages that can't be read) go, one Explorer at
+ * most, popped-out groups come back docked. A file may have no tab (its tabs were closed). Anything malformed gives
+ * the default layout, a tab per file.
  */
-export function readLayout(raw: unknown, docIds: DocId[], groupId: string): L.Layout<TabData> {
+export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId: () => string): L.Layout<TabData> {
   const l = raw as L.Layout<TabData> | null
   const groupsOk =
     !!l?.groups &&
@@ -389,24 +530,26 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string): L.La
     )
   const windowsOk = !!l?.windows && typeof l.windows === 'object' && !!l.windows[L.MAIN] && Object.values(l.windows).every((w) => isNode(w?.root))
   if (!l || typeof l !== 'object' || !groupsOk || !windowsOk || !isString(l.activeGroup) || !l.tabs || typeof l.tabs !== 'object') {
-    return defaultLayout(docIds, groupId)
+    return defaultLayout(docIds, groupId, newId)
   }
   const tabs: L.Layout<TabData>['tabs'] = {}
+  let explorer = false
   for (const [id, tab] of Object.entries(l.tabs)) {
-    const data = tab?.data as Partial<Extract<TabData, { kind: 'doc' }>> | undefined
-    const route = readRoute(data?.route)
-    if (tab?.id === id && data?.kind === 'doc' && isString(data.doc) && docIds.includes(data.doc) && route) {
-      tabs[id] = { id, data: { kind: 'doc', doc: data.doc, route } }
+    const data = tab?.data as Partial<Extract<TabData, { kind: 'doc' }>> | { kind?: unknown } | undefined
+    if (tab?.id !== id || !data) continue
+    if (data.kind === 'explorer' && !explorer) {
+      explorer = true
+      tabs[id] = { id, data: { kind: 'explorer' } }
+    } else if (data.kind === 'welcome') {
+      tabs[id] = { id, data: { kind: 'welcome' } }
+    } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
+      const route = readRoute(data.route)
+      if (route) tabs[id] = { id, data: docTabData(data.doc, route) }
     }
   }
   let next = L.normalize({ tabs, groups: l.groups, windows: l.windows, activeGroup: l.activeGroup })
   for (const win of Object.keys(next.windows)) if (win !== L.MAIN) next = L.dock(next, win)
-  if (!next.groups[next.activeGroup]) return defaultLayout(docIds, groupId)
-  for (const id of docIds) {
-    if (!tabsOf(next, id).length) next = L.openTab(next, { id: tabIdOf(id), data: { kind: 'doc', doc: id, route: { name: 'home' } } }, { activate: false })
-  }
-  const active = next.groups[next.activeGroup].active
-  return active || docIds.length === 0 ? next : L.activate(next, tabsOf(next, docIds[0])[0])
+  return next.groups[next.activeGroup] ? next : defaultLayout(docIds, groupId, newId)
 }
 
 export function readExplorer(raw: unknown): Explorer {
@@ -425,8 +568,10 @@ export function readExplorer(raw: unknown): Explorer {
 export function restore(
   read: { workspace: WorkspaceRecord | null; docs: DocRecord[]; handles: Record<string, FileSystemFileHandle> },
   groupId: string,
+  newId: () => string,
 ): Workspace {
-  const kept = (read.workspace?.ui as { names?: Record<string, unknown> } | null)?.names ?? {}
+  const ui = read.workspace?.ui as { names?: Record<string, unknown>; recent?: unknown } | null
+  const kept = ui?.names ?? {}
   let w = emptyWorkspace(groupId)
   for (const rec of read.docs) {
     const own = kept[rec.id]
@@ -435,5 +580,7 @@ export function restore(
     const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive, file })
     w = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
   }
-  return { ...w, layout: readLayout(read.workspace?.layout, w.order, groupId), explorer: readExplorer(read.workspace?.explorer) }
+  const layout = readLayout(read.workspace?.layout, w.order, groupId, newId)
+  const recent = strings(ui?.recent) ? ui.recent.filter((t) => layout.tabs[t]) : []
+  return withLayout({ ...w, layout: L.emptyLayout(groupId), recent, explorer: readExplorer(read.workspace?.explorer) }, layout)
 }

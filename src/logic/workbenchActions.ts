@@ -2,7 +2,7 @@
 // their disabled reasons, which tabs stay mounted, and whether a group may split. All pure; the component carries
 // them out.
 import type { Group, Tab } from '../kit/layout'
-import { resolve, type Route } from '../route'
+import { resolve, type Route } from './routes'
 import type { Library } from '../model'
 
 export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer' } | { kind: 'welcome' }
@@ -111,10 +111,13 @@ function popOutWhy(g: GroupContext): string | null {
   return g.inMain ? 'The main window keeps its last group.' : 'This group is already alone in its window.'
 }
 
-/** The menu of a tab. Splitting a tab out of a group with only that tab would leave an empty group, so it needs two. */
+/**
+ * The menu of a tab. Split shows a copy of a file's tab in the new group; a tab of another kind (the Explorer, of
+ * which there is one) moves instead, which would leave an empty group, so it needs a second tab beside it.
+ */
 export function tabMenu(tab: Tab<TabData>, docs: Docs, g: GroupContext, mac: boolean): MenuEntry[] {
   const doc = tab.data.kind === 'doc'
-  const lone = g.tabCount < 2 && 'It is the only tab in its group.'
+  const lone = !doc && g.tabCount < 2 && 'It is the only tab in its group.'
   const dirty = tabDirty(tab, docs)
   const why = (dir: 'row' | 'column') => lone || splitWhy(g, dir)
   return [

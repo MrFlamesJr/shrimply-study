@@ -1,7 +1,7 @@
 """Saving local files with a fake File System Access API (Playwright can't drive Chrome's pickers): open a .shrimp,
 the unsaved dot, Ctrl+S into the same file, a file changed on disk, a failing write, Download, two edited files (one
-with a handle, one new), opening the same file twice, closing with changes, and a reload that keeps the handle.
-Save all has no button yet (only the workbench menu, which is not on screen), so it is covered as one Save per file."""
+with a handle, one new) saved by their rows, then Save all (its button and Ctrl+Alt+S), opening the same file twice,
+closing with changes, and a reload that keeps the handle."""
 import base64
 import io
 import json
@@ -231,10 +231,38 @@ def run(page, base):
     saves = page.evaluate('window.__fs.saveCalls')
     assert len(saves) == 2, f'in-place saves never open the picker: {saves}'
 
+    # Save all (the Files heading): every file with changes, one after another; the one with a handle writes in place,
+    # a new library goes through the Save as picker. Then Ctrl+Alt+S; with nothing to save the button is greyed out.
+    save_all = page.locator('.files-head').get_by_role('button', name='Save all', exact=True)
+    assert save_all.is_disabled(), 'Save all is greyed out with nothing to save'
+    page.locator('.files-head').get_by_role('button', name='New file', exact=True).click()
+    wait_for(page, lambda: page.locator('.file-row').count() == 3, 'a third library opens')
+    third = page.locator('.file-row').nth(2)
+    page.get_by_role('button', name='New course').click()
+    page.keyboard.type('All saved')
+    page.keyboard.press('Enter')
+    wait_for(page, lambda: third.locator('.file-dot').count() == 1, 'the third library shows the dot')
+    row(page, 'fa.shrimp').locator('.file-pick').click()
+    edit_quiz(page, 'Saved by all')
+    wait_for(page, lambda: dirty(page, 'fa.shrimp'), 'fa.shrimp shows the dot again')
+    page.evaluate("window.__fs.nextSave = 'all.shrimp'")
+    save_all.click()
+    wait_for(page, lambda: not dirty(page, 'fa.shrimp') and third.locator('.file-dot').count() == 0, 'Save all clears every dot')
+    assert 'Saved by all' in library_json(disk(page, 'fa.shrimp')), 'Save all wrote fa.shrimp in place'
+    assert 'All saved' in library_json(disk(page, 'all.shrimp')), 'Save all wrote the new library through the picker'
+    saves = page.evaluate('window.__fs.saveCalls')
+    assert len(saves) == 3, f'only the new library opened the picker: {saves}'
+    edit_quiz(page, 'Saved by keys')
+    wait_for(page, lambda: dirty(page, 'fa.shrimp'), 'another edit shows the dot')
+    page.evaluate('document.activeElement && document.activeElement.blur()')
+    page.keyboard.press('Control+Alt+s')
+    wait_for(page, lambda: not dirty(page, 'fa.shrimp'), 'Ctrl+Alt+S saves every file with changes')
+    assert 'Saved by keys' in library_json(disk(page, 'fa.shrimp')), 'Ctrl+Alt+S wrote fa.shrimp'
+
     # Opening a file that is already open shows its row: no second one.
     open_fake(page, 'fa.shrimp')
     page.wait_for_timeout(500)
-    assert row(page, 'fa.shrimp').count() == 1 and page.locator('.file-row').count() == 2, 'no second row for the same file'
+    assert row(page, 'fa.shrimp').count() == 1 and page.locator('.file-row').count() == 3, 'no second row for the same file'
     assert 'is-active' in row(page, 'fa.shrimp').get_attribute('class'), 'the open file is active'
 
     # Close with changes: Cancel keeps it, Don't save closes and leaves the file.
@@ -258,7 +286,7 @@ def run(page, base):
     open_fake(page, 'fa.shrimp')
     wait_for(page, lambda: row(page, 'fa.shrimp').count() == 1, 'the file opens again')
     page.locator('.tree-quizzes a').first.wait_for()
-    assert 'Fourth edit' in page.locator('.tree-quizzes').first.inner_text(), 'the reopened file shows its saved edit'
+    assert 'Saved by keys' in page.locator('.tree-quizzes').first.inner_text(), 'the reopened file shows its saved edit'
     edit_quiz(page, 'Sixth edit')
     wait_for(page, lambda: dirty(page, 'fa.shrimp'), 'the sixth edit shows the dot')
     ask_close().get_by_role('button', name='Save', exact=True).click()

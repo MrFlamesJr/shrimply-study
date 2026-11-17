@@ -11,6 +11,9 @@
   min-height: 0;
   height: 100%;
   flex-direction: column;
+}
+/* The frame between groups is the sidebar's tone; the panes show the page ground, the theme's backdrop too. */
+.workbench .kit-sash {
   background: var(--surface-side);
 }
 .workbench.is-popup {
@@ -50,7 +53,6 @@
   min-height: 0;
   border-radius: var(--radius);
   overflow: hidden;
-  background: var(--bg);
 }
 /* The tab strip sits on the frame's tone, so the active tab (the surface step) reads as the pane's own lip. */
 .wb-group > .kit-tabstrip {
@@ -74,6 +76,18 @@
   inset: 0;
   overflow: auto;
   contain: layout paint;
+}
+/* Back to top sits on the pane, not in what scrolls. */
+.wb-pane > .back-to-top {
+  position: absolute;
+}
+/* A study session fills its pane, exactly (its own parts scroll inside it). */
+.pane-session {
+  position: absolute;
+  inset: 0;
+}
+.pane-session > .session {
+  height: 100%;
 }
 .wb-empty {
   margin: 0;

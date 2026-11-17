@@ -1,5 +1,5 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { go, href } from '../route'
+import { href } from '../route'
 import { fileNameProblem } from '../logic/names'
 import type { DriveApi, DriveFile } from '../state/useWorkspace'
 import { AutoText } from './AutoText'
@@ -222,9 +222,9 @@ export function DriveDialog({
     const dialog = from.closest('dialog')
     return run(async () => {
       if (!(await drive.open(f.id, true))) return
+      // It shows in a tab of its own, on its home.
       onOpened()
       dialog?.close()
-      go({ name: 'home' })
     })
   }
   const remove = (f: DriveFile) =>

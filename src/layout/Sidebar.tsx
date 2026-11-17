@@ -1,13 +1,17 @@
 import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { href } from '../route'
+import { href, parseHash, type Route } from '../route'
+import { comboLabel, isMac } from '../kit/shortcuts'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
-import { BrowserIcon, ChevronsLeftIcon, CloudIcon, CrossIcon, FileIcon, PlusIcon, PullIcon, SaveIcon, ShrimpIcon, TumbleweedIcon } from '../components/Icons'
+import { BrowserIcon, ChevronsLeftIcon, CloudIcon, CrossIcon, FileIcon, FolderIcon, PlusIcon, PullIcon, SaveIcon, ShrimpIcon, TumbleweedIcon } from '../components/Icons'
+import { Shortcut } from '../components/Shortcut'
 import { IconButton } from '../components/IconButton'
+import { whereLine } from '../logic/whereLine'
 import { ThemeSelect } from '../components/ThemeSelect'
 import type { ThemeId } from '../model'
 
-// `lib`: the active file (null when none is open). `current`: the id of the course or quiz whose page is open.
+// `lib`: the active file (null when none is open), whose courses the tree shows. `current`: the id of the course or
+// quiz its tab shows.
 type Props = {
   ws: WorkspaceApi
   lib: LibraryApi | null
@@ -20,9 +24,14 @@ type Props = {
   onDrive: () => void
   /** "+ New course": in the active file, or in a new one when none is open. */
   onNewCourse: () => void
+  /** Shows the Explorer (Ctrl+Shift+E). */
+  onExplorer: () => void
+  /** A course or quiz of the tree, shown in the active group (`newTab`: in a new tab there). */
+  onOpen: (route: Route, newTab: boolean) => void
 }
 
 const WIDE = '(min-width: 800px)'
+const parseHashOf = (link: HTMLAnchorElement) => parseHash(link.getAttribute('href') ?? '')
 const isNarrow = () => !matchMedia(WIDE).matches
 
 // Where an element's content starts: its first child (the centered page column moves less than the page box).
@@ -49,15 +58,8 @@ export function useSidebarOpen() {
  */
 function whereOf(doc: LibraryApi): [typeof FileIcon, string] {
   const drive = doc.drive.file
-  if (!drive) return doc.file ? [FileIcon, 'On this device'] : [BrowserIcon, 'Only in this browser']
-  const whose = doc.drive.yours
-    ? 'Your Google Drive'
-    : doc.drive.signedIn()
-      ? "Someone else's Google Drive"
-      : drive.shared
-        ? 'Shared on Google Drive'
-        : 'On Google Drive'
-  return [CloudIcon, `${whose}${drive.trashed ? ', in the bin' : ''}`]
+  const where = whereLine({ hasFile: doc.file !== null, drive, yours: doc.drive.yours, signedIn: doc.drive.signedIn() })
+  return [drive ? CloudIcon : doc.file ? FileIcon : BrowserIcon, where]
 }
 
 // What Save does for this file, for its tooltip.
@@ -120,10 +122,11 @@ function FileRow({ doc, active, onPick }: { doc: LibraryApi; active: boolean; on
 }
 
 /**
- * The open files, between the brand and the courses: a heading with New file, Open file and Google Drive, then one
- * row per file, the active one selected.
+ * The open files, between the brand and the courses: a heading with New file, Open file, Google Drive and Save all,
+ * then one row per file, the active one selected.
  */
 function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: () => void; closeIfNarrow: () => void }) {
+  const unsaved = ws.docs.some((d) => d.dirty)
   return (
     <section className="files" aria-label="Open files">
       <div className="files-head">
@@ -150,6 +153,15 @@ function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: 
         <IconButton label="Google Drive" title="Save to your Google Drive, share a link, or open your Drive libraries" onClick={onDrive}>
           <CloudIcon />
         </IconButton>
+        {/* Greyed out with nothing to save, like a file's own Save. */}
+        <IconButton
+          label="Save all"
+          title={unsaved ? `Save every file with changes (${comboLabel('Mod+Alt+S', isMac(navigator.platform))})` : 'No changes to save'}
+          disabled={!unsaved}
+          onClick={() => void ws.saveAll()}
+        >
+          <SaveIcon />
+        </IconButton>
       </div>
       {ws.docs.length > 0 && (
         <ul className="files-list">
@@ -162,7 +174,7 @@ function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: 
   )
 }
 
-export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse }: Props) {
+export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -172,7 +184,7 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
    * mid-glide starts from where they are. On small screens the drawer covers the page, so nothing else moves.
    */
   const toggle = () => {
-    const moving = [...document.querySelectorAll<HTMLElement>('.page, .crumbs')]
+    const moving = [...document.querySelectorAll<HTMLElement>('.wb-cell, .own-page')]
     const from = moving.map(left)
     moving.forEach((el) => el.getAnimations().forEach((a) => a.cancel()))
     flushSync(() => setOpen(!open))
@@ -207,6 +219,18 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
       <nav className={open ? 'sidebar' : 'sidebar is-closed'} aria-label="Courses" inert={!open}>
         {/* Stays rendered (inert) while closed, so the width can animate. */}
         <div className="sidebar-body">
+          {/* Every open file as a tree, in a pane of its own (split beside the page when there is room). */}
+          <button
+            type="button"
+            className="sidebar-explorer"
+            title="Show every open file as a tree, beside the page"
+            onClick={() => {
+              onExplorer()
+              closeIfNarrow()
+            }}
+          >
+            <FolderIcon /> Explorer <Shortcut keys={comboLabel('Mod+Shift+E', isMac(navigator.platform))} />
+          </button>
           <OpenFiles ws={ws} onDrive={onDrive} closeIfNarrow={closeIfNarrow} />
           <p className="sidebar-label">Courses</p>
           {!lib || lib.library.courses.length === 0 ? (
@@ -220,7 +244,24 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
               </p>
             </div>
           ) : (
-            <ul className="tree" onClick={(e) => (e.target as HTMLElement).closest('a') && closeIfNarrow()}>
+            <ul
+              className="tree"
+              // A course or quiz shows in the active group, never in a tab of another file; Ctrl or the middle
+              // button opens it in a new tab there.
+              onClick={(e) => {
+                const link = (e.target as HTMLElement).closest('a')
+                if (!link || e.shiftKey || e.altKey) return
+                e.preventDefault()
+                onOpen(parseHashOf(link), e.ctrlKey || e.metaKey)
+                closeIfNarrow()
+              }}
+              onAuxClick={(e) => {
+                const link = (e.target as HTMLElement).closest('a')
+                if (!link || e.button !== 1) return
+                e.preventDefault()
+                onOpen(parseHashOf(link), true)
+              }}
+            >
               {lib.library.courses.map((course) => (
                 <li key={course.id} className="tree-course">
                   <a href={href({ name: 'course', course: course.name })} aria-current={course.id === current ? 'page' : undefined}>

@@ -37,7 +37,8 @@ export function EditOutline() {
       const { width: w, height: h } = svg.getBoundingClientRect()
       const r = Math.min(parseFloat(view.getComputedStyle(svg).getPropertyValue('--radius')) || 0, w / 2, h / 2)
       // Letter spacing also follows the last letter; leave it out, so the gaps on both sides of the word match.
-      const text = measureRef.current!
+      const text = measureRef.current
+      if (!text) return // unmounted while the observer's last call was queued
       const word = text.getComputedTextLength() - (parseFloat(view.getComputedStyle(text).letterSpacing) || 0)
       setBox((b) => (b.w === w && b.h === h && b.r === r && b.word === word ? b : { w, h, r, word }))
     }

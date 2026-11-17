@@ -155,14 +155,17 @@ def run(page, base):
     if page.locator('dialog[open]').count():
         raise AssertionError('card dialog stayed open after deleting its card')
 
-    # Deleting from the editor says so in a toast (no Undo button until the screen is given one); Ctrl+Z, with the
-    # focus outside any field, brings the card back.
+    # Deleting from the editor says so in a toast with an Undo button (the pane passes the workspace's undo); Ctrl+Z,
+    # with the focus outside any field, brings the card back too.
     page.goto(base + quiz + '/edit')
     page.locator('.pairs').wait_for()
     before = len(card_ids(page))
     page.locator(UNGROUPED).first.get_by_role('button', name='Delete card 1').click()
     page.wait_for_function('n => document.querySelectorAll(".pairs > .pair").length === n', arg=before - 1, timeout=3000)
-    page.get_by_text('Deleted card #1. Ctrl+Z puts it back.').first.wait_for(timeout=3000)
+    toast = page.locator('.toast', has_text='Deleted card #1.').first
+    toast.wait_for(timeout=3000)
+    if toast.get_by_role('button', name='Undo').count() != 1:
+        raise AssertionError('the deleted-card toast has no Undo button')
     page.evaluate('() => document.activeElement && document.activeElement.blur()')
     page.keyboard.press('Control+z')
     page.wait_for_function('n => document.querySelectorAll(".pairs > .pair").length === n', arg=before, timeout=3000)

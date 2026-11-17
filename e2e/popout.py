@@ -74,7 +74,9 @@ def run(page, base):
     pop.set_viewport_size({'width': 700, 'height': 500})
     pop.wait_for_timeout(500)
     after = pop.get_by_test_id('width').inner_text()
-    assert before != after and '690' in after, f'ResizeObserver width did not follow the resize: {before} -> {after}'
+    # The popup's own width (a scrollbar's room, when the page keeps one, comes off it).
+    width = int(''.join(c for c in after if c.isdigit()) or 0)
+    assert before != after and 680 <= width <= 700, f'ResizeObserver width did not follow the resize: {before} -> {after}'
 
     pop.get_by_role('button', name='Dock').click()
     assert docked(page), 'Dock did not bring the panel back'

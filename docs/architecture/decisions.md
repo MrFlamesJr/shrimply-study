@@ -63,3 +63,40 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
     name keeps the drawer's width.
   - The danger zones now say "Ctrl+Z brings it back." instead of "You can't undo this."
   - The guide's cards about saving, opening and New library were updated (`samples/how-to-use`, zipped again).
+- T12b (the workbench mounted), 2026-11-16:
+  - Tabs have their own ids; a file may show in several tabs and groups. Opening a place reuses the file's tab in
+    the target group (a new tab only when asked: Ctrl or middle click, the Explorer when it has no other group).
+  - Split shows a copy of the active tab (same file and page) in the new group, even from a group with one tab; a
+    dragged tab moves instead. The Explorer is never copied: split moves it, or the new group starts empty.
+  - The active file is the active tab's, else the file of the tab active most recently (`recent`, across groups,
+    kept in the workspace record's `ui`). The sidebar tree shows it; its links open in the active group.
+  - The address bar follows the main window's active tab only: a switch replaces the entry, going somewhere in it
+    pushes one; back, forward and typed addresses move that tab (in the hashchange event, with flushSync, so a screen
+    that goes has its effects cleaned up at once; a later effect-driven update let EditOutline's ResizeObserver run
+    after its refs were cleared). The tab-to-hash write runs only when the tab or its page changes, never because the
+    address changed (it may change before its hashchange arrives). On start the address wins.
+  - The app's own pages stay outside the workbench: debug in the page cell (the workbench kept, hidden), changelog and
+    the kit demo full screen with the shell unmounted (a popped-out window closes then; its tabs come back docked).
+  - A study session alone in the main window is full screen by CSS (`is-session`: shell and tab strip hidden), so
+    the workbench, other tabs and popups stay mounted; in a split it fills its pane (`.pane-session`).
+  - Study keys work only in the active group: StudyScreen's `active` prop (its question components' existing
+    `paused`).
+  - With no file open and no tab, the welcome page takes the page cell; with files but no tab, the empty group says
+    "No tab open" (closing tabs never closes files).
+  - The top row keeps only Open file and Google Drive (also on the Files heading); TopBar's crumbs, Download and Save
+    to Drive are gone (each pane heads its page; each file's actions are on its sidebar row). Pane heads: the file
+    (its home), then course and quiz; none for a study session or the Explorer.
+  - Panes are see-through (the theme's backdrop shows in them, as on the page before); the sash between groups takes
+    the sidebar's tone. Each pane has its own back-to-top button (on the pane, not in what scrolls).
+  - The Explorer opens split on the left when the window is 1000px or wider and the active group has room for two
+    320px panes; else as a tab. Reveal in Explorer selects the tab's quiz, course or file.
+  - An Explorer Edit on a card opens its quiz page and its card dialog (QuizScreen's `openCard`), not the editor.
+  - Popping out asks for a window the size of the group; blocked: a warning toast. The main window's only group gets
+    an empty group beside it first.
+  - Save all: an icon button on the Files heading (greyed out with nothing to save, as a file's Save) and Ctrl+Alt+S
+    (by key code, but only outside text fields when AltGr+S types a letter).
+  - Performance: the document-level :has() rules are gone: `data-sidebar` on <html> and `is-side-closed` on .app
+    (App), `data-modals` on a dialog's own <html> (Modal). The window never scrolls now, so `scrollbar-gutter: stable`
+    went too (the popout e2e allows the popup's full width).
+  - route.ts's pure parts moved to `src/logic/routes.ts` (re-exported), so src/logic stays free of React; the unused
+    window-level `usePlace` is gone, and useWorkspace's stale `Nav` type.

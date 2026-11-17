@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { isTermCard, type Card, type StudyOptions } from '../model'
 import { href, windowNav, type Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
@@ -26,11 +26,19 @@ type Props = {
   notify?: Notify
   /** Puts back what was last changed (the workspace's undo); the deleted-card toast's Undo button. Without it the toast names Ctrl+Z. */
   undo?: () => void
+  /** A card to open in the card dialog as the page shows (the Explorer's Edit); `onCardOpened` once it is. */
+  openCard?: string | null
+  onCardOpened?: () => void
 }
 
-export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav, notify, undo }: Props) {
+export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav, notify, undo, openCard, onCardOpened }: Props) {
   // The id of the card open in the edit dialog.
   const [editing, setEditing] = useState<string | null>(null)
+  useEffect(() => {
+    if (!openCard) return
+    setEditing(openCard)
+    onCardOpened?.()
+  }, [openCard])
   const found = lib.findQuiz(quizId)
   const { go, goToNew } = nav ?? windowNav({ name: 'quiz', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '' })
   if (!found) return null

@@ -15,10 +15,10 @@ import type { Notify } from '../components/Toasts'
 import type { Choice } from '../components/ConfirmDialog'
 import type { Route } from '../route'
 import { redoLabel, undoLabel } from '../kit/history'
-import type { Layout } from '../kit/layout'
+import type { GroupId, Layout, TabId, WindowId } from '../kit/layout'
 import * as W from './workspace'
-import type { Clipboard, DocId, Explorer, TabData } from './workspace'
-export type { DocId, DriveFile, DriveSource, FileRef, TabData }
+import type { Clipboard, DocId, DocTab, Explorer, TabData } from './workspace'
+export type { DocId, DocTab, DriveFile, DriveSource, FileRef, TabData }
 
 /** Shows a question with a confirm button; resolves true when confirmed. */
 export type Ask = (question: string, confirmLabel: string, options?: { title?: string; danger?: boolean }) => Promise<boolean>
@@ -149,22 +149,45 @@ export type LibraryApi = {
 }
 
 export type DocMeta = { id: DocId; name: string; where: 'device' | 'drive' | 'browser'; dirty: boolean }
-export type Nav = { route: Route; go(r: Route): void; redirect(r: Route): void; goToNew(r: Route, id: string): void; takeCreated(id: string): boolean }
 
 export type WorkspaceApi = {
   /** False until the browser backup has been read (App renders nothing before). */
   ready: boolean
   /** The open documents, in the sidebar's order. */
   docs: DocMeta[]
-  /** The active document (the active tab's); null when none is open (home is then the welcome page). */
+  /** The active file: the active tab's, else the file of the tab active last; null when no tab shows one. */
   active: DocId | null
   /** One document's API, the same object until that document (or the sign-in) changes. */
   doc(id: DocId): LibraryApi
   layout: Layout<TabData>
-  /** Makes a document active; App then shows the page its tab was on. */
+  /** The main window's active tab when it shows a file: the address bar follows it. */
+  address: DocTab | null
+  /** Tabs, the one active most recently first. */
+  recent: TabId[]
+  /** Shows a file: its tab in the active group, else its tab used last, else a new tab on its home. */
   activate(id: DocId): void
-  /** The page the active tab shows (App keeps it in step with the address bar). */
-  setRoute(route: Route): void
+  /** Shows a place of a file in a group (default: the active one), in its tab there unless `newTab`; the tab's id. */
+  openPlace(doc: DocId, route: Route, o?: { group?: GroupId; newTab?: boolean; background?: boolean }): TabId | null
+  /** The page a tab shows. */
+  setTabRoute(tabId: TabId, route: Route): void
+  activateTab(tabId: TabId): void
+  activateGroup(groupId: GroupId): void
+  /** Closing tabs never closes a file. */
+  closeTabs(tabIds: TabId[]): void
+  closeOthers(tabId: TabId): void
+  closeAll(groupId: GroupId): void
+  moveTab(tabId: TabId, toGroup: GroupId, index: number): void
+  /** A new group beside `groupId`: a dragged tab (`move`) moves into it, else a copy of `tabId` (or the active tab). */
+  split(groupId: GroupId, dir: 'row' | 'column', side: 'before' | 'after', tabId?: TabId, move?: boolean): void
+  join(from: GroupId, into: GroupId): void
+  resize(win: WindowId, path: number[], sizes: number[]): void
+  /** The group into window `win` (its popup is opened by the caller, in the click). */
+  popOut(groupId: GroupId, win: WindowId): void
+  dock(win: WindowId): void
+  /** Shows the Explorer: activated where it shows, else split on the left of `beside` (`split`) or as a tab. */
+  showExplorer(beside: GroupId, split: boolean): void
+  /** The group used most recently other than `except`. */
+  recentGroup(except: GroupId | null): GroupId | null
   /** The one content write path: one undoable step that marks every document it changed as unsaved. */
   apply(label: string, update: (docs: Docs) => Docs, key?: string): void
   undo(): void
@@ -196,6 +219,8 @@ export type WorkspaceApi = {
 // The backup holds whole libraries, images included, so each waits for a pause in its edits.
 const BACKUP_DELAY = 300
 const HOME: Route = { name: 'home' }
+// The ids a transition needs, made before it runs (transitions stay pure).
+const ids = () => ({ tab: newId(), group: newId() })
 
 // What Google says about a Drive file for the signed-in user.
 type Owner = Awaited<ReturnType<typeof google.ownFile>>
@@ -237,17 +262,10 @@ const sameRecord = (rec: backup.DocRecord, d: W.Doc) =>
   rec.library === d.library && rec.dirty === W.hasChanges(d) && rec.drive === d.drive && sameNote(rec.file, d.file)
 
 /**
- * The workspace: every open document, the layout, the undo history and the clipboard, as one state with one write
- * path for content (`apply`). `onSwitch` is called when the active document changes (another tab becomes active, or
- * none is left): App writes that tab's page into the address bar, so the page shown always belongs to it.
+ * The workspace: every open document, the layout (tabs, groups, splits, windows), the undo history and the
+ * clipboard, as one state with one write path for content (`apply`).
  */
-export function useWorkspace(
-  adapter: StorageAdapter,
-  notify: Notify,
-  ask: Ask,
-  askChoice: AskChoice,
-  onSwitch: (route: Route | null) => void,
-): WorkspaceApi {
+export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, askChoice: AskChoice): WorkspaceApi {
   const [ws, setWs] = useState<W.Workspace>(() => W.emptyWorkspace('main-group'))
   // The latest state, ahead of the render: transitions build on it, so several in one click compose, and the actions
   // (often async) always read what is there now.
@@ -261,8 +279,8 @@ export function useWorkspace(
     setSigned(on)
   }
   // The latest callbacks from App (they are new functions on every render).
-  const deps = useRef({ notify, ask, askChoice, onSwitch })
-  deps.current = { notify, ask, askChoice, onSwitch }
+  const deps = useRef({ notify, ask, askChoice })
+  deps.current = { notify, ask, askChoice }
   const say: Notify = (...args) => deps.current.notify(...args)
   const confirm: Ask = (...args) => deps.current.ask(...args)
 
@@ -272,9 +290,6 @@ export function useWorkspace(
     if (next === before) return
     ref.current = next
     setWs(next)
-    const from = W.activeTab(before)?.id ?? null
-    const to = W.activeTab(next)
-    if (from !== (to?.id ?? null)) deps.current.onSwitch(to?.data.kind === 'doc' ? to.data.route : null)
   }
   const cur = (id: DocId): W.Doc | undefined => ref.current.docs[id]
 
@@ -335,9 +350,11 @@ export function useWorkspace(
       } catch {
         read = null
       }
-      const next = read ? W.restore(read, newId()) : W.emptyWorkspace(newId())
+      const next = read ? W.restore(read, newId(), newId) : W.emptyWorkspace(newId())
       for (const rec of read?.docs ?? []) {
-        written.current.set(rec.id, rec)
+        // A record the reading could not write (moving the old backup in) is not stored yet: the first backup write
+        // after the start writes it, and warns if that fails too.
+        if (!read?.unstored.includes(rec.id)) written.current.set(rec.id, rec)
         writtenHandle.current.set(rec.id, read?.handles[rec.id] ?? null)
       }
       ref.current = next
@@ -356,6 +373,8 @@ export function useWorkspace(
             : `${broken} libraries kept in this browser could not be read, so they were set aside. Open their .shrimp files or Google Drive libraries again.`,
         )
       }
+      // What the reading has to say (an old backup moved in, a copy set aside).
+      for (const note of read.notes) say('info', note)
       const docs = next.order.map((id) => next.docs[id])
       // Only real libraries are worth a message. It names the library as it was left, not the backup.
       if (docs.some((d) => d.library.courses.length > 0)) {
@@ -644,14 +663,16 @@ export function useWorkspace(
     }
     const open = W.docWithDrive(ref.current, driveId)
     if (open) {
-      update((w) => W.activateDoc(w, open.id))
+      const tab = newId()
+      update((w) => W.activateDoc(w, open.id, tab))
       // Its link opened again: bring its changes, if any (asking first, as they replace these).
       return own ? true : pull(open.id)
     }
     try {
       const { library, source } = await google.readDriveFile(driveId, own)
       const id = newId()
-      update((w) => W.addDoc(w, W.makeDoc(id, library, source.name, { drive: source }), HOME))
+      const tab = newId()
+      update((w) => W.addDoc(w, W.makeDoc(id, library, source.name, { drive: source }), HOME, tab))
       if (own) setSignedNow(true)
       else checkOwner(id, driveId)
       say('info', `Opened "${source.name}" ${driveFrom(source, own)}.`)
@@ -842,7 +863,8 @@ export function useWorkspace(
 
   const newDoc = (at: Route = HOME) => {
     const id = newId()
-    update((w) => W.addDoc(w, W.makeDoc(id, emptyLibrary(), W.freeDocName(w, 'New library')), at))
+    const tab = newId()
+    update((w) => W.addDoc(w, W.makeDoc(id, emptyLibrary(), W.freeDocName(w, 'New library')), at, tab))
     return id
   }
 
@@ -850,7 +872,8 @@ export function useWorkspace(
     try {
       const library = await load()
       const id = newId()
-      update((w) => W.addDoc(w, W.makeDoc(id, library, W.freeDocName(w, name)), at))
+      const tab = newId()
+      update((w) => W.addDoc(w, W.makeDoc(id, library, W.freeDocName(w, name)), at, tab))
       return id
     } catch (err) {
       say('error', `This file could not be opened.${errorText(err)}`)
@@ -883,7 +906,8 @@ export function useWorkspace(
       }
       if (!same) {
         const id = newId()
-        update((w) => W.addDoc(w, W.makeDoc(id, o.library, o.file.name, { file: o.file }), at))
+        const tab = newId()
+        update((w) => W.addDoc(w, W.makeDoc(id, o.library, o.file.name, { file: o.file }), at, tab))
         last = id
         continue
       }
@@ -891,8 +915,9 @@ export function useWorkspace(
       const name = W.docName(same)
       const reloads = W.changedOnDisk(same, o.file)
       let asks = false
+      const tab = newId()
       update((w) => {
-        const r = W.reopenFile(w, sameId, o.library, o.file)
+        const r = W.reopenFile(w, sameId, o.library, o.file, tab)
         asks = r.ask
         return r.workspace
       })
@@ -1069,8 +1094,45 @@ export function useWorkspace(
     active: W.activeDoc(ws),
     doc,
     layout: ws.layout,
-    activate: (id) => update((w) => W.activateDoc(w, id)),
-    setRoute: (route) => update((w) => W.setRoute(w, route)),
+    address: W.addressTab(ws),
+    recent: ws.recent,
+    activate: (id) => {
+      const tab = newId()
+      update((w) => W.activateDoc(w, id, tab))
+    },
+    openPlace: (docId, route, o) => {
+      const fresh = newId()
+      let tab: TabId | null = null
+      update((w) => {
+        const r = W.openPlace(w, docId, route, fresh, o)
+        tab = r.tab
+        return r.workspace
+      })
+      return tab
+    },
+    setTabRoute: (tabId, route) => update((w) => W.setTabRoute(w, tabId, route)),
+    activateTab: (tabId) => update((w) => W.activateTab(w, tabId)),
+    activateGroup: (groupId) => update((w) => W.activateGroup(w, groupId)),
+    closeTabs: (tabIds) => update((w) => W.closeTabs(w, tabIds)),
+    closeOthers: (tabId) => update((w) => W.closeOthers(w, tabId)),
+    closeAll: (groupId) => update((w) => W.closeAll(w, groupId)),
+    moveTab: (tabId, toGroup, index) => update((w) => W.moveTab(w, tabId, toGroup, index)),
+    split: (groupId, dir, side, tabId, move) => {
+      const made = ids()
+      update((w) => W.splitGroup(w, groupId, dir, side, made.group, move ? { tabId: made.tab, move: tabId } : { tabId: made.tab, copy: tabId }))
+    },
+    join: (from, into) => update((w) => W.joinGroups(w, from, into)),
+    resize: (win, path, sizes) => update((w) => W.resizeSplit(w, win, path, sizes)),
+    popOut: (groupId, win) => {
+      const spare = newId()
+      update((w) => W.popOutGroup(w, groupId, win, spare))
+    },
+    dock: (win) => update((w) => W.dockWindow(w, win)),
+    showExplorer: (beside, split) => {
+      const made = ids()
+      update((w) => W.showExplorer(w, beside, { split, tabId: made.tab, groupId: made.group }))
+    },
+    recentGroup: (except) => W.recentGroup(ref.current, except),
     apply,
     undo,
     redo,
