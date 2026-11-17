@@ -166,6 +166,7 @@ def run(page, base):
     changelog_tab(page)
     breadcrumbs(page)
     new_quiz_in_popup(page)
+    empty_group_and_brand(page)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
@@ -187,8 +188,9 @@ def study_moves(page):
     shown(g2).get_by_role('button', name='Start').click()
     shown(g2).locator('.session-stack').wait_for()
     need(shown(g2).locator('.pane-head').count() == 0 and g2.locator('.pane-head').count() == 0, 'a study session has no breadcrumbs (its own head)')
-    shown(g2).locator('.flip-card').click()
-    # Off the card: a pointer resting on its picture opens the picture full screen.
+    # By keys (the round is shuffled: a click on a card could land on its picture, which opens big instead).
+    page.evaluate('document.activeElement && document.activeElement.blur()')
+    page.keyboard.press('Space')
     page.mouse.move(1, 1)
     click_clear(page, shown(g2).get_by_role('button', name=re.compile('^Knew it')), 'Knew it')
     wait_for(page, lambda: shown(g2).locator('.session-count').inner_text().startswith('2 /'), 'the round goes on to question 2')
@@ -352,4 +354,36 @@ def new_quiz_in_popup(page):
     need(crumbs(group(page, 0)) == main_trail, f'the main window stays where it was: {crumbs(group(page, 0))} != {main_trail}')
     pop.get_by_role('button', name='Dock').click()
     wait_for(page, lambda: groups(page).count() == 2, 'docked again')
+
+
+def empty_group_and_brand(page):
+    """An empty group shows what can go there (an open file's home opens in it); the brand shows the active file's
+    home: its tab when there is one, else a new tab."""
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close all').click()
+        page.wait_for_timeout(150)
+    group(page, 0).get_by_role('button', name='More').click()
+    page.get_by_role('menuitem', name='Close all').click()
+    empty = group(page, 0).locator('.wb-empty')
+    empty.wait_for()
+    need(empty.locator('.wb-empty-mark svg').count() == 1, 'the empty group shows the faded shrimp')
+    need(empty.get_by_role('heading', name='No tab open').count() == 1, 'and says no tab is open')
+    for name in ['Show the Explorer', 'New file', 'Open file', 'Test library', 'Guide']:
+        need(empty.get_by_role('button', name=re.compile(name)).count() >= 1, f'the empty group offers {name}')
+    empty.get_by_role('button', name=re.compile('^Test library')).click()
+    wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], "a file's home opens in the empty group")
+
+    # The brand: no home tab of the active file left (it goes to a course), so a new one; then that one again.
+    shown(group(page, 0)).locator('.course-row a').first.click()
+    wait_for(page, lambda: len(crumbs(group(page, 0))) == 2, 'the tab goes to a course')
+    before = len(tab_titles(group(page, 0)))
+    page.locator('a.brand').click()
+    wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], 'the brand shows the file home')
+    need(len(tab_titles(group(page, 0))) == before + 1, 'in a new tab, as no tab showed it')
+    group(page, 0).locator('[role=tab]').first.click()
+    wait_for(page, lambda: len(crumbs(group(page, 0))) == 2, 'back on the course tab')
+    page.locator('a.brand').click()
+    wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], 'the brand shows the home tab again')
+    need(len(tab_titles(group(page, 0))) == before + 1, 'without opening another tab')
 

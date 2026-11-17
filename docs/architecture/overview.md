@@ -17,8 +17,8 @@ study data. The app composes it with its own domain code.
    touched as unsaved and schedules the browser backup. The layout is a set of tabs in groups, split panes and windows; a
    file may show in several tabs, and closing tabs never closes a file.
 5. `src/layout/`, `src/screens/`, `src/components/`: the UI. Screens get `lib: LibraryApi` (one document) and an
-   optional `nav: Nav` (their tab) as props. `App` mounts `Sidebar`, `TopBar` and the `Workbench`, whose tabs
-   show `PaneScreen`s: a file's page, the Explorer or the welcome page.
+   `nav: Nav` (their tab) as props. `App` mounts `Sidebar` and the `Workbench` (no top row), whose tabs show
+   `PaneScreen`s: a file's page, the Explorer or every release's notes.
 
 ## One state, many windows
 

@@ -26,6 +26,8 @@ type Props = {
   onNewCourse: () => void
   /** Shows the Explorer (Ctrl+Shift+E). */
   onExplorer: () => void
+  /** The brand: the active file's home (its tab, else a new one); with no file open, the address's home (welcome). */
+  onHome: () => boolean
   /** A course or quiz of the tree, shown in the active group (`newTab`: in a new tab there). */
   onOpen: (route: Route, newTab: boolean) => void
 }
@@ -174,7 +176,7 @@ function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: 
   )
 }
 
-export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }: Props) {
+export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onHome, onOpen }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -208,7 +210,16 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
     <>
       {/* Brand and toggle sit outside the sidebar, so both stay visible when it is closed to nothing. */}
       <div className={open ? 'corner' : 'corner is-closed'}>
-        <a className="brand" href="#/" aria-label="Shrimply Study" onClick={closeIfNarrow}>
+        <a
+          className="brand"
+          href="#/"
+          aria-label="Shrimply Study"
+          title="Home of the open file"
+          onClick={(e) => {
+            if (onHome()) e.preventDefault()
+            closeIfNarrow()
+          }}
+        >
           <ShrimpIcon />
           <span className="brand-name">Shrimply Study</span>
         </a>

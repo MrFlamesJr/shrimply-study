@@ -57,6 +57,8 @@ export type WorkbenchProps = {
   }
   /** False on touch and below 800px (the host decides). */
   canPopOut: boolean
+  /** What an empty group shows (default: "No tab open"). */
+  renderEmpty?(groupId: string): ReactNode
 }
 
 // Each tab's screen renders into a node of its own (one per tab and window), which its group's slot takes in: a tab
@@ -316,7 +318,7 @@ function GroupView({ p, win, group: g, shown, corner, nodeFor }: { p: WorkbenchP
                 }}
               />
             ))}
-          {tabs.length === 0 && <p className="wb-empty">No tab open</p>}
+          {tabs.length === 0 && (p.renderEmpty ? p.renderEmpty(g.id) : <p className="wb-empty">No tab open</p>)}
         </div>
         {body && <BackToTop scroller={body} />}
         <DropZones accept={(payload) => payload.kind === TAB_KIND} onDrop={dropOnPane} />

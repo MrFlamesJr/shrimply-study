@@ -1,11 +1,11 @@
 # Integration: how the app uses the kit
 
-Everything described here runs: `App` mounts the Workbench, the Explorer tab, the Sidebar and the TopBar.
+Everything described here runs: `App` mounts the Workbench, the Explorer tab and the Sidebar (there is no top row).
 
 ## The shell
 
 - **`App`** (`src/App.tsx`) calls `useWorkspace(fileStorage, notify, askConfirm, askChoice)` once and builds the shell: a
-  `Sidebar`, a `TopBar` and a `wb-cell` holding the `Workbench` (hidden on the app's own pages: debug, and the welcome page
+  `Sidebar` (headed by the corner) and a `wb-cell` holding the `Workbench` from the top of the window (hidden on the app's own pages: debug, and the welcome page
   when no file is open). The kit demo (`#/_workbench`) is a full-screen page outside the shell; every release's notes (`#/_changelog`) open as a tab. A study
   session alone in the main window keeps the full-screen look (the shell steps aside by CSS; the workbench stays mounted).
   `lib` is the active file's `LibraryApi` (`ws.doc(ws.active)`), used by the Sidebar, Ctrl+S and the Drive dialog.

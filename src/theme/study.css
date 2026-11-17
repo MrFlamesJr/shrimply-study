@@ -23,7 +23,7 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--space-3);
-  height: var(--topbar-h);
+  height: var(--session-head-h);
   padding: 0 var(--space-4);
 }
 .session-head button {

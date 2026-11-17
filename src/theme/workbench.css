@@ -52,11 +52,15 @@
   border-radius: var(--radius);
   overflow: hidden;
 }
-/* The tab strip sits on the frame's tone, so the active tab (the surface step) reads as the pane's own lip. */
+/* The tab strip has no fill of its own: the pane's ground and the theme's backdrop show through it. The active tab is
+   marked by its line (the accent while its group has the focus) and its full text color, its own fill a see-through
+   step (--surface-clear), so the backdrop shows there too. */
 .wb-group > .kit-tabstrip {
   flex: none;
   padding-inline: var(--space-2);
-  background: var(--surface-side);
+}
+.wb-group > .kit-tabstrip .kit-tab.is-active {
+  background: var(--surface-clear);
 }
 /* The main window's top-left tab strip makes room for the corner (the shrimp and the sidebar toggle) while the sidebar
    is closed, and always on phones, where the corner sits over the shown group (shell.css). */
@@ -105,11 +109,74 @@
 .pane-session > .session {
   height: 100%;
 }
+/* An empty group: a calm page in the style of the empty sidebar. A large shrimp faded far into the ground like a
+   watermark (not text to read), a quiet title in the theme's display font, then what can go here as quiet links (the
+   Explorer with its key, a new or opened file, each open file's home). One column, centered; it fits a narrow pane. */
 .wb-empty {
-  margin: 0;
-  padding: var(--space-7) var(--space-5);
-  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
   color: var(--text-muted);
+  text-align: center;
+}
+.wb-empty-mark {
+  /* One quiet tone, the muted text's (the brand's own colors would make it a logo, not a watermark). */
+  --brand-shell: currentColor;
+  --brand-head: currentColor;
+  opacity: var(--dim-empty);
+}
+.wb-empty-mark svg {
+  width: 120px;
+  height: 120px;
+}
+.wb-empty-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+}
+.wb-empty-label {
+  margin: var(--space-3) 0 0;
+  font-size: var(--text-xs-plus);
+}
+.wb-empty-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.wb-empty-actions li {
+  max-width: 100%;
+}
+.wb-empty-actions button.link {
+  max-width: 100%;
+}
+.wb-empty-actions svg {
+  width: 16px;
+  height: 16px;
+}
+.wb-empty-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-empty .shortcut {
+  margin-left: var(--space-1);
+}
+@container pane (max-width: 359px) {
+  .wb-empty-mark svg {
+    width: 80px;
+    height: 80px;
+  }
 }
 
 /* The pane head: a compact, plain row of breadcrumbs on the pane's own ground, the top of the pane (nothing scrolls
@@ -164,7 +231,7 @@
   color: var(--text);
   text-decoration-color: currentColor;
 }
-/* A narrow pane (as the top row was on phones): one "‹ parent" link instead of the trail, when the page has one. */
+/* A narrow pane (as on phones): one "‹ parent" link instead of the trail, when the page has one. */
 .pane-parent {
   display: none;
   flex: 1;

@@ -267,8 +267,8 @@ export function Confetti(p: { level: 'done' | 'perfect'; colors: string[] }): Re
 
 ## The app
 
-Everything below runs: `App` renders the `Workbench` (tabs, split panes, popped-out windows), the Explorer tab, the Sidebar
-and the TopBar (see `integration.md`). `#/_workbench` is a demo host that uses only the kit.
+Everything below runs: `App` renders the `Workbench` (tabs, split panes, popped-out windows), the Explorer tab and the
+Sidebar (see `integration.md`; there is no top row). `#/_workbench` is a demo host that uses only the kit.
 
 ### `src/logic/contentOps.ts` (pure): copying, moving and deleting across open files
 
@@ -494,7 +494,7 @@ backup 300 ms later. The workspace's own record (open documents, layout, Explore
 waits is flushed on `pagehide` and when the page is hidden. The hook no longer takes an `onSwitch` callback: the address
 bar follows `address` (see `integration.md`).
 
-### `src/layout/`: Explorer, ExplorerPane, Workbench, PaneHead, PaneScreen, Sidebar, TopBar
+### `src/layout/`: Explorer, ExplorerPane, Workbench, PaneHead, PaneScreen, Sidebar
 
 - `Explorer(p: ExplorerProps)`: every open file as a tree, driven only by its props. Props: `docs: ExplorerDoc[]`
   (`{ id, name, library, dirty, where, driveId? }`), `drive?: ExplorerDrive`, `expanded`, `onExpanded`, `selection`, `onSelection`, `clipboard`, `apply(label,
@@ -543,10 +543,10 @@ one was started is dropped. An open from the list becomes an open file: expanded
   `reveal` and `openCard`).
 - `Sidebar` (`{ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }`): the open
   files from `ws.docs`, the course tree of the active file (`onOpen(route, newTab)` shows a page in the active group), the
-  Explorer button, "+ New course" and the theme select. `TopBar({ openFile, loadLabel, loadHint, onDrive })`.
-- `App` composes them: the shell is `Sidebar`, `TopBar` and a `wb-cell` holding the `Workbench` (hidden on the debug page
-  and the welcome page). A study session alone in the main window keeps the full-screen look. The changelog and the kit demo
-  are full-screen pages outside the shell.
+  Explorer button, the Files heading (New file, Open file, Google Drive, Save all), "+ New course" and the theme select.
+- `App` composes them: the shell is `Sidebar` and a `wb-cell` holding the `Workbench` (hidden on the debug page
+  and the welcome page). A study session alone in the main window keeps the full-screen look. The kit demo is a full-screen
+  page outside the shell; the changelog is a tab.
 
 ### `src/logic/whereLine.ts` (pure)
 

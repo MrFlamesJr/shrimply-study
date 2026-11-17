@@ -17,6 +17,7 @@ import { loadSeenRelease, saveSeenRelease } from './storage/welcomePref'
 import { RELEASES } from './releaseNotes'
 import { Sidebar, useSidebarOpen } from './layout/Sidebar'
 import { Workbench } from './layout/Workbench'
+import { EmptyPane } from './layout/EmptyPane'
 import { PaneScreen, type PaneShared } from './layout/PaneScreen'
 import type { Crumb } from './layout/PaneHead'
 import { makeTabNav, type TabNavOps } from './layout/tabNav'
@@ -430,6 +431,19 @@ export function App() {
           onDrive={() => setDriveOpen(true)}
           onNewCourse={newCourse}
           onExplorer={() => showExplorer()}
+          onHome={() => {
+            // The active file's home: its tab in the main window, else a new tab in the active group. With no file
+            // open the link goes home as before (the welcome page).
+            if (!ws.active) return false
+            const doc = ws.active
+            const main = groupsIn(ws.layout, MAIN)
+            const home = Object.values(ws.layout.tabs).find(
+              (t) => t.data.kind === 'doc' && t.data.doc === doc && t.data.route.name === 'home' && main.includes(groupOf(ws.layout, t.id) ?? ''),
+            )
+            if (home) ws.activateTab(home.id)
+            else ws.openPlace(doc, HOME, { newTab: true })
+            return true
+          }}
           onOpen={(route, newTab) => {
             if (ws.active) ws.openPlace(ws.active, route, newTab ? { newTab: true, background: true } : undefined)
           }}
@@ -501,6 +515,15 @@ export function App() {
                 ),
             }}
             canPopOut={canPopOut}
+            renderEmpty={(groupId) => (
+              <EmptyPane
+                docs={ws.docs}
+                onExplorer={() => showExplorer()}
+                onNewFile={() => void ws.newDoc()}
+                onOpenFile={() => void ws.openFile()}
+                onOpenDoc={(id) => void ws.openPlace(id, HOME, { group: groupId })}
+              />
+            )}
           />
         </div>
         {driveOpen && (

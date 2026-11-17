@@ -2,9 +2,9 @@
 /* Edit mode, asked for: one big outline of long and short dashes around the whole editor (title, cards, groups)
    where every few dashes, always between two long ones, one is the word "Editing" in small spaced pixel capitals,
    the same for every theme, following the line round (EditOutline sets the pattern). The editor's box reaches out
-   to the line with room to spare (padding, taken back by a negative margin at the sides and bottom, so the content
-   keeps its place and width); at the top the box starts where the content used to, so the line stays clear of the
-   top row and its fog, and the content sits that much lower. Pointing at the line already counts
+   to the line with room to spare on every side (padding, taken back by a negative margin, so the content keeps its
+   place and width; the pane head sits above the pane's scroller, so nothing covers the top). Pointing at the line
+   already counts
    as being in the editor: that nudges the dashes and words a few px round, settling quickly, and slowly thickens
    the line a touch; pointing out undoes both. Very subtle, so it never distracts (asked for). All
    of it is the full accent faded as one (--dim-faint), so the words are exactly as faint as the dashes (asked for:
@@ -14,7 +14,7 @@
 .edit-frame {
   --frame-gap: var(--space-6);
   position: relative;
-  margin: 0 calc(-1 * var(--frame-gap)) calc(-1 * var(--frame-gap));
+  margin: calc(-1 * var(--frame-gap));
   padding: var(--frame-gap);
 }
 .edit-frame > .edit-outline {
@@ -64,11 +64,9 @@
   pointer-events: stroke;
 }
 @media (max-width: 799px) {
-  /* The page's sides are only --space-4 here; the top starts lower, as the page's top padding is smaller than the
-     top row's fog. */
+  /* The page's sides are only --space-4 here. */
   .edit-frame {
     --frame-gap: var(--space-3);
-    margin-top: var(--space-3);
   }
 }
 /* Edit: one box per card, term and definition side by side on underlined fields */

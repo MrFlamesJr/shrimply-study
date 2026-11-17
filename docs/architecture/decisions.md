@@ -120,3 +120,13 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   slides. Open file, Google Drive and Save all live only on the Files heading (the drawer's too). The pane head is a
   plain 32px row above the pane's scroller (no glass, no fade); its pad and the page's come from the pane's own width
   (cqw), so the crumbs line up with the page in any pane. The app's own pages leave room for the corner at the top.
+- Asked for, 2026-11-16: an empty group shows a calm page (`EmptyPane`): the shrimp in the muted tone at `--dim-empty`
+  (one tone, so it reads as a watermark, not the logo), "No tab open" in the display font, then the Explorer (with
+  its key), New file, Open file and each open file's home (opens in that group). The tab strip has no fill; the active
+  tab sits on `--surface-clear` (see-through) with its line and full text color. The brand shows the active file's
+  home tab in the main window, else opens it in a new tab in the active group; with no file open it goes home (the
+  welcome page) as before. Unused tokens removed (`--glass-bar*`, `--corner-w`, `--toggle-size`, `--text-2xs`);
+  `--topbar-h` is now `--session-head-h` (a study session's head). Kept, though unused in the app's CSS: the kit's
+  host variables `--kit-danger` and `--kit-weight-bold` (the kit's documented contract) and `--dur-draw` (CLAUDE.md
+  names it for the sequence line drawing itself, which now only fades in: a possible regression to look at).
+  The edit outline sits `--space-6` out on every side, the top too.

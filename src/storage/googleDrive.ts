@@ -17,7 +17,7 @@ export const driveSetUp = CLIENT_ID !== '' && API_KEY !== ''
  * The Drive file a library came from or was saved to. `md5` is its content as this browser last saw it (Drive's
  * checksum, so renaming or sharing the file is no change). `shared`: set to "Anyone with the link", so its
  * updates can be checked without signing in. `mine`: the user's own file as far as this browser knows (made or
- * opened from their Drive here, or Google said so), which shows the top row's Save to Drive; every save still asks
+ * opened from their Drive here, or Google said so), so the file row's Save saves into it; every save still asks
  * Google. `trashed`: in its owner's bin on Google Drive, as last seen. It still opens by its link until it is deleted
  * for good (after 30 days), so it keeps working here, with a warning.
  */

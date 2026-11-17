@@ -51,7 +51,7 @@
   background-color: var(--text-muted);
 }
 /* The page ground: --bg, then two layers fixed to the window behind everything: ::before the backdrop, ::after
-   the moving layer over it (--backdrop-drift). The top row is frosted glass over it (shell.css). The moving layer
+   the moving layer over it (--backdrop-drift); the panes show it, the sidebar and tab strips cover it. The moving layer
    is one tile wider than the window and slides one tile by transform, so it loops seamlessly and the backdrop is
    never painted again while it moves. */
 body {
@@ -333,7 +333,7 @@ button.quiet:hover:not(:disabled) {
 .info-box-toggle[aria-expanded='false'] .info-box-chevron svg {
   rotate: none;
 }
-/* Link buttons (top row Open and Download): small muted text, underlined on hover like the crumbs. */
+/* Link buttons (Pull changes, the Drive dialog's, Learn more): small muted text, underlined on hover like the crumbs. */
 button.link {
   height: auto;
   padding: var(--space-1);
