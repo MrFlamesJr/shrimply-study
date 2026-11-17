@@ -300,16 +300,14 @@ button.quiet:hover:not(:disabled) {
    it moves. A fold chevron also turns (`rotate`, below). */
 .icon-btn:hover:not(:disabled),
 .sidebar-toggle:hover:not(:disabled),
-.explorer .kit-row-chevron:hover,
-.files-tree .file-chevron:hover {
+.explorer .kit-row-chevron:hover {
   background: transparent;
   color: var(--text);
 }
 .icon-btn svg,
 .sidebar-toggle svg,
 .info-box-chevron svg,
-.explorer .kit-row-chevron svg,
-.files-tree .file-chevron svg {
+.explorer .kit-row-chevron svg {
   transition:
     width var(--dur) var(--spring),
     height var(--dur) var(--spring),
@@ -318,8 +316,7 @@ button.quiet:hover:not(:disabled) {
 .icon-btn:hover:not(:disabled) svg,
 .sidebar-toggle:hover:not(:disabled) svg,
 .info-box-toggle:hover .info-box-chevron svg,
-.explorer .kit-row-chevron:hover svg,
-.files-tree .file-chevron:hover svg {
+.explorer .kit-row-chevron:hover svg {
   width: 22px;
   height: 22px;
   animation: icon-pop var(--dur-pop) var(--ease);

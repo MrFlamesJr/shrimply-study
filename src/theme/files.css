@@ -220,12 +220,13 @@
   height: 14px;
 }
 
-/* A row's icon and its fold chevron share one 16px cell: the icon at rest; while the row is pointed at or holds the
-   keyboard focus, the icon shrinks away as the chevron grows in its place (asked for), pointing right while shut and
-   down while open. With nothing to fold the icon stays; on touch, with nothing to point at, the chevron does. Moved by
-   transform alone. */
+/* A row's icon and its fold chevron share one 16px cell (fixed tracks, so both stay centered on it): the icon at rest;
+   while the row is pointed at or holds the keyboard focus, it eases into the chevron (asked for: gently, a soft
+   cross-fade with a slight scale, no pop), pointing right while shut and down while open. With nothing to fold the
+   icon stays; on touch, with nothing to point at, the chevron does. Moved by transform alone. */
 .file-glyph {
   display: grid;
+  grid-template: 16px / 16px;
   place-items: center;
   width: 16px;
   height: 16px;
@@ -244,18 +245,23 @@
 }
 .file-chevron {
   display: flex;
-  color: var(--text);
+  color: var(--text-muted);
   cursor: pointer;
   opacity: 0;
-  scale: 0.4;
+  scale: 0.8;
+  transition-property: opacity, scale, color;
+}
+.file-chevron:hover {
+  color: var(--text);
 }
 .file-chevron svg {
   width: 16px;
   height: 16px;
+  transition: rotate var(--dur) var(--ease);
 }
 :is(.file-pick, .file-course):is(:hover, :focus-visible) > .file-glyph[data-chevron] > svg {
   opacity: 0;
-  scale: 0.4;
+  scale: 0.8;
 }
 :is(.file-pick, .file-course):is(:hover, :focus-visible) > .file-glyph[data-chevron] > .file-chevron {
   opacity: 1;
