@@ -114,6 +114,14 @@ def tree_tests(page, base):
     inp.fill('Plum')
     page.keyboard.press('Enter')
     check('Plum' in names() and 'Cherry' not in names(), 'Enter commits the rename')
+    check(page.evaluate("document.activeElement.getAttribute('role')") == 'treeitem', 'focus returns to the tree after a rename')
+    item('Plum').click()
+    page.keyboard.press('F2')
+    page.keyboard.press('Escape')
+    check(page.evaluate("document.activeElement.getAttribute('role')") == 'treeitem', 'focus returns to the tree after Esc')
+    # the empty chevron slot of a leaf selects it, like a click elsewhere
+    item('Banana').locator('[data-chevron]').click()
+    check(item('Banana').get_attribute('aria-selected') == 'true' and names().count('Banana') == 1, 'a leaf chevron slot selects')
 
     # drag: move, copy, refused, hover-to-expand
     drag(page, center(item('Apple').bounding_box(), 0.3), center(item('Vegetables').bounding_box()))
@@ -274,6 +282,15 @@ def tab_tests(page, base):
     zb = tab('g3', 'Zeta').bounding_box()
     drag(page, center(tab('g1', 'Alpha').bounding_box(), 0.3), (zb['x'] + zb['width'] * 0.8, zb['y'] + zb['height'] / 2))
     check(titles('g3') == ['Zeta', 'Alpha'] and 'Alpha' not in titles('g1'), f'move: {titles("g1")} {titles("g3")}')
+
+    # an outside drag (selected text) after a tab move must not show a drop line from a stale payload
+    page.locator('h1').click(click_count=3)
+    hb = page.locator('h1').bounding_box()
+    sb = tab('g3', 'Zeta').bounding_box()
+    drag(page, (hb['x'] + 20, hb['y'] + hb['height'] / 2), (sb['x'] + 10, sb['y'] + 18), hold=150, release=False)
+    check(page.locator('.kit-tab-drop').count() == 0, 'an outside drag shows no drop line')
+    page.mouse.up()
+    page.wait_for_timeout(150)
 
     # keyboard
     tab('g1', 'Gamma').focus()

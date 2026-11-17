@@ -4,12 +4,24 @@ export type DragPayload = { kind: string; ids: string[] }
 // The drag in progress: the drag may end in another of the app's windows (same JavaScript), so this copy is read first.
 let current: DragPayload | null = null
 
-/** Starts a drag: the payload as JSON and the text for other apps; effectAllowed copyMove. */
-export function startDrag(dt: DataTransfer, payload: DragPayload, text: string): void {
+/**
+ * Starts a drag: the payload as JSON and the text for other apps; effectAllowed copyMove. `source` (the dragged element)
+ * names the document whose dragend or drop forgets the payload, even when the source unmounted before its own dragend.
+ */
+export function startDrag(dt: DataTransfer, payload: DragPayload, text: string, source?: Node): void {
   dt.setData(DRAG_MIME, JSON.stringify(payload))
   dt.setData('text/plain', text)
   dt.effectAllowed = 'copyMove'
   current = payload
+  const doc = source?.ownerDocument ?? (typeof document === 'undefined' ? null : document)
+  if (!doc) return
+  const forget = () => {
+    doc.removeEventListener('dragend', forget, true)
+    doc.removeEventListener('drop', forget, true)
+    if (current === payload) endDrag()
+  }
+  doc.addEventListener('dragend', forget, true)
+  doc.addEventListener('drop', forget, true)
 }
 
 /** The drag in progress: this module's copy, else the payload in the DataTransfer when the browser lets it be read. */

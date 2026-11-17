@@ -68,6 +68,10 @@ export function TreeView(p: {
     return () => ro.disconnect()
   }, [])
 
+  useEffect(() => () => {
+    if (expandTimer.current) box.current?.ownerDocument.defaultView?.clearTimeout(expandTimer.current.timer)
+  }, [])
+
   // Keeps the focused row in view, then gives it the DOM focus when the keyboard moved it.
   useEffect(() => {
     const el = box.current!
@@ -163,7 +167,7 @@ export function TreeView(p: {
     if (t.closest('input')) return
     const { row } = rowAt(e.clientY)
     if (!row) return
-    if (t.closest('[data-chevron]')) {
+    if (t.closest('[data-chevron]') && row.expandable) {
       toggleExpand(row.id, !row.expanded)
       return
     }
@@ -203,7 +207,7 @@ export function TreeView(p: {
       return
     }
     const ids = dragIds(row.id)
-    startDrag(e.dataTransfer, { kind, ids }, ids.map(source.label).join(', '))
+    startDrag(e.dataTransfer, { kind, ids }, ids.map(source.label).join(', '), e.currentTarget as Node)
   }
 
   const target = (e: ReactDragEvent, payload: DragPayload) => {
@@ -241,8 +245,11 @@ export function TreeView(p: {
     }
   }
   const onDragLeave = (e: ReactDragEvent) => {
+    // Safari sends no relatedTarget: then the pointer's place says whether it left.
     const to = e.relatedTarget as Node | null
-    if (!to || !box.current!.contains(to)) clearOver()
+    const r = box.current!.getBoundingClientRect()
+    const outside = e.clientX < r.left || e.clientX >= r.right || e.clientY < r.top || e.clientY >= r.bottom
+    if (to ? !box.current!.contains(to) : outside) clearOver()
   }
   const onDrop = (e: ReactDragEvent) => {
     if (!drag) return
@@ -319,7 +326,7 @@ export function TreeView(p: {
               </span>
               {p.icon && <span className="kit-row-icon">{p.icon(row.id)}</span>}
               {renaming && p.rename ? (
-                <RenameInput id={row.id} start={source.label(row.id)} rename={p.rename} />
+                <RenameInput id={row.id} start={source.label(row.id)} rename={p.rename} onKey={() => { wantFocus.current = true }} />
               ) : (
                 <>
                   <span className="kit-row-label">{labelOf(source.label(row.id), row.match)}</span>
@@ -353,7 +360,7 @@ function labelOf(text: string, match: [number, number] | null): ReactNode {
   )
 }
 
-function RenameInput({ id, start, rename }: { id: string; start: string; rename: Rename }) {
+function RenameInput({ id, start, rename, onKey }: { id: string; start: string; rename: Rename; onKey(): void }) {
   const input = useRef<HTMLInputElement>(null)
   const done = useRef(false)
   const [text, setText] = useState(start)
@@ -383,9 +390,13 @@ function RenameInput({ id, start, rename }: { id: string; start: string; rename:
           e.stopPropagation()
           if (e.key === 'Enter') {
             e.preventDefault()
-            if (!error) finish(true)
+            if (!error) {
+              onKey()
+              finish(true)
+            }
           } else if (e.key === 'Escape') {
             e.preventDefault()
+            onKey()
             finish(false)
           }
         }}

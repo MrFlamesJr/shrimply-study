@@ -96,8 +96,13 @@ function Menu({ items, place, focusFirst, onDismiss }: {
       if ((e as Event & { newState?: string }).newState === 'closed') onDismiss()
     }
     menu.addEventListener('toggle', toggled)
+    // A popup window that closes takes its menu with it.
+    const win = menu.ownerDocument.defaultView
+    const gone = () => closeMenu()
+    if (place.kind !== 'side') win?.addEventListener('pagehide', gone)
     return () => {
       menu.removeEventListener('toggle', toggled)
+      win?.removeEventListener('pagehide', gone)
       if (timer.current !== null) menu.ownerDocument.defaultView?.clearTimeout(timer.current)
     }
   }, [])

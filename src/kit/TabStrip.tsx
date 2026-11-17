@@ -188,7 +188,7 @@ export function TabStrip(p: Props) {
             onKeyDown={(e) => e.target === e.currentTarget && keyDown(e, t.id, i)}
             onDragStart={(e) => {
               if (hold.fired) e.preventDefault()
-              else startDrag(e.dataTransfer, { kind: p.dragKind, ids: [t.id] }, t.title)
+              else startDrag(e.dataTransfer, { kind: p.dragKind, ids: [t.id] }, t.title, e.currentTarget)
             }}
             onDragEnd={() => {
               endDrag()
