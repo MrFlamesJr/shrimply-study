@@ -46,7 +46,7 @@ export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc }
         </li>
       </ul>
       {docs.length > 0 && (
-        <>
+        <section className="wb-empty-files" aria-label="Open files">
           <p className="wb-empty-label">Open files</p>
           <ul className="wb-empty-actions">
             {docs.map((d) => {
@@ -60,7 +60,7 @@ export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc }
               )
             })}
           </ul>
-        </>
+        </section>
       )}
     </div>
   )
