@@ -72,3 +72,15 @@ This app maps them in the last block of `src/theme/tokens.css`, on `:root`:
 | Context menu | `ContextMenu.tsx`, `menu.css` | [menu.md](menu.md) |
 | Tree view | `TreeView.tsx`, `tree.css` | [treeview.md](treeview.md) |
 | Popup windows | `windows.ts`, `Popout.tsx`, `public/popout.html` | [windows.md](windows.md) |
+
+## Using the kit in another project
+
+`examples/kit-host/` is a small notes workspace that uses only `src/kit/` and React (a tree with a context menu, tabs in
+splits, undo and redo, shortcuts, a popped-out window and confetti), with none of Shrimply Study's code. Build it alone
+with `npx vite build examples/kit-host --outDir <dir>`. To use the kit the same way:
+
+1. Copy `src/kit/` (without `demo/`) into your project and map the `--kit-*` variables in your own stylesheet, as
+   `examples/kit-host/host.css` does.
+2. Serve a copy of `public/popout.html` next to your app (the kit opens `popout.html` beside the page's base URL) if you
+   pop windows out.
+3. Import the components and pure modules from the folder; read the module pages above for each one's contract.
