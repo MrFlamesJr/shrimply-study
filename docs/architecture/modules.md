@@ -1,6 +1,8 @@
 # Modules and their contracts
 
-Every signature here is binding: an implementer creates the file with exactly these exports (more private helpers are fine).
+The signatures below were the contract the code was built to. They have been brought in line with what was built; a line
+marked "Built:" says where the code goes further than, or differs from, the original contract. Detailed per-module pages
+for the kit are in `docs/kit/`.
 "Pure" means no DOM, no React, no clock or random inside (ids and times come in as arguments), never mutates its inputs.
 
 ## The kit: `src/kit/` (generic, reusable)
@@ -14,6 +16,9 @@ Rules for every file in `src/kit/`:
 - DOM code never uses the global `window` / `document` for an element it was given: it uses
   `el.ownerDocument` and `el.ownerDocument.defaultView` (the element may live in a popup window), and never
   `instanceof HTMLElement` (fails across windows: use `nodeType` / `nodeName`).
+
+`src/kit/longPress.ts` (a touch or pen long press as a stand-in for a right click: `createLongPress(onPress)`, used by
+`TabStrip` and `TreeView`) is a kit file too; it has no contract of its own above.
 
 Host variables: `--kit-ground --kit-surface --kit-surface-2 --kit-popup --kit-text --kit-muted --kit-border
 --kit-border-strong --kit-accent --kit-accent-soft --kit-accent-line --kit-focus --kit-danger --kit-radius --kit-font
@@ -66,6 +71,9 @@ export function windowOf<D>(l: Layout<D>, groupId: GroupId): WindowId | null
 export function groupsIn<D>(l: Layout<D>, win: WindowId): GroupId[]   // in reading order
 export function allGroups<D>(l: Layout<D>): GroupId[]
 ```
+Built: operations on unknown ids return the input object. `split` also returns it when `newGroupId` exists; `join` when
+`from === into`; `popOut` refuses `MAIN` as target, a window id in use and the only group of `MAIN`; `moveTab` inside one
+group does not normalize. `allGroups` lists `MAIN`'s groups first.
 
 ### `history.ts` (pure): undo and redo
 
@@ -114,6 +122,8 @@ export type Row = { id: string; depth: number; parent: string | null; expandable
 export function flatten(src: TreeSource, expanded: ReadonlySet<string>, filter?: string): Row[]
 // filter: case- and accent-insensitive substring of the label; shows matches and their ancestors (ancestors shown
 // expanded whatever `expanded` says); `match` is the matched range in the label.
+// Built: only ancestors with a kept child open. A row that matches but has no matching child shows no children and is
+// not `expandable`. A filter of spaces is a filter; `match` is the first occurrence only.
 export type Nav = { focus?: string; expand?: string; collapse?: string; activate?: string }
 export function keyNav(rows: Row[], focus: string | null, key: string, pageSize?: number): Nav | null
 // WAI-ARIA tree: ArrowDown/Up, Home/End, PageDown/Up (pageSize, default 10), ArrowRight (expand, else first child),
@@ -131,6 +141,7 @@ export function startDrag(dt: DataTransfer, payload: DragPayload, text: string):
 // ^ sets DRAG_MIME (JSON) and text/plain, effectAllowed 'copyMove', and keeps the payload in this module (the drag
 //   may end in another of the app's windows: same JavaScript, so the module copy is read first)
 export function readDrag(dt: DataTransfer | null): DragPayload | null   // module copy, else DRAG_MIME when readable
+// Built: the DRAG_MIME copy is validated (`kind` a string, `ids` an array; ids converted to strings), else null.
 export function endDrag(): void
 export function effectFor(mods: { ctrlKey: boolean; altKey: boolean; metaKey: boolean }, mac: boolean): 'move' | 'copy'
 // copy with Ctrl (Alt/Option on Mac), else move
@@ -157,8 +168,8 @@ export const isMac: (platform: string) => boolean
 export function openPopup(id: string, url: string, o: { width: number; height: number; left?: number; top?: number }): Window | null
 // ^ call synchronously inside the click; null when the browser blocked it. Features: 'popup,width,height,left,top'.
 export function mountPopup(win: Window, o: { title: string }): Promise<HTMLElement>
-// ^ waits for the page to load, copies the opener's <link rel=stylesheet>, <style> and <html> attributes (data-theme,
-//   lang, class) and keeps them in sync (MutationObserver), sets the title, returns a fresh root element in its body
+// ^ waits for the page to load (rejects with an Error if it was closed first), copies the opener's <link rel=stylesheet>,
+//   <style> and <html> attributes (data-theme, lang, class, style: Built: `style` too) and keeps them in sync (MutationObserver), sets the title, returns a fresh root element in its body
 export function setPopupTitle(win: Window, title: string): void
 export function onPopupClosed(win: Window, cb: () => void): () => void
 // ^ once, on pagehide (closed or reloaded) or when win.closed turns true (500 ms poll as a fallback)
@@ -166,6 +177,7 @@ export function appWindows(): Window[]             // the main window, then open
 export function activeWindow(): Window             // the app window focused last (main by default)
 export function subscribeWindows(cb: () => void): () => void   // popups opened or closed, or focus moved
 export function closePopups(): void
+// ^ Built: also runs on the main window's pagehide. `openPopup` uses `id` as the window name, so an id still open is reused.
 export function windowOf(el: Element): Window      // el.ownerDocument.defaultView
 ```
 
@@ -187,9 +199,13 @@ export function TabStrip(p: {
   onContextMenu(id: string, at: { x: number; y: number }): void
   actions?: ReactNode                                         // buttons at the strip's right end
 }): ReactNode
+// Built: also Home/End; roving tabindex; a long press opens the menu on touch; dropEffect is always 'move'; a drop of this
+// strip's own single tab calls onMove, anything else accepted calls onDrop.
 
 // SplitView.tsx: one window's node tree. Sashes: pointer drag (pointer capture), arrows (2% a press) on a focusable
-// role=separator, double click makes the sizes equal. Never shrinks a group under minSize.
+// role=separator, double click makes the sizes equal. Built: a sash moves the two panes beside it and keeps both above
+// minSize where the room allows (default 320 x 240; the sash gap is 4px); minSize is only enforced while resizing, and
+// onResize is called at most once per frame while dragging, then once on release.
 export function SplitView(p: { root: Node; renderGroup(id: GroupId): ReactNode; onResize(path: number[], sizes: number[]): void;
   minSize?: { width: number; height: number } }): ReactNode
 // Overlay on a group while something is dragged over it: highlights the edge or center zone (edgeZone).
@@ -217,9 +233,14 @@ export function TreeView(p: {
   rename?: { id: string | null; commit(id: string, name: string): void; cancel(): void; check?(id: string, name: string): string | null }
   empty?: ReactNode
 }): ReactNode
+// Built: also Space (toggle the focused row), Ctrl+A (select all), ContextMenu and Shift+F10, type-ahead (700 ms buffer);
+// a collapsed folder under a drag opens after 600 ms; the tree scrolls within 28px of its top or bottom edge during a
+// drag; 8 rows are rendered beyond the view; the container needs a definite height (600px assumed until measured);
+// rename: Enter commits, Esc cancels, leaving the field commits unless `check` returns a message (then it cancels);
+// the selection is not pruned (the host calls selection.prune). Rows must be exactly `rowHeight` tall.
 
 // ContextMenu.tsx: imperative, so any handler can open one. A top-layer popover in `doc` (default: the document of
-// `at.anchor`, else activeWindow()'s), placed at the point (or under the anchor) and kept on screen; arrows, Home/End,
+// `at.anchor`, else Built: the global `document`: pass `doc` for a click in a popup), placed at the point (or under the anchor) and kept on screen; arrows, Home/End,
 // Enter/Space, ArrowRight/Left for submenus, typeahead, Esc and a click outside close it and give focus back.
 export type MenuItem = 'separator' | { label: string; onSelect?: () => void; shortcut?: string; disabled?: boolean;
   reason?: string; danger?: boolean; checked?: boolean; submenu?: MenuItem[] }
@@ -230,82 +251,210 @@ export function closeMenu(): void
 export type Particle = { x: number; y: number; vx: number; vy: number; angle: number; spin: number; color: string;
   w: number; h: number; life: number }
 export function burst(o: { count: number; x: number; y: number; angle: number; spread: number; speed: number;
-  colors: string[]; random: () => number }): Particle[]
+  colors: string[]; random: () => number; life?: number }): Particle[]   // Built: life (seconds, default 1) was added
 export function stepParticles(ps: Particle[], dt: number, o: { gravity: number; drag: number; height: number }): Particle[]
 export function Confetti(p: { level: 'done' | 'perfect'; colors: string[] }): ReactNode
 // fixed canvas over its own document, pointer-events none, device pixel ratio aware, frames from its own window;
 // renders nothing under prefers-reduced-motion
+// Built: 'done' is one burst of 40 from the top centre (about 1.2 s), 'perfect' four bursts from the bottom corners (about
+// 2.5 s). The effect restarts when `level` or the identity of `colors` changes (pass a stable array); after it ends the
+// component stays mounted and renders nothing. The canvas is sized once, when it starts.
 ```
 
 ## The app
 
+Status of each part as built: "mounted" means `App` renders it; "not mounted" means the code and its tests exist but
+no screen shows it yet (see `integration.md`).
+
 ### `src/logic/contentOps.ts` (pure): copying, moving and deleting across open files
 
+Built as contracted. Types: `DocId`, `Docs = Record<DocId, Library>`, `ItemRef` (course, quiz or card, each with `doc`),
+`Target` (`doc` | `course` | `quiz`, each with an optional `index`; a quiz target also an optional `group`), `Fragment`
+(courses, quizzes or cards with the own side types they use). Functions:
+
 ```ts
-export type DocId = string
-export type Docs = Record<DocId, Library>
-export type ItemRef =
-  | { kind: 'course'; doc: DocId; course: string }
-  | { kind: 'quiz'; doc: DocId; course: string; quiz: string }
-  | { kind: 'card'; doc: DocId; course: string; quiz: string; card: string }
-export type Target =
-  | { kind: 'doc'; doc: DocId; index?: number }                                         // courses go here
-  | { kind: 'course'; doc: DocId; course: string; index?: number }                      // quizzes go here
-  | { kind: 'quiz'; doc: DocId; course: string; quiz: string; index?: number; group?: string | null }  // cards
-// index: in the target's list (courses, quizzes, cards) before the operation; default the end.
-// group: for cards, undefined = keep each card's group by name (re-created in the target quiz with its color when
-// missing); null = no group; an id = that group of the target quiz.
-export type Fragment =
-  | { kind: 'course'; courses: Course[]; sideTypes: Sides[] }
-  | { kind: 'quiz'; quizzes: Quiz[]; sideTypes: Sides[] }
-  | { kind: 'card'; cards: { card: Card; group: Group | null }[]; sideTypes: Sides[] }
-export function extract(docs: Docs, refs: ItemRef[]): Fragment
-// deep copy, in document order whatever the order of refs; throws when refs are of mixed kinds or one is missing.
-// sideTypes: the own side types the items' term cards use.
-export function canPlace(docs: Docs, refs: ItemRef[], target: Target, effect: 'move' | 'copy'): string | null
-// null when allowed, else a plain reason ("A course can't go inside a quiz", "Can't move a course into itself").
-// Wrong level, a missing item or target, or moving a quiz into the course it is in at the same place are refused.
+export function extract(docs: Docs, refs: ItemRef[]): Fragment      // deep copies in document order; throws on mixed kinds or a missing item
+export function canPlace(docs: Docs, refs: ItemRef[], target: Target, effect: 'move' | 'copy'): string | null   // null, or a plain reason
 export function insert(docs: Docs, fragment: Fragment, target: Target, newId: () => string): { docs: Docs; created: ItemRef[] }
-// fresh ids for everything inside (courses, quizzes, groups, cards); a name taken in the target (by slug) gets
-// freeName's "Name (2)"; groups and sideTypes carried as above; order kept; throws (nothing changed) when not allowed.
-export function remove(docs: Docs, refs: ItemRef[]): Docs
-export function move(docs: Docs, refs: ItemRef[], target: Target): { docs: Docs; moved: ItemRef[] }
-// keeps ids; within one parent it is a reorder (no rename, index counted before the move); across parents and files,
-// names are made free and groups/sideTypes carried; one call, so one history entry; throws when canPlace refuses.
+export function remove(docs: Docs, refs: ItemRef[]): Docs           // throws when an item is missing
+export function move(docs: Docs, refs: ItemRef[], target: Target): { docs: Docs; moved: ItemRef[] }   // keeps ids; throws when canPlace refuses
 export function exists(docs: Docs, ref: ItemRef): boolean
-export function itemName(docs: Docs, ref: ItemRef): string   // a course/quiz name, a card's first text (trimmed)
+export function itemName(docs: Docs, ref: ItemRef): string          // a course or quiz name, a card's first text; "Empty card" when it has none
 ```
+
+`insert` and `move` give a taken name (by slug) the next free "Name (2)", carry groups (re-created with their color when
+missing) and own side types, and throw before changing anything when not allowed.
 
 ### `src/logic/explorerTree.ts` (pure): the Explorer's tree over the open files
 
 ```ts
 // Node ids: "d:<doc>", "c:<doc>:<course>", "q:<doc>:<course>:<quiz>", "k:<doc>:<course>:<quiz>:<card>".
 export type OpenDoc = { id: DocId; name: string; library: Library }
-export function explorerSource(docs: OpenDoc[]): TreeSource      // cards in group order, labels from itemName
-export function refOf(nodeId: string): ItemRef | { kind: 'doc'; doc: DocId }
+export function explorerSource(open: OpenDoc[]): TreeSource      // files, courses, quizzes, cards (as stored, so in group order); file labels are the names
+export function refOf(nodeId: string): ItemRef | { kind: 'doc'; doc: DocId }   // throws on an unknown id
 export function nodeOf(ref: ItemRef | { kind: 'doc'; doc: DocId }): string
 export function targetFor(docs: Docs, nodeId: string | null, pos: 'before' | 'inside' | 'after', kind: Fragment['kind']): Target | null
-// where a drop or paste of `kind` lands relative to a node (inside a quiz: its end; before/after a card: that index in
-// its quiz and that card's group; on a file: its end; null node: the last file); null when no place fits
 ```
 
-### `src/state/useWorkspace.ts`
+`targetFor` (Built, more than the one-line contract): inside a quiz is its end with no group; before or after a card is
+that place in its quiz and that card's group; before or after a quiz or course is that place in its parent; on a file
+(any position) or no node (the last file) is the end of its courses. A kind that cannot go at the node walks up to the
+nearest parent that takes it, after the child it came from (before it for "before"). `null` when none does or the node
+does not exist.
+
+### `src/logic/explorerActions.ts` (pure): what the Explorer lets the user do, as data
+
+The decisions behind `src/layout/Explorer.tsx` (not mounted); the component only carries them out. Exports:
+
+```ts
+export type ItemKind = ItemRef['kind']; export type NodeKind = ItemKind | 'doc'; export type DocRef = { kind: 'doc'; doc: DocId }
+export type Clip = { mode: 'copy' | 'cut'; refs: ItemRef[] }
+export const kindCount: (kind: ItemKind, n: number) => string                     // "1 card", "3 quizzes"
+export function parseNode(id: string): ItemRef | DocRef | null                    // null for an id that is not a node
+export function selectionKind(ids: string[]): NodeKind | 'mixed' | null
+export const itemRefs: (ids: string[]) => ItemRef[]; export const docIds: (ids: string[]) => DocId[]
+export const cardDescription: (card: Card) => string                              // a term card's side names, else its kind
+export function describeNode(docs, meta: Record<DocId, { where: string; dirty: boolean }>, node: string): string | null
+export const whereIcon: (where: string) => 'cloud' | 'browser' | 'file'
+export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | null): { target: Target } | { reason: string }
+export type Action; export type Item; export type Entry = 'separator' | Item; export type MenuContext = { docs; names; clipboard; mac }
+export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Entry[]    // the context menu per kind of selection, with disabled reasons
+export function keyDecision(ctx: MenuContext, e: KeyEvent, ids: string[], at: string | null): { action: Action } | { refuse: string } | null   // Mod+C, Mod+X, Mod+V, Delete, F2
+export function addCourse(docs, doc, id): { docs: Docs; ref: ItemRef } | null   // also addQuiz(docs, doc, course, id), addCard(docs, doc, course, quiz, id)
+export function renameProblem(docs, ref, name): string | undefined; export function renameItem(docs, ref, name): Docs | null
+export type DeletePlan; export function deletePlan(docs, ids, mac): DeletePlan | { reason: string }
+export function removeItems(docs, refs): { ok: true; docs: Docs } | { ok: false; reason: string }
+export type Plan = { ok: true; docs: Docs; label: string; created: ItemRef[] } | { ok: false; reason: string }
+export const dragLabel, dragKind, allowInside; export function dropTarget, dropRule, placeItems, dropPlan
+export type Destination; export function moveDestinations, ancestorNodes
+```
+
+Functions return a result instead of throwing (a refusal is a `reason`). Files cannot be dragged or deleted from the tree
+(close them instead).
+
+### `src/logic/workbenchActions.ts` (pure): what the Workbench shows and does, as data
+
+For `src/layout/Workbench.tsx` (not mounted).
+
+```ts
+export type TabData; export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }; export type Docs = Record<string, WorkbenchDoc>
+export const MIN_PANE = { width: 320, height: 240 }; export const KEPT_ALIVE = 7   // hidden tabs kept mounted besides the shown one
+export function tabTitle(tab, docs): string; export function tabDescription(tab, docs): string | undefined; export function copyPathText(tab, docs): string | null
+export function tabDirty(tab, docs): boolean; export function tabTooltip(tab, docs): string
+export function mountedTabs(g: Group): Set<string>      // the shown tab and the most recent hidden ones, in tab order
+export function canSplit(size: { width: number; height: number }, dir: 'row' | 'column'): boolean   // both halves stay at least MIN_PANE
+export type GroupContext; export type MenuAction; export type MenuEntry
+export function tabMenu(tab, docs, g: GroupContext, mac: boolean): MenuEntry[]; export function groupMenu(g: GroupContext): MenuEntry[]
+```
+
+`TabData` is declared here for the Workbench with the same shape as in `state/workspace.ts`. The file imports `resolve`
+from `src/route.ts`.
+
+### `src/logic/tabNav.ts` (pure) and `src/layout/tabNav.ts`: a tab's navigation (not mounted)
+
+```ts
+// logic/tabNav.ts
+export type TabNavEffects = { setRoute(route: Route): void; syncAddress(route: Route, mode: 'push' | 'replace'): void }
+export type Created = { get(): string | undefined; set(id: string | undefined): void }
+export function buildTabNav(route: Route, fx: TabNavEffects, created: Created): Nav
+// layout/tabNav.ts
+export type TabNavOps = { setRoute(tabId: string, route: Route): void; ownsAddress(tabId: string): boolean }
+export function makeTabNav(tabId: string, route: Route, ops: TabNavOps): Nav   // writes location.hash only for the tab that owns the address bar
+```
+
+`Nav` is declared in `src/route.ts`: `{ route; go(r); redirect(r); goToNew(id, r); takeCreated(id): boolean }` (id first).
+Screens take an optional `nav` and otherwise use `windowNav(route)`, the address bar's. `route.ts` also has
+`usePlaceFor`, the per-route version of `usePlace`. Built: `state/useWorkspace.ts` still exports a `Nav` type whose
+`goToNew` takes the route first; nothing uses it and it differs from the real one.
+
+### `src/state/workspace.ts` (pure): the workspace and its transitions (mounted, run by `useWorkspace`)
 
 ```ts
 export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'welcome' }
+export type Doc = { id; library; saved: Library | null; name; file: FileRef | null; drive: DriveSource | null; replaced: number; newer: boolean }
+export type Workspace = { docs: Record<DocId, Doc>; order: DocId[]; layout: Layout<TabData>; history: History<Snap>; clipboard: Clipboard | null; explorer: Explorer }
+export type Snap = Record<DocId, Library>; export type Clipboard = { mode: 'copy' | 'cut'; refs: ItemRef[]; fragment: Fragment }
+export type Explorer = { expanded: string[]; selection: Selection }
+```
+
+A document has unsaved changes when `library !== saved` (`hasChanges`). Transitions take a `Workspace`, return a new
+one, and read no clock (times and new ids are arguments):
+
+- Documents: `emptyWorkspace`, `makeDoc`, `docName`, `where`, `freeDocName`, `libraries`.
+- Layout: `tabIdOf`, `activeTab`, `activeDoc`, `addDoc`, `activateDoc`, `setRoute`.
+- Content: `applyEdit(w, label, update, at, key?)` is the one write path; it records only the documents that changed and
+  merges entries of the same key within 1.5 s. `undoEdit` and `redoEdit` return `{ workspace, entry }` or null.
+  `forget(history, id)`, `patchDoc`, `replaceDoc` (the whole library replaced from outside: saved as it comes, `replaced`
+  counted, that document's history entries dropped), `takeRecord` (another tab wrote the document), `markSaved`,
+  `closeDoc` (its tabs and history go; a cut from it becomes a copy), `dropDraft`.
+- Clipboard: `toClipboard`, `paste` (a cut moves when its items still exist, else the copy goes in with new ids; throws
+  the reason when refused).
+- Files: `changedOnDisk`, `reopenFile`, `docWithDrive`.
+- Persistence: `docRecord`, `workspaceRecord`, `readRoute`, `defaultLayout`, `readLayout`, `readExplorer`, `restore`.
+
+Built: the layout holds one tab per document for now (the default layout is one group with a tab per document).
+`readLayout` checks a stored layout: tabs of documents no longer open go, popped-out groups come back docked, every open
+document has a tab, and anything malformed gives the default layout.
+
+### `src/state/useWorkspace.ts` (mounted)
+
+`useWorkspace(adapter, notify, ask, askChoice, onSwitch)` replaces the earlier `useLibrary`. `onSwitch(route | null)` is
+called when the active document changes (App writes that tab's page into the address bar).
+
+```ts
 export type DocMeta = { id: DocId; name: string; where: 'device' | 'drive' | 'browser'; dirty: boolean }
-export type Nav = { route: Route; go(r: Route): void; redirect(r: Route): void; goToNew(r: Route, id: string): void; takeCreated(id: string): boolean }
 export type WorkspaceApi = {
-  ready: boolean
-  docs: DocMeta[]
-  doc(id: DocId): LibraryApi          // the same shape as today's LibraryApi (plus replace, save, close); memoized per doc
+  ready: boolean                                   // the browser backup has been read; App renders nothing before
+  docs: DocMeta[]                                  // open documents, in the sidebar's order
+  active: DocId | null                             // the active tab's document
+  doc(id: DocId): LibraryApi                       // one document's API; the same object until it (or the sign-in) changes
   layout: Layout<TabData>
-  // layout actions (openTab, closeTabs, split, moveTab, join, resize, popOut, dock, activate...) wrap kit/layout
+  activate(id: DocId): void
+  setRoute(route: Route): void                     // the page the active tab shows
   apply(label: string, update: (docs: Docs) => Docs, key?: string): void   // the one content write path
   undo(): void; redo(): void; undoLabel: string | null; redoLabel: string | null
-  clipboard: { mode: 'copy' | 'cut'; refs: ItemRef[]; fragment: Fragment } | null
+  clipboard: Clipboard | null
   copy(refs: ItemRef[]): void; cut(refs: ItemRef[]): void; paste(target: Target): void
-  newDoc(): DocId; openFile(): Promise<DocId | null>; saveAll(): Promise<void>; closeDoc(id: DocId): Promise<boolean>
-  explorer: { expanded: string[]; selection: Selection }
+  newDoc(at?: Route): DocId
+  openFile(at?: Route): Promise<DocId | null>
+  openLibrary(load: () => Promise<Library>, name: string, at?: Route): Promise<DocId | null>
+  openDrive(id: string, own?: boolean): Promise<boolean>
+  saveAll(): Promise<void>
+  closeDoc(id: DocId): Promise<boolean>
+  explorer: Explorer; setExplorer(explorer: Explorer): void
+  drive: DriveApi                                  // Google Drive with no document behind it (sign in, list, picker)
+  loadLabel: string; loadHint: string
 }
 ```
+
+`LibraryApi` (one document; what screens use) has: `ready`, `id`, `name`, `library`, `replaced`, `hasChanges`,
+`loadLabel`, `saveLabel`, `loadHint`, `saveHint`, `findCourse`, `findQuiz`, `addCourse`, `leaveCourse`, `renameCourse`,
+`deleteCourse`, `addQuiz`, `renameQuiz`, `deleteQuiz`, `setCards`, `addSideType`, `renameSideType`, `deleteSideType`,
+`updateCard`, `replace`, `save`, `download`, `close`, `file`, `fileName` and `drive: DriveApi` (`setUp`, `file`,
+`signedIn`, `yours`, `newer`, `savesInto`, `signOut`, `account`, `prepare`, `signIn`, `canSave`, `open`, `refresh`,
+`pull`, `save`, `saveCopy`, `saveNew`, `share`, `list`, `remove`, `pick`).
+
+Built, differences from the original contract: `WorkspaceApi` has no layout actions (`openTab`, `closeTabs`, `split`,
+`moveTab`, `join`, `resize`, `popOut`, `dock`). Only `activate` and `setRoute` exist, because the Workbench is not mounted
+yet. It adds `active`, `setExplorer`, `openLibrary`, `openDrive`, `drive`, `loadLabel` and `loadHint`, and `newDoc` and
+`openFile` take an optional route. `explorer.expanded` is a `string[]`. Content edits go through `apply`, which marks
+every document it changed as unsaved and schedules that document's browser backup 300 ms later. The workspace's own
+record (open documents, layout, Explorer, names) is written the same way, and what waits is flushed on `pagehide` and
+when the page is hidden.
+
+### `src/layout/Explorer.tsx`, `Workbench.tsx`, `PaneHead.tsx` (not mounted)
+
+- `Explorer(p: ExplorerProps)`: every open file as a tree, driven only by its props. Props: `docs: ExplorerDoc[]`
+  (`{ id, name, library, dirty, where }`), `expanded`, `onExpanded`, `selection`, `onSelection`, `clipboard`, `apply(label,
+  update)`, `copy`, `cut`, `paste`, `notify`, `ask`, `open(node)`, `edit(ref)`, `newDoc`, `openFile`, `saveDoc`,
+  `downloadDoc`, `closeDoc`, `reveal: string | null` and `onRevealed`. It renders a `TreeView` (row height 32, 44 on touch),
+  opens `ContextMenu`s from `explorerActions.menuFor`, and runs every change through `apply`.
+- `Workbench(p: WorkbenchProps)`: the main window's `SplitView` of groups (each a `TabStrip`, a `PaneHead` and the tabs'
+  screens, hidden ones kept mounted per `mountedTabs`) and a `Popout` for each other window of the layout. Props:
+  `layout`, `docs: Record<string, WorkbenchDoc>`, `popups: Record<WindowId, Window>`, `renderTab(tab, shown)`,
+  `crumbs(tab)`, `onCrumb(tabId, route)`, `canPopOut` and `on`: `activate`, `activateGroup`, `close`, `closeOthers`,
+  `closeAll`, `move`, `split`, `join`, `resize`, `popOut` (the host calls `openPopup` synchronously inside it), `dock`,
+  `saveDoc`, `saveAll`, `revealInExplorer`, `copyText`.
+- `PaneHead({ crumbs, onCrumb })`: breadcrumbs for a pane; `Crumb = { label; route? }`.
+- Mounted today: `Sidebar` (lists the open files from `ws.docs`) and `TopBar`. The kit demo `#/_workbench`
+  (`src/kit/demo/WorkbenchDemo`) uses only the kit.

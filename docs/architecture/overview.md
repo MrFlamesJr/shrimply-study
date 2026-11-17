@@ -6,17 +6,22 @@ study data. The app composes it with its own domain code.
 
 ## Layers (each may only use the ones below it)
 
-1. `src/kit/`: generic. Imports only React and itself.
-2. `src/model.ts`, `src/logic/`: the study domain, pure functions with tests next to them.
+1. `src/kit/`: generic. Imports only React, react-dom and itself.
+2. `src/model.ts`, `src/logic/`: the study domain, pure functions with tests next to them. They may import the kit's pure
+   files; two files (`tabNav.ts`, `workbenchActions.ts`) also import types and `resolve` from `src/route.ts`.
 3. `src/storage/`: every file, zip, IndexedDB, localStorage and Google call. Nothing else touches them.
-4. `src/state/useWorkspace.ts`: owns all runtime state: the open documents (one per `.shrimp` file, Drive file or
-   browser-only library), the layout (tabs, groups, splits, windows), the undo history, the clipboard and the
-   Explorer's state. Content changes go through one path, `apply`, which records history, marks the files touched as
-   unsaved and schedules the browser backup.
-5. `src/layout/`, `src/screens/`, `src/components/`: the UI. Screens get `lib: LibraryApi` (one document) and
-   `nav: Nav` (their tab) as props.
+4. `src/state/` (`workspace.ts` the pure transitions, `useWorkspace.ts` the hook): owns all runtime state: the open
+   documents (one per `.shrimp` file, Drive file or browser-only library), the layout, the undo history, the clipboard
+   and the Explorer's state. Content changes go through one path, `apply`, which records history, marks the files
+   touched as unsaved and schedules the browser backup. Today the layout holds one tab per document and the hook has no
+   split, pop out or dock actions yet.
+5. `src/layout/`, `src/screens/`, `src/components/`: the UI. Screens get `lib: LibraryApi` (one document) and an
+   optional `nav: Nav` (their tab) as props. `Sidebar` and `TopBar` are mounted; `Workbench` and `Explorer` are built
+   and tested but not mounted yet.
 
 ## One state, many windows
+
+This is the design; the popup code (`kit/windows`, `kit/Popout`, `Workbench`) exists but is not mounted yet.
 
 Everything runs in the main window. A popped-out pane is a popup window of a blank same-origin page
 (`public/popout.html`, no script) into which the main window's React tree renders through a portal. So every window
