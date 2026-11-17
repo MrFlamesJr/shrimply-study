@@ -27,7 +27,7 @@
   padding: 0 var(--kit-space-2) 0 var(--kit-space-3);
   border-radius: var(--kit-radius) var(--kit-radius) 0 0;
   color: var(--kit-muted);
-  cursor: default;
+  cursor: pointer; /* a tab is clicked like a button (the app's buttons and links show the hand) */
   user-select: none;
   -webkit-touch-callout: none;
   white-space: nowrap;
