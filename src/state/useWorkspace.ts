@@ -448,7 +448,17 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     })
     tellKept(kept)
   }
-  const setSignedNow = () => settle((w) => W.setSignedIn(w, google.signedIn(), google.signedInAs()))
+  // A stale library (W.stale) takes its Drive version as soon as it may: signed in, or known to be the user's own.
+  const syncStale = (id?: DocId) => {
+    for (const x of id ? [id] : ref.current.order) {
+      const d = cur(x)
+      if (d && W.stale(d)) void syncDoc(x)
+    }
+  }
+  const setSignedNow = () => {
+    settle((w) => W.setSignedIn(w, google.signedIn(), google.signedInAs()))
+    syncStale()
+  }
   // A call that may have signed in on the way.
   const signedInNow = () => {
     if (google.signedIn() !== ref.current.signedIn || google.signedInAs() !== ref.current.account) setSignedNow()
@@ -629,17 +639,20 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     wsTimer.current = setTimeout(() => void writeWorkspaceNow(), BACKUP_DELAY)
   }, [ready, ws.order, ws.closed, ws.layout, ws.explorer, ws.docs])
 
-  // Leaving the page (or hiding it, which may be the last chance on phones): what waits is written now.
+  // Leaving the page (or hiding it, which may be the last chance on phones): what waits is written now, in this event
+  // (each write is committed at once, see browserBackup), including an edit whose timer is not even set yet.
   useEffect(() => {
+    // Not before the backup is read: the workspace as it starts (empty) would replace the one kept.
+    if (!ready) return
     const flushBackup = () => {
-      for (const [id, timer] of [...timers.current]) {
-        clearTimeout(timer)
+      for (const id of ref.current.order) {
+        const rec = written.current.get(id)
+        if (!timers.current.has(id) && rec && sameRecord(rec, ref.current.docs[id])) continue
+        clearTimeout(timers.current.get(id))
         void writeNow(id)
       }
-      if (wsTimer.current !== undefined) {
-        clearTimeout(wsTimer.current)
-        void writeWorkspaceNow()
-      }
+      clearTimeout(wsTimer.current)
+      void writeWorkspaceNow()
     }
     const onHidden = () => document.visibilityState === 'hidden' && flushBackup()
     window.addEventListener('pagehide', flushBackup)
@@ -648,7 +661,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       window.removeEventListener('pagehide', flushBackup)
       document.removeEventListener('visibilitychange', onHidden)
     }
-  }, [])
+  }, [ready])
 
   // Another tab of the site wrote a document open here too: this tab takes it up (dropping its history), so the next
   // edit here builds on it instead of writing over it. Unless this tab has changes of its own: waiting to be written,
@@ -709,7 +722,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   }
   // What Google last said about a document's Drive file (renamed in Drive, it keeps its id); only what changed. The
   // user's own file found not to be theirs turns view only.
-  const learn = (id: DocId, driveId: string, patch: Partial<DriveSource>) =>
+  const learn = (id: DocId, driveId: string, patch: Partial<DriveSource>) => {
     settle((w) =>
       W.patchDoc(w, id, (d) =>
         d.drive?.id === driveId && (Object.keys(patch) as (keyof DriveSource)[]).some((k) => d.drive![k] !== patch[k])
@@ -717,6 +730,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
           : null,
       ),
     )
+    syncStale(id)
+  }
   // Google's answer about the file, as kept with it: whether it is the user's own, its name now and whether it is in the bin.
   const learned = (now: Owner): Partial<DriveSource> => ({
     mine: now.canEdit,
@@ -763,6 +778,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const done = action().finally(() => running.current.delete(id))
     running.current.set(id, done)
     return done
+  }
+  // After what runs for the document now, never instead of it (a rename pressed while a save is under way).
+  const queue = async (id: DocId, action: () => Promise<boolean>): Promise<boolean> => {
+    for (let now = running.current.get(id); now; now = running.current.get(id)) await now.catch(() => false)
+    return once(id, action)
   }
 
   // Changed on Google Drive since it was last saved here: asks (Keep mine, Take the Drive version); Cancel leaves it
@@ -1416,7 +1436,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       return id
     }
     const entry = ref.current.closed.find((c) => c.id === id)
-    if (!entry) return null
+    // Gone since it closed (deleted from this browser, moved to the bin, removed from the list): a stale Reopen says so.
+    if (!entry) {
+      say('warning', 'That library is no longer in this browser.')
+      return null
+    }
     let doc: W.Doc
     // A Drive file kept with changes not on Drive yet (another tab's, when it was closed here) opens with them, to save.
     const kept = entry.drive ? await backup.readDoc(id).catch(() => null) : null
@@ -1497,7 +1521,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         say('error', "This browser can't rename files. Rename it on your computer, then use Locate file.")
         return false
       }
-      return once(id, async () => {
+      // After a save under way (never dropped for it); closed meanwhile, there is nothing to rename.
+      return queue(id, async () => {
+        if (!cur(id)) return false
         try {
           await handle.move!(`${next}.shrimp`)
         } catch (err) {
@@ -1512,8 +1538,10 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       update((w) => W.renameDoc(w, id, next))
       return true
     }
-    return once(id, async () => {
-      const drive = cur(id)?.drive
+    return queue(id, async () => {
+      const now = cur(id)
+      if (!now) return false
+      const drive = now.drive
       if (!drive) {
         update((w) => W.renameDoc(w, id, next))
         return true
@@ -1530,7 +1558,16 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     })
   }
 
-  const makeCopy = async (id: DocId): Promise<DocId | null> => {
+  // One copy at a time per library: pressed again while one is made (a double click), it is that same copy.
+  const copying = useRef(new Map<DocId, Promise<DocId | null>>())
+  const makeCopy = (id: DocId): Promise<DocId | null> => {
+    const now = copying.current.get(id)
+    if (now) return now
+    const done = copyOf(id).finally(() => copying.current.delete(id))
+    copying.current.set(id, done)
+    return done
+  }
+  const copyOf = async (id: DocId): Promise<DocId | null> => {
     const shown = cur(id)
     if (!shown) return null
     // Signed in, a Drive file shown as view only may be the user's own after all (opened from its link before Google
@@ -1729,7 +1766,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   // ---- One document's API, the same object while nothing it shows changes ----
 
-  const statusOf = (d: W.Doc) => saveStatus(d, { signedIn: ws.signedIn, account: ws.account, busy: busy.has(d.id), online })
+  // A stale library (W.stale) is not its Drive version: never Saved until its sync takes that.
+  const statusOf = (d: W.Doc) => saveStatus(W.stale(d) ? { ...d, saved: null } : d, { signedIn: ws.signedIn, account: ws.account, busy: busy.has(d.id), online })
   const apis = useRef(new Map<DocId, { doc: W.Doc; signed: string; ready: boolean; status: SaveStatus; api: LibraryApi }>())
   const makeApi = (d: W.Doc, status: SaveStatus): LibraryApi => {
     const id = d.id

@@ -24,9 +24,10 @@ const ENDING = /\.shrimp$/i
  */
 /**
  * `onRename`: the name typed for a library kept in this browser (the dialog closed without uploading: Keep in this
- * browser, the ✕, Esc or a click outside) renames it all the same (asked for).
+ * browser, the ✕, Esc or a click outside) renames it all the same (asked for). `openDriveIds`: the Drive files open
+ * here, which a new upload never replaces (that would leave two libraries tied to one file).
  */
-export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi; mode: 'share' | 'upload'; onClose: () => void; onRename: (name: string) => void }) {
+export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { lib: LibraryApi; mode: 'share' | 'upload'; onClose: () => void; onRename: (name: string) => void; openDriveIds: string[] }) {
   const drive = lib.drive
   const file = drive.file
   // Something is running: a click meanwhile is ignored, and nothing greys out for it (so no button flashes).
@@ -34,7 +35,9 @@ export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi;
   const shareRef = useRef<HTMLDivElement>(null)
   // The name a new file gets, without its ending (.shrimp is fixed inside the field).
   const [name, setName] = useState(() => lib.name.replace(ENDING, ''))
-  const nameProblem = fileNameProblem(name.trim())
+  // What is typed, less a typed ending: ".shrimp" alone is no name.
+  const base = name.replace(ENDING, '').trim()
+  const nameProblem = base ? fileNameProblem(base) : 'A library needs a name.'
   // The last copy of the link: copied, or (the browser refused) selected to copy by hand.
   const [copied, setCopied] = useState<{ id: string; ok: boolean }>()
   // An upload to share is done: the link is copied as soon as the library is its Drive file.
@@ -84,18 +87,21 @@ export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi;
   const upload = (from: HTMLElement) => {
     const dialog = from.closest('dialog')
     return run(async () => {
-      const text = name.trim()
-      if (!text || nameProblem) return
+      const text = base
+      if (nameProblem) return
       if (!drive.signedIn() && !(await drive.signIn())) return
       const taken = await drive.list()
       if (taken === null) return
       const same = taken.find((f) => f.name === `${text}.shrimp`)
       let ok: boolean
       if (same) {
+        const openHere = openDriveIds.includes(same.id)
         const choice = await askChoice(
-          `Your Google Drive already has a library named "${same.name}".`,
+          openHere
+            ? `Your Google Drive already has a library named "${same.name}", and it is open here.`
+            : `Your Google Drive already has a library named "${same.name}".`,
           [
-            { label: 'Replace it', value: 'replace' as const, danger: true },
+            ...(openHere ? [] : [{ label: 'Replace it', value: 'replace' as const, danger: true }]),
             { label: 'Keep both', value: 'both' as const, primary: true },
           ],
           { title: 'That name is taken' },
@@ -113,8 +119,8 @@ export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi;
 
   // Closed without uploading: a library still only in this browser takes the name typed for it.
   const close = () => {
-    const text = name.trim()
-    if (!lib.drive.file && text && !nameProblem && text !== lib.name.replace(ENDING, '')) onRename(text)
+    const text = base
+    if (!lib.drive.file && !nameProblem && text !== lib.name.replace(ENDING, '')) onRename(text)
     onClose()
   }
 
@@ -210,6 +216,7 @@ export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi;
           label="File name"
           suffix=".shrimp"
           maxLength={100}
+          counter
           value={name}
           onChange={setName}
           onEnter={(box) => go(box)}
@@ -230,7 +237,7 @@ export function ShareDialog({ lib, mode, onClose, onRename }: { lib: LibraryApi;
           <button
             type="button"
             className="primary"
-            disabled={!name.trim() || !!nameProblem}
+            disabled={!!nameProblem}
             onClick={(e) => go(e.currentTarget)}
           >
             {mode === 'upload' ? 'Upload' : 'Upload and copy link'}

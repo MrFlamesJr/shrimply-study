@@ -508,8 +508,8 @@ export function App() {
   // A study session alone in the main window keeps the full-screen look: the shell steps aside (CSS), and the
   // workbench stays mounted, so nothing else is lost (popped-out windows neither).
   const studyAlone = !own && groupsIn(ws.layout, MAIN).length === 1 && addr?.data.kind === 'doc' && addr.data.route.name === 'study'
-  // With no file open and no tab, the page is the welcome page.
-  const welcomeOnly = !own && ws.docs.length === 0 && Object.keys(ws.layout.tabs).length === 0
+  // With no file open and no tab, the page is the welcome page (not in pane mode: its empty group has the way to the full app).
+  const welcomeOnly = !own && !pane && ws.docs.length === 0 && Object.keys(ws.layout.tabs).length === 0
   const fullPage = hashRoute.name === 'workbench'
   // The popped-out windows, newest last: an empty group says how many tabs are in them.
   const popped = poppedOut(ws.layout, (w) => !!popups[w])
@@ -604,6 +604,7 @@ export function App() {
             }}
             popups={popups}
             popupAddresses={popupAddresses}
+            addressTab={ws.addressIn}
             onOpenFullApp={pane ? openFullApp : undefined}
             renderTab={(tab, shown) => {
               const group = groupOf(ws.layout, tab.id)
@@ -663,6 +664,7 @@ export function App() {
             mode={shareDialog.mode}
             onClose={() => setShareDialog(null)}
             onRename={(name) => void ws.renameDoc(shareDialog.docId, name)}
+            openDriveIds={ws.docs.flatMap((d) => ws.doc(d.id).drive.file?.id ?? [])}
           />
         )}
       </div>

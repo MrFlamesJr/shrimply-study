@@ -38,6 +38,7 @@ import {
   setSignedIn,
   settleViewOnly,
   signedOut,
+  stale,
   forAccount,
   unsavedDevice,
   unsavedDrive,
@@ -487,8 +488,9 @@ describe('view-only libraries', () => {
     expect(pastedCopy.clipboard?.mode).toBe('copy')
   })
 
-  it("changes one held from before move to a browser library of their own, and its file is read again", () => {
-    let w = applyEdit(two(), 'Rename', rename('b', 'b1', 'Mine'), 0)
+  it('changes one held from before move to a browser library of their own, and it goes back to its version last saved here', () => {
+    const start = two()
+    let w = applyEdit(start, 'Rename', rename('b', 'b1', 'Mine'), 0)
     w = toClipboard(w, [{ kind: 'course', doc: 'b', course: 'b1' }], 'cut')
     w = setSignedIn(withDrive(w, 'b', false), true)
     const { workspace, kept } = settleViewOnly(w, () => 'kept')
@@ -496,13 +498,38 @@ describe('view-only libraries', () => {
     expect(workspace.order).toEqual(['a', 'b', 'kept'])
     expect(workspace.docs.kept).toMatchObject({ name: 'A (my changes)', drive: null })
     expect(workspace.docs.kept.library.courses[0].name).toBe('Mine')
+    // Its Drive version as it was, so it never shows the changes as saved there.
+    expect(workspace.docs.b.library).toBe(start.docs.b.library)
+    expect(workspace.docs.b.replaced).toBe(w.docs.b.replaced + 1)
     expect(hasChanges(workspace.docs.b)).toBe(false)
-    expect(workspace.docs.b.drive?.md5).toBe('')
+    expect(stale(workspace.docs.b)).toBe(false)
     expect(workspace.history.past).toEqual([])
     expect(workspace.clipboard?.mode).toBe('copy')
     expect(settleViewOnly(workspace, () => 'again').kept).toEqual([])
     const calm = setSignedIn(withDrive(two(), 'b', false), true)
     expect(settleViewOnly(calm, () => 'x').workspace).toBe(calm)
+  })
+
+  it('never saved here (a backup from before this release), it keeps what it shows but is stale until its next sync', () => {
+    // Restored signed out from a record with changes not on Drive yet: nothing here is its Drive version.
+    const rec: DocRecord = { id: 'b', library: lib(course('b1', 'Unsaved')), dirty: true, drive: { ...drive(true), md5: 'm1' } }
+    const w = restore({ workspace: null, docs: [rec], handles: {} }, 'g', ids(), false)
+    const { workspace, kept } = settleViewOnly(w, () => 'kept')
+    expect(kept).toEqual([{ from: 'b', to: 'kept' }])
+    expect(workspace.docs.kept.library).toBe(rec.library)
+    const b = workspace.docs.b
+    expect(b.library).toBe(rec.library)
+    expect(hasChanges(b)).toBe(false)
+    expect(stale(b)).toBe(true)
+    // Settled again (signed in, now its owner's), nothing more moves out; and it stays stale across a reload.
+    expect(settleViewOnly(setSignedIn(workspace, true), () => 'again').kept).toEqual([])
+    expect(settleViewOnly(workspace, () => 'again').kept).toEqual([])
+    const again = restore({ workspace: null, docs: [docRecord(b)], handles: {} }, 'g', ids(), true)
+    expect(stale(again.docs.b)).toBe(true)
+    expect(hasChanges(again.docs.b)).toBe(false)
+    // Its next sync replaces it with the Drive version, checksum and all: no longer stale.
+    const synced = replaceDoc(again, 'b', lib(course('b1', 'On Drive')), { drive: { ...again.docs.b.drive!, md5: 'm2' } })
+    expect(stale(synced.docs.b)).toBe(false)
   })
 
   it('lists the own Drive files with changes not on Drive yet, waiting or paused (checked again before signing out)', () => {
@@ -905,6 +932,19 @@ describe('back and forward', () => {
     expect(route(followHistory(w, 'gone', { name: 'course', course: 'b1' }), 'tb')).toEqual({ name: 'course', course: 'b1' })
     expect(followHistory(w, null, { name: 'course', course: 'a1' })).toBe(w)
     expect(route(followHistory(w, null, HOME), 'tb')).toEqual(HOME)
+  })
+
+  it("a typed file page over an app page goes to the file used last, in its tab in the focused group", () => {
+    let w = activateGroup(setup(), 'g')
+    w = followHistory(w, null, { name: 'explorer' }, { newTab: 'te' })
+    expect(shownTab(w)?.data.kind).toBe('explorer')
+    const home = followHistory(w, null, HOME, { newTab: 'n' })
+    expect(activeTab(home)?.id).toBe('ta')
+    expect(route(home, 'ta')).toEqual(HOME)
+    expect(groupOf(home.layout, 'ta')).toBe('g')
+    // Without a tab id to open one with (an entry's own tab gone), nothing changes; a page the file lacks neither.
+    expect(followHistory(w, null, HOME)).toBe(w)
+    expect(followHistory(w, null, { name: 'course', course: 'nope' }, { newTab: 'n' })).toBe(w)
   })
 })
 

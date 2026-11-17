@@ -197,8 +197,17 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, 
   const done = () => {
     const { cards: kept, groups: keptGroups, changed: tidied } = tidyCards(cards, groups)
     const firstBad = kept.findIndex((c) => missingPart(c))
+    // Dropping blank cards is said, with a way back.
+    const tidyPut = () => {
+      put(kept, keptGroups)
+      const dropped = cards.length - kept.length
+      if (dropped === 0) return
+      const undo = undoLater?.()
+      const text = `Removed ${plural(dropped, 'empty card')}.`
+      notify('info', undo ? text : `${text} Ctrl+Z puts ${dropped === 1 ? 'it' : 'them'} back.`, undefined, undo && { label: 'Undo', run: undo })
+    }
     if (firstBad === -1) {
-      if (tidied) put(kept, keptGroups)
+      if (tidied) tidyPut()
       go({ name: 'quiz', course: course.name, quiz: quiz.name })
       return
     }
@@ -211,7 +220,7 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, 
     if (tidied) {
       pendingFocus.current = target
       setCollapsed(withCollapsed(collapsed, flaggedGroups, false))
-      put(kept, keptGroups)
+      tidyPut()
     } else if (flaggedGroups.some((id) => collapsed.has(id))) {
       pendingFocus.current = target
       setCollapsed(withCollapsed(collapsed, flaggedGroups, false))

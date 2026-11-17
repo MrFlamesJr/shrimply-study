@@ -88,6 +88,9 @@ def run(page, base):
 
     # bio130 (456 cards with images), through the Open dialog's device copy.
     page.goto(base + '#/_debug')
+    # Chromium's own file picker (local files that save themselves) never fires Playwright's file chooser: open a copy
+    # through the file input, as Firefox and Safari do (local_files.py covers the picker).
+    page.evaluate('() => { window.showOpenFilePicker = undefined }')
     page.locator('.files-head').get_by_role('button', name='Open', exact=True).click()
     dialog = page.locator('dialog[open]')
     dialog.get_by_text('This device', exact=True).first.click()

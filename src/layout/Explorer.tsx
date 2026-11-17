@@ -624,6 +624,10 @@ export function Explorer(p: ExplorerProps): ReactNode {
             },
           }}
           empty={
+            // A search with no match is not an empty Explorer: say so, and keep the files' own empty page for no files.
+            filter.trim() ? (
+              <p className="explorer-no-match">Nothing matches "{filter.trim()}".</p>
+            ) : (
             <div className="explorer-empty">
               <span className="explorer-empty-mark"><ShrimpIcon /></span>
               <h3 className="explorer-empty-title">No files here yet</h3>
@@ -635,6 +639,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
                 <button type="button" onClick={p.openFile}><FolderIcon /> Open a copy from this device</button>
               </div>
             </div>
+            )
           }
         />
       </div>

@@ -20,3 +20,8 @@ export function toastLift(viewH: number, height: number, edge: number, gap: numb
   if (lifts.length === 0) return 0
   return lifts.reduce((best, l) => (covered(l) < covered(best) ? l : best))
 }
+
+/** Whether a stack spanning `top` to `bottom` (window px) sits over any of `controls`. */
+export function coversControl(top: number, bottom: number, controls: Span[]): boolean {
+  return controls.some((c) => c.bottom > top && c.top < bottom)
+}

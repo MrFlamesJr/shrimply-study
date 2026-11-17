@@ -40,6 +40,10 @@ function run<T>(mode: IDBTransactionMode, request: (store: IDBObjectStore) => ID
         const req = request(tx.objectStore(STORE))
         tx.oncomplete = () => resolve(req.result)
         tx.onerror = tx.onabort = () => reject(tx.error ?? req.error)
+        // A write is committed at once rather than when the page next goes idle: one started as the page goes away
+        // (pagehide) lands, where an idle page never comes and the unfinished transaction is dropped with it. Never a
+        // read: Chromium may then finish it before a large value read is ready in `req.result`.
+        if (mode === 'readwrite') tx.commit?.()
       }),
   )
 }

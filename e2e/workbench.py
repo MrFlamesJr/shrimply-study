@@ -191,6 +191,9 @@ def run(page, base):
     address_names_the_page(page, base)
     open_focuses_and_duplicates(page)
     popout_address(page, base)
+    crowded_window(page)
+    popup_title_follows_focus(page)
+    pane_without_page(page)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
@@ -706,3 +709,89 @@ def popout_address(page, base):
     page.reload()
     groups(page).first.wait_for()
     need(groups(page).count() == 2, "the main tab's saved layout survived")
+
+
+def visible_groups(page):
+    return [g for g in groups(page).all() if g.is_visible()]
+
+
+def crowded_window(page):
+    """Panes never go under their least width: when the groups do not fit (or under 800px) only the shown group shows,
+    with a "+N panes" button in its strip listing the others; choosing one shows it; widening brings every group back."""
+    page.set_viewport_size({'width': 1600, 'height': 900})
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close all').click()
+        page.wait_for_timeout(150)
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
+    for _ in range(2):
+        groups(page).last.get_by_role('button', name='Split right').click()
+        page.wait_for_timeout(300)
+    need(groups(page).count() == 3, 'three groups')
+    page.wait_for_timeout(300)
+    need(len(visible_groups(page)) == 3 and page.locator('.wb-panes').count() == 0, 'three panes fit at 1600px, no list button')
+    for width in (1100, 800, 390):
+        page.set_viewport_size({'width': width, 'height': 800})
+        page.wait_for_timeout(400)
+        vis = visible_groups(page)
+        need(len(vis) == 1, f'at {width}px only the shown group shows ({len(vis)})')
+        box = vis[0].bounding_box()
+        need(box['width'] >= min(320, width) - 1, f'the pane is never squeezed: {box["width"]} at {width}px')
+        btn = vis[0].locator('.wb-panes')
+        need(btn.count() == 1 and btn.inner_text().strip() == '+2 panes', f'a +2 panes button at {width}px')
+        need(bool(btn.get_attribute('title')), 'with a tooltip')
+        need(btn.evaluate('b => b.scrollWidth <= b.clientWidth && b.getBoundingClientRect().height <= 44'), 'the button is one line')
+        need(vis[0].locator('.kit-tabs-actions').evaluate('a => a.getBoundingClientRect().right <= innerWidth + 1'), 'the strip actions stay on screen')
+        btn.click()
+        items = page.locator('.kit-menu [role=menuitem]')
+        need(items.count() == 2, f'the menu lists the 2 hidden groups ({items.count()})')
+        names = [t.strip() for t in items.all_inner_texts()]
+        items.nth(1).click()
+        page.wait_for_timeout(300)
+        now = visible_groups(page)
+        need(len(now) == 1 and now[0].get_attribute('data-group') != vis[0].get_attribute('data-group'), 'choosing one shows that group')
+        need('is-focused' in now[0].get_attribute('class'), f'and focuses it (listed {names})')
+    page.set_viewport_size({'width': 1600, 'height': 900})
+    wait_for(page, lambda: len(visible_groups(page)) == 3 and page.locator('.wb-panes').count() == 0, 'widening brings every group back')
+
+
+def popup_title_follows_focus(page):
+    """A popup's window title is its focused group's active tab, as its address is."""
+    page.set_viewport_size({'width': 1600, 'height': 900})
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close all').click()
+        page.wait_for_timeout(150)
+    page.locator('.file-row', has_text='Test library').locator('.file-name-text').click()
+    page.locator('.file-row', has_text='Guide').locator('.file-name-text').click()
+    with page.context.expect_page() as info:
+        group(page, 0).get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Move group to new window').click()
+    pop = info.value
+    pop.wait_for_selector('.workbench.is-popup [role=tab]')
+    pop.get_by_role('button', name='Split right').first.click()
+    pg = pop.locator('.workbench.is-popup .wb-group')
+    wait_for(pop, lambda: pg.count() == 2, 'the popup splits')
+    pg.nth(0).get_by_role('tab').first.click()
+    for gi in (0, 1, 0):
+        pg.nth(gi).get_by_role('tab').first.click()
+        pop.wait_for_timeout(300)
+        active = pg.nth(gi).locator('[role=tab][aria-selected=true] .kit-tab-title').inner_text().strip()
+        wait_for(pop, lambda: pop.title() == active, f'the popup title is its focused group tab: {pop.title()!r} not {active!r}')
+    pop.get_by_role('button', name='Dock').first.click()
+    wait_for(page, lambda: pop.is_closed(), 'the popup docks')
+
+
+def pane_without_page(page):
+    """Pane mode for a page this browser does not have: an empty group that says so, with Open full app."""
+    other = page.context.browser.new_context(viewport={'width': 1280, 'height': 800}).new_page()
+    other.goto(page.url.split('#')[0] + '#/some-course/some-quiz?file=nope&pane')
+    other.locator('.wb-cell .wb-group').first.wait_for()
+    note = other.locator('.wb-empty')
+    wait_for(other, lambda: note.count() == 1 and 'not open in this browser' in note.inner_text(), 'the empty pane says the page is not open')
+    btn = other.get_by_role('button', name='Open full app')
+    need(btn.count() == 1, f'one Open full app ({btn.count()})')
+    btn.click()
+    other.locator('.sidebar').wait_for(state='visible')
+    need(not re.search(r'[?&]pane', other.evaluate('location.hash')), 'the full app has no pane in its address')
+    other.context.close()

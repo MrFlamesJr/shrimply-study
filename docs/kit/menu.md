@@ -10,7 +10,7 @@ time.
 
 - `MenuItem = 'separator' | { label: string; onSelect?: () => void; shortcut?: string; disabled?: boolean; reason?: string; danger?: boolean; checked?: boolean; submenu?: MenuItem[] }`.
   - `shortcut`: text shown at the right (use `comboLabel` from `shortcuts`); it does not bind a key.
-  - `disabled` + `reason`: a greyed item that cannot be chosen; `reason` is its tooltip.
+  - `disabled` + `reason`: a greyed item that cannot be chosen; `reason` is its tooltip, and is written under the label where there is no hover (touch, windows under 800px).
   - `danger`: styled as a destructive item.
   - `checked`: when defined (true or false) the item is a `menuitemcheckbox`; a check mark shows when true.
   - `submenu`: opens a nested menu; such an item's own `onSelect` is never called.

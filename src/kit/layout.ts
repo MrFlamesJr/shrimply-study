@@ -279,3 +279,16 @@ export function groupsIn<D>(l: Layout<D>, win: WindowId): GroupId[] {
 export function allGroups<D>(l: Layout<D>): GroupId[] {
   return Object.keys(l.windows).sort((a, b) => Number(b === MAIN) - Number(a === MAIN)).flatMap((w) => groupsIn(l, w))
 }
+
+/**
+ * The least size a node can be laid out at when every group keeps `min` and the sashes take `gap` px: a row adds its
+ * children's widths, a column their heights, and the other side needs the largest.
+ */
+export function minSize(n: Node, min: { width: number; height: number }, gap = 4): { width: number; height: number } {
+  if (n.kind === 'group') return min
+  const parts = n.children.map((c) => minSize(c, min, gap))
+  const sash = gap * (parts.length - 1)
+  return n.dir === 'row'
+    ? { width: parts.reduce((a, s) => a + s.width, sash), height: Math.max(...parts.map((s) => s.height)) }
+    : { width: Math.max(...parts.map((s) => s.width)), height: parts.reduce((a, s) => a + s.height, sash) }
+}

@@ -44,6 +44,12 @@
 /* Items keep one even rhythm (asked for): a separator in the data adds no space, as uneven gaps read as
    inconsistent spacing and the app draws no divider lines. The order of the items still groups them. */
 .kit-menu-gap { display: none; }
+/* A disabled item's reason is its tooltip; where there is no hover (touch, narrow windows) it is written under the label. */
+.kit-menu-reason { display: none; flex-basis: 100%; color: var(--kit-muted); font-size: var(--kit-text-xs); white-space: normal; }
+@media (pointer: coarse), (hover: none), (max-width: 799px) {
+  .kit-menu-item.has-reason { flex-wrap: wrap; align-content: center; padding-block: var(--kit-space-2); }
+  .kit-menu-item.has-reason .kit-menu-reason { display: block; }
+}
 @media (pointer: coarse) {
   .kit-menu-item { min-height: var(--kit-tap); }
 }

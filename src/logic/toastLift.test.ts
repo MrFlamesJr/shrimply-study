@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { toastLift } from './toastLift'
+import { coversControl, toastLift } from './toastLift'
 
 // An 800px tall window; the stack is 70px tall, 16px above the bottom, 16px from any control.
 const lift = (height: number, controls: { top: number; bottom: number }[]) => toastLift(800, height, 16, 16, controls)
@@ -34,5 +34,13 @@ describe('toastLift', () => {
   it('with no clear spot inside the window, covers the fewest controls, as low as it can', () => {
     const full = [{ top: 0, bottom: 380 }, { top: 400, bottom: 790 }]
     expect(lift(300, full)).toBe(0)
+  })
+})
+
+describe('coversControl', () => {
+  it('is true only when the stack overlaps a control', () => {
+    expect(coversControl(639, 784, [{ top: 652, bottom: 708 }])).toBe(true)
+    expect(coversControl(491, 636, [{ top: 652, bottom: 708 }])).toBe(false)
+    expect(coversControl(491, 636, [])).toBe(false)
   })
 })

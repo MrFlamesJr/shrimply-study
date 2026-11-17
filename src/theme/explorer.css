@@ -48,6 +48,12 @@
   min-height: 0;
 }
 /* No files: a faded mark, a short title and one compact set of buttons (the empty pane's style). */
+/* A search with no match: one muted line in the tree's place (a long search wraps, never spills). */
+.explorer-no-match {
+  margin: 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
 .explorer-empty {
   display: flex;
   flex-direction: column;

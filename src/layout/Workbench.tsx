@@ -1,19 +1,20 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { BackToTop } from '../components/BackToTop'
 import { IconButton } from '../components/IconButton'
+import { plural } from '../logic/plural'
 import { DockIcon, MoreIcon, OpenIcon, SplitIcon } from '../components/Icons'
 import { ownWindow } from '../components/ownWindow'
 import { openMenu, type MenuItem } from '../kit/ContextMenu'
 import type { DragPayload } from '../kit/dnd'
-import { MAIN, allGroups, groupsIn, windowOf, type Group, type Layout, type Node, type Tab, type WindowId } from '../kit/layout'
+import { MAIN, allGroups, groupsIn, minSize, windowOf, type Group, type Layout, type Node, type Tab, type WindowId } from '../kit/layout'
 import { Popout } from '../kit/Popout'
 import { isEditable, isMac, matches } from '../kit/shortcuts'
 import { DropZones, SplitView } from '../kit/SplitView'
 import { TabStrip } from '../kit/TabStrip'
 import type { Route } from '../route'
 import {
-  canSplit, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
+  MIN_PANE, SMALL, canSplit, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
   type FindPlace, type GroupContext, type MenuAction, type MenuEntry, type TabData, type WorkbenchDoc,
 } from '../logic/workbenchActions'
 import { PaneHead, type Crumb } from './PaneHead'
@@ -32,6 +33,8 @@ export type WorkbenchProps = {
   popups: Record<string, Window>
   /** WindowId -> the address its popup shows (the host's own page for what the window shows; none keeps the popup page's). */
   popupAddresses?: Record<string, string>
+  /** The tab a window's address names (its focused group's active tab): a popup's title is this tab's. */
+  addressTab?(win: string): Tab<TabData> | null
   /** Set when the host is a pane-mode page: the top-right group's strip shows Open full app, where a popup has Dock. */
   onOpenFullApp?: () => void
   /** The screen for a tab; called for the shown tab and for kept-alive hidden ones. */
@@ -120,8 +123,7 @@ export function Workbench(p: WorkbenchProps) {
       {Object.keys(layout.windows)
         .filter((w) => w !== MAIN && p.popups[w])
         .map((w) => {
-          const first = layout.groups[groupsIn(layout, w)[0]]
-          const active = first?.active ? layout.tabs[first.active] : undefined
+          const active = p.addressTab?.(w)
           const title = active ? tabTitle(active, p.docs, p.findPlace) : 'Shrimply Study'
           return (
             // No title row: the browser's own bar names the window, and the tab strip comes right under it.
@@ -167,8 +169,35 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
   // A pane-mode page's way to the full app sits in the main window's top-right group's strip, once.
   const fullAppAt = win === MAIN && p.onOpenFullApp ? topRightOf(layout.windows[win].root) : null
   const elsewhereAt = win === MAIN && popped.length > 0 ? topRightOf(layout.windows[win].root) : null
+  // Crowded: the groups do not fit side by side (and stacked) at their least sizes, or the window is narrow (under
+  // 800px): only the shown group shows (workbench.css), the others stay mounted, hidden, and a button lists them.
+  const box = useRef<HTMLDivElement>(null)
+  const [crowded, setCrowded] = useState(false)
+  const root = layout.windows[win].root
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const view = ownWindow(el)
+    const measure = () => {
+      const need = minSize(root, MIN_PANE)
+      const fits = el.clientWidth >= need.width && el.clientHeight >= need.height
+      setCrowded(view.matchMedia('(max-width: 799px)').matches || !fits)
+    }
+    measure()
+    const watch = new view.ResizeObserver(measure)
+    watch.observe(el)
+    return () => watch.disconnect()
+  }, [root])
+  const hidden = crowded
+    ? ids
+        .filter((id) => id !== shown)
+        .map((id) => {
+          const tab = layout.groups[id]?.active ? layout.tabs[layout.groups[id].active!] : undefined
+          return { id, title: tab ? tabTitle(tab, p.docs, p.findPlace) : 'No tab open' }
+        })
+    : []
   return (
-    <div className="wb-win">
+    <div ref={box} className={`wb-win${crowded ? ' is-crowded' : ''}`}>
       <SplitView
         root={layout.windows[win].root}
         renderGroup={(id) => (
@@ -181,6 +210,7 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
             dock={id === dockAt}
             fullApp={id === fullAppAt}
             elsewhere={id === elsewhereAt ? popped : undefined}
+            hidden={id === shown ? hidden : []}
             nodeFor={nodeFor}
           />
         )}
@@ -203,10 +233,12 @@ type GroupProps = {
   fullApp: boolean
   /** The popped-out windows, for the main window's count of their tabs (one group shows it). */
   elsewhere?: Popped
+  /** The groups hidden while the window is crowded (the shown group lists them). */
+  hidden: { id: string; title: string }[]
   nodeFor: NodeFor
 }
 
-function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, nodeFor }: GroupProps) {
+function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, hidden, nodeFor }: GroupProps) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -298,6 +330,10 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
     openMenu([...windows, 'separator', { label: 'Dock all', onSelect: () => elsewhere.forEach((w) => on.dock(w.win)) }], { anchor })
   }
 
+  // The groups the crowded window hides, by their active tabs' titles (choosing one shows it).
+  const openHiddenMenu = (anchor: Element) =>
+    openMenu(hidden.map((h) => ({ label: h.title, onSelect: () => on.activateGroup(h.id) })), { anchor })
+
   const dropTabs = (payload: DragPayload, index: number) => {
     if (payload.kind !== TAB_KIND) return
     payload.ids.filter((id) => layout.tabs[id]).forEach((id, i) => on.move(id, g.id, index + i))
@@ -355,7 +391,17 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
                 <DockIcon />
               </IconButton>
             )}
-            {fullApp && (
+            {hidden.length > 0 && (
+              <button
+                type="button"
+                className="wb-panes"
+                title={`${plural(hidden.length, 'more pane')} not shown: the window is too small to show them side by side. Choose one to show it.`}
+                onClick={(e) => openHiddenMenu(e.currentTarget)}
+              >
+                +{plural(hidden.length, 'pane')}
+              </button>
+            )}
+            {fullApp && tabs.length > 0 && (
               <IconButton
                 label="Open full app"
                 title="Open full app: show the sidebar and the rest of the app"
@@ -374,7 +420,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
             )}
             <IconButton
               label="Split right"
-              title={`Split right (${mac ? '⌘\\' : 'Ctrl+\\'})`}
+              title={size && !canSplit(size, 'row') ? SMALL : `Split right (${mac ? '⌘\\' : 'Ctrl+\\'})`}
               disabled={!!size && !canSplit(size, 'row')}
               onClick={() => splitHere('row')}
             >
@@ -403,7 +449,14 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
                 }}
               />
             ))}
-          {tabs.length === 0 && (p.renderEmpty ? p.renderEmpty(g.id) : <p className="wb-empty">No tab open</p>)}
+          {tabs.length === 0 &&
+            (fullApp ? (
+              <PaneMissing onOpenFullApp={() => p.onOpenFullApp?.()} />
+            ) : p.renderEmpty ? (
+              p.renderEmpty(g.id)
+            ) : (
+              <p className="wb-empty">No tab open</p>
+            ))}
         </div>
         {body && <BackToTop scroller={body} />}
         <DropZones
@@ -412,6 +465,19 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
           onDrop={dropOnPane}
         />
       </div>
+    </div>
+  )
+}
+
+// A pane-mode page whose page is not in this browser (a pasted address): the way to the full app is the one action.
+function PaneMissing({ onOpenFullApp }: { onOpenFullApp(): void }) {
+  return (
+    <div className="wb-empty">
+      <h2 className="wb-empty-title">This page is not open in this browser</h2>
+      <p>Open the full app to find your libraries.</p>
+      <button type="button" className="primary" onClick={onOpenFullApp}>
+        Open full app
+      </button>
     </div>
   )
 }

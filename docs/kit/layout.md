@@ -45,6 +45,7 @@ Functions (all return a `Layout<D>` unless noted):
 - `normalize(l)`: repairs the layout (see Limitations).
 - `groupOf(l, tabId): GroupId | null`, `windowOf(l, groupId): WindowId | null`.
 - `groupsIn(l, win): GroupId[]`: a window's groups in reading order. `[]` for an unknown window.
+- `minSize(node, min, gap = 4)`: the least size a node can be laid out at when each group keeps `min` and each sash takes `gap` px (a row adds widths and takes the tallest minimum, a column the reverse); a host shows only one group when its window is smaller than this.
 - `allGroups(l): GroupId[]`: `MAIN`'s groups first, then the other windows'.
 
 ## Dependencies

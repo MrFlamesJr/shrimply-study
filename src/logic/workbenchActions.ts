@@ -141,7 +141,7 @@ export type GroupContext = {
 const entry = (action: MenuAction, label: string, why?: string | false | null, shortcut?: string): MenuEntry =>
   why ? { action, label, shortcut, disabled: true, reason: why } : { action, label, shortcut }
 
-const SMALL = 'The pane is too small to split.'
+export const SMALL = 'The pane is too small to split.'
 
 function splitWhy(g: GroupContext, dir: 'row' | 'column'): string | null {
   return g.size && !canSplit(g.size, dir) ? SMALL : null

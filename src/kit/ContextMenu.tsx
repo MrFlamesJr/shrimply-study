@@ -183,7 +183,7 @@ function Menu({ items, place, focusFirst, onDismiss }: {
             aria-expanded={item.submenu ? sub?.index === i : undefined}
             tabIndex={-1}
             title={item.disabled ? item.reason : undefined}
-            className={'kit-menu-item' + (item.danger ? ' is-danger' : '')}
+            className={'kit-menu-item' + (item.danger ? ' is-danger' : '') + (item.disabled && item.reason ? ' has-reason' : '')}
             onMouseEnter={() => {
               cancelTimer()
               if (!item.disabled) focusAt(i)
@@ -201,6 +201,7 @@ function Menu({ items, place, focusFirst, onDismiss }: {
             )}
             <span className="kit-menu-label">{item.label}</span>
             {item.shortcut && <span className="kit-menu-shortcut">{item.shortcut}</span>}
+            {item.disabled && item.reason && <span className="kit-menu-reason">{item.reason}</span>}
             {item.submenu && (
               <svg className="kit-menu-arrow" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M6 3.5l4.5 4.5L6 12.5" />

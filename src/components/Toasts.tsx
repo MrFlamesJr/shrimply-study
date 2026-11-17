@@ -4,7 +4,7 @@ import { activeWindow, subscribeWindows } from '../kit/windows'
 import { useModalHost } from '../hooks/useModalHost'
 import { newId } from '../model'
 import { pushToast, type Notify, type Toast, type ToastKind } from '../logic/pushToast'
-import { toastLift } from '../logic/toastLift'
+import { coversControl, toastLift } from '../logic/toastLift'
 import { CrossIcon } from './Icons'
 import { IconButton } from './IconButton'
 
@@ -85,7 +85,7 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
 
   // A study session's controls are never covered (the feedback sheet's buttons sit right in this corner, a question's
   // answers often too): while toasts show, the stack rises above those under its column (`--toasts-lift`, toastLift),
-  // measured again whenever the page changes. Not while it is pointed at or focused: it never moves under the pointer.
+  // measured again whenever the page changes. Not while it is pointed at or focused (unless it covers a control): it never moves under the pointer.
   useLayoutEffect(() => {
     const stack = ref.current
     if (!stack || toasts.length === 0) return
@@ -93,7 +93,6 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
     let frame = 0
     const place = () => {
       frame = 0
-      if (stack.matches(':hover, :focus-within')) return
       const css = win.getComputedStyle(stack)
       const column = stack.getBoundingClientRect()
       const boxes = [...stack.children].map((c) => c.getBoundingClientRect())
@@ -102,6 +101,8 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
       const controls = [...doc.querySelectorAll(KEEP_CLEAR)]
         .map((el) => el.getBoundingClientRect())
         .filter((r) => r.width > 0 && r.height > 0 && r.right > column.left && r.left < column.right)
+      // Held still under the pointer, unless it has come to cover a control (a new sheet under a stack the pointer fell onto).
+      if (stack.matches(':hover, :focus-within') && !coversControl(Math.min(...boxes.map((r) => r.top)), Math.max(...boxes.map((r) => r.bottom)), controls)) return
       const lift = toastLift(win.innerHeight, height, parseFloat(css.bottom), parseFloat(css.rowGap), controls)
       stack.style.setProperty('--toasts-lift', `${lift}px`)
     }

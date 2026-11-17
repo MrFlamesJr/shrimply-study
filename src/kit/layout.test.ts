@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAIN, activate, activateGroup, allGroups, closeAll, closeOthers, closeTabs, dock, emptyLayout, groupOf, groupsIn,
-  join, mapTabs, moveTab, normalize, openTab, popOut, resize, split, updateTab, windowOf, type Layout, type Node,
+  join, mapTabs, minSize, moveTab, normalize, openTab, popOut, resize, split, updateTab, windowOf, type Layout, type Node,
 } from './layout'
 
 type L = Layout<string>
@@ -283,5 +283,14 @@ describe('layout', () => {
     expect(windowOf(l, 'nope')).toBeNull()
     expect(groupsIn(l, 'nope')).toEqual([])
     expect(allGroups(popOut(l, 'g1', 'w'))).toEqual(['g0', 'g2', 'g1'])
+  })
+
+  it('minSize adds a row, stacks a column and takes the largest on the other side', () => {
+    const min = { width: 320, height: 240 }
+    const row: Node = { kind: 'split', dir: 'row', children: [leaf('a'), leaf('b'), leaf('c')], sizes: [1, 1, 1] }
+    expect(minSize(leaf('a'), min)).toEqual(min)
+    expect(minSize(row, min)).toEqual({ width: 3 * 320 + 8, height: 240 })
+    const nested: Node = { kind: 'split', dir: 'column', children: [leaf('a'), { ...row, children: [leaf('b'), leaf('c')], sizes: [1, 1] }], sizes: [1, 1] }
+    expect(minSize(nested, min)).toEqual({ width: 2 * 320 + 4, height: 2 * 240 + 4 })
   })
 })

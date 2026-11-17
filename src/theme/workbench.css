@@ -315,22 +315,43 @@
   }
 }
 
-/* Narrow (the window, not the pane): only the shown group has room. The others stay mounted, so nothing is lost. */
+/* Crowded (the window, not the pane: under 800px, or the groups do not fit at their least sizes, which Workbench.tsx
+   decides): only the shown group has room. The others stay mounted, so nothing is lost. */
+.wb-win.is-crowded {
+  flex-direction: column;
+}
+.wb-win.is-crowded .kit-split,
+.wb-win.is-crowded .kit-leaf {
+  display: contents;
+}
+.wb-win.is-crowded .kit-sash,
+.wb-win.is-crowded .wb-group:not(.is-shown) {
+  display: none;
+}
+/* The shown group's list of the hidden ones: a quiet text button like the strip's icon buttons. */
+.wb-group .kit-tabs-actions .wb-panes {
+  flex: none;
+  height: 32px;
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wb-group .kit-tabs-actions .wb-panes:hover {
+  color: var(--text);
+}
 @media (max-width: 799px) {
   .workbench,
   .wb-pane {
     --page-pad: var(--space-4);
   }
-  .wb-win {
-    flex-direction: column;
-  }
-  .wb-win .kit-split,
-  .wb-win .kit-leaf {
-    display: contents;
-  }
-  .wb-win .kit-sash,
-  .wb-group:not(.is-shown) {
-    display: none;
+  .wb-group .kit-tabs-actions .wb-panes {
+    height: var(--tap);
   }
   .wb-group .kit-tabs-actions .icon-btn {
     width: var(--tap);

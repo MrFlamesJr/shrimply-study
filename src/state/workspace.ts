@@ -136,10 +136,18 @@ export const unsavedDevice = (w: Workspace): DocId[] =>
   w.order.filter((id) => !!w.docs[id].file && (hasChanges(w.docs[id]) || !!w.docs[id].problem))
 
 /**
+ * Its library may not be its Drive file's: changes it held before it was ever saved here moved to a library of their
+ * own (see `settleViewOnly`). Its checksum is forgotten, so its next sync takes the Drive version whatever it holds,
+ * and it never counts as saved until then.
+ */
+export const stale = (d: Doc): boolean => d.drive?.md5 === ''
+
+/**
  * Keeps view-only libraries untouchable: their undo steps go and a cut from one becomes a copy. Changes one holds from
  * before it was known to be view only (a backup from before this release, an account that turned out not to own it)
  * are never lost: they move to a browser library of their own, "<name> (my changes)" (`newId` names it), right after
- * it, and its Drive file is read again on its next sync (its checksum is forgotten). Says which moved where.
+ * it, and it goes back to its version last opened or saved here (`saved`); never saved here, it is `stale` until its
+ * next sync. Says which moved where.
  */
 export function settleViewOnly(w: Workspace, newId: () => string): { workspace: Workspace; kept: { from: DocId; to: DocId }[] } {
   let next = w
@@ -155,7 +163,9 @@ export function settleViewOnly(w: Workspace, newId: () => string): { workspace: 
     const copy = makeDoc(newId(), d.library, freeDocName(next, `${bareName(docName(d))} (my changes)`))
     const order = [...next.order]
     order.splice(order.indexOf(id) + 1, 0, copy.id)
-    next = { ...next, docs: { ...next.docs, [id]: { ...d, saved: d.library, drive: { ...d.drive, md5: '' } }, [copy.id]: copy }, order }
+    // Its pages may be gone with the changes, on purpose (counted in `replaced`, so they move on quietly).
+    const back: Doc = d.saved ? { ...d, library: d.saved, replaced: d.replaced + 1 } : { ...d, saved: d.library, drive: { ...d.drive, md5: '' } }
+    next = { ...next, docs: { ...next.docs, [id]: back, [copy.id]: copy }, order }
     kept.push({ from: id, to: copy.id })
   }
   return { workspace: next, kept }
@@ -444,7 +454,9 @@ const appTab = (name: Route['name']): name is (typeof APP_TABS)[number] => (APP_
  * Explorer, What's new, the welcome page, How studying works) show their tab, opened in the main window's focused group (`newTab`) when
  * there is none. A file's page with no tab of its own: the file it names (`doc`, from the address) in its tab there
  * (`newTab` when it has none); naming none, or the main window's own file, the main window's tab takes the page only
- * when its file has that page. Otherwise nothing changes.
+ * when its file has that page. While the main window shows no file's tab (an app page, the Explorer, an empty group),
+ * a page naming no file goes to the main window's file (the one active last), in its tab there or `newTab`, when that
+ * file has the page. Otherwise nothing changes.
  */
 export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route, o: { doc?: DocId | null; newTab?: L.TabId } = {}): Workspace {
   if (appTab(route.name)) {
@@ -461,7 +473,13 @@ export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route,
   if (o.doc && w.docs[o.doc] && address?.data.doc !== o.doc) {
     return o.newTab ? openPlace(w, o.doc, route, o.newTab, { group: mainGroup(w) }).workspace : w
   }
-  if (!address || resolve(w.docs[address.data.doc].library, route).missing) return w
+  if (!address) {
+    // No file's tab on show: the page goes to the file used last (a typed #/ over How studying works, say).
+    const doc = activeDoc(w)
+    if (!doc || !o.newTab || resolve(w.docs[doc].library, route).missing) return w
+    return openPlace(w, doc, route, o.newTab, { group: mainGroup(w) }).workspace
+  }
+  if (resolve(w.docs[address.data.doc].library, route).missing) return w
   return setTabRoute(w, address.id, route)
 }
 
