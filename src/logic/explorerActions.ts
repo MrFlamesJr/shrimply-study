@@ -173,6 +173,7 @@ export function keyDecision(ctx: MenuContext, e: KeyEvent, ids: string[], at: st
     : matches(e, 'F2', ctx.mac) ? (kind === 'card' ? 'edit' : 'rename')
     : null
   if (!action) return null
+  if (action === 'delete' && kind === 'doc') return { refuse: 'Close a file instead of deleting it.' }
   const found = menuFor(ctx, ids, at).find((x): x is Item => x !== 'separator' && x.action === action)
   if (!found) return null
   return found.disabled ? { refuse: found.reason ?? 'That can not be done now.' } : { action }

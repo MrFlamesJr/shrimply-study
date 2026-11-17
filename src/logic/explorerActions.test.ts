@@ -138,7 +138,7 @@ describe('keys', () => {
   it('says why a key is refused, and leaves keys that do not apply alone', () => {
     const ids = ['c:a:c2', 'q:a:c1:q1']
     expect(keyDecision(ctx(), key('c', { ctrlKey: true }), ids, ids[0])).toEqual({ refuse: 'Pick items of one kind.' })
-    expect(keyDecision(ctx(), key('Delete'), ['d:a'], 'd:a')).toBeNull()
+    expect(keyDecision(ctx(), key('Delete'), ['d:a'], 'd:a')).toEqual({ refuse: 'Close a file instead of deleting it.' })
     expect(keyDecision(ctx(), key('c', { ctrlKey: true }), ['d:a'], 'd:a')).toBeNull()
     expect(keyDecision(ctx(), key('a'), ['c:a:c1'], 'c:a:c1')).toBeNull()
     expect(keyDecision(ctx(), key('c', { ctrlKey: true, shiftKey: true }), ['c:a:c1'], 'c:a:c1')).toBeNull()

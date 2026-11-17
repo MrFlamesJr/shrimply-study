@@ -37,6 +37,12 @@
 .explorer .kit-row-icon:empty {
   display: none;
 }
+.explorer .kit-row-desc {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .explorer-icon {
   position: relative;
   display: inline-flex;
