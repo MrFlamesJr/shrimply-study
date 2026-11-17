@@ -47,6 +47,10 @@ def run(page, base):
     assert pop.url.endswith('popout.html'), f'popup url is {pop.url}'
 
     assert pop.evaluate(LOOK) == page.evaluate(LOOK), 'popup styles differ from the main window'
+    sheets = 'document.head.querySelectorAll("style, link[rel~=stylesheet]").length'
+    assert pop.evaluate(sheets) == page.evaluate(sheets) > 0, 'popup does not hold each stylesheet of the main window once'
+    assert pop.evaluate('document.head.querySelectorAll("script").length') == 1, 'popup should hold exactly one watchdog script'
+    assert pop.evaluate('document.body.children.length') == 1, 'popup should hold exactly one root element'
     assert 'Atkinson' in pop.evaluate(LOOK), 'app font not applied in the popup'
     set_theme(page, 'arcade')
     pop.wait_for_function('document.documentElement.dataset.theme === "arcade"', timeout=2000)

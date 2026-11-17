@@ -3,6 +3,7 @@
 const popups = new Map<string, Window>()
 const listeners = new Set<() => void>()
 const polls = new Map<Window, number>()
+const mounted = new WeakMap<Window, Promise<HTMLElement>>()
 let active: Window | null = null
 // Names this page load, so a popup can tell that its opener was reloaded or navigated away.
 const APP_ID = Math.random().toString(36).slice(2)
@@ -13,6 +14,7 @@ function notify() {
 }
 
 function forget(win: Window) {
+  mounted.delete(win)
   for (const [id, w] of popups) if (w === win) popups.delete(id)
   const poll = polls.get(win)
   if (poll !== undefined) {
@@ -36,16 +38,19 @@ export function openPopup(id: string, url: string, o: { width: number; height: n
   const win = window.open(url, id, features.join(','))
   if (!win) return null
   popups.set(id, win)
-  win.addEventListener('focus', () => {
-    active = win
-    notify()
-  })
-  polls.set(
-    win,
-    window.setInterval(() => {
-      if (win.closed) forget(win)
-    }, 500),
-  )
+  // The same id gives the same window back: it is already watched.
+  if (!polls.has(win)) {
+    win.addEventListener('focus', () => {
+      active = win
+      notify()
+    })
+    polls.set(
+      win,
+      window.setInterval(() => {
+        if (win.closed) forget(win)
+      }, 500),
+    )
+  }
   notify()
   return win
 }
@@ -123,14 +128,32 @@ function watchOpener(win: Window) {
   win.document.head.appendChild(script)
 }
 
-export async function mountPopup(win: Window, o: { title: string }): Promise<HTMLElement> {
-  await waitLoaded(win)
-  followOpener(win)
-  setPopupTitle(win, o.title)
-  watchOpener(win)
-  const root = win.document.createElement('div')
-  win.document.body.appendChild(root)
-  return root
+/** Mounts once per popup document: a second call (a remount) gets the same root. */
+export function mountPopup(win: Window, o: { title: string }): Promise<HTMLElement> {
+  const done = mounted.get(win)
+  if (done) {
+    return done.then((root) => {
+      if (root.isConnected) {
+        setPopupTitle(win, o.title)
+        return root
+      }
+      // The popup navigated to a new document since: mount that one.
+      mounted.delete(win)
+      return mountPopup(win, o)
+    })
+  }
+  const made = (async () => {
+    await waitLoaded(win)
+    followOpener(win)
+    setPopupTitle(win, o.title)
+    watchOpener(win)
+    const root = win.document.createElement('div')
+    win.document.body.appendChild(root)
+    return root
+  })()
+  mounted.set(win, made)
+  made.catch(() => mounted.delete(win))
+  return made
 }
 
 export function setPopupTitle(win: Window, title: string): void {
