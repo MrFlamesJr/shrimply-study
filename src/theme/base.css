@@ -456,6 +456,12 @@ textarea:focus {
   overflow: hidden;
   resize: none;
 }
+/* Browsers that can size a box to its text do it here; AutoText.tsx fits the others (and skips it when this applies). */
+@supports (field-sizing: content) {
+  .auto-text {
+    field-sizing: content;
+  }
+}
 /* Text its `check` refuses (a taken name): the line turns red and the reason shows under the box. */
 .auto-text[aria-invalid="true"],
 .auto-text[aria-invalid="true"]:focus {

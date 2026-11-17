@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { newId, type Card, type Group } from '../model'
 import { windowNav, type Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
@@ -9,7 +9,7 @@ import { plural } from '../logic/plural'
 import { lastSides } from '../logic/sides'
 import { nameTaken } from '../logic/names'
 import { AutoText } from '../components/AutoText'
-import { EditCard, type CardPatch, type Field } from '../components/EditCard'
+import type { CardPatch, Field } from '../components/EditCard'
 import { ImportDialog } from '../components/ImportDialog'
 import { DangerZone, PageHead } from '../components/Page'
 import type { Notify } from '../components/Toasts'
@@ -17,7 +17,8 @@ import { AddPill } from './edit/AddPill'
 import { AddRow, type CardKind } from './edit/AddRow'
 import { EditOutline } from './edit/EditOutline'
 import { GroupHead } from './edit/GroupHead'
-import { CardSortables, SectionSortable, SortableCard } from './edit/SortableCard'
+import { EditorCard, type CardActions } from './edit/EditorCard'
+import { CardSortables, SectionSortable } from './edit/SortableCard'
 
 // What to focus after the next write: a card's field (or its group select) by card id, or a group's name by group id.
 type Focus = { card: string; field: Field | 'blank' | 'group' } | { groupName: string }
@@ -49,6 +50,13 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav }
   const refocus = useRef<HTMLElement | null>(null)
   const cards = found?.quiz.cards
   const groups = found?.quiz.groups
+  // The cards are memoized (EditorCard): they get the latest actions through this ref and the library through a stand-in
+  // that always reads the latest, so their props stay the same until the card itself changes.
+  const actions = useRef<CardActions | null>(null)
+  const latestLib = useRef(lib)
+  latestLib.current = lib
+  const libNow = useMemo(() => new Proxy({} as LibraryApi, { get: (_, key) => latestLib.current[key as keyof LibraryApi] }), [])
+  const numbers = useMemo(() => new Map(cards?.map((c, i) => [c.id, i])), [cards])
 
   const focusCell = (id: string, field: Field | 'blank' | 'group') =>
     listRef.current?.querySelector<HTMLElement>(`[data-card="${id}"][data-field="${field}"]`)?.focus()
@@ -216,27 +224,24 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav }
     put([...kept, ...added], group && !groups.some((g) => g.id === group.id) ? [...groups, group] : groups)
   }
 
+  actions.current = {
+    patch: patchCard,
+    remove: (id) => put(cards.filter((c) => c.id !== id)),
+    move,
+    advance,
+    shift,
+  }
   const renderCard = (card: Card) => (
-    <SortableCard key={card.id} id={card.id} number={cards.indexOf(card) + 1}>
-      {(sortable) => (
-        <EditCard
-          card={card}
-          index={cards.indexOf(card)}
-          lib={lib}
-          onPatch={(patch) => patchCard(card.id, patch)}
-          onDelete={() => put(cards.filter((c) => c.id !== card.id))}
-          editor={{
-            groups,
-            flagged: triedDone ? missingPart(card) : null,
-            nudge,
-            onMove: (group) => move(card, group),
-            onAdvance: () => advance(card),
-            onShift: (by) => shift(card, by),
-            sortable,
-          }}
-        />
-      )}
-    </SortableCard>
+    <EditorCard
+      key={card.id}
+      card={card}
+      index={numbers.get(card.id)!}
+      groups={groups}
+      lib={libNow}
+      flagged={triedDone ? missingPart(card) : null}
+      nudge={nudge}
+      actions={actions as RefObject<CardActions>}
+    />
   )
 
   const addRow = (group?: string, top = false) => <AddRow onAdd={(kind) => addCard(group, kind, top)} />

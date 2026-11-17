@@ -67,7 +67,7 @@ type Props = {
     onAdvance: () => void
     /** Alt+Shift+Up or Down inside the card: move it one place (-1 or 1) within its section. */
     onShift: (by: -1 | 1) => void
-    /** dnd-kit's hold on the card (`EditScreen`'s `SortableCard`): the card's box, the grip, and while it is dragged. */
+    /** dnd-kit's hold on the card (`EditorCard`, via `useSortableCard`): the card's box, the grip, and while it is dragged. */
     sortable: CardSortable
   }
 }

@@ -50,6 +50,28 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChan
   erase?: { label: string; title?: string; onErase: () => void; off?: boolean }
 }
 
+const FIELD_SIZING = typeof CSS !== 'undefined' && CSS.supports('field-sizing', 'content')
+
+const waiting = new Map<Window, Set<HTMLTextAreaElement>>()
+/** Fits a box to its text in its window's next frame, together with every other box waiting in that frame. */
+function queueFit(el: HTMLTextAreaElement) {
+  const view = ownWindow(el)
+  let boxes = waiting.get(view)
+  if (!boxes) {
+    boxes = new Set()
+    waiting.set(view, boxes)
+    const batch = boxes
+    view.requestAnimationFrame(() => {
+      waiting.delete(view)
+      const live = [...batch].filter((box) => box.isConnected)
+      for (const box of live) box.style.height = 'auto'
+      const heights = live.map((box) => box.scrollHeight + box.offsetHeight - box.clientHeight)
+      live.forEach((box, i) => (box.style.height = `${heights[i]}px`))
+    })
+  }
+  boxes.add(el)
+}
+
 /**
  * A text box that starts one line high and grows to fit any amount of text. With `required`, empty or
  * spaces-only text stays in the box and is not passed on; leaving the box shows the saved value again.
@@ -68,7 +90,18 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, suf
     el.style.height = `${el.scrollHeight + el.offsetHeight - el.clientHeight}px`
   }
 
-  useLayoutEffect(fit, [text])
+  // Where the browser can size a box to its text (CSS `field-sizing`), CSS does it. Elsewhere a box fits itself on
+  // an edit at once, but when it appears or its width changes it joins the frame's batch (one write pass, one read
+  // pass, one write pass), so a page of hundreds of boxes never lays out once per box.
+  const mounted = useRef(false)
+  useLayoutEffect(() => {
+    if (FIELD_SIZING) return
+    if (mounted.current) fit()
+    else if (ref.current) {
+      mounted.current = true
+      queueFit(ref.current)
+    }
+  }, [text])
 
   useEffect(() => {
     if (!selectOnMount) return
@@ -80,21 +113,16 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, suf
   // because resizing inside the observer callback would trigger it again in the same frame.
   useEffect(() => {
     const el = ref.current
-    if (!el) return
+    if (!el || FIELD_SIZING) return
     const view = ownWindow(el)
     let width = el.clientWidth
-    let frame = 0
     const observer = new view.ResizeObserver(() => {
       if (el.clientWidth === width) return
       width = el.clientWidth
-      view.cancelAnimationFrame(frame)
-      frame = view.requestAnimationFrame(fit)
+      queueFit(el)
     })
     observer.observe(el)
-    return () => {
-      observer.disconnect()
-      view.cancelAnimationFrame(frame)
-    }
+    return () => observer.disconnect()
   }, [])
 
   const max = rest.maxLength

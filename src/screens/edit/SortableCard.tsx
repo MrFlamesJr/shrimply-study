@@ -1,4 +1,4 @@
-import type { ReactNode } from 'react'
+import { useRef, type ReactNode } from 'react'
 import {
   AutoScrollActivator,
   DndContext,
@@ -29,6 +29,12 @@ const announcements: Announcements = {
   onDragCancel: ({ active }) => `Card ${number(active)} put back.`,
 }
 
+// Constants, not new objects on each render: DndContext hands its props on to every card, which would then render again.
+const modifiers = [vertical]
+const autoScroll = { activator: AutoScrollActivator.DraggableRect }
+const accessibility = { announcements }
+const keyboardOptions = { coordinateGetter: sortableKeyboardCoordinates }
+
 type ListProps = {
   /** A card was dropped on another (`to`); the screen moves it only when both are in one section. */
   onMove: (id: string, to: string) => void
@@ -40,7 +46,7 @@ type ListProps = {
  * One sortable list per section, so a card makes way only for its own section's cards.
  */
 export function CardSortables({ onMove, children }: ListProps) {
-  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }))
+  const sensors = useSensors(useSensor(PointerSensor), useSensor(KeyboardSensor, keyboardOptions))
   const drop = ({ active, over }: DragEndEvent) => {
     if (over && active.id !== over.id) onMove(String(active.id), String(over.id))
   }
@@ -48,10 +54,10 @@ export function CardSortables({ onMove, children }: ListProps) {
     <DndContext
       sensors={sensors}
       collisionDetection={closestCenter}
-      modifiers={[vertical]}
-      autoScroll={{ activator: AutoScrollActivator.DraggableRect }}
+      modifiers={modifiers}
+      autoScroll={autoScroll}
       onDragEnd={drop}
-      accessibility={{ announcements }}
+      accessibility={accessibility}
     >
       {children}
     </DndContext>
@@ -60,17 +66,20 @@ export function CardSortables({ onMove, children }: ListProps) {
 
 /** One section's cards as a sortable list. */
 export function SectionSortable({ ids, children }: { ids: string[]; children: ReactNode }) {
+  // The same array while the ids are the same: a new one tells every card in the list to render again, on each keystroke.
+  const kept = useRef(ids)
+  if (kept.current.length !== ids.length || kept.current.some((id, i) => id !== ids[i])) kept.current = ids
   return (
-    <SortableContext items={ids} strategy={verticalListSortingStrategy}>
+    <SortableContext items={kept.current} strategy={verticalListSortingStrategy}>
       {children}
     </SortableContext>
   )
 }
 
-/** Gives a card (by render function) its place in the sortable list. */
-export function SortableCard({ id, number: n, children }: { id: string; number: number; children: (sortable: CardSortable) => ReactNode }) {
+/** Gives a card its place in the sortable list: the hold `EditCard` takes. */
+export function useSortableCard(id: string, n: number): CardSortable {
   const { attributes, listeners, setNodeRef, setActivatorNodeRef, transform, transition, isDragging } = useSortable({ id, data: { number: n } })
-  return children({
+  return {
     setNodeRef,
     setActivatorNodeRef,
     attributes,
@@ -81,5 +90,5 @@ export function SortableCard({ id, number: n, children }: { id: string; number: 
       // The cards making way take the theme's timing; dnd-kit's 0ms transition (setting up a move) stays.
       transition: transition && !transition.includes(' 0ms') ? 'transform var(--dur) var(--ease)' : transition,
     },
-  })
+  }
 }

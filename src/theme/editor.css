@@ -86,6 +86,9 @@
   border: var(--line) solid transparent;
   border-radius: var(--radius);
   transition: border-color var(--dur-fast) var(--ease);
+  /* Cards off screen are not laid out or painted: a quiz of thousands opens and edits at once. */
+  content-visibility: auto;
+  contain-intrinsic-size: auto 200px;
 }
 .pair:focus-within {
   border-color: var(--border-strong);
