@@ -250,6 +250,19 @@ export function popOutGroup(w: Workspace, group: L.GroupId, win: L.WindowId, spa
   return next === l ? w : withLayout(w, next)
 }
 
+/**
+ * Moves one tab into window `win` (a popup) in a new group (`groupId`); the rest of its group stays where it is. A tab
+ * alone in its group takes the group along (popOutGroup, with its `spareGroupId`).
+ */
+export function popOutTab(w: Workspace, tabId: L.TabId, win: L.WindowId, groupId: L.GroupId, spareGroupId: L.GroupId): Workspace {
+  const from = L.groupOf(w.layout, tabId)
+  if (from === null) return w
+  if (w.layout.groups[from].tabs.length === 1) return popOutGroup(w, from, win, spareGroupId)
+  const l = L.split(w.layout, from, 'row', 'after', groupId, w.layout.tabs[tabId])
+  const next = L.popOut(l, groupId, win)
+  return next === l ? w : withLayout(w, next)
+}
+
 export const explorerTab = (w: Workspace): L.Tab<TabData> | undefined => Object.values(w.layout.tabs).find((t) => t.data.kind === 'explorer')
 
 /** Whether a tab is the one its group shows. */

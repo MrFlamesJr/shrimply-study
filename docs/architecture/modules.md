@@ -422,7 +422,8 @@ one, and read no clock or random source (times and new ids are arguments; `useWo
   `activateTab`, `activateGroup`, `closeTabs`, `closeOthers`, `closeAll`, `moveTab`, `joinGroups`, `resizeSplit`,
   `dockWindow`, `splitGroup` (a new group beside one; a dragged tab moves into it, else a copy of a file's tab; the
   Explorer is never copied), `popOutGroup` (the main window's only group first gets an empty group beside it, so the main
-  window never ends up with nothing), `explorerTab`, `isShown`, `showChangelog(w, group, tabId)` (every release's notes in a tab, one at most: activated where it is, else a new tab in the group), `followHistory`, `showExplorer` (one Explorer at most: activated where it
+  window never ends up with nothing), `popOutTab` (one tab into a new window in a group of its own, the rest of its group
+  staying; a lone tab takes its group, as `popOutGroup`), `explorerTab`, `isShown`, `showChangelog(w, group, tabId)` (every release's notes in a tab, one at most: activated where it is, else a new tab in the group), `followHistory`, `showExplorer` (one Explorer at most: activated where it
   shows, else split on the left of a group, else a tab), `recentGroup`.
 - Back and Forward: `followHistory(w, tabId, route)`. A history entry names its tab (`history.state.tab`); that tab, wherever it
   is now (any group or window), becomes active on the entry's page. With no such tab (a typed address) the main window's
@@ -472,7 +473,7 @@ export type WorkspaceApi = {
   closeTabs(tabIds): void; closeOthers(tabId): void; closeAll(groupId): void
   moveTab(tabId, toGroup, index): void
   split(groupId, dir, side, tabId?, move?): void; join(from, into): void; resize(win, path, sizes): void
-  popOut(groupId, win): void; dock(win): void      // the caller opens the popup, in the click
+  popOut(groupId, win): void; popOutTab(tabId, win): void; dock(win): void   // the caller opens the popup, in the click
   showExplorer(beside: GroupId, split: boolean): void
   showChangelog(group?: GroupId): void             // every release's notes in a tab (one at most)
   followHistory(tabId: TabId | null, route: Route): boolean   // Back, forward or a typed address; true when something changed
@@ -526,7 +527,7 @@ bar follows `address` (see `integration.md`).
   screens, hidden ones kept mounted per `mountedTabs`) and a `Popout` for each other window of the layout. Props:
   `layout`, `docs: Record<string, WorkbenchDoc>`, `popups: Record<WindowId, Window>`, `renderTab(tab, shown)`,
   `crumbs(tab)`, `onCrumb(tabId, route)`, `canPopOut` and `on`: `activate`, `activateGroup`, `close`, `closeOthers`,
-  `closeAll`, `move`, `split`, `join`, `resize`, `popOut` (the host calls `openPopup` synchronously inside it), `dock`,
+  `closeAll`, `move`, `split`, `join`, `resize`, `popOut(groupId, tabId?)` (the group, or only that tab; the host calls `openPopup` synchronously inside it), `dock`,
   `saveDoc`, `saveAll`, `revealInExplorer`, `copyText`. Each tab's screen is rendered through a portal into a node of its own
   (one per tab and window, `wb-tab-node`) that its group's slot adopts. A tab moved to another group in the same window keeps
   its screen and its state (a study round goes on); only the node moves. Moved to another window it starts afresh there, as
@@ -547,12 +548,12 @@ one was started is dropped. An open from the list becomes an open file: expanded
   open", then actions: Show the Explorer (with its shortcut), New file, Open file, and under "Open files" one button per open file
   (`DocMeta[]`, an icon for where it lives) that opens that file's home in this group (`ws.openPlace(id, home, { group })`).
 - `PaneHead({ crumbs, onCrumb })`: a compact, plain row of breadcrumbs above the pane's page, with no frosted glass or fade;
-  `Crumb = { label; route? }`. A plain click goes through the pane's own tab (`onCrumb`); Ctrl, Shift, Alt or another button is
+  `Crumb = { label; route?; icon? }` (`icon`: the root crumb's mark, where its file lives or the app's shrimp). A plain click goes through the pane's own tab (`onCrumb`); Ctrl, Shift, Alt or another button is
   left to the browser. In a narrow pane (below 480px of the pane's own width, not the window's: `workbench.css`) the trail gives
   way to one "‹ <parent>" link, when the page has a parent. `App.crumbs(tab)` builds the trail: the file first (under its name
-  as it is now), then the course and quiz the tab's page names, followed by id through a rename (`followRename`); a page that
+  as it is now, with its where-icon; on its home followed by the page's own name, so a home reads file › "Your courses"), then the course and quiz the tab's page names, followed by id through a rename (`followRename`); a page that
   is gone shows the file alone; none for a study session or the Explorer (each has a head of its own, the same height); a
-  changelog tab is "All releases".
+  changelog tab is the shrimp's "Shrimply Study" › "All releases".
 - `PaneScreen(p: { tab; group; shown; active; s: PaneShared })`: one tab's screen. An Explorer tab renders `ExplorerPane`; a
   changelog tab renders `ChangelogScreen` (its way back closes the tab); a tab whose file is gone renders nothing; a file tab renders `DocPane`: its own `Nav`
   from `makeTabNav`, `usePlaceFor` for the course and quiz its route names (a deleted one leads to the nearest page with a

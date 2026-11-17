@@ -7,6 +7,7 @@ import chevronsLeft from '../icons/chevrons-left.svg?raw'
 import chevronsUp from '../icons/chevrons-up.svg?raw'
 import cloud from '../icons/cloud.svg?raw'
 import cross from '../icons/cross.svg?raw'
+import dock from '../icons/dock.svg?raw'
 import eraser from '../icons/eraser.svg?raw'
 import fileIcon from '../icons/file.svg?raw'
 import folder from '../icons/folder.svg?raw'
@@ -82,6 +83,9 @@ export const SplitIcon = icon(split)
 
 // Three dots: a group's menu.
 export const MoreIcon = icon(more)
+
+// An arrow coming back into a window: dock a popped-out window into the main one.
+export const DockIcon = icon(dock)
 
 export const CrossIcon = icon(cross)
 

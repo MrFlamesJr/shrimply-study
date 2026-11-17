@@ -189,6 +189,8 @@ export type WorkspaceApi = {
   resize(win: WindowId, path: number[], sizes: number[]): void
   /** The group into window `win` (its popup is opened by the caller, in the click). */
   popOut(groupId: GroupId, win: WindowId): void
+  /** One tab into window `win`, in a group of its own; the rest of its group stays. */
+  popOutTab(tabId: TabId, win: WindowId): void
   dock(win: WindowId): void
   /** Shows the Explorer: activated where it shows, else split on the left of `beside` (`split`) or as a tab. */
   showExplorer(beside: GroupId, split: boolean): void
@@ -1213,6 +1215,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     popOut: (groupId, win) => {
       const spare = newId()
       update((w) => W.popOutGroup(w, groupId, win, spare))
+    },
+    popOutTab: (tabId, win) => {
+      const group = newId()
+      const spare = newId()
+      update((w) => W.popOutTab(w, tabId, win, group, spare))
     },
     dock: (win) => update((w) => W.dockWindow(w, win)),
     showExplorer: (beside, split) => {

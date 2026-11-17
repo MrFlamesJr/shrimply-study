@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { createPortal } from 'react-dom'
 import { BackToTop } from '../components/BackToTop'
 import { IconButton } from '../components/IconButton'
-import { MoreIcon, SplitIcon } from '../components/Icons'
+import { DockIcon, MoreIcon, SplitIcon } from '../components/Icons'
 import { ownWindow } from '../components/ownWindow'
 import { openMenu, type MenuItem } from '../kit/ContextMenu'
 import type { DragPayload } from '../kit/dnd'
@@ -47,8 +47,11 @@ export type WorkbenchProps = {
     split(groupId: string, dir: 'row' | 'column', side: 'before' | 'after', tabId?: string, move?: boolean): void
     join(from: string, into: string): void
     resize(win: string, path: number[], sizes: number[]): void
-    /** The host calls kit/windows openPopup synchronously inside this call (it comes from a click). */
-    popOut(groupId: string): void
+    /**
+     * The group, or only its tab `tabId`, into a new window. The host calls kit/windows openPopup synchronously inside
+     * this call (it comes from a click).
+     */
+    popOut(groupId: string, tabId?: string): void
     dock(win: string): void
     saveDoc(docId: string): void
     saveAll(): void
@@ -111,14 +114,9 @@ export function Workbench(p: WorkbenchProps) {
           const active = first?.active ? layout.tabs[first.active] : undefined
           const title = active ? tabTitle(active, p.docs) : 'Shrimply Study'
           return (
+            // No title row: the browser's own bar names the window, and the tab strip comes right under it.
             <Popout key={w} win={p.popups[w]} title={title} onClosed={() => p.on.dock(w)}>
               <div className="workbench is-popup">
-                <div className="wb-window-head">
-                  <span className="wb-window-title">{title}</span>
-                  <button type="button" className="quiet" title="Move this window's tabs back into the main window" onClick={() => p.on.dock(w)}>
-                    Dock
-                  </button>
-                </div>
                 <WindowView p={p} win={w} nodeFor={nodeFor} />
               </div>
             </Popout>
@@ -135,6 +133,8 @@ type NodeFor = (key: string) => HTMLElement
 
 // The group at a window's top-left corner: the first child all the way down.
 const cornerOf = (n: Node): string => (n.kind === 'group' ? n.id : cornerOf(n.children[0]))
+// The group at its top-right corner: a row's last child, a column's first.
+const topRightOf = (n: Node): string => (n.kind === 'group' ? n.id : topRightOf(n.dir === 'row' ? n.children[n.children.length - 1] : n.children[0]))
 
 function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nodeFor: NodeFor }) {
   const { layout } = p
@@ -142,11 +142,15 @@ function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nod
   const shown = ids.includes(layout.activeGroup) ? layout.activeGroup : ids[0]
   // In the main window that group's tab strip makes room for the app's corner while the sidebar is closed (CSS).
   const corner = win === MAIN ? cornerOf(layout.windows[win].root) : null
+  // A popped-out window's way back sits in its top-right group's strip, once per window.
+  const dockAt = win === MAIN ? null : topRightOf(layout.windows[win].root)
   return (
     <div className="wb-win">
       <SplitView
         root={layout.windows[win].root}
-        renderGroup={(id) => <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} corner={id === corner} nodeFor={nodeFor} />}
+        renderGroup={(id) => (
+          <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} corner={id === corner} dock={id === dockAt} nodeFor={nodeFor} />
+        )}
         onResize={(path, sizes) => p.on.resize(win, path, sizes)}
       />
     </div>
@@ -155,7 +159,9 @@ function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nod
 
 type Size = { width: number; height: number }
 
-function GroupView({ p, win, group: g, shown, corner, nodeFor }: { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean; corner: boolean; nodeFor: NodeFor }) {
+type GroupProps = { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean; corner: boolean; dock: boolean; nodeFor: NodeFor }
+
+function GroupView({ p, win, group: g, shown, corner, dock, nodeFor }: GroupProps) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -210,7 +216,7 @@ function GroupView({ p, win, group: g, shown, corner, nodeFor }: { p: WorkbenchP
       else if (a === 'closeAll') on.closeAll(g.id)
       else if (a === 'splitRight') on.split(g.id, 'row', 'after', id)
       else if (a === 'splitDown') on.split(g.id, 'column', 'after', id)
-      else if (a === 'popOut') on.popOut(g.id)
+      else if (a === 'popOutTab') on.popOut(g.id, id)
       else if (a === 'reveal') on.revealInExplorer(tab)
       else if (a === 'copyPath') {
         const text = copyPathText(tab, docs)
@@ -230,6 +236,7 @@ function GroupView({ p, win, group: g, shown, corner, nodeFor }: { p: WorkbenchP
       else if (a === 'join') {
         if (next !== undefined) on.join(g.id, next)
       } else if (a === 'popOut') on.popOut(g.id)
+      else if (a === 'dock') on.dock(win)
       else if (a === 'closeAll') on.closeAll(g.id)
     }
     openMenu(items(groupMenu(context()), run), { anchor })
@@ -287,6 +294,11 @@ function GroupView({ p, win, group: g, shown, corner, nodeFor }: { p: WorkbenchP
         onContextMenu={openTabMenu}
         actions={
           <>
+            {dock && (
+              <IconButton label="Dock" title="Dock: move back to the main window" onClick={() => on.dock(win)}>
+                <DockIcon />
+              </IconButton>
+            )}
             <IconButton
               label="Split right"
               title={`Split right (${mac ? '⌘\\' : 'Ctrl+\\'})`}

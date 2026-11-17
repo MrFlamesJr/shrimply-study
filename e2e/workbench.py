@@ -1,6 +1,6 @@
 """The workbench: two files in split panes that stay independent, a tab moved across groups, a tab closed (its file
 stays open), a reload that restores the split and the pages, the Explorer (sidebar button, Ctrl+Shift+E, Reveal in
-Explorer), a group popped out and docked, and study in a split pane and full screen when alone. Then: a study tab
+Explorer), a group popped out and docked, one tab popped out on its own, and study in a split pane and full screen when alone. Then: a study tab
 moved to another group goes on with its round, Back returns to the tab an entry belongs to, every release's notes
 open as a tab, and the breadcrumbs (every kind of page, each pane its own trail, a popped-out window, a narrow pane's
 "< parent" link, long names, lined up with the page, a crumb moving only its pane, renames, a page that is gone)."""
@@ -49,8 +49,19 @@ def group(page, i):
     return groups(page).nth(i)
 
 
-def crumbs(g):
+# A file's home names itself after the file: "<file> › Your courses" (or the welcome page's title).
+HOME_PAGES = ('Your courses', 'Start studying in three steps')
+
+
+def trail(g):
+    """The pane head's crumbs as written."""
     return [c.strip() for c in g.locator('.pane-crumbs li > :not(.pane-sep)').all_inner_texts()]
+
+
+def crumbs(g):
+    """The trail without a home page's own name, so a home reads as the file alone ([file])."""
+    t = trail(g)
+    return t[:1] if len(t) == 2 and t[1] in HOME_PAGES else t
 
 
 def tab_titles(g):
@@ -136,11 +147,12 @@ def run(page, base):
     target = groups(page).last
     with page.context.expect_page() as info:
         target.get_by_role('button', name='More').click()
-        page.get_by_role('menuitem', name='Move to new window').click()
+        page.get_by_role('menuitem', name='Move group to new window').click()
     pop = info.value
     pop.wait_for_selector('.workbench.is-popup [role=tab]')
     wait_for(page, lambda: groups(page).count() == before - 1, 'the popped-out group leaves the main window')
-    pop.get_by_role('button', name='Dock').click()
+    compact_popup(pop)
+    pop.locator('.kit-tabstrip').get_by_role('button', name='Dock').click()
     wait_for(page, lambda: groups(page).count() == before, 'Dock brings the group back')
 
     # Study in a split pane: the shell stays; alone in the main window: full screen.
@@ -167,8 +179,46 @@ def run(page, base):
     breadcrumbs(page)
     new_quiz_in_popup(page)
     empty_group_and_brand(page)
+    pop_out_one_tab(page)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
+
+
+def compact_popup(pop):
+    """A popped-out window has no title row of its own: its tab strip is the first thing under the browser's bar, the
+    way back (Dock) in that strip."""
+    need(pop.locator('.wb-window-head').count() == 0, 'no title row in the popup')
+    strip = pop.locator('.kit-tabstrip').first.bounding_box()
+    need(strip['y'] <= 1, f'the tab strip is at the top of the popup: {strip}')
+    need(pop.locator('.kit-tabstrip').get_by_role('button', name='Dock').count() == 1, 'Dock sits in the tab strip, once')
+
+
+def pop_out_one_tab(page):
+    """A tab's Move to new window takes only that tab (the rest of its group stays); the main window's lone tab can go
+    too, leaving an empty group. Dock from the window's menu and from its strip brings them back."""
+    g = group(page, 0)
+    need(len(tab_titles(g)) == 2 and groups(page).count() == 1, f'one group with two tabs: {tab_titles(g)}')
+    with page.context.expect_page() as info:
+        g.locator('[role=tab]').last.click(button='right')
+        page.get_by_role('menuitem', name='Move to new window').click()
+    pop = info.value
+    pop.wait_for_selector('.workbench.is-popup [role=tab]')
+    need(pop.locator('[role=tab]').count() == 1, 'the popup holds only that tab')
+    wait_for(page, lambda: len(tab_titles(group(page, 0))) == 1 and groups(page).count() == 1, 'the rest of its group stays')
+    compact_popup(pop)
+    need(pop.title() == 'Test library', f"the browser's bar names the window: {pop.title()}")
+
+    with page.context.expect_page() as info:
+        group(page, 0).locator('[role=tab]').first.click(button='right')
+        page.get_by_role('menuitem', name='Move to new window').click()
+    pop2 = info.value
+    pop2.wait_for_selector('.workbench.is-popup [role=tab]')
+    group(page, 0).locator('.wb-empty').wait_for()
+    pop2.get_by_role('button', name='More').click()
+    pop2.get_by_role('menuitem', name='Dock').click()
+    wait_for(page, lambda: groups(page).count() == 1 and len(tab_titles(group(page, 0))) == 1, "the menu's Dock brings the tab back")
+    pop.locator('.kit-tabstrip').get_by_role('button', name='Dock').click()
+    wait_for(page, lambda: groups(page).count() == 2, "the strip's Dock brings the other back beside it")
 
 
 def active_group(page):
@@ -238,7 +288,7 @@ def changelog_tab(page):
     shown(active_group(page)).get_by_role('link', name='See all releases').click()
     wait_for(page, lambda: page.locator('[role=tab]', has_text='All releases').count() == 1, 'the notes open as a tab')
     need(page.locator('.sidebar').is_visible(), 'the shell stays')
-    need(crumbs(active_group(page)) == ['All releases'], 'its pane head names it')
+    need(trail(active_group(page)) == ['Shrimply Study', 'All releases'], 'its pane head names it, under the app')
     shown(active_group(page)).get_by_role('button', name='Back to the app').click()
     wait_for(page, lambda: page.locator('[role=tab]', has_text='All releases').count() == 0, 'Back to the app closes the tab')
 
@@ -254,9 +304,12 @@ def breadcrumbs(page):
     a = active_group(page)
     if crumbs(a) != ['Test library']:
         a.locator('.pane-crumbs a').first.click()
-    # A file's home: its name alone, not a link, the same name as its row in the sidebar.
-    wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'a home shows the file name alone')
-    need(active_group(page).locator('.pane-crumbs a').count() == 0, 'the lone file name is not a link')
+    # A file's home: the file (with where it lives, not a link: it is this page's root), then the page's own name, as
+    # in its title; the same file name as its row in the sidebar.
+    wait_for(page, lambda: trail(active_group(page)) == ['Test library', 'Your courses'], 'a home reads file, then Your courses')
+    need(active_group(page).locator('.pane-crumbs a').count() == 0, 'on its home, nothing in the trail is a link')
+    need(active_group(page).locator('.pane-crumbs li').first.locator('.pane-icon svg').count() == 1, 'the file crumb shows where it lives')
+    need(shown(active_group(page)).get_by_role('heading', name='Your courses').count() == 1, 'the same words as the page title')
     need(page.locator('.file-row .file-name-text', has_text='Test library').count() == 1, 'the same name as its sidebar row')
 
     # Split: a course page on the right, the quiz's editor on the left; each pane its own trail.
@@ -303,11 +356,11 @@ def breadcrumbs(page):
     # In a popped-out window the pane keeps its trail.
     with page.context.expect_page() as info:
         g2.get_by_role('button', name='More').click()
-        page.get_by_role('menuitem', name='Move to new window').click()
+        page.get_by_role('menuitem', name='Move group to new window').click()
     pop = info.value
     pop.wait_for_selector('.workbench.is-popup .pane-crumbs')
-    trail = [c.strip() for c in pop.locator('.pane-crumbs li > :not(.pane-sep)').all_inner_texts()]
-    need(trail[0] == 'Test library' and len(trail) == 2, f'the popped-out pane keeps its trail: {trail}')
+    popped = [c.strip() for c in pop.locator('.pane-crumbs li > :not(.pane-sep)').all_inner_texts()]
+    need(popped[0] == 'Test library' and len(popped) == 2, f'the popped-out pane keeps its trail: {popped}')
     pop.get_by_role('button', name='Dock').click()
     wait_for(page, lambda: groups(page).count() == 2, 'docked again')
     g1, g2 = group(page, 0), group(page, 1)
@@ -346,7 +399,7 @@ def new_quiz_in_popup(page):
         wait_for(page, lambda: crumbs(group(page, 1)) == ['Test library'], 'the right pane on its home')
     with page.context.expect_page() as info:
         group(page, 1).get_by_role('button', name='More').click()
-        page.get_by_role('menuitem', name='Move to new window').click()
+        page.get_by_role('menuitem', name='Move group to new window').click()
     pop = info.value
     pop.wait_for_selector('.workbench.is-popup .tile-new')
     pop.locator('.workbench.is-popup .wb-tab:not([hidden]) .tile-new').first.click()

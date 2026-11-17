@@ -265,14 +265,15 @@ export function App() {
 
   // The popup of each popped-out window, opened in the click (browsers block it otherwise).
   const [popups, setPopups] = useState<Record<string, Window>>({})
-  const popOut = (groupId: string) => {
+  const popOut = (groupId: string, tabId?: string) => {
     const win = `pop-${newId()}`
     const box = document.querySelector(`.wb-group[data-group="${groupId}"]`)?.getBoundingClientRect()
     const size = box ? { width: Math.round(box.width), height: Math.round(box.height) + 48 } : POPUP
     const opened = openPopup(win, new URL('popout.html', document.baseURI).href, { ...size, left: screenX + 48, top: screenY + 48 })
     if (!opened) return toasts.notify('warning', BLOCKED)
     setPopups((p) => ({ ...p, [win]: opened }))
-    ws.popOut(groupId, win)
+    if (tabId) ws.popOutTab(tabId, win)
+    else ws.popOut(groupId, win)
   }
   const dock = (win: string) => {
     ws.dock(win)
@@ -356,17 +357,23 @@ export function App() {
   // typing pauses). A page that is gone shows the file alone while the pane moves on. None for a study session or
   // the Explorer (each has a head of its own, the same height); every release's notes are named as such.
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
-    if (tab.data.kind === 'changelog') return [{ label: 'All releases' }]
+    if (tab.data.kind === 'changelog') return [{ label: 'Shrimply Study', icon: 'app' }, { label: 'All releases' }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
     const r = tab.data.route
     if (r.name === 'study') return []
     const name = wbDocs[tab.data.doc].name
     const library = wbDocs[tab.data.doc].library
+    const where = ws.docs.find((d) => d.id === (tab.data as { doc: string }).doc)?.where
+    // The file starts every trail, marked by where it lives, so even a home reads as a trail: file › page.
+    if (r.name === 'home') {
+      const page = welcome || library.courses.length === 0 ? 'Start studying in three steps' : 'Your courses'
+      return [{ label: name, icon: where }, { label: page }]
+    }
     const named = resolve(library, r)
     if (!named.missing) found.current.set(tab.id, { key: href(r), place: named })
     const { course, quiz } = named.missing ? (followRename(library, r, found.current.get(tab.id))?.place ?? named) : named
-    if (!course || (r.name !== 'course' && !quiz)) return [{ label: name }]
-    const file: Crumb = { label: name, route: HOME }
+    if (!course || (r.name !== 'course' && !quiz)) return [{ label: name, icon: where }]
+    const file: Crumb = { label: name, route: HOME, icon: where }
     if (r.name === 'course') return [file, { label: course.name }]
     const up: Crumb = { label: course.name, route: { name: 'course', course: course.name } }
     if (r.name === 'quiz') return [file, up, { label: quiz!.name }]

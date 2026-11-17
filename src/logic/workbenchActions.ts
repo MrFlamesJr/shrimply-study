@@ -80,7 +80,8 @@ export function canSplit(size: { width: number; height: number }, dir: 'row' | '
 }
 
 export type MenuAction =
-  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'reveal' | 'copyPath' | 'save' | 'saveAll' | 'join'
+  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'reveal' | 'copyPath' | 'save'
+  | 'saveAll' | 'join'
 export type MenuEntry = 'separator' | { action: MenuAction; label: string; shortcut?: string; disabled?: boolean; reason?: string }
 
 /** What a menu needs to know about the group it belongs to. */
@@ -106,10 +107,19 @@ function splitWhy(g: GroupContext, dir: 'row' | 'column'): string | null {
   return g.size && !canSplit(g.size, dir) ? SMALL : null
 }
 
+const NARROW = 'Needs a wider screen with a mouse.'
+
+// The main window's only group may go too: the main window then shows an empty group.
 function popOutWhy(g: GroupContext): string | null {
-  if (!g.canPopOut) return 'Needs a wider screen with a mouse.'
-  if (g.groupsInWindow > 1) return null
-  return g.inMain ? 'The main window keeps its last group.' : 'This group is already alone in its window.'
+  if (!g.canPopOut) return NARROW
+  if (g.tabCount === 0) return 'No tabs to move.'
+  return !g.inMain && g.groupsInWindow === 1 ? 'This group is already alone in its window.' : null
+}
+
+// One tab goes in a group of its own; the rest of its group stays.
+function popOutTabWhy(g: GroupContext): string | null {
+  if (!g.canPopOut) return NARROW
+  return !g.inMain && g.groupsInWindow === 1 && g.tabCount === 1 ? 'This tab is already alone in its window.' : null
 }
 
 /**
@@ -128,7 +138,7 @@ export function tabMenu(tab: Tab<TabData>, docs: Docs, g: GroupContext, mac: boo
     'separator',
     entry('splitRight', 'Split right', why('row'), mac ? '⌘\\' : 'Ctrl+\\'),
     entry('splitDown', 'Split down', why('column')),
-    entry('popOut', g.tabCount > 1 ? 'Move group to new window' : 'Move to new window', popOutWhy(g)),
+    entry('popOutTab', 'Move to new window', popOutTabWhy(g)),
     'separator',
     entry('reveal', 'Reveal in Explorer', !doc && 'Only files, courses and quizzes are in the Explorer.'),
     entry('copyPath', 'Copy path', !doc && 'Only files, courses and quizzes have a path.'),
@@ -144,7 +154,8 @@ export function groupMenu(g: GroupContext): MenuEntry[] {
     entry('splitRight', 'Split right', splitWhy(g, 'row')),
     entry('splitDown', 'Split down', splitWhy(g, 'column')),
     entry('join', 'Join with next group', !g.next && 'There is no group after this one.'),
-    entry('popOut', 'Move to new window', popOutWhy(g)),
+    entry('popOut', 'Move group to new window', popOutWhy(g)),
+    ...(g.inMain ? [] : [entry('dock', 'Dock')]),
     'separator',
     entry('closeAll', 'Close all', g.tabCount === 0 && 'No tabs to close.'),
   ]

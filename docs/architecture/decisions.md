@@ -130,3 +130,14 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   host variables `--kit-danger` and `--kit-weight-bold` (the kit's documented contract) and `--dur-draw` (CLAUDE.md
   names it for the sequence line drawing itself, which now only fades in: a possible regression to look at).
   The edit outline sits `--space-6` out on every side, the top too.
+- Asked for, 2026-11-16: a one-crumb head did not read as breadcrumbs. The root crumb now starts with a small muted icon
+  of where its file lives (the sidebar row's: file, cloud, browser; the shrimp for the app's own pages, "Shrimply Study" ›
+  "All releases"), and a file's home adds the page's own name, the same words as its title ("Your courses", or the
+  welcome page's). A page that is gone still shows the file alone. The narrow "‹ parent" has no parent on a home, so a
+  narrow home shows the two-item trail.
+- Asked for, 2026-11-16: a popped-out window repeated its name (browser bar, our title row, tab, crumb). The title row is
+  gone: the tab strip is the first thing under the browser's bar, and Dock is an icon button (`DockIcon`, an arrow coming
+  into a window) in the strip of the window's top-right group (once per window, as a window can be split), plus "Dock" in
+  each of its groups' ⋯ menus. A tab's menu now moves just that tab (Move to new window, `popOutTab`: a new group there);
+  the ⋯ menu moves the group (Move group to new window). The main window's last group may now go too (the menu used to
+  refuse it): the main window keeps an empty group, which shows the empty pane page. An empty group can not be moved.

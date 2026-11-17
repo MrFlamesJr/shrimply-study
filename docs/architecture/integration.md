@@ -51,7 +51,10 @@ Saving, Drive, the browser backup and restoring on start are done here, through
   menus, disabled reasons, whether a pane may split) are `logic/workbenchActions`. It takes the layout and callbacks as props;
   `App` wires them to `WorkspaceApi`.
 - **Popping a pane out.** `App.popOut` calls `openPopup` synchronously in the click, keeps the `Window` in its `popups` state
-  by window id, then calls `ws.popOut(groupId, win)`. `Workbench` renders a `Popout` for each such window; closing or
+  by window id, then calls `ws.popOut(groupId, win)` (a group, from its ⋯ menu) or `ws.popOutTab(tabId, win)` (one tab, from
+  its tab menu: it moves into a group of its own there; the rest of its group stays). `Workbench` renders a `Popout` for each
+  such window, with no title row: its tab strip comes first and Dock sits in its top-right group's strip (and every
+  group's ⋯ menu); closing or
   reloading the popup docks its groups back (`ws.dock`). If the browser blocks the popup a warning toast says so. A window of
   the layout with no popup (after a reload) comes back docked.
 - **`src/layout/PaneScreen`** renders one tab: the Explorer (`ExplorerPane`), every release's notes (a changelog tab; its way
@@ -62,8 +65,9 @@ Saving, Drive, the browser backup and restoring on start are done here, through
 - **Empty groups and the brand.** A group with no tab shows `EmptyPane` (Show the Explorer, New file, Open file, and each open
   file's home to open there). Clicking the Sidebar's brand opens the active file's home: the file's home tab in the main window
   when it has one, else a new tab in the active group; with no file open it goes home (the welcome page).
-- **Breadcrumbs.** Each pane's `PaneHead` (a compact plain row, no frosted glass) shows the trail built by `App.crumbs`: the file's name first, then the course and
-  quiz, followed by id through renames; none for a study session or the Explorer; "All releases" for a changelog tab. In a pane
+- **Breadcrumbs.** Each pane's `PaneHead` (a compact plain row, no frosted glass) shows the trail built by `App.crumbs`: the file's name first (led by an icon of where it lives; on its home followed by
+  the page's own name, "Your courses"), then the course and
+  quiz, followed by id through renames; none for a study session or the Explorer; the shrimp, "Shrimply Study" › "All releases" for a changelog tab. In a pane
   narrower than 480px the trail becomes one "‹ parent" link. A click goes through that pane's own tab.
 - **Sidebar** (`src/layout/Sidebar.tsx`): under the brand a "Files" heading with New file, Open file, Google Drive and Save
   all (the actions a top bar used to hold), then `ws.docs` as file rows (Save, Download, Close; `ws.activate`), the course tree of the active file (a click shows the page in the active group, Ctrl or middle in a new tab), and

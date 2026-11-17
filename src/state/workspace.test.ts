@@ -17,6 +17,7 @@ import {
   moveTab,
   openPlace,
   popOutGroup,
+  popOutTab,
   recentGroup,
   setTabRoute,
   showExplorer,
@@ -483,6 +484,18 @@ describe('tabs, groups and windows', () => {
     w = dockWindow(w, 'pop')
     expect(Object.keys(w.layout.windows)).toEqual([MAIN])
     expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
+  })
+
+  it('pops out one tab in a group of its own, the rest of its group staying; a lone tab takes its group', () => {
+    let w = popOutTab(two(), 'tb', 'pop', 'g2', 'spare')
+    expect(w.layout.groups.g.tabs).toEqual(['ta'])
+    expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
+    expect(groupsIn(w.layout, 'pop')).toEqual(['g2'])
+    expect(w.layout.groups.g2.tabs).toEqual(['tb'])
+    w = popOutTab(w, 'ta', 'pop2', 'g3', 'spare')
+    expect(groupsIn(w.layout, MAIN)).toEqual(['spare'])
+    expect(groupsIn(w.layout, 'pop2')).toEqual(['g'])
+    expect(popOutTab(w, 'nope', 'pop3', 'g4', 'spare4')).toBe(w)
   })
 
   it('shows one Explorer: split on the left with room, else a tab; again only activates it', () => {

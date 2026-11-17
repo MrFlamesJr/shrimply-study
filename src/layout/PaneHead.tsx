@@ -1,14 +1,36 @@
 import type { MouseEvent } from 'react'
 import { href, type Route } from '../route'
+import { BrowserIcon, CloudIcon, FileIcon, ShrimpIcon } from '../components/Icons'
 
-export type Crumb = { label: string; route?: Route }
+/**
+ * One crumb. `icon`: the root's mark, so the trail reads as one from its start: where its file lives (as on the
+ * file's sidebar row), or the app itself (`app`) for the app's own pages.
+ */
+export type Crumb = { label: string; route?: Route; icon?: 'device' | 'drive' | 'browser' | 'app' }
+
+const ICONS = { device: FileIcon, drive: CloudIcon, browser: BrowserIcon, app: ShrimpIcon }
+
+function Label({ c }: { c: Crumb }) {
+  const Icon = c.icon && ICONS[c.icon]
+  return (
+    <>
+      {Icon && (
+        <span className={c.icon === 'app' ? 'pane-icon is-app' : 'pane-icon'}>
+          <Icon />
+        </span>
+      )}
+      <span className="pane-crumb-text">{c.label}</span>
+    </>
+  )
+}
 
 type Props = { crumbs: Crumb[]; onCrumb(route: Route): void }
 
 /**
- * A pane's breadcrumbs, on frosted glass over what scrolls under them: the file (its home), then the course and quiz,
- * lined up with the page under them. Long ones truncate, never overlap. In a narrow pane (its own width, not the
- * window's: workbench.css) the trail gives way to one "‹ <parent>" link, when the page has a parent to go back to.
+ * A pane's breadcrumbs, a plain row at the top of the pane: the file (with where it lives), then the page (on the
+ * file's home its own name, "Your courses"), course and quiz, lined up with the page under them. Long ones truncate,
+ * never overlap. In a narrow pane (its own width, not the window's: workbench.css) the trail gives way to one
+ * "‹ <parent>" link, when the page has a parent to go back to (on a file's home it stays the trail).
  */
 export function PaneHead({ crumbs, onCrumb }: Props) {
   const parent = crumbs.length > 1 ? crumbs[crumbs.length - 2] : undefined
@@ -29,10 +51,12 @@ export function PaneHead({ crumbs, onCrumb }: Props) {
               {i > 0 && <span className="pane-sep" aria-hidden="true">›</span>}
               {route && !last ? (
                 <a href={href(route)} title={c.label} onClick={follow(route)}>
-                  {c.label}
+                  <Label c={c} />
                 </a>
               ) : (
-                <span title={c.label}>{c.label}</span>
+                <span title={c.label}>
+                  <Label c={c} />
+                </span>
               )}
             </li>
           )
