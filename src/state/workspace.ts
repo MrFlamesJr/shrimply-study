@@ -234,13 +234,14 @@ export function openPlace(
   doc: DocId,
   route: Route,
   tabId: L.TabId,
-  o: { group?: L.GroupId; newTab?: boolean; background?: boolean } = {},
+  o: { group?: L.GroupId; newTab?: boolean; background?: boolean; keepTabs?: boolean } = {},
 ): { workspace: Workspace; tab: L.TabId | null } {
   if (!w.docs[doc]) return { workspace: w, tab: null }
   const open = o.newTab ? null : showing(w, doc, route)
   if (open) return { workspace: activateTab(w, open), tab: open }
   const group = o.group && w.layout.groups[o.group] ? o.group : openingGroup(w)
-  const reuse = o.newTab ? undefined : tabIn(w.layout, group, doc)
+  // `keepTabs`: the group's tab of the file keeps its page; a new tab shows this one.
+  const reuse = o.newTab || o.keepTabs ? undefined : tabIn(w.layout, group, doc)
   if (reuse) {
     const routed = setTabRoute(w, reuse, route)
     return { workspace: withLayout(routed, L.activate(routed.layout, reuse)), tab: reuse }

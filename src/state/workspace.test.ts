@@ -605,6 +605,9 @@ describe('what is already open, and duplicates', () => {
     expect(Object.keys(again.workspace.layout.tabs)).not.toContain('new')
     const fresh = openPlace(w, 'b', HOME, 'new', { group: 'g', newTab: true })
     expect(fresh.tab).toBe('new')
+    const kept = openPlace(w, 'a', { name: 'course', course: 'a2' }, 'new', { group: 'g', keepTabs: true })
+    expect(kept.tab).toBe('new')
+    expect(route(kept.workspace, 'ta')).toEqual({ name: 'course', course: 'a1' })
   })
 
   it('with several tabs on the page, focuses the one used last', () => {

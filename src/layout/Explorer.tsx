@@ -62,6 +62,8 @@ export type ExplorerProps = {
   open(node: ItemRef | DocRef): void
   /** A quiz: its editor; a card: the card dialog. */
   edit(ref: ItemRef): void
+  /** A card it just made (New card): its quiz's editor in a tab beside it, the card focused. */
+  editNew(ref: ItemRef): void
   newDoc(): void
   openFile(): void
   saveDoc(id: DocId): void
@@ -268,7 +270,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
         const ref = create(addCard(docsNow(), first.doc, first.course, first.quiz, newId(), kind, first.kind === 'group' ? first.group : undefined), 'New card')
         if (ref) {
           show([ref])
-          p.edit(ref)
+          p.editNew(ref)
         }
         return
       }

@@ -35,9 +35,12 @@ type Props = {
    * (the workspace's `undoLater`). Without it the toast names Ctrl+Z.
    */
   undoLater?: () => () => void
+  /** A card just made elsewhere (the Explorer's New card): scrolled into view with its first field focused, once. */
+  newCard?: string | null
+  onNewCardShown?: () => void
 }
 
-export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, undoLater }: Props) {
+export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, undoLater, newCard, onNewCardShown }: Props) {
   const found = lib.findQuiz(quizId)
   const { go, takeCreated } = nav
   const [importOpen, setImportOpen] = useState(false)
@@ -94,6 +97,15 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, 
   useEffect(() => {
     if (adding) listRef.current?.querySelector<HTMLElement>('.add-new button')?.focus()
   }, [adding])
+
+  // The Explorer's New card: once the card is in the list, its first field takes the focus (which scrolls it into view;
+  // a folded group opens first).
+  useEffect(() => {
+    const card = newCard ? cards?.find((c) => c.id === newCard) : undefined
+    if (!card) return
+    onNewCardShown?.()
+    focusCard(card, firstField(card))
+  }, [newCard, cards])
 
   useEffect(() => {
     refocus.current?.focus()

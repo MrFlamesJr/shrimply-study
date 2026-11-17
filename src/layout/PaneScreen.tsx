@@ -41,11 +41,16 @@ export type PaneShared = {
   /** The Explorer's: where it opens and edits things, and the node to reveal (in that Explorer tab only). */
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
+  /** A card the Explorer just made (New card): its quiz's editor, in a tab beside the Explorer, the card focused. */
+  editNew(ref: ItemRef): void
   reveal: { tab: string; node: string } | null
   onRevealed(): void
   /** A card to open in its quiz page's card dialog (from the Explorer's Edit), for one tab. */
   openCard: { tab: string; card: string } | null
   onCardOpened(): void
+  /** A new card to scroll into view in its editor and focus, for one tab. */
+  newCard: { tab: string; card: string } | null
+  onNewCardShown(): void
 }
 
 type Props = {
@@ -76,6 +81,7 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
         ask={s.ask}
         openNode={s.openNode}
         editNode={s.editNode}
+        editNew={s.editNew}
         reveal={s.reveal?.tab === tab.id ? s.reveal.node : null}
         onRevealed={s.onRevealed}
         tipSeen={s.explorerTipSeen}
@@ -227,7 +233,18 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
     )
   } else if (route.name === 'edit' && quiz) {
     screen = (
-      <EditScreen key={quiz.id} lib={lib} quizId={quiz.id} notify={s.notify} undoLater={ws.undoLater} collapsed={s.collapsed} setCollapsed={s.setCollapsed} nav={nav} />
+      <EditScreen
+        key={quiz.id}
+        lib={lib}
+        quizId={quiz.id}
+        notify={s.notify}
+        undoLater={ws.undoLater}
+        collapsed={s.collapsed}
+        setCollapsed={s.setCollapsed}
+        nav={nav}
+        newCard={s.newCard?.tab === tab.id ? s.newCard.card : null}
+        onNewCardShown={s.onNewCardShown}
+      />
     )
   } else if (route.name === 'study' && quiz) {
     return (

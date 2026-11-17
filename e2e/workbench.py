@@ -190,6 +190,7 @@ def run(page, base):
     pop_out_one_tab(page)
     address_names_the_page(page, base)
     open_focuses_and_duplicates(page)
+    new_card_from_explorer(page)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
@@ -380,6 +381,27 @@ def open_focuses_and_duplicates(page):
         page.wait_for_timeout(150)
         states.append(shown(eg).locator('[role=treeitem]').first.get_attribute('aria-expanded'))
     need(sorted(states, key=str) == sorted([before, after], key=str), f'each with its own open nodes: {states}')
+
+
+def new_card_from_explorer(page):
+    """The Explorer's New card opens the quiz's editor in a tab beside it, the new card's first field focused."""
+    page.keyboard.press('Control+Shift+E')
+    explorer = page.locator('.wb-cell .wb-tab:not([hidden]) .explorer')
+    explorer.first.wait_for()
+    search = explorer.first.locator('.explorer-search textarea')
+    search.fill('Read me first')
+    item = explorer.first.locator('[role=treeitem]', has_text='Read me first').first
+    item.wait_for()
+    item.click(button='right')
+    page.get_by_role('menuitem', name='New card').hover()
+    page.get_by_role('menuitem', name='Front and back').click()
+    wait_for(page, lambda: page.evaluate("document.activeElement?.getAttribute('data-field')") == 'term', "the new card's first field has the focus")
+    card = page.evaluate("document.activeElement.getAttribute('data-card')")
+    g = active_group(page)
+    wait_for(page, lambda: crumbs(g)[-1:] == ['Edit'] and 'Read me first' in crumbs(g), f"in the quiz's editor: {crumbs(g)}")
+    need(g.locator('.explorer').count() == 0 or not shown(g).locator('.explorer').count(), 'beside the Explorer, not over it')
+    need(shown(g).locator(f'[data-card="{card}"]').first.is_visible(), 'the card is in view')
+    search.fill('')
 
 
 def elsewhere(page):
