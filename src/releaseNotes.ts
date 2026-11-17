@@ -11,6 +11,7 @@ export const RELEASES: { name: string; date: string; notes: [string, string][] }
     notes: [
       ['Several files at once', 'Open as many .shrimp files as you like; each has its own Save. In Chrome and Edge, Save writes straight back into the file you opened.'],
       ['Tabs and split view', 'Open pages in tabs, put two side by side or one above the other, and move a pane into its own window.'],
+      ['One tree of files', 'The sidebar shows every open file with its courses and quizzes. Fold what you are not using, and rest the pointer on a file to see what is in it.'],
       ['Explorer', 'Every open file as one tree. Copy, cut, paste or drag courses, quizzes and cards, also from one file to another.'],
       ['Undo', 'Press Ctrl+Z to take back your last change, in any file.'],
       ['One answer or all that apply', 'Choose for each choice question whether students pick one answer or select all that apply.'],

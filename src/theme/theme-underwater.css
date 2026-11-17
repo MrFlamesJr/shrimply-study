@@ -161,8 +161,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "Fredoka", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
@@ -170,6 +170,7 @@
   --text-brand: 1.25rem;
   --text-score: 3.25rem;
   --text-info-title: 1.0625rem;
+  --text-side-title: 1rem;
   --text-result: 1.5625rem;
   --radius: 9px;
   --radius-pill: 999px;

@@ -154,8 +154,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "Jersey 15", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
@@ -163,6 +163,7 @@
   --text-brand: 1.25rem;
   --text-score: 3.5rem;
   --text-info-title: 1.3125rem;
+  --text-side-title: 1.1875rem;
   --text-result: 2rem;
   --radius: 2px;
   --radius-pill: var(--radius);

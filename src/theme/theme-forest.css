@@ -159,8 +159,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "Cinzel", var(--font-body);
   --display-tracking: 0.06em;
   --display-case: none;
@@ -168,6 +168,7 @@
   --text-brand: 0.9375rem;
   --text-score: 2.5rem;
   --text-info-title: 1rem;
+  --text-side-title: 0.875rem;
   --text-result: 1.375rem;
   --radius: 3px;
   --radius-pill: var(--radius);

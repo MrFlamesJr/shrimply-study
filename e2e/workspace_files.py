@@ -26,18 +26,26 @@ def wait_for(page, check, what, timeout=5000):
     raise AssertionError(f'{what} (at {page.url})')
 
 
+def first_quiz(page):
+    """The active file's first quiz link (unfolding its first course when it is folded)."""
+    block = page.locator('.file-block.is-active')
+    if block.locator('.file-quiz').count() == 0:
+        block.locator('.file-course [data-chevron]').first.click()
+    return block.locator('.file-quiz').first
+
+
 def run(page, base):
     page.goto(base + '#/_debug')
     page.get_by_role('button', name='Load test library').click()
     page.get_by_text('Loaded the test library.').first.wait_for()
     page.get_by_role('button', name='Load guide').click()
     page.get_by_text('Loaded the guide.').first.wait_for()
-    assert rows(page).locator('.file-name-text').all_inner_texts() == ['Test library', 'Guide'], 'two open files'
+    assert rows(page).locator('.file-name-text').all_inner_texts() == ['Guide', 'Test library'], 'two open files, by name'
     assert active_name(page) == 'Guide', 'the last opened file is active'
     assert '_debug' in page.url, 'opening from the debug page stays on it'
 
     # An edit in the guide marks only the guide, and the tab title.
-    quiz = page.locator('.tree-quizzes a').first.get_attribute('href')
+    quiz = first_quiz(page).get_attribute('href')
     page.goto(base + quiz + '/edit')
     field = page.get_by_label('Quiz name')
     before = field.input_value()
@@ -59,7 +67,7 @@ def run(page, base):
     page.wait_for_timeout(700)  # the backup writes wait out 300ms
     page.reload()
     page.locator('.file-row').nth(1).wait_for()
-    assert rows(page).locator('.file-name-text').all_inner_texts() == ['Test library', 'Guide'], 'both files restored'
+    assert rows(page).locator('.file-name-text').all_inner_texts() == ['Guide', 'Test library'], 'both files restored'
     assert active_name(page) == 'Guide', 'the active file restored'
 
     # The unedited file closes without a question.

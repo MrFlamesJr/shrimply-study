@@ -192,12 +192,22 @@ export function App() {
 
   // A new course goes into the active file (a new one when none is open) and shows in the active group.
   // A new course in the active file (a new file when none is open), shown in `group` (default: where it opens).
-  const newCourse = (group?: string) => {
-    const docId = ws.active ?? ws.newDoc()
+  // In the active file (or a new one), or in the file given (the sidebar tree's New course).
+  const newCourse = (group?: string, doc?: DocId) => {
+    const docId = doc ?? ws.active ?? ws.newDoc()
     const made = ws.doc(docId).addCourse()
     const route = { name: 'course', course: made.name } as const
     const tab = ws.openPlace(docId, route, group ? { group } : undefined)
     if (tab) tabNav(tab, route).goToNew(made.id, route)
+  }
+  // The sidebar tree's New quiz: made in that course, then its editor (as a course page's New quiz tile does).
+  const newQuiz = (doc: DocId, courseId: string) => {
+    const course = ws.doc(doc).library.courses.find((c) => c.id === courseId)
+    if (!course) return
+    const quiz = ws.doc(doc).addQuiz(courseId)
+    const route = { name: 'edit', course: course.name, quiz: quiz.name } as const
+    const tab = ws.openPlace(doc, route)
+    if (tab) tabNav(tab, route).goToNew(quiz.id, route)
   }
 
   const unsaved = ws.docs.some((d) => d.dirty)
@@ -483,14 +493,14 @@ export function App() {
       <div className={appClass}>
         <Sidebar
           ws={ws}
-          lib={lib}
           current={current}
           open={sidebarOpen}
           setOpen={setSidebarOpen}
           theme={theme}
           setTheme={chooseTheme}
           onDrive={() => setDriveOpen(true)}
-          onNewCourse={() => newCourse()}
+          onNewCourseIn={(doc) => newCourse(undefined, doc)}
+          onNewQuiz={newQuiz}
           onExplorer={() => showExplorer()}
           onHome={() => {
             ws.showAppPage('welcome')
@@ -500,12 +510,8 @@ export function App() {
             ws.showAppPage('changelog')
             bringForward()
           }}
-          onFile={(id) => {
-            ws.openPlace(id, HOME)
-            bringForward()
-          }}
-          onOpen={(route, newTab) => {
-            if (ws.active) ws.openPlace(ws.active, route, newTab ? { newTab: true, background: true } : undefined)
+          onOpen={(doc, route, newTab) => {
+            ws.openPlace(doc, route, newTab ? { newTab: true, background: true } : undefined)
             bringForward()
           }}
         />

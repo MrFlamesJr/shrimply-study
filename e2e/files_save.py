@@ -6,6 +6,7 @@ import base64
 import io
 import json
 import os
+import re
 import sys
 import zipfile
 
@@ -114,7 +115,10 @@ def library_json(raw):
 
 def edit_quiz(page, marker):
     """Rename the active file's first quiz (a change in that file), then leave the field."""
-    page.locator('.tree-quizzes a').first.click()
+    block = page.locator('.file-block.is-active')
+    if block.locator('.file-quiz').count() == 0:
+        block.locator('.file-course [data-chevron]').first.click()
+    block.locator('.file-quiz').first.click()
     page.get_by_role('button', name='Edit quiz').click()
     field = page.get_by_label('Quiz name')
     field.click()
@@ -212,7 +216,8 @@ def run(page, base):
     page.locator('.files-head').get_by_role('button', name='New file', exact=True).click()
     wait_for(page, lambda: page.locator('.file-row').count() == 2, 'a new library opens beside it')
     new_row = page.locator('.file-row').nth(1)
-    page.get_by_role('button', name='New course').click()
+    new_row.hover()
+    new_row.get_by_role('button', name=re.compile('^New course in ')).click()
     page.keyboard.type('Brand new')
     page.keyboard.press('Enter')
     wait_for(page, lambda: new_row.locator('.file-dot').count() == 1, 'the new library shows the dot')
@@ -238,7 +243,8 @@ def run(page, base):
     page.locator('.files-head').get_by_role('button', name='New file', exact=True).click()
     wait_for(page, lambda: page.locator('.file-row').count() == 3, 'a third library opens')
     third = page.locator('.file-row').nth(2)
-    page.get_by_role('button', name='New course').click()
+    third.hover()
+    third.get_by_role('button', name=re.compile('^New course in ')).click()
     page.keyboard.type('All saved')
     page.keyboard.press('Enter')
     wait_for(page, lambda: third.locator('.file-dot').count() == 1, 'the third library shows the dot')
@@ -285,8 +291,11 @@ def run(page, base):
     # Reopen: it shows the saved edit (not the discarded one); then edit and Save through the close question.
     open_fake(page, 'fa.shrimp')
     wait_for(page, lambda: row(page, 'fa.shrimp').count() == 1, 'the file opens again')
-    page.locator('.tree-quizzes a').first.wait_for()
-    assert 'Saved by keys' in page.locator('.tree-quizzes').first.inner_text(), 'the reopened file shows its saved edit'
+    block = page.locator('.file-block.is-active')
+    block.locator('.file-course [data-chevron]').first.wait_for()
+    if block.locator('.file-quiz').count() == 0:
+        block.locator('.file-course [data-chevron]').first.click()
+    assert 'Saved by keys' in block.locator('.file-quiz').first.inner_text(), 'the reopened file shows its saved edit'
     edit_quiz(page, 'Sixth edit')
     wait_for(page, lambda: dirty(page, 'fa.shrimp'), 'the sixth edit shows the dot')
     ask_close().get_by_role('button', name='Save', exact=True).click()

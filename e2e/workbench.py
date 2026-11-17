@@ -318,7 +318,12 @@ def open_focuses_and_duplicates(page):
     g = group(page, 0)
     page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
     wait_for(page, lambda: trail(group(page, 0)) == ['Test library', 'Your courses'], "a file's row shows its home")
-    quiz = page.locator('.tree-quizzes a').first
+    # The file's first quiz in the sidebar's tree (its first course unfolded when it isn't).
+    block = page.locator('.file-block').filter(has=page.locator('.file-name-text', has_text='Test library'))
+    block.locator('.file-course').first.wait_for()
+    if block.locator('.file-quiz').count() == 0:
+        block.locator('.file-course [data-chevron]').first.click()
+    quiz = block.locator('.file-quiz').first
     name = quiz.inner_text().strip()
     quiz.click(modifiers=['Control'])
     wait_for(page, lambda: len(tab_titles(g)) == 2, 'Ctrl opens it in a new tab')

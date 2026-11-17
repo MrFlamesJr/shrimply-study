@@ -89,7 +89,12 @@ def sign_out(page, answer):
 
 
 def edit_quiz(page, marker):
-    page.locator('.tree-quizzes a').first.click()
+    # The active file's first quiz in the sidebar's tree (its first course unfolded when it isn't).
+    block = page.locator('.file-block.is-active')
+    block.locator('.file-course').first.wait_for()
+    if block.locator('.file-quiz').count() == 0:
+        block.locator('.file-course [data-chevron]').first.click()
+    block.locator('.file-quiz').first.click()
     page.get_by_role('button', name='Edit quiz').click()
     field = page.get_by_label('Quiz name')
     field.click()

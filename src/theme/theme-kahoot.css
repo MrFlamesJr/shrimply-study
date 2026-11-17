@@ -154,8 +154,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "Montserrat", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
@@ -163,6 +163,7 @@
   --text-brand: 1rem;
   --text-score: 3rem;
   --text-info-title: 1rem;
+  --text-side-title: 0.9375rem;
   --text-result: 1.75rem;
   --radius: 4px;
   --radius-pill: var(--radius);

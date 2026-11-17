@@ -6,6 +6,7 @@ import chevronDown from '../icons/chevron-down.svg?raw'
 import chevronsLeft from '../icons/chevrons-left.svg?raw'
 import chevronsUp from '../icons/chevrons-up.svg?raw'
 import cloud from '../icons/cloud.svg?raw'
+import course from '../icons/course.svg?raw'
 import cross from '../icons/cross.svg?raw'
 import dock from '../icons/dock.svg?raw'
 import eraser from '../icons/eraser.svg?raw'
@@ -20,6 +21,7 @@ import pencil from '../icons/pencil.svg?raw'
 import play from '../icons/play.svg?raw'
 import plus from '../icons/plus.svg?raw'
 import pull from '../icons/pull.svg?raw'
+import quiz from '../icons/quiz.svg?raw'
 import refresh from '../icons/refresh.svg?raw'
 import save from '../icons/save.svg?raw'
 import shrimp from '../icons/shrimp.svg?raw'
@@ -77,6 +79,11 @@ export const CloudIcon = icon(cloud)
 
 export const BrowserIcon = icon(browser)
 
+// The sidebar tree's levels under a file: a course (a closed book) and a quiz (two stacked cards).
+export const CourseIcon = icon(course)
+
+export const QuizIcon = icon(quiz)
+
 export const PlusIcon = icon(plus)
 
 // A pane cut in two: split a tab group.
@@ -107,7 +114,7 @@ export const ImageIcon = icon(image)
 export const InfoIcon = icon(info)
 
 // A tumbleweed spinning along in the wind: a ball with a swirl inside, two spin marks round it and gusts with curled ends
-// behind it. Nothing here (the sidebar with no courses).
+// behind it. Nothing here. Not shown anywhere now; kept for later (asked for).
 export const TumbleweedIcon = icon(tumbleweed)
 
 export const PlayIcon = icon(play)
