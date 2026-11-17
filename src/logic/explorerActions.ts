@@ -3,13 +3,14 @@
 import { comboLabel, matches } from '../kit/shortcuts'
 import { KIND_NAME, isTermCard, type Card } from '../model'
 import { canPlace, exists, extract, insert, itemName, move, remove, type DocId, type Docs, type ItemRef, type Target } from './contentOps'
+import { whereLine } from './whereLine'
 import { nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type DriveNode } from './explorerTree'
 import { freeName, nameTaken } from './names'
 import { plural } from './plural'
 import { sideNames } from './sides'
 
 export type ItemKind = ItemRef['kind']
-export type NodeKind = ItemKind | 'doc' | 'drivefile' | `drive:${'root' | 'signin' | 'loading' | 'failed' | 'pick'}`
+export type NodeKind = ItemKind | 'doc' | 'drivefile'
 export type DocRef = { kind: 'doc'; doc: DocId }
 export type Clip = { mode: 'copy' | 'cut'; refs: ItemRef[] }
 type Effect = 'move' | 'copy'
@@ -18,6 +19,8 @@ type Pos = 'before' | 'inside' | 'after'
 const PLACE = { course: 'a file', quiz: 'a course', card: 'a quiz' } as const
 const MIXED = 'Pick items of one kind.'
 const OPEN_FIRST = 'Open the library first.'
+// A library in the list is in the signed-in user's Drive (what the app saved, or what they picked).
+const NOT_OPEN_WHERE = whereLine({ hasFile: false, drive: { shared: false, trashed: false }, yours: true, signedIn: true })
 const BIN_FROM_MENU = 'Move a Google Drive library to the bin from its own menu.'
 
 /** "1 card", "3 quizzes". */
@@ -30,7 +33,7 @@ export function parseNode(id: string): ItemRef | DocRef | null {
   return /^[dcqk]:/.test(id) ? refOf(id) : null
 }
 
-const driveKind = (n: DriveNode | null): NodeKind | null => (n === null ? null : n.kind === 'file' || n.kind === 'wait' ? 'drivefile' : `drive:${n.kind}`)
+const driveKind = (n: DriveNode | null): NodeKind | null => (n === null ? null : 'drivefile')
 
 /** What kind the selected nodes are: null for none, 'mixed' for more than one kind. */
 export function selectionKind(ids: string[]): NodeKind | 'mixed' | null {
@@ -62,23 +65,26 @@ export const cardDescription = (card: Card): string => {
   return KIND_NAME[card.type]
 }
 
-/** The muted text after a row's name: a file's place (marked when it has unsaved changes), a card's sides or kind. */
+/**
+ * The muted text after a row's name: a file's state and place ("Open · On this device", marked when it has unsaved
+ * changes; "Not open · Your Google Drive" for a library in the list), or a card's sides or kind.
+ */
 export function describeNode(
   docs: Docs,
   meta: Record<DocId, { where: string; dirty: boolean }>,
   node: string,
-  drive?: { listing: DriveListing; when(iso: string): string },
+  drive?: { listing: DriveListing },
 ): string | null {
   const g = parseDriveNode(node)
   if (g) {
-    const file = g.kind === 'file' ? drive?.listing.files?.find((f) => f.id === g.id) : undefined
-    return file && drive ? drive.when(file.modified) : null
+    const found = g.kind === 'file' && drive?.listing.files?.some((f) => f.id === g.id)
+    return found ? `Not open · ${NOT_OPEN_WHERE}` : null
   }
   const r = parseNode(node)
   if (!r) return null
   if (r.kind === 'doc') {
     const m = meta[r.doc]
-    return m ? (m.dirty ? `Unsaved · ${m.where}` : m.where) : null
+    return m ? `Open · ${m.dirty ? 'Unsaved · ' : ''}${m.where}` : null
   }
   if (r.kind !== 'card') return null
   const found = docs[r.doc]?.courses.find((c) => c.id === r.course)?.quizzes.find((q) => q.id === r.quiz)?.cards.find((c) => c.id === r.card)
@@ -109,10 +115,10 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
 export type Action =
   | 'newFile' | 'openFile' | 'newCourse' | 'newQuiz' | 'newCard' | 'open' | 'edit' | 'rename'
   | 'copy' | 'cut' | 'paste' | 'moveTo' | 'delete' | 'save' | 'download' | 'close'
-  | 'driveOpen' | 'driveRemove' | 'driveSignIn' | 'drivePick' | 'driveRefresh'
+  | 'driveOpen' | 'driveRemove'
 export type Item = { action: Action; label: string; shortcut?: string; disabled?: boolean; reason?: string; danger?: boolean }
 export type Entry = 'separator' | Item
-export type MenuContext = { docs: Docs; names: Record<DocId, string>; clipboard: Clip | null; mac: boolean; driveSignedIn?: boolean }
+export type MenuContext = { docs: Docs; names: Record<DocId, string>; clipboard: Clip | null; mac: boolean }
 
 /** The menu for the selected nodes `ids` (none: empty space); `at` is the node pointed at, where a paste goes. */
 export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Entry[] {
@@ -134,11 +140,6 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
       item('driveRemove', 'Move to bin', { shortcut: 'Delete', danger: true, ...only('library') }),
     ]
   }
-  if (kind === 'drive:root') return [ctx.driveSignedIn ? item('driveRefresh', 'Refresh') : item('driveSignIn', 'Sign in with Google')]
-  if (kind === 'drive:signin') return [item('driveSignIn', 'Sign in with Google')]
-  if (kind === 'drive:failed') return [item('driveRefresh', 'Retry')]
-  if (kind === 'drive:pick') return [item('drivePick', 'Choose files in Google Drive')]
-  if (kind === 'drive:loading') return []
   if (kind === 'doc') {
     return [
       item('newCourse', 'New course', only('file')),
@@ -348,7 +349,7 @@ export const allowInside = (node: string): boolean => parseNode(node)?.kind !== 
 /** Where `ids` dropped at `node` land, or why they can not. */
 export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: Pos): { target: Target } | { reason: string } {
   const g = node === null ? null : parseDriveNode(node)
-  if (g) return { reason: g.kind === 'file' || g.kind === 'wait' ? OPEN_FIRST : 'Drop items on an open file.' }
+  if (g) return { reason: OPEN_FIRST }
   const refs = itemRefs(ids)
   if (refs.length === 0 || refs.length !== ids.length) return { reason: 'That can not be dropped here.' }
   const kind = refs[0].kind

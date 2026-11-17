@@ -116,7 +116,7 @@ export function ExplorerPane(p: {
       onSelection={(selection) => put({ selection })}
       clipboard={ws.clipboard}
       apply={(label, update) => ws.apply(label, update)}
-      undo={ws.undo}
+      undoLater={ws.undoLater}
       copy={ws.copy}
       cut={ws.cut}
       paste={ws.paste}

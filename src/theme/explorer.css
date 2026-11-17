@@ -75,8 +75,17 @@
   justify-content: flex-start;
   text-align: left;
 }
-/* Google Drive's status and helper rows read quieter than the libraries. */
-.explorer .kit-row[data-id="g:loading"],
-.explorer .kit-row[data-id="g:pick"] {
+/* A library in Google Drive that is not open reads quieter than the open files. */
+.explorer .kit-row[data-id^="g:f:"] {
   color: var(--text-muted);
+}
+/* The sign-in button and its line, and under the tree the choose-files link or the loading and failure line. */
+.explorer-drive {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
 }

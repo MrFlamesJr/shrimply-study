@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs } from './contentOps'
-import { DRIVE_ROOT, driveNodeOf, driveRows, explorerSource, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type OpenDoc } from './explorerTree'
+import { closedDriveFiles, driveNodeOf, explorerSource, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type OpenDoc } from './explorerTree'
 
 const card = (id: string, group?: string): Card => ({ id, term: `T${id}`, definition: 'd', ...(group && { group }) }) as Card
 const library: Library = {
@@ -75,47 +75,44 @@ describe('targetFor', () => {
   })
 })
 
-describe('Google Drive nodes', () => {
+describe('Google Drive libraries among the files', () => {
   const files = [
     { id: 'f1', name: 'one.shrimp', modified: '2026-11-01T10:00:00Z' },
-    { id: 'f2', name: 'two.shrimp', modified: '2026-11-02T10:00:00Z' },
+    { id: 'f2', name: 'Zed.shrimp', modified: '2026-11-02T10:00:00Z' },
+    { id: 'f3', name: 'élan.shrimp', modified: '2026-11-02T10:00:00Z' },
   ]
   const listing = (more: Partial<DriveListing> = {}): DriveListing => ({ signedIn: true, loading: false, failed: false, files, ...more })
 
   it('parses its node ids and leaves the others alone', () => {
-    expect(parseDriveNode(DRIVE_ROOT)).toEqual({ kind: 'root' })
     expect(parseDriveNode('g:f:abc-1')).toEqual({ kind: 'file', id: 'abc-1' })
     expect(parseDriveNode(driveNodeOf({ kind: 'wait', id: 'x' }))).toEqual({ kind: 'wait', id: 'x' })
-    expect(parseDriveNode('g:signin')).toEqual({ kind: 'signin' })
     expect(parseDriveNode('d:a')).toBeNull()
-    expect(parseDriveNode('g:nothing')).toBeNull()
+    expect(parseDriveNode('g:root')).toBeNull()
   })
-  it('puts the Drive root after the open files, only when asked for', () => {
+  it('without a list the roots are the open files', () => {
     expect(explorerSource(open).roots).toEqual(['d:a', 'd:b'])
-    expect(explorerSource(open, listing()).roots).toEqual(['d:a', 'd:b', 'g:root'])
+    expect(explorerSource(open, listing({ signedIn: false, files: null })).roots).toEqual(['d:a', 'd:b'])
+    expect(explorerSource(open, listing({ files: null, loading: true })).roots).toEqual(['d:a', 'd:b'])
   })
-  it('signed out: one sign-in row', () => {
-    const src = explorerSource(open, listing({ signedIn: false, files: null }))
-    expect(src.children('g:root')).toEqual(['g:signin'])
-    expect(src.label('g:signin')).toBe('Sign in to see your Google Drive libraries')
+  it('open and not open files are one list sorted by name, ignoring case and accents', () => {
+    const src = explorerSource(open, listing())
+    // open: one.shrimp, two.shrimp; not open: one.shrimp, Zed.shrimp, élan.shrimp
+    expect(src.roots.map(src.label)).toEqual(['élan.shrimp', 'one.shrimp', 'one.shrimp', 'two.shrimp', 'Zed.shrimp'])
+    expect(src.roots[1]).toBe('d:a')
   })
-  it('signed in: the libraries that are not open, then the row to choose more', () => {
+  it('a library that is open is not listed twice', () => {
     const docs: OpenDoc[] = [{ ...open[0], driveId: 'f1' }, open[1]]
-    const src = explorerSource(docs, listing())
-    expect(src.children('g:root')).toEqual(['g:f:f2', 'g:pick'])
-    expect(src.label('g:f:f2')).toBe('two.shrimp')
-    expect(src.label('g:pick')).toBe("Don't see a file? Choose files in Google Drive")
-    expect(src.label('g:root')).toBe('Google Drive')
+    expect(closedDriveFiles(listing(), docs).map((f) => f.id)).toEqual(['f2', 'f3'])
+    expect(explorerSource(docs, listing()).roots.filter((r) => r.startsWith('g:'))).toEqual(['g:f:f3', 'g:f:f2'])
   })
-  it('loading and failing show one row; a refresh keeps the last list', () => {
-    expect(driveRows(listing({ files: null, loading: true }), open)).toEqual(['g:loading'])
-    expect(driveRows(listing({ files: null, failed: true }), open)).toEqual(['g:failed'])
-    expect(driveRows(listing({ loading: true }), open)).toEqual(['g:f:f1', 'g:f:f2', 'g:pick'])
-    expect(explorerSource(open, listing({ files: null, loading: true })).label('g:loading')).toBe('Loading your Google Drive…')
-  })
-  it('a closed library can be expanded (to open it); nothing else under Drive can', () => {
+  it('a closed library has one placeholder so it can be expanded to open it', () => {
     const src = explorerSource(open, listing())
     expect(src.children('g:f:f1')).toEqual(['g:w:f1'])
-    expect(src.children('g:pick')).toEqual([])
+    expect(src.label('g:f:f1')).toBe('one.shrimp')
+    expect(src.label('g:w:f1')).toBe('Opening…')
+  })
+  it('the list is kept while it refreshes', () => {
+    expect(closedDriveFiles(listing({ loading: true }), open)).toHaveLength(3)
+    expect(closedDriveFiles(undefined, open)).toEqual([])
   })
 })

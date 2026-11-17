@@ -17,14 +17,14 @@ import {
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
-import { DRIVE_CLOSED, DRIVE_ROOT, driveRows, explorerSource, nodeOf, parseDriveNode, type DriveFileInfo, type DriveListing } from '../logic/explorerTree'
+import { closedDriveFiles, driveNodeOf, explorerSource, nodeOf, parseDriveNode, type DriveFileInfo, type DriveListing } from '../logic/explorerTree'
 import type { Library } from '../model'
 import { newId } from '../model'
 
 export type ExplorerDoc = { id: DocId; name: string; library: Library; dirty: boolean; where: string; driveId?: string | null }
-/** The user's Google Drive libraries, listed under the open files. The host does the listing and the calls. */
+/** The user's Google Drive libraries, listed among the open files (the ones not open yet). The host does the listing and the calls. */
 export type ExplorerDrive = {
-  /** False when Google Drive is not set up on this site: no Drive root then. */
+  /** False when Google Drive is not set up on this site: nothing about it shows then. */
   setUp: boolean
   listing: DriveListing
   signIn(): void
@@ -36,7 +36,6 @@ export type ExplorerDrive = {
   /** Asks, then moves it to the bin. */
   remove(file: DriveFileInfo): void
 }
-const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 export type ExplorerProps = {
   docs: ExplorerDoc[]
   expanded: ReadonlySet<string>
@@ -46,8 +45,8 @@ export type ExplorerProps = {
   clipboard: { mode: 'copy' | 'cut'; refs: ItemRef[] } | null
   /** One undoable step. Never called with an update that throws. */
   apply(label: string, update: (docs: Docs) => Docs): void
-  /** Undoes the last step: offered on the toast after a delete. */
-  undo?(): void
+  /** Called right after a delete: gives back the way to undo that step, offered on the toast (only while it is still the latest). */
+  undoLater?(): () => void
   copy(refs: ItemRef[]): void
   cut(refs: ItemRef[]): void
   paste(target: Target): void
@@ -97,23 +96,14 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const drive = p.drive?.setUp ? p.drive : undefined
   const listing = drive?.listing
   const source = useMemo(() => explorerSource(p.docs, listing), [p.docs, listing])
-  // The Drive root is open unless the list says it was closed.
-  const expanded = useMemo(() => {
-    const set = new Set(p.expanded)
-    if (drive && !set.has(DRIVE_CLOSED)) set.add(DRIVE_ROOT)
-    else set.delete(DRIVE_ROOT)
-    return set
-  }, [p.expanded, !!drive])
-  const driveNodes = useMemo(() => {
-    const nodes = new Set<string>(listing ? [DRIVE_ROOT, ...driveRows(listing, p.docs)] : [])
-    return nodes
-  }, [listing, p.docs])
+  const expanded = p.expanded
+  const driveNodes = useMemo(() => new Set(closedDriveFiles(listing, p.docs).map((f) => driveNodeOf({ kind: 'file', id: f.id }))), [listing, p.docs])
   const order = useMemo(() => flatten(source, expanded, filter).map((r) => r.id), [source, expanded, filter])
   const cutNodes = useMemo(() => new Set(p.clipboard?.mode === 'cut' ? p.clipboard.refs.map(nodeOf) : []), [p.clipboard])
   const rowHeight = touch ? ROW_TOUCH : ROW
 
   const win = () => ownWindow(root.current!)
-  const context = (): MenuContext => ({ docs, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform), driveSignedIn: listing?.signedIn })
+  const context = (): MenuContext => ({ docs, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform) })
   const docsNow = () => toDocs(latest.current.docs)
 
   useEffect(() => {
@@ -202,7 +192,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
       return
     }
     p.apply(plan.label, () => done.docs)
-    const undo = latest.current.undo
+    const undo = latest.current.undoLater?.()
     p.notify('info', plan.notice, undefined, undo && { label: 'Undo', run: undo })
   }
 
@@ -252,16 +242,13 @@ export function Explorer(p: ExplorerProps): ReactNode {
       case 'delete': return void remove(ids)
       case 'driveOpen': {
         const g = parseDriveNode(ids[0])
-        return g && (g.kind === 'file' || g.kind === 'wait') && drive?.open(g.id)
+        return g && drive?.open(g.id)
       }
       case 'driveRemove': {
         const g = parseDriveNode(ids[0])
         const file = g?.kind === 'file' ? listing?.files?.find((f) => f.id === g.id) : undefined
         return file && drive?.remove(file)
       }
-      case 'driveSignIn': return drive?.signIn()
-      case 'drivePick': return drive?.pick()
-      case 'driveRefresh': return drive?.refresh()
       case 'save': return docIds(ids).forEach(p.saveDoc)
       case 'download': return docIds(ids).forEach(p.downloadDoc)
       case 'close': return docIds(ids).forEach(p.closeDoc)
@@ -293,7 +280,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   const iconOf = (id: string): ReactNode => {
     const g = parseDriveNode(id)
-    if (g) return g.kind === 'root' || g.kind === 'file' ? <span className="explorer-icon"><CloudIcon /></span> : null
+    if (g) return <span className="explorer-icon"><CloudIcon /></span>
     const r = parseNode(id)
     if (r?.kind !== 'doc') return null
     const doc = p.docs.find((d) => d.id === r.doc)
@@ -317,11 +304,6 @@ export function Explorer(p: ExplorerProps): ReactNode {
         out.delete(id)
       }
     }
-    if (drive) {
-      out.delete(DRIVE_ROOT)
-      if (next.has(DRIVE_ROOT)) out.delete(DRIVE_CLOSED)
-      else out.add(DRIVE_CLOSED)
-    }
     p.onExpanded(out)
   }
 
@@ -333,8 +315,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
         <h2 className="explorer-title">Explorer</h2>
         <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
         <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
-        {drive && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
-        <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set(drive ? [DRIVE_CLOSED] : []))}><ChevronsUpIcon /></IconButton>
+        {drive?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
+        <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
       </div>
       <div className="explorer-search">
         <AutoText
@@ -347,6 +329,12 @@ export function Explorer(p: ExplorerProps): ReactNode {
           }}
         />
       </div>
+      {drive && !drive.listing.signedIn && (
+        <div className="explorer-drive">
+          <button type="button" onClick={drive.signIn}>Sign in with Google</button>
+          <span>to see your Google Drive libraries</span>
+        </div>
+      )}
       <div className="explorer-tree">
         <TreeView
           label="Open files"
@@ -358,15 +346,12 @@ export function Explorer(p: ExplorerProps): ReactNode {
           onSelection={p.onSelection}
           filter={filter}
           icon={iconOf}
-          description={(id) => describeNode(docs, meta, id, listing && { listing, when })}
+          description={(id) => describeNode(docs, meta, id, listing && { listing })}
           dimmed={(id) => cutNodes.has(id)}
           onActivate={(id) => {
             const g = parseDriveNode(id)
             if (g) {
-              if (g.kind === 'file' || g.kind === 'wait') drive?.open(g.id)
-              else if (g.kind === 'signin') drive?.signIn()
-              else if (g.kind === 'failed') drive?.refresh()
-              else if (g.kind === 'pick') drive?.pick()
+              drive?.open(g.id)
               return
             }
             const r = parseNode(id)
@@ -401,6 +386,20 @@ export function Explorer(p: ExplorerProps): ReactNode {
           empty={<p className="explorer-empty">No files open. Use New file or Open file above.</p>}
         />
       </div>
+      {drive?.listing.signedIn && (
+        <div className="explorer-drive">
+          {drive.listing.files !== null || (!drive.listing.loading && !drive.listing.failed) ? (
+            <button type="button" className="link" onClick={drive.pick}>Don't see a file? Choose files in Google Drive</button>
+          ) : drive.listing.failed ? (
+            <>
+              <span>Couldn't load your Google Drive.</span>
+              <button type="button" onClick={drive.refresh}>Retry</button>
+            </>
+          ) : (
+            <span>Loading your Google Drive…</span>
+          )}
+        </div>
+      )}
       {moving && (
         <Modal title={`Move ${kindCount(moving[0].kind, moving.length)} to`} narrow onClose={() => setMoving(null)}>
           {destinations.length === 0 ? (

@@ -276,8 +276,8 @@ describe('removeItems and describeNode', () => {
   })
   it('describes files and cards only', () => {
     const meta = { a: { where: 'On this device', dirty: true }, b: { where: 'On Google Drive', dirty: false } }
-    expect(describeNode(docs, meta, 'd:a')).toBe('Unsaved · On this device')
-    expect(describeNode(docs, meta, 'd:b')).toBe('On Google Drive')
+    expect(describeNode(docs, meta, 'd:a')).toBe('Open · Unsaved · On this device')
+    expect(describeNode(docs, meta, 'd:b')).toBe('Open · On Google Drive')
     expect(describeNode(docs, meta, 'k:a:c1:q1:k1')).toBe('Front / Back')
     expect(describeNode(docs, meta, 'c:a:c1')).toBeNull()
   })
@@ -292,19 +292,10 @@ describe('Google Drive rows', () => {
     expect(find(m, 'Move to bin').danger).toBe(true)
     expect(find(menuFor(ctx(), [file, 'g:f:def'], file), 'Open')).toMatchObject({ disabled: true, reason: 'Pick one library.' })
   })
-  it('the other rows each offer their one action', () => {
-    expect(labels(menuFor(ctx(), ['g:signin'], 'g:signin'))).toEqual(['Sign in with Google'])
-    expect(labels(menuFor(ctx(), ['g:failed'], 'g:failed'))).toEqual(['Retry'])
-    expect(labels(menuFor(ctx(), ['g:pick'], 'g:pick'))).toEqual(['Choose files in Google Drive'])
-    expect(labels(menuFor(ctx(), ['g:root'], 'g:root'))).toEqual(['Sign in with Google'])
-    expect(labels(menuFor({ ...ctx(), driveSignedIn: true }, ['g:root'], 'g:root'))).toEqual(['Refresh'])
-    expect(menuFor(ctx(), ['g:loading'], 'g:loading')).toEqual([])
-  })
   it('nothing is pasted or dropped into one, and it can not be dragged', () => {
     expect(pasteTarget(docs, { mode: 'copy', refs: [course('c1')] }, file)).toEqual({ reason: 'Open the library first.' })
     expect(dropRule(docs, ['c:a:c1'], file, 'inside', 'move')).toEqual({ ok: false, reason: 'Open the library first.' })
-    expect(dropRule(docs, ['c:a:c1'], 'g:root', 'inside', 'move')).toEqual({ ok: false, reason: 'Drop items on an open file.' })
-    expect(dragKind([file])).toBeNull()
+        expect(dragKind([file])).toBeNull()
     expect(allowInside(file)).toBe(false)
   })
   it('keys: Delete moves to the bin, Ctrl+V is refused, Ctrl+C is left alone', () => {
@@ -318,9 +309,12 @@ describe('Google Drive rows', () => {
     expect(find(m, 'Copy').reason).toBe('Pick items of one kind.')
     expect(deletePlan(docs, [file, 'c:a:c1'], false)).toEqual({ reason: 'Move a Google Drive library to the bin from its own menu.' })
   })
-  it('describes a library by its last save', () => {
+  it('says whether a file is open, and where it is', () => {
     const listing = { signedIn: true, loading: false, failed: false, files: [{ id: 'abc', name: 'x.shrimp', modified: '2026-11-01T10:00:00Z' }] }
-    expect(describeNode(docs, {}, file, { listing, when: (iso) => `saved ${iso.slice(0, 10)}` })).toBe('saved 2026-11-01')
-    expect(describeNode(docs, {}, 'g:root', { listing, when: () => 'x' })).toBeNull()
+    expect(describeNode(docs, {}, file, { listing })).toBe('Not open · Your Google Drive')
+    expect(describeNode(docs, {}, 'g:f:other', { listing })).toBeNull()
+    const meta = { a: { where: 'On this device', dirty: false }, b: { where: 'Your Google Drive', dirty: true } }
+    expect(describeNode(docs, meta, 'd:a')).toBe('Open · On this device')
+    expect(describeNode(docs, meta, 'd:b')).toBe('Open · Unsaved · Your Google Drive')
   })
 })

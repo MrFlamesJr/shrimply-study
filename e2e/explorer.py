@@ -163,6 +163,7 @@ def undo_toast(page):
 
 
 def drive_rows(page):
+    """The libraries in Google Drive that are not open."""
     return page.locator('.kit-tree .kit-row[data-id^="g:f:"] .kit-row-label').all_inner_texts()
 
 
@@ -170,38 +171,55 @@ def drive_row(page, name):
     return page.locator('.kit-tree .kit-row[data-id^="g:f:"]').filter(has=page.locator('.kit-row-label', has_text=name))
 
 
+def top_level(page):
+    """Every file in the tree, open or not, in order, with its status text."""
+    return page.evaluate(
+        "[...document.querySelectorAll('.kit-tree .kit-row[aria-level=\"1\"]')].map(r => [r.querySelector('.kit-row-label').textContent,"
+        " r.querySelector('.kit-row-desc')?.textContent])"
+    )
+
+
 def back_to_explorer(page):
-    page.locator('[role=tab]', has_text='Explorer').first.click()
+    """Opening a library goes to another group; should it ever cover the Explorer, the Explorer's tab brings it back."""
+    if not page.locator('.kit-tree').is_visible():
+        page.locator('[role=tab]', has_text='Explorer').first.click()
     page.locator('.kit-tree').wait_for()
 
 
 def drive_tests(page, state):
-    """The Google Drive root: sign in, the list, search, refusals, open (Enter, expanding), Move to bin, a failed list."""
+    """Google Drive among the files: a sign-in button, one sorted list of open and not open files with their status, open in
+    place (Enter, expanding), Move to bin, the choose-files link, a failed list."""
     collapse_all(page)
-    root = page.locator('.kit-tree .kit-row[data-id="g:root"]')
-    need(root.count() == 1, 'the Drive root follows the open files')
-    root.locator('[data-chevron]').click()
-    signin = page.locator('.kit-tree .kit-row[data-id="g:signin"]')
-    wait_for(page, lambda: signin.count() == 1, 'signed out, one row asks to sign in')
-    need('Sign in to see your Google Drive libraries' in signin.inner_text(), 'the sign-in row says why')
+    box = page.locator('.explorer-drive')
+    wait_for(page, lambda: box.count() == 1 and box.get_by_role('button', name='Sign in with Google').count() == 1, 'signed out, a button asks to sign in')
+    need('to see your Google Drive libraries' in box.inner_text(), 'and says why')
+    need(page.locator('.kit-tree .kit-row[data-id^="g:"]').count() == 0, 'no Drive row is in the tree when signed out')
+    need(page.get_by_role('button', name='Refresh Google Drive').count() == 0, 'Refresh waits for a sign-in')
     need(state['lists'] == 0, 'nothing is listed before signing in')
-    signin.click()
-    page.keyboard.press('Enter')
+    box.get_by_role('button', name='Sign in with Google').click()
     wait_for(page, lambda: drive_rows(page) == ['alpha.shrimp', 'beta.shrimp', 'gamma.shrimp'], f'signed in, every library is listed: {drive_rows(page)}')
-    need(page.locator('.kit-tree .kit-row[data-id="g:pick"]').inner_text().startswith("Don't see a file? Choose files in Google Drive"), 'the last row chooses more files')
-    need(page.locator('.kit-tree .kit-row[data-id^="g:f:"] .kit-row-desc').first.inner_text().strip() != '', 'a library shows its last save')
+    link = page.locator('.explorer-drive').get_by_role('button', name=re.compile("Don't see a file"))
+    need(link.count() == 1 and 'Choose files in Google Drive' in link.inner_text(), 'a link chooses more files')
+    need(page.get_by_role('button', name='Refresh Google Drive').count() == 1, 'Refresh shows once signed in')
 
-    # Search filters these rows too.
+    # One list sorted by name; each file says whether it is open and where it is.
+    files = top_level(page)
+    sorted_names = ['alpha.shrimp', 'beta.shrimp', 'gamma.shrimp', 'Guide', 'Test library']
+    need([f[0] for f in files] == sorted_names, f'open and not open files are sorted together: {files}')
+    need(files[0][1] == 'Not open · Your Google Drive', f'a library not open says so: {files[0]}')
+    need(files[3][1].startswith('Open · '), f'an open file says so: {files[3]}')
+
+    # Search covers them.
     search = page.locator('.explorer-search textarea')
     search.fill('beta')
     wait_for(page, lambda: drive_rows(page) == ['beta.shrimp'], f'search filters the libraries: {drive_rows(page)}')
     search.press('Escape')
     wait_for(page, lambda: len(drive_rows(page)) == 3, 'Esc brings them back')
 
-    # Nothing can be dropped or pasted into a closed library.
+    # Nothing can be dropped or pasted into a library that is not open.
     expand(page, 'doc', 'Test library')
     drag_row(page, row(page, 'course', '1. Start here'), drive_row(page, 'beta'), release=False)
-    need(drop_label(page) == 'Open the library first.', f'a drop on a closed library says why: {drop_label(page)}')
+    need(drop_label(page) == 'Open the library first.', f'a drop on a library not open says why: {drop_label(page)}')
     page.mouse.up()
     page.wait_for_timeout(150)
     drive_row(page, 'beta').click(button='right')
@@ -217,23 +235,24 @@ def drive_tests(page, state):
     wait_for(page, lambda: state['lists'] > before, 'Refresh asks Google again')
     need(len(drive_rows(page)) == 3, 'the list stays')
 
-    # Enter opens a library as a file of the tree: selected, and no longer listed.
+    # Enter opens a library as a file of the tree: selected, in the same sorted place, no longer "not open".
     drive_row(page, 'alpha').click()
     page.keyboard.press('Enter')
-    # (the workspace puts a newly opened library's tab in the active group, which covers the Explorer: back to it)
     page.locator('[role=tab]', has_text='alpha.shrimp').wait_for()
     back_to_explorer(page)
     wait_for(page, lambda: 'alpha.shrimp' in labels(page, 'doc'), 'Enter opens the library as a file')
     wait_for(page, lambda: selected(page) == ['alpha.shrimp'], f'the opened file is selected: {selected(page)}')
     need(drive_rows(page) == ['beta.shrimp', 'gamma.shrimp'], f'an open library is not listed twice: {drive_rows(page)}')
-    need('Google Drive' in row(page, 'doc', 'alpha.shrimp').locator('.kit-row-desc').inner_text(), 'its place says Google Drive')
+    files = top_level(page)
+    need([f[0] for f in files] == sorted_names, f'it stays in its place: {files}')
+    need(files[0][1].startswith('Open · ') and 'Google Drive' in files[0][1], f'and now says it is open: {files[0]}')
 
-    # Expanding a closed library opens it too.
+    # Expanding a library that is not open opens it too.
     drive_row(page, 'beta').locator('[data-chevron]').click()
     page.locator('[role=tab]', has_text='beta.shrimp').wait_for()
     back_to_explorer(page)
     wait_for(page, lambda: 'beta.shrimp' in labels(page, 'doc'), 'expanding a library opens it')
-    need(drive_rows(page) == ['gamma.shrimp'], 'and it leaves the list')
+    need(drive_rows(page) == ['gamma.shrimp'], 'and it leaves the "not open" ones')
 
     # Move to bin asks first, then lists again.
     menu(page, drive_row(page, 'gamma'), 'Move to bin')
@@ -243,17 +262,16 @@ def drive_tests(page, state):
     dialog.get_by_role('button', name='Move to bin').click()
     wait_for(page, lambda: state['trashed'] == ['gamma'] and drive_rows(page) == [], 'the library is moved to the bin and leaves the list')
 
-    # A failed list shows its row; activating it retries.
+    # A failed list shows a line and a Retry button under the tree, never a row.
     state['fail'] = True
     page.wait_for_timeout(700)  # the workspace record waits out 300ms
     page.reload()
-    failed = page.locator('.kit-tree .kit-row[data-id="g:failed"]')
-    wait_for(page, lambda: failed.count() == 1, 'a list that fails shows a retry row')
-    need("Couldn't load your Google Drive" in failed.inner_text(), 'the row says what failed')
+    box = page.locator('.explorer-drive')
+    wait_for(page, lambda: box.count() == 1 and "Couldn't load your Google Drive." in box.inner_text(), 'a list that fails says so')
+    need(page.locator('.kit-tree .kit-row[data-id^="g:"]').count() == 0, 'it is not a tree row')
     state['fail'] = False
-    failed.click()
-    page.keyboard.press('Enter')
-    wait_for(page, lambda: failed.count() == 0 and page.locator('.kit-tree .kit-row[data-id="g:pick"]').count() == 1, 'Retry lists again')
+    box.get_by_role('button', name='Retry').click()
+    wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name=re.compile("Don't see a file")).count() == 1, 'Retry lists again')
 
 
 def run(page, base):
@@ -276,7 +294,7 @@ def run(page, base):
     page.locator('body').click(position={'x': 5, 'y': 790})
     page.keyboard.press('Control+Shift+E')
     wait_for(page, lambda: page.locator('.kit-tree').count() == 1, 'Ctrl+Shift+E opens the Explorer')
-    need(labels(page, 'doc') == ['Test library', 'Guide'], f'both files are in the tree: {labels(page, "doc")}')
+    need(labels(page, 'doc') == ['Guide', 'Test library'], f'both files are in the tree, sorted by name: {labels(page, "doc")}')
     need(not dot(page, 'Test library') and not dot(page, 'Guide'), 'no file starts with unsaved changes')
 
     # Keyboard: arrows open and move, Home and End jump.
@@ -292,7 +310,7 @@ def run(page, base):
     page.keyboard.press('End')
     need(selected(page) != ['1. Start here'], 'End goes to the last row')
     page.keyboard.press('Home')
-    need(selected(page) == ['Test library'], 'Home goes to the first row')
+    need(selected(page) == ['Guide'], 'Home goes to the first row')
 
     # A course dragged into the other file moves; both files show the unsaved dot; Ctrl+Z restores both.
     collapse_all(page)
