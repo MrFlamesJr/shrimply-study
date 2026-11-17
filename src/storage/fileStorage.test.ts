@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { emptyLibrary } from '../model'
 import { encodeLibrary } from './format'
 import { fileStorage, openFiles } from './fileStorage'
@@ -22,6 +22,8 @@ function stubPicker(files: File[]) {
 }
 
 describe('openFiles', () => {
+  // No native picker (Firefox, Safari): the file input.
+  beforeEach(() => vi.stubGlobal('window', {}))
   afterEach(() => vi.unstubAllGlobals())
 
   it('reports a file that can not be read in its place and opens the others', async () => {
@@ -31,7 +33,7 @@ describe('openFiles', () => {
     const opened = await openFiles()
     expect(opened?.map((o) => o.ok)).toEqual([false, true])
     expect(opened?.[0]).toMatchObject({ ok: false, name: 'bad.shrimp' })
-    expect(opened?.[1]).toMatchObject({ ok: true, name: 'good.shrimp' })
+    expect(opened?.[1]).toMatchObject({ ok: true, file: { name: 'good.shrimp', handle: null } })
   })
 
   it('is null when nothing was picked', async () => {
@@ -41,9 +43,9 @@ describe('openFiles', () => {
 })
 
 describe('fileStorage', () => {
-  it('has the labels and only open and download', () => {
+  it('has the labels and the file operations', () => {
     expect(Object.keys(fileStorage).sort()).toEqual(
-      ['download', 'downloadHint', 'downloadLabel', 'openFiles', 'openHint', 'openLabel'],
+      ['download', 'downloadHint', 'downloadLabel', 'look', 'openFiles', 'openHint', 'openLabel', 'sameFile', 'saveInPlace', 'savesInPlace'],
     )
   })
 })

@@ -39,7 +39,9 @@ import {
   settleViewOnly,
   signedOut,
   forAccount,
+  unsavedDevice,
   unsavedDrive,
+  where,
   viewOnly,
   docRecord,
   dropDraft,
@@ -248,6 +250,59 @@ describe('apply and the history', () => {
     expect(undoStep(w, step)).toBeNull()
     expect(undoStep(undoEdit(w)!.workspace, step)!.workspace.docs.a.library).toBe(start.docs.a.library)
     expect(undoStep(start, lastStep(start))).toBeNull()
+  })
+})
+
+describe('libraries tied to a file on this device', () => {
+  const handle = { name: 'bio.shrimp' } as FileSystemFileHandle
+  const file = { name: 'bio.shrimp', handle, size: 5, modified: 7 }
+  const tied = () => addDoc(two(), makeDoc('f', lib(course('f1')), 'bio', { file }), HOME, 'tf')
+
+  it('is on this device, named after its file, and unsaved until it saves', () => {
+    let w = tied()
+    expect(where(w.docs.f)).toBe('device')
+    expect(where(w.docs.a)).toBe('browser')
+    expect(unsavedDevice(w)).toEqual([])
+    w = applyEdit(w, 'Rename', rename('f', 'f1', 'One'), 0)
+    expect(unsavedDevice(w)).toEqual(['f'])
+    expect(unsavedDrive(w)).toEqual([])
+  })
+
+  it('closing it keeps no closed entry: the file is on disk', () => {
+    const w = closeDoc(tied(), 'f')
+    expect(w.docs.f).toBeUndefined()
+    expect(w.closed).toEqual([])
+    expect(closeDoc(tied(), 'a').closed).toHaveLength(1)
+  })
+
+  it('opening it again shows its home in the tab it has', () => {
+    let w = setTabRoute(tied(), 'tf', { name: 'course', course: 'f1' })
+    w = openPlace(w, 'f', HOME, 'new').workspace
+    expect(route(w, 'tf')).toEqual(HOME)
+    expect(Object.keys(w.layout.tabs)).toHaveLength(3)
+    expect(activeDoc(w)).toBe('f')
+  })
+
+  it('its record keeps the file note, and it is tied again only with the handle', () => {
+    const w = tied()
+    const records = w.order.map((id) => docRecord(w.docs[id]))
+    expect(records[2].file).toEqual({ name: 'bio.shrimp', size: 5, modified: 7 })
+    expect(records[0].file).toBeUndefined()
+    const rec = JSON.parse(JSON.stringify(workspaceRecord(w)))
+    const docs = JSON.parse(JSON.stringify(records))
+    const back = restore({ workspace: rec, docs, handles: { f: handle } }, 'g2', ids())
+    expect(back.docs.f.file).toEqual(file)
+    expect(back.docs.f.name).toBe('bio')
+    const without = restore({ workspace: rec, docs }, 'g2', ids())
+    expect(without.docs.f.file).toBeNull()
+    expect(without.docs.f.name).toBe('bio')
+    expect(where(without.docs.f)).toBe('browser')
+  })
+
+  it("takes another tab's record with its file as that tab knows it", () => {
+    const w = takeRecord(tied(), { id: 'f', library: lib(course('z')), dirty: false, drive: null, file: { name: 'new.shrimp', size: 1, modified: 2 } }, handle)
+    expect(w.docs.f.file).toEqual({ name: 'new.shrimp', size: 1, modified: 2, handle })
+    expect(takeRecord(tied(), { id: 'f', library: lib(), dirty: false, drive: null }, handle).docs.f.file).toBeNull()
   })
 })
 

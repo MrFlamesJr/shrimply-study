@@ -15,7 +15,7 @@ import { AutoText } from '../components/AutoText'
 import { ownWindow } from '../components/ownWindow'
 import { IconButton } from '../components/IconButton'
 import {
-  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CopyIcon, CourseIcon, CrossIcon, DriveIcon, FolderIcon, OpenIcon, PlusIcon, PullIcon,
+  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CopyIcon, CourseIcon, CrossIcon, DriveIcon, FileIcon, FolderIcon, OpenIcon, PlusIcon, PullIcon,
   QuizIcon, SaveIcon, ShareIcon,
 } from '../components/Icons'
 
@@ -51,34 +51,40 @@ const CARD_GAP = 8
  * "Your" needs a sign-in and Google's word), or only this browser. A view-only library says so instead.
  */
 function whereOf(doc: LibraryApi): [typeof CloudIcon, string] {
-  const icon = doc.where === 'drive' ? CloudIcon : BrowserIcon
+  // A file that was moved or deleted is only in this browser now (and says so in red, see `isMissing`).
+  const icon = doc.where === 'drive' ? CloudIcon : doc.where === 'device' && doc.status !== 'missing' ? FileIcon : BrowserIcon
   if (doc.readOnly) return [icon, 'View only']
-  const where = whereLine({ drive: doc.drive.file, yours: doc.drive.yours, signedIn: doc.drive.signedIn() })
-  return [icon, whereWithStatus(where, doc.status)]
+  const where = whereLine({ drive: doc.drive.file, yours: doc.drive.yours, signedIn: doc.drive.signedIn(), file: doc.fileName })
+  return [icon, whereWithStatus(where, doc.status, doc.where)]
 }
 
 // The save slot: a browser library uploads, a view-only one makes its own copy. A library that saves itself has none
 // while it saves as it should (asked for: a button greyed out nearly always was noise); only a paused save shows one,
-// in the same place, that fixes it in one click (Ctrl+S saves at any time).
+// in the same place, that fixes it in one click (Ctrl+S saves at any time). A file that was moved or deleted has
+// Locate file under its row instead.
 const FIX_TITLE: Record<SaveProblem, string> = {
   signIn: 'Sign in again and save',
   offline: 'Save now',
-  conflict: 'Changed on Google Drive: choose which to keep',
+  conflict: 'Changed: choose which to keep',
   error: 'Save now',
+  permission: 'Allow access and save',
+  missing: 'Locate file',
 }
 function saveSlot(doc: LibraryApi): { label: string; title: string } | null {
   if (doc.readOnly) return { label: `Make a copy of ${doc.name}`, title: 'Make a copy you can change' }
   if (doc.where === 'browser') return { label: `Upload ${doc.name}`, title: 'Upload to Google Drive' }
-  return needsAttention(doc.status) ? { label: `Save ${doc.name}`, title: FIX_TITLE[doc.status] } : null
+  if (!needsAttention(doc.status) || doc.status === 'missing') return null
+  const title = doc.status === 'conflict' ? `Changed on ${doc.where === 'device' ? 'this device' : 'Google Drive'}: choose which to keep` : FIX_TITLE[doc.status]
+  return { label: `Save ${doc.name}`, title }
 }
 
 const infoOf = (doc: LibraryApi): string[] =>
   fileInfo({
     where: whereOf(doc)[1],
-    driveName: doc.drive.file?.name ?? null,
+    driveName: doc.drive.file?.name ?? doc.fileName,
     shared: !!doc.drive.file?.shared,
-    problem: doc.hasChanges ? statusText(doc.status) : null,
-    saved: doc.where === 'drive' && doc.status === 'saved',
+    problem: doc.hasChanges ? statusText(doc.status, doc.where) : null,
+    saved: doc.where !== 'browser' && doc.status === 'saved',
     counts: countLine(doc.library),
   })
 
@@ -427,9 +433,9 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                           {doc.name}
                         </span>
                       )}
-                      {doc.hasChanges && <span className="file-dot" role="img" aria-label={statusText(doc.status)} title={statusText(doc.status)} />}
+                      {doc.hasChanges && <span className="file-dot" role="img" aria-label={statusText(doc.status, doc.where)} title={statusText(doc.status, doc.where)} />}
                     </span>
-                    <span className="file-where">{where}</span>
+                    <span className={doc.status === 'missing' ? 'file-where is-missing' : 'file-where'}>{where}</span>
                   </div>
                   {/* A small toolbar that slides in over the end of the name line while the row is pointed at (or holds the
                       keyboard focus), the same for every library: the save slot, Share, New course, Download a copy
@@ -475,6 +481,13 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                     {infoOf(doc).join('. ')}
                   </span>
                 </div>
+                {doc.status === 'missing' && (
+                  <div className="file-missing">
+                    <button type="button" className="link" tabIndex={rowTab} title="Pick the file again and save into it" onClick={() => void doc.locate()}>
+                      Locate file
+                    </button>
+                  </div>
+                )}
                 {isOpen && courses.length > 0 && (
                   <ul role="group" className="file-courses">
                     {courses.map((course) => {
@@ -570,7 +583,7 @@ function FileCard({ doc }: { doc: LibraryApi }) {
   const [Icon, where] = whereOf(doc)
   const counts = libraryCounts(doc.library)
   const drive = doc.drive.file
-  const home = drive?.name ?? null
+  const home = drive?.name ?? doc.fileName
   const figures = [
     [counts.courses, counts.courses === 1 ? 'course' : 'courses'],
     [counts.quizzes, counts.quizzes === 1 ? 'quiz' : 'quizzes'],
@@ -579,17 +592,17 @@ function FileCard({ doc }: { doc: LibraryApi }) {
   const notes = [
     home && (
       <li key="home">
-        <CloudIcon />
+        {doc.where === 'device' ? <FileIcon /> : <CloudIcon />}
         <span className="file-info-home">{home}</span>
       </li>
     ),
     doc.hasChanges ? (
       <li key="saved" className="is-unsaved">
         <span className="file-info-dot" />
-        {statusText(doc.status)}
+        {statusText(doc.status, doc.where)}
       </li>
     ) : (
-      doc.where === 'drive' &&
+      doc.where !== 'browser' &&
       doc.status === 'saved' && (
         <li key="saved">
           <CheckIcon />

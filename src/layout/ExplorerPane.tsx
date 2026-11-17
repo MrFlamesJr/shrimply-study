@@ -38,8 +38,8 @@ export function ExplorerPane(p: {
   const { ws } = p
   const next = ws.docs.map((d): ExplorerDoc => {
     const api = ws.doc(d.id)
-    const where = whereLine({ drive: api.drive.file, yours: api.drive.yours, signedIn: api.drive.signedIn() })
-    return { id: d.id, name: d.name, dirty: d.dirty, where, line: whereWithStatus(where, api.status), place: d.where, readOnly: d.readOnly, library: api.library, driveId: api.drive.file?.id ?? null }
+    const where = whereLine({ drive: api.drive.file, yours: api.drive.yours, signedIn: api.drive.signedIn(), file: api.fileName })
+    return { id: d.id, name: d.name, dirty: d.dirty, where, line: whereWithStatus(where, api.status, d.where), place: d.where, readOnly: d.readOnly, library: api.library, driveId: api.drive.file?.id ?? null }
   })
   // The same array while nothing in it changed: the tree rebuilds when it is a new one.
   const docs = useRef<ExplorerDoc[]>([])

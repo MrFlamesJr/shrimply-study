@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { isViewOnly, needsAttention, saveStatus, statusText, type SaveDoc, type SaveStatus } from './autosave'
 
 const library = {}
-const doc = (o: Partial<SaveDoc> = {}): SaveDoc => ({ library, saved: library, drive: { mine: true }, problem: null, ...o })
+const doc = (o: Partial<SaveDoc> = {}): SaveDoc => ({ library, saved: library, drive: { mine: true }, file: null, problem: null, ...o })
 const on = { signedIn: true, busy: false, online: true }
 
 describe('saveStatus', () => {
@@ -20,6 +20,17 @@ describe('saveStatus', () => {
     expect(saveStatus(doc({ saved: {} }), { ...on, online: false })).toBe('offline')
     expect(saveStatus(doc(), { ...on, online: false })).toBe('saved')
   })
+  it('a file on this device saves itself, offline too', () => {
+    const file = (o: Partial<SaveDoc> = {}) => doc({ drive: null, file: {}, ...o })
+    expect(saveStatus(file(), on)).toBe('saved')
+    expect(saveStatus(file({ saved: {} }), on)).toBe('pending')
+    expect(saveStatus(file({ saved: {} }), { ...on, online: false })).toBe('pending')
+    expect(saveStatus(file({ saved: {} }), { ...on, busy: true })).toBe('saving')
+    expect(saveStatus(file({ saved: {}, problem: 'permission' }), on)).toBe('permission')
+    expect(saveStatus(file({ saved: {}, problem: 'missing' }), on)).toBe('missing')
+    // Signed out changes nothing for it.
+    expect(saveStatus(file(), { ...on, signedIn: false })).toBe('saved')
+  })
   it('a paused save says its problem, until it saves again', () => {
     expect(saveStatus(doc({ saved: {}, problem: 'conflict' }), on)).toBe('conflict')
     expect(saveStatus(doc({ saved: {}, problem: 'signIn' }), on)).toBe('signIn')
@@ -28,9 +39,9 @@ describe('saveStatus', () => {
 })
 
 describe('statusText and needsAttention', () => {
-  const all: SaveStatus[] = ['saved', 'pending', 'saving', 'viewOnly', 'browser', 'signIn', 'offline', 'conflict', 'error']
+  const all: SaveStatus[] = ['saved', 'pending', 'saving', 'viewOnly', 'browser', 'signIn', 'offline', 'conflict', 'error', 'permission', 'missing']
   it('names each status', () => {
-    expect(all.map(statusText)).toEqual([
+    expect(all.map((s) => statusText(s))).toEqual([
       'Saved',
       'Saving…',
       'Saving…',
@@ -40,10 +51,16 @@ describe('statusText and needsAttention', () => {
       'Offline: not saved yet',
       'Changed on Google Drive',
       'Not saved: trying again soon',
+      'Not saved: allow access',
+      'Moved or deleted: only in this browser now',
     ])
   })
+  it('a conflict is on Google Drive or on this device', () => {
+    expect(statusText('conflict', 'drive')).toBe('Changed on Google Drive')
+    expect(statusText('conflict', 'device')).toBe('Changed on this device')
+  })
   it('only the problems need the user', () => {
-    expect(all.filter(needsAttention)).toEqual(['signIn', 'offline', 'conflict', 'error'])
+    expect(all.filter(needsAttention)).toEqual(['signIn', 'offline', 'conflict', 'error', 'permission', 'missing'])
   })
   it('isViewOnly', () => {
     expect(isViewOnly({ drive: null }, false)).toBe(false)

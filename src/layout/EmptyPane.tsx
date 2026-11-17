@@ -1,7 +1,7 @@
 import { useState, type MouseEvent } from 'react'
 import { comboLabel, isMac } from '../kit/shortcuts'
 import { href } from '../route'
-import { BrowserIcon, CloudIcon, FolderIcon, OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
+import { BrowserIcon, CloudIcon, FileIcon, FolderIcon, OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
 import { InfoBox } from '../components/InfoBox'
 import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
 import { RELEASES } from '../releaseNotes'
@@ -26,7 +26,7 @@ type Props = {
   onWhatsNew(background: boolean): void
 }
 
-const WHERE_ICON = { drive: CloudIcon, browser: BrowserIcon }
+const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
 
 /**
  * A group with no tab: a calm page in the style of the empty sidebar, a large faded shrimp (a watermark, not text to

@@ -14,7 +14,8 @@ import { closedNote } from '../logic/whereLine'
 import * as backup from '../storage/browserBackup'
 import * as google from '../storage/googleDrive'
 import type { DriveFile, DriveSource } from '../storage/googleDrive'
-import type { StorageAdapter } from '../storage/StorageAdapter'
+import { sameLibrary } from '../storage/format'
+import type { FileRef, Opened, SaveResult, StorageAdapter } from '../storage/StorageAdapter'
 import { comboLabel, isMac } from '../kit/shortcuts'
 import { redoLabel, undoLabel } from '../kit/history'
 import type { GroupId, Layout, Tab, TabId, WindowId } from '../kit/layout'
@@ -114,8 +115,10 @@ export type LibraryApi = {
    * as text). A page of the old library is then gone on purpose, not a bad address (App moves on quietly).
    */
   replaced: number
-  /** Where it lives: a Google Drive file, or only this browser (a browser library). */
-  where: 'drive' | 'browser'
+  /** Where it lives: a Google Drive file, a .shrimp file on this device, or only this browser (a browser library). */
+  where: 'drive' | 'device' | 'browser'
+  /** The name of the .shrimp file on this device it is tied to (browsers never give the folder); null for any other. */
+  fileName: string | null
   /** How its saving stands (logic/autosave): saved, saving, paused and why, view only, or a browser library. */
   status: SaveStatus
   /**
@@ -149,11 +152,18 @@ export type LibraryApi = {
   /** Replaces the whole library (the debug page's text), as one step that can be undone. */
   replace(library: Library): void
   /**
-   * Save now (Ctrl+S, the save slot's Save now and Resolve): the user's own Drive file saves at once, in the click, so
-   * a sign-in that ran out is renewed and a conflict is asked about again. Resolves true when nothing is left to save;
-   * false for a browser library (the caller opens Upload to Google Drive) and a view-only one.
+   * Save now (Ctrl+S, the save slot's button while a save is paused): the user's own Drive file, or the file on this
+   * device, saves at once, in the click, so a sign-in that ran out is renewed, the browser may ask to allow writing,
+   * and a conflict is asked about again. Resolves true when nothing is left to save; false for a browser library (the
+   * caller opens Upload to Google Drive) and a view-only one.
    */
   saveNow(): Promise<boolean>
+  /**
+   * Locate file (asked for): a file on this device that was moved or deleted is picked again. When it holds what was
+   * last saved, or the user agrees to replace what it holds, the library is tied to it again and saves into it.
+   * Resolves true when it is tied again.
+   */
+  locate(): Promise<boolean>
   /**
    * Make a copy (asked for): signed in, the user's own Drive file "Copy of <name>" (saving itself); signed out, a
    * browser library of that name. It opens on the same page in the tab that showed this one, which stays open.
@@ -173,7 +183,7 @@ export type LibraryApi = {
 }
 
 /** One open library as the sidebar lists it. `dirty`: it needs attention (a paused save). */
-export type DocMeta = { id: DocId; name: string; where: 'drive' | 'browser'; readOnly: boolean; dirty: boolean }
+export type DocMeta = { id: DocId; name: string; where: 'drive' | 'device' | 'browser'; readOnly: boolean; dirty: boolean }
 
 export type WorkspaceApi = {
   /** False until the browser backup has been read (App renders nothing before). */
@@ -258,8 +268,10 @@ export type WorkspaceApi = {
    */
   newDoc(at?: Route, o?: { inDrive?: boolean }): DocId
   /**
-   * The file picker: each picked .shrimp file opens as a browser library named after the file ("Name (2)" when taken),
-   * with a toast offering Upload to Google Drive. Resolves the last one opened, null for none.
+   * The file picker: where the browser can keep the file (Chrome, Edge) each picked .shrimp file opens tied to it and
+   * saves into it by itself; a file already open just shows its library (taking the file's version when it changed
+   * outside, asking when both changed). Elsewhere it opens as a browser library named after the file ("Name (2)" when
+   * taken), with a toast offering Upload to Google Drive. Resolves the last one opened, null for none.
    */
   openFile(at?: Route): Promise<DocId | null>
   /** A library a loader gives (the guide, the debug page's samples) as a new document named after `name`. */
@@ -291,6 +303,8 @@ export type WorkspaceApi = {
   drive: DriveApi
   openLabel: string
   openHint: string
+  /** Whether Open file ties a file to its library (it then saves into the file); else it opens a copy in this browser. */
+  savesInPlace: boolean
 }
 
 // The backup holds whole libraries, images included, so each waits for a pause in its edits.
@@ -337,18 +351,34 @@ const driveFrom = (drive: DriveSource, yours = false) =>
 
 const errorText = (err: unknown) => (err instanceof Error ? ` ${err.message}` : '')
 // The record as written already says this about the document: nothing to write.
-const sameRecord = (rec: backup.DocRecord, d: W.Doc) => rec.library === d.library && rec.dirty === W.hasChanges(d) && rec.drive === d.drive
+const sameFileNote = (a: backup.DocRecord['file'], b: FileRef | null) =>
+  !a || !b ? !a && !b : a.name === b.name && a.size === b.size && a.modified === b.modified
+const sameRecord = (rec: backup.DocRecord, d: W.Doc) =>
+  rec.library === d.library && rec.dirty === W.hasChanges(d) && rec.drive === d.drive && sameFileNote(rec.file, d.file)
 // The file is not known to be another account's own (`owner`): this tab's account can ask for it as its own.
 const sameOwner = (drive: DriveSource | null | undefined) => !drive?.owner || !google.signedInAs() || drive.owner === google.signedInAs()
 // A Drive file Google said is the user's own, marked with the account it is the own file of.
 const ownedBy = (drive: DriveSource): DriveSource => (drive.mine ? { ...drive, owner: google.signedInAs() } : drive)
 // The user's own Drive file, which saves itself; anything else never saves.
 const ownDrive = (d: W.Doc | undefined, w: W.Workspace): d is W.Doc & { drive: DriveSource } => !!d?.drive && !isViewOnly(d, w.signedIn, w.account)
+// A library tied to a file on this device, which saves itself too.
+const onDevice = (d: W.Doc | undefined): d is W.Doc & { file: FileRef & { handle: FileSystemFileHandle } } => !!d?.file?.handle
+const autosaves = (d: W.Doc | undefined, w: W.Workspace) => ownDrive(d, w) || onDevice(d)
+const askFileChanged = (askChoice: AskChoice, name: string, fileName: string) =>
+  askChoice<'mine' | 'theirs'>(
+    `"${name}" changed on this device since it was last saved here (${fileName}). Keep your version here (it replaces the file), or take the file's version (it replaces your changes here)?`,
+    [
+      { label: "Take the file's version", value: 'theirs' },
+      { label: 'Keep mine', value: 'mine', primary: true },
+    ],
+    { title: 'Changed on this device' },
+  )
 
 /**
  * The workspace: every open document, the closed ones, the layout (tabs, groups, splits, windows), the undo history
- * and the clipboard, as one state with one write path for content (`apply`). The user's own Drive files save
- * themselves (autosave), and every Drive file with nothing to save takes newer versions from Drive (sync). `pane`:
+ * and the clipboard, as one state with one write path for content (`apply`). The user's own Drive files and the
+ * files on this device save themselves (autosave), and every such file with nothing to save takes newer versions
+ * from Drive or from disk (sync). `pane`:
  * pane mode, a popped-out window's address opened on its own: the main window shows just that page, and its layout is
  * never written to the backup (the full app's stays).
  */
@@ -432,6 +462,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   // The record each document has in the backup now (read on start, written here, or written by another tab).
   const written = useRef(new Map<DocId, backup.DocRecord>())
+  // The file handle each document has in the backup now (null: none), so it is stored once, when it changes.
+  const writtenHandle = useRef(new Map<DocId, FileSystemFileHandle | null>())
   // The document objects already looked at, so an edit to one doesn't push back the writes of the others.
   const seen = useRef(new Map<DocId, W.Doc>())
   // A document's edit waiting out BACKUP_DELAY before it is written.
@@ -485,13 +517,13 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   const saveTimers = useRef(new Map<DocId, ReturnType<typeof setTimeout>>())
   const arm = (id: DocId, delay = AUTOSAVE_DELAY) => {
-    if (!ownDrive(cur(id), ref.current)) return
+    if (!autosaves(cur(id), ref.current)) return
     clearTimeout(saveTimers.current.get(id))
     saveTimers.current.set(
       id,
       setTimeout(() => {
         saveTimers.current.delete(id)
-        void saveDrive(id)
+        void (cur(id)?.file ? saveFile(id) : saveDrive(id))
       }, delay),
     )
   }
@@ -501,7 +533,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       clearTimeout(map.current.get(id))
       map.current.delete(id)
     }
-    for (const map of [written, seen, apis, named]) map.current.delete(id)
+    for (const map of [written, writtenHandle, seen, apis, named]) map.current.delete(id)
   }
 
   // Once (StrictMode runs effects twice; reading twice would migrate the old backup twice).
@@ -518,6 +550,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       }
       const signedIn = google.signedIn()
       let next = read ? W.restore(read, newId(), newId, signedIn, google.signedInAs()) : W.emptyWorkspace(newId(), signedIn, google.signedInAs())
+      for (const d of Object.values(next.docs)) if (d.file) writtenHandle.current.set(d.id, d.file.handle)
       for (const rec of read?.docs ?? []) {
         // A record the reading could not write (moving the old backup in) is not stored yet: the first backup write
         // after the start writes it, and warns if that fails too.
@@ -577,6 +610,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         follows.current.set(id, setTimeout(() => followNow(id), FOLLOW_DELAY))
       }
       if (W.hasChanges(d) && prev?.library !== d.library) arm(id)
+      const handle = d.file?.handle ?? null
+      if ((writtenHandle.current.get(id) ?? null) !== handle) {
+        writtenHandle.current.set(id, handle)
+        void backup.writeHandle(id, handle).catch(() => undefined)
+      }
       const rec = written.current.get(id)
       if (rec && sameRecord(rec, d)) continue
       clearTimeout(timers.current.get(id))
@@ -623,8 +661,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     return backup.onWorkspaceWritten((msg) => {
       const id = msg.doc
       if (!id || !cur(id) || timers.current.has(id)) return
-      backup.readDoc(id).then(
-        (rec) => {
+      // Its file handle as stored now too (the other tab stores it at once): taken as it is, and never written back here.
+      Promise.all([backup.readDoc(id), backup.readHandle(id)]).then(
+        ([rec, handle]) => {
           const d = cur(id)
           if (!d || timers.current.has(id)) return
           if (!rec) {
@@ -637,15 +676,17 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
           // Another account's own library, as another tab learned it: this tab keeps the file as it knows it.
           if (rec.drive?.owner && rec.drive.owner !== ref.current.account && ref.current.account) return
           written.current.set(id, rec)
-          update((w) => W.takeRecord(w, rec))
+          const kept = rec.file ? handle : null
+          writtenHandle.current.set(id, kept)
+          update((w) => W.takeRecord(w, rec, kept))
         },
         () => undefined, // unreadable: this tab keeps what it has
       )
     })
   }, [ready])
 
-  // A Drive save still waiting, under way or paused: leaving would lose it (browser libraries are in the backup).
-  const unsaved = W.unsavedDrive(ws).length > 0 || busy.size > 0
+  // A save to Drive or to a file still waiting, under way or paused: leaving would lose it (browser libraries are in the backup).
+  const unsaved = W.unsavedDrive(ws).length > 0 || W.unsavedDevice(ws).length > 0 || busy.size > 0
   useEffect(() => {
     if (!unsaved) return
     // Browsers show their own text in this prompt and ignore ours. The timer only runs if the page is still
@@ -653,7 +694,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const warn = (e: BeforeUnloadEvent) => {
       e.preventDefault()
       e.returnValue = ''
-      setTimeout(() => say('warning', "Some changes aren't saved to Google Drive yet."))
+      setTimeout(() => say('warning', "Some changes aren't saved yet."))
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
@@ -805,14 +846,91 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       }
     })
 
+  // ---- A file on this device: saved in place (the same autosave), through the adapter ----
+
+  // A save or look that did not go through, as a pause: the browser needs a click to allow writing, the file was moved
+  // or deleted, or anything else (tried again after RETRY_DELAY; said as a toast when the user asked for the save).
+  const stopped = (id: DocId, r: { status: 'denied' | 'permission' | 'missing' | 'error'; message?: string }, click: boolean): false => {
+    if (r.status === 'denied' || r.status === 'permission') return pause(id, 'permission')
+    if (r.status === 'missing') {
+      if (click) say('warning', 'Not saved: the file was moved or deleted. Locate it, or download a copy.')
+      return pause(id, 'missing')
+    }
+    pause(id, 'error')
+    arm(id, RETRY_DELAY)
+    if (click) say('error', `Not saved. ${r.message ?? ''}`.trim())
+    return false
+  }
+  // Saved into its file (`saving`: the library as it was when the save started, so an edit made meanwhile still waits).
+  const fileSaved = (id: DocId, saving: Library, to: FileRef) => {
+    update((w) => W.markSaved(w, id, saving, { file: to, problem: null }))
+    const d = cur(id)
+    if (d && W.hasChanges(d)) arm(id)
+  }
+  // The file changed on this device since it was last saved here: asks (Keep mine, Take the file's version); Cancel
+  // leaves it paused, and its button (Save now) asks again.
+  const resolveFileConflict = async (id: DocId, click: boolean): Promise<boolean> => {
+    pause(id, 'conflict')
+    const before = cur(id)
+    if (!before?.file) return false
+    const choice = await askFileChanged(deps.current.askChoice, W.docName(before), before.file.name)
+    const d = cur(id)
+    const handle = d?.file?.handle
+    if (choice === null || !d || !handle) return false
+    markBusy(id, true)
+    try {
+      if (choice === 'mine') {
+        const library = d.library
+        const r = await adapter.saveInPlace(handle, library, null, { force: true, prompt: click })
+        if (r.status === 'changed') return stopped(id, { status: 'error', message: 'The file changed again. Try once more.' }, click)
+        if (r.status !== 'saved') return stopped(id, r, click)
+        fileSaved(id, library, r.file)
+        return true
+      }
+      const now = await adapter.look(handle)
+      if (now.status !== 'ok') return stopped(id, now, click)
+      update((w) => W.replaceDoc(w, id, keepIds(w.docs[id]?.library ?? now.library, now.library), { file: now.file, problem: null }))
+      return true
+    } finally {
+      markBusy(id, false)
+    }
+  }
+  // The one save of a file on this device: quiet (autosave), or in a click (`click`: Save now, Save and close), which
+  // may ask the browser to allow writing and asks about a conflict again. Resolves true when it saved.
+  const saveFile = (id: DocId, click = false): Promise<boolean> =>
+    once(id, async () => {
+      clearTimeout(saveTimers.current.get(id))
+      saveTimers.current.delete(id)
+      const d = cur(id)
+      if (!onDevice(d)) return false
+      if (!W.hasChanges(d) && !d.problem) return true
+      if ((d.problem === 'conflict' || d.problem === 'missing') && !click) return false
+      markBusy(id, true)
+      try {
+        const library = d.library
+        const r: SaveResult = await adapter.saveInPlace(d.file.handle, library, d.file.modified || null, { prompt: click })
+        if (r.status === 'saved') {
+          fileSaved(id, library, r.file)
+          return true
+        }
+        if (r.status === 'changed') {
+          markBusy(id, false)
+          return await resolveFileConflict(id, click)
+        }
+        return stopped(id, r, click)
+      } finally {
+        markBusy(id, false)
+      }
+    })
+
   // Saves what waits now, quietly unless `click`. Resolves true when nothing is left to save.
   const flush = async (id: DocId, click = false): Promise<boolean> => {
     clearTimeout(saveTimers.current.get(id))
     saveTimers.current.delete(id)
     await running.current.get(id)
     const d = cur(id)
-    if (!ownDrive(d, ref.current) || (!W.hasChanges(d) && !d.problem)) return true
-    return saveDrive(id, click)
+    if (!autosaves(d, ref.current) || (!W.hasChanges(d!) && !d!.problem)) return true
+    return d!.file ? saveFile(id, click) : saveDrive(id, click)
   }
 
   // A new file in the user's Drive (Upload, Keep both, a copy), signing in on the way. `quiet`: no toast when it
@@ -916,8 +1034,33 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       syncing.current.delete(id)
     }
   }
+  // A file on this device with nothing to save looks at the file (quietly, asking the browser nothing): moved or
+  // deleted pauses it; changed outside, its version is taken. With changes here, its save checks the file itself and asks.
+  const syncFile = async (id: DocId) => {
+    const d = cur(id)
+    if (!onDevice(d) || d.problem || running.current.has(id) || syncing.current.has(id)) return
+    const handle = d.file.handle
+    syncing.current.add(id)
+    try {
+      const now = await adapter.look(handle)
+      if (now.status === 'missing') {
+        pause(id, 'missing')
+        return
+      }
+      if (now.status !== 'ok') return
+      const x = cur(id)
+      if (!x?.file || x.file.handle !== handle || x.library !== d.library || W.hasChanges(x) || x.dirtyElsewhere || running.current.has(id)) return
+      if (now.file.modified === x.file.modified && now.file.size === x.file.size) return
+      update((w) => W.replaceDoc(w, id, keepIds(x.library, now.library), { file: now.file }))
+    } finally {
+      syncing.current.delete(id)
+    }
+  }
   const syncAll = () => {
-    for (const id of ref.current.order) void syncDoc(id)
+    for (const id of ref.current.order) {
+      void syncDoc(id)
+      void syncFile(id)
+    }
   }
   // On start, when the window comes back (focus, visible again), and every SYNC_EVERY while it is visible.
   useEffect(() => {
@@ -1214,18 +1357,34 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   const closeDoc = async (id: DocId) => {
     const start = cur(id)
     if (!start) return false
-    if (ownDrive(start, ref.current)) {
+    if (autosaves(start, ref.current)) {
       await flush(id)
       // Asked again when changes came in while it saved (typed in another pane meanwhile): those are not saved yet.
-      const ask = () =>
-        deps.current.askChoice<'save' | 'discard'>(
-          `Changes to "${W.docName(cur(id) ?? start)}" aren't saved to Google Drive yet. If you close it anyway, they are lost.`,
+      // A file on this device can also be downloaded as a copy first.
+      const ask = async (): Promise<'save' | 'discard' | null> => {
+        const x = cur(id) ?? start
+        if (!x.file) {
+          return deps.current.askChoice<'save' | 'discard'>(
+            `Changes to "${W.docName(x)}" aren't saved to Google Drive yet. If you close it anyway, they are lost.`,
+            [
+              { label: 'Close anyway', value: 'discard', danger: true },
+              { label: 'Save and close', value: 'save', primary: true },
+            ],
+            { title: 'Close file' },
+          )
+        }
+        const choice = await deps.current.askChoice<'save' | 'discard' | 'download'>(
+          `Changes to "${W.docName(x)}" aren't saved to ${x.file.name} yet. If you close it anyway, they are lost.`,
           [
             { label: 'Close anyway', value: 'discard', danger: true },
+            { label: 'Download a copy', value: 'download' },
             { label: 'Save and close', value: 'save', primary: true },
           ],
           { title: 'Close file' },
         )
+        if (choice === 'download') return (await download(id)) ? 'discard' : ask()
+        return choice
+      }
       const dirty = () => {
         const d = cur(id)
         return d ? W.hasChanges(d) || !!d.problem : null
@@ -1236,7 +1395,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (!d) return false
     // A browser library stays in this browser, closed: what waits is written now. A Drive file's record goes: it opens
     // again from Drive.
-    if (!d.drive && timers.current.has(id)) {
+    if (!d.drive && !d.file && timers.current.has(id)) {
       clearTimeout(timers.current.get(id))
       await writeNow(id)
     }
@@ -1244,8 +1403,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     forgetTimers(id)
     update((w) => W.closeDoc(w, id))
     // Its record is kept while another tab has changes in it that are not on Drive yet (reopening finds them).
-    if (d.drive && !d.dirtyElsewhere) void backup.deleteDoc(id).catch(() => undefined)
-    say('info', closedNote({ name: W.docName(d), drive: d.drive }, yours), undefined, { label: 'Reopen', run: () => void reopenClosed(id) })
+    // A file on this device is on disk: its record and handle go, and it opens again with Open file.
+    if (d.file || (d.drive && !d.dirtyElsewhere)) void backup.deleteDoc(id).catch(() => undefined)
+    say('info', closedNote({ name: W.docName(d), drive: d.drive, file: d.file }, yours), undefined, d.file ? undefined : { label: 'Reopen', run: () => void reopenClosed(id) })
     return true
   }
 
@@ -1330,6 +1490,24 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       return false
     }
     if (W.bareName(W.docName(d)) === next) return true
+    if (d.file) {
+      // A library tied to a file on this device is renamed by renaming the file, where the browser can.
+      const handle = d.file.handle as (FileSystemFileHandle & { move?: (name: string) => Promise<void> }) | null
+      if (!handle || !('move' in handle)) {
+        say('error', "This browser can't rename files. Rename it on your computer, then use Locate file.")
+        return false
+      }
+      return once(id, async () => {
+        try {
+          await handle.move!(`${next}.shrimp`)
+        } catch (err) {
+          say('error', `Not renamed. ${err instanceof Error ? err.message : String(err)}`)
+          return false
+        }
+        update((w) => W.renameFile(w, id, next, `${next}.shrimp`))
+        return true
+      })
+    }
     if (!d.drive && !running.current.has(id)) {
       update((w) => W.renameDoc(w, id, next))
       return true
@@ -1398,7 +1576,23 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     }
   }
 
-  // A .shrimp file opens in this browser (asked for): a copy, never tied to the file. Saving it to Drive is a click away.
+  // Opening a file the browser can keep (Chrome, Edge) ties the library to it: it saves into the file by itself. Opened
+  // again it shows the library it is open in, with no word about it. The file changed outside: with nothing unsaved
+  // here its version is taken; with both changed it asks. Elsewhere (no handle) a copy opens in this browser, never tied
+  // to the file; saving it to Drive is a click away.
+  const reconcileFile = async (id: DocId, o: Extract<Opened, { ok: true }>) => {
+    const x = cur(id)
+    if (!x?.file || (o.file.modified === x.file.modified && o.file.size === x.file.size)) return
+    const take = () => update((w) => W.replaceDoc(w, id, keepIds(w.docs[id]?.library ?? o.library, o.library), { file: o.file, problem: null }))
+    if (!W.hasChanges(x) && !x.dirtyElsewhere) return take()
+    const choice = await askFileChanged(deps.current.askChoice, W.docName(x), x.file.name)
+    if (choice === 'theirs') take()
+    else if (choice === 'mine') {
+      // The file as it is now is what the next save is checked against, so mine goes over it.
+      update((w) => W.patchDoc(w, id, { file: o.file, problem: null }))
+      arm(id, 0)
+    }
+  }
   const openFile = async (at: Route = HOME) => {
     let opened: Awaited<ReturnType<StorageAdapter['openFiles']>>
     try {
@@ -1416,15 +1610,78 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       }
       const id = newId()
       const tab = newId()
+      if (o.file.handle) {
+        let same: W.Doc | undefined
+        for (const d of Object.values(ref.current.docs)) {
+          if (d.file && (await adapter.sameFile(d.file, o.file).catch(() => false))) {
+            same = d
+            break
+          }
+        }
+        if (same) {
+          const sameId = same.id
+          update((w) => W.openPlace(w, sameId, HOME, tab).workspace)
+          await reconcileFile(sameId, o)
+          last = sameId
+          continue
+        }
+        update((w) => W.addDoc(w, W.makeDoc(id, o.library, W.freeDocName(w, W.bareName(o.file.name)), { file: o.file }), at, tab))
+        last = id
+        continue
+      }
       let name = ''
       update((w) => {
-        name = copyName(W.bareName(o.name), W.docNames(w))
+        name = copyName(W.bareName(o.file.name), W.docNames(w))
         return W.addDoc(w, W.makeDoc(id, o.library, name), at, tab)
       })
       say('info', `Opened "${name}" in this browser.`, undefined, google.driveSetUp ? { label: 'Upload to Google Drive', run: () => void upload(id) } : undefined)
       last = id
     }
     return last
+  }
+
+  // Locate file: a moved or deleted file is picked again. The library ties to it when it holds what was last saved
+  // here, or the user agrees to replace what it holds; then the library saves into it.
+  const locate = async (id: DocId): Promise<boolean> => {
+    const d = cur(id)
+    if (!d?.file) return false
+    let opened: Awaited<ReturnType<StorageAdapter['openFiles']>>
+    try {
+      opened = await adapter.openFiles({ multiple: false })
+    } catch (err) {
+      say('error', `This file could not be opened.${errorText(err)}`)
+      return false
+    }
+    const o = opened?.[0]
+    if (!o) return false
+    if (!o.ok) {
+      say('error', `"${o.name}" could not be opened. ${o.error}`)
+      return false
+    }
+    if (!o.file.handle) {
+      say('error', "This browser can't save into a file on this device.")
+      return false
+    }
+    for (const other of Object.values(ref.current.docs)) {
+      if (other.id !== id && other.file && (await adapter.sameFile(other.file, o.file).catch(() => false))) {
+        say('warning', `"${W.docName(other)}" is already open from that file.`)
+        return false
+      }
+    }
+    const same = !!d.saved && sameLibrary(d.saved, o.library)
+    if (!same && !(await confirm('This file has other content. Replace it with your library?', 'Replace', { title: 'Locate file', danger: true }))) return false
+    const file = o.file
+    update((w) =>
+      W.patchDoc(w, id, (x) => ({
+        file,
+        problem: null,
+        name: W.bareName(file.name) === x.name ? x.name : W.freeDocName(w, W.bareName(file.name)),
+        // Other content in the file: the library is saved over it.
+        ...(same ? {} : { saved: null }),
+      })),
+    )
+    say('info', `"${W.docName(cur(id) ?? d)}" saves into ${file.name} again.`)
+    return flush(id, true)
   }
 
   // ---- Undo, redo, clipboard ----
@@ -1486,6 +1743,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       library,
       replaced: d.replaced,
       where: W.where(d),
+      fileName: d.file?.name ?? null,
       status,
       readOnly: status === 'viewOnly',
       hasChanges: needsAttention(status),
@@ -1565,7 +1823,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
           return changed === w ? w : W.patchDoc(changed, id, (x) => ({ replaced: x.replaced + 1 }))
         })
       },
-      saveNow: async () => (ownDrive(cur(id), ref.current) ? flush(id, true) : false),
+      saveNow: async () => (autosaves(cur(id), ref.current) ? flush(id, true) : false),
+      locate: () => locate(id),
       makeCopy: () => makeCopy(id),
       download: async () => void (await download(id)),
       close: () => closeDoc(id),
@@ -1690,5 +1949,6 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     drive: driveFor(null, ws.signedIn, ws.account),
     openLabel: adapter.openLabel,
     openHint: adapter.openHint,
+    savesInPlace: adapter.savesInPlace,
   }
 }

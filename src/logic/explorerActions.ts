@@ -126,7 +126,7 @@ export function describeNode(docs: Docs, node: string): string | null {
 
 /** Which icon a file's row takes, by where it lives. */
 export const whereIcon = (where: string): 'cloud' | 'browser' | 'file' =>
-  /drive/i.test(where) ? 'cloud' : /browser/i.test(where) ? 'browser' : 'file'
+  where.startsWith('On this device') ? 'file' : /drive/i.test(where) ? 'cloud' : /browser/i.test(where) ? 'browser' : 'file'
 
 // ---- Paste
 
@@ -171,7 +171,7 @@ export type MenuContext = {
   clipboard: Clip | null
   mac: boolean
   /** Each open file: where it lives and whether it is view only (copy only: out but never in). */
-  files: Record<DocId, { place: 'drive' | 'browser'; readOnly: boolean }>
+  files: Record<DocId, { place: 'drive' | 'device' | 'browser'; readOnly: boolean }>
   /** The closed libraries listed, by their file node's id. */
   closed: Record<string, ClosedKind>
   /** False when Google Drive is not set up here: nothing to upload or share to. */

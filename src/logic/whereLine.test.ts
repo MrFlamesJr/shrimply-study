@@ -7,6 +7,9 @@ describe('whereLine', () => {
     expect(whereLine({ drive: null, yours: false, signedIn: false })).toBe('Only in this browser')
     expect(whereLine({ drive: null, yours: false, signedIn: true })).toBe('Only in this browser')
   })
+  it('names the file on this device', () => {
+    expect(whereLine({ drive: null, yours: false, signedIn: false, file: 'biology.shrimp' })).toBe('On this device · biology.shrimp')
+  })
   it('says whose Drive only when signed in', () => {
     expect(whereLine({ drive: drive(true), yours: true, signedIn: true })).toBe('Your Google Drive')
     expect(whereLine({ drive: drive(true), yours: false, signedIn: true })).toBe("Someone else's Google Drive")
@@ -23,6 +26,9 @@ describe('closedNote', () => {
     expect(closedNote({ name: 'Bio.shrimp', drive: { id: 'x' } }, true)).toBe('Closed "Bio.shrimp". It\'s in your Google Drive: open it again from the Explorer.')
     expect(closedNote({ name: 'Bio.shrimp', drive: { id: 'x' } }, false)).toBe(
       'Closed "Bio.shrimp". It\'s on Google Drive: open it again from the Explorer, or from its link.',
+    )
+    expect(closedNote({ name: 'Bio', drive: null, file: { name: 'Bio.shrimp' } }, false)).toBe(
+      "Closed \"Bio\". It's on this device: open it again with Open file.",
     )
     expect(closedNote({ name: 'Bio', drive: null }, false)).toBe('Closed "Bio". It\'s still in this browser: open it again from the Explorer.')
   })

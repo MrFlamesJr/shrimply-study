@@ -36,7 +36,7 @@ export type ExplorerDoc = {
   /** The same with its save status after it: what a row shows while pointed at. */
   line: string
   /** A Google Drive file or a browser library. */
-  place: 'drive' | 'browser'
+  place: 'drive' | 'device' | 'browser'
   /** View only (shared with the user): copy out, never in. */
   readOnly: boolean
   driveId?: string | null

@@ -1,7 +1,7 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { FORMAT_VERSION, type Library, type TermCard } from '../model'
-import { checkLibrary, decodeLibrary, encodeLibrary, libraryFromJson, libraryToJson } from './format'
+import { FORMAT_VERSION, emptyLibrary, type Library, type TermCard } from '../model'
+import { checkLibrary, decodeLibrary, encodeLibrary, libraryFromJson, libraryToJson, sameLibrary } from './format'
 
 const library: Library = {
   version: FORMAT_VERSION,
@@ -34,6 +34,16 @@ const fromData = (data: unknown) => libraryFromJson(JSON.stringify(data))
 const withCard = (card: unknown) => ({
   version: FORMAT_VERSION,
   courses: [{ name: 'c', quizzes: [{ name: 'q', cards: [card] }] }],
+})
+
+describe('sameLibrary', () => {
+  it('compares content, not ids', () => {
+    const a = libraryFromJson(libraryToJson(emptyLibrary()))
+    const course = { id: 'x', name: 'Bio', quizzes: [] }
+    expect(sameLibrary({ ...a, courses: [course] }, { ...a, courses: [{ ...course, id: 'y' }] })).toBe(true)
+    expect(sameLibrary({ ...a, courses: [course] }, { ...a, courses: [{ ...course, name: 'Chem' }] })).toBe(false)
+    expect(sameLibrary(a, { ...a, courses: [course] })).toBe(false)
+  })
 })
 
 describe('library format', () => {

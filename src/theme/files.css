@@ -223,6 +223,21 @@
   grid-column: 2;
   font-size: var(--text-xs-plus);
 }
+/* A file that was moved or deleted is only in this browser now: its line turns red (asked for), the danger color
+   eased toward the text for small text (--danger-ink). */
+.file-where.is-missing {
+  color: var(--danger-ink);
+}
+/* Under that row, Locate file: one link at the name's left edge, never wrapping. */
+.file-missing {
+  padding: 0 var(--space-3) var(--space-1) var(--tree-pad);
+}
+.file-missing .link {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 /* The toolbar sits over the row's own button, which takes a stacking layer of its own once it is the selected row
    (its color filter): raised, so it stays on top and keeps its clicks. */
 .file-actions {

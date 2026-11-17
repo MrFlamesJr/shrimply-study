@@ -50,7 +50,7 @@ describe('readWorkspace', () => {
   it('reads as nothing stored when storage is blocked', async () => {
     vi.stubGlobal('indexedDB', undefined)
     const { readWorkspace } = await import('./browserBackup')
-    expect(await readWorkspace()).toEqual({ workspace: null, docs: [], broken: [], unstored: [], notes: [] })
+    expect(await readWorkspace()).toEqual({ workspace: null, docs: [], handles: {}, broken: [], unstored: [], notes: [] })
   })
 
   it('reads as nothing stored when nothing is', async () => {

@@ -44,14 +44,22 @@ describe('doc records', () => {
     expect(parseDocRecord(docRecordText(full))).toEqual(full)
   })
 
-  it('reads an old file note as legacyName and drops the file and the owner', () => {
+  it('reads a file note (its name also as legacyName) and drops the owner', () => {
     const { legacyName: _, ...rec } = migrateBackup(fixture('v2-backup.json'), 'd1')
     const old = JSON.stringify({ ...rec, file: { name: 'b.shrimp', size: 5, modified: 7 }, owner: 'me@x.org' })
     const read = parseDocRecord(old)
     expect(read.legacyName).toBe('b.shrimp')
-    expect(read).not.toHaveProperty('file')
+    expect(read.file).toEqual({ name: 'b.shrimp', size: 5, modified: 7 })
     expect(read).not.toHaveProperty('owner')
-    expect(parseDocRecord(JSON.stringify({ ...rec, file: { size: 1 } })).legacyName).toBeUndefined()
+    // A note without a name is no note.
+    const bad = parseDocRecord(JSON.stringify({ ...rec, file: { size: 1 } }))
+    expect(bad.legacyName).toBeUndefined()
+    expect(bad.file).toBeUndefined()
+  })
+
+  it('round trips a file note', () => {
+    const rec = { ...migrateBackup(fixture('v2-backup.json'), 'd1'), file: { name: 'a.shrimp', size: 3, modified: 9 } }
+    expect(parseDocRecord(docRecordText(rec)).file).toEqual(rec.file)
   })
 
   it('throws on a broken record', () => {

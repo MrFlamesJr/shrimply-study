@@ -146,6 +146,13 @@ export function libraryToJson(library: Library, images = new Map<string, string>
   return `{\n  "version": ${FORMAT_VERSION},\n${types}  "courses": ${list(library.courses.map((c) => courseJson(c, file)), '  ')}\n}\n`
 }
 
+/** Whether two libraries hold the same content, ids aside: they write as the same file. */
+export function sameLibrary(a: Library, b: Library): boolean {
+  const imagesA = new Map<string, string>()
+  const imagesB = new Map<string, string>()
+  return libraryToJson(a, imagesA) === libraryToJson(b, imagesB) && [...imagesA.keys()].join('|') === [...imagesB.keys()].join('|')
+}
+
 /** Parses library.json text. `files` is the rest of the zip, where images are looked up. Throws an Error naming the spot that is wrong. */
 export function libraryFromJson(text: string, files: Record<string, Uint8Array> = {}): Library {
   let data: unknown

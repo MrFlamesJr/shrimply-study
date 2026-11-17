@@ -14,7 +14,7 @@ const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyl
 /**
  * Open: a pick-one bar over one panel at a time, each a single job. Google Drive (your libraries: search, Open, move to
  * the bin; signed out, the way to sign in), Shared link (the app's share link or a Google Drive file address, which
- * needs no sign-in) and This device (a .shrimp copy). It starts on Google Drive when signed in, else on This device.
+ * needs no sign-in) and This device (a .shrimp file, or a copy of it). It starts on Google Drive when signed in, else on This device.
  * The panels share one cell of a fixed height, so the dialog never moves between tabs, and only the libraries scroll.
  * The account lives in the sidebar's account box, never here. Anything opened closes the dialog and shows in a tab of
  * its own. `onPick`: Google's file picker, for files the app can't see yet (the host closes this dialog while it
@@ -210,7 +210,11 @@ export function OpenDialog({ ws, onClose, onPick }: { ws: WorkspaceApi; onClose:
         {panel(
           'device',
           <>
-            <p className="muted">Open a .shrimp file from this computer. It opens in this browser; upload it to Google Drive to keep it there.</p>
+            <p className="muted">
+              {ws.savesInPlace
+                ? 'Open a .shrimp file from this computer. It stays tied to that file and saves into it as you work.'
+                : 'Open a .shrimp file from this computer. This browser opens a copy, kept in this browser; upload it to Google Drive to keep it there.'}
+            </p>
             <div className="actions">
               <button type="button" title={ws.openHint} onClick={(e) => void opened(e.currentTarget, async () => !!(await ws.openFile()))}>
                 <FolderIcon /> Choose a file

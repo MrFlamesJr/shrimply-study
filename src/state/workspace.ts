@@ -6,6 +6,7 @@ import { fileKeys, href, resolve, sameIds, type Route } from '../logic/routes'
 import type { AppPage, TabData } from '../logic/workbenchActions'
 import { isViewOnly, VIEW_ONLY_TEXT, type SaveProblem } from '../logic/autosave'
 import type { DriveSource } from '../storage/googleDrive'
+import type { FileRef } from '../storage/StorageAdapter'
 import type { ClosedFile, DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
 import { emptySelection, type Selection } from '../kit/selection'
 import { emptyHistory, record, redo, seal, undo, type Entry, type History } from '../kit/history'
@@ -17,20 +18,23 @@ import { plural } from '../logic/plural'
 export type { AppPage, ClosedFile, DocId, TabData }
 
 /**
- * An open library: a Google Drive file (`drive`), or a browser library (kept in this browser only, until uploaded).
- * The user's own Drive file saves itself (autosave); any other Drive file is view only (`viewOnly`).
+ * An open library: a Google Drive file (`drive`), a .shrimp file on this device (`file`, where the browser keeps its
+ * handle), or a browser library (kept in this browser only, until uploaded). The user's own Drive file and a file on
+ * this device save themselves (autosave); any other Drive file is view only (`viewOnly`).
  */
 export type Doc = {
   id: DocId
   library: Library
   /**
-   * The library object last opened or saved to Google Drive here. A Drive file has changes still to save while
-   * `library !== saved` (null: never saved here).
+   * The library object last opened or saved to its file here. A Drive file or a file on this device has changes
+   * still to save while `library !== saved` (null: never saved here).
    */
   saved: Library | null
-  /** Its own name ("New library 2"), shown while it has no Drive file (see `docName`). */
+  /** Its own name ("New library 2", or its file's without ".shrimp"), shown while it has no Drive file (see `docName`). */
   name: string
   drive: DriveSource | null
+  /** The file on this device it is tied to (always with its handle); null for a Drive or browser library. */
+  file: FileRef | null
   /** Counts the times the whole library was replaced (taken from Google Drive, from another tab, loaded as text). */
   replaced: number
   /** Why its autosave is paused; null while it saves as it should. */
@@ -83,11 +87,11 @@ export const emptyWorkspace = (groupId: string, signedIn = false, account: strin
   recent: [],
 })
 
-/** A Drive file has changes still to save (a browser library's changes are in the backup already). */
+/** A Drive file or a file on this device has changes still to save (a browser library's changes are in the backup already). */
 export const hasChanges = (d: Doc): boolean => d.library !== d.saved
 /** What the document is called: its Drive file's name, or its own. */
 export const docName = (d: Doc): string => d.drive?.name ?? d.name
-export const where = (d: Doc): 'drive' | 'browser' => (d.drive ? 'drive' : 'browser')
+export const where = (d: Doc): 'drive' | 'device' | 'browser' => (d.drive ? 'drive' : d.file ? 'device' : 'browser')
 /** A file's name without its ".shrimp" ending (a browser library's own name has none). */
 export const bareName = (name: string): string => name.replace(/\.shrimp$/i, '')
 
@@ -97,6 +101,7 @@ export const makeDoc = (id: DocId, library: Library, name: string, more: Partial
   saved: library,
   name,
   drive: null,
+  file: null,
   replaced: 0,
   problem: null,
   dirtyElsewhere: false,
@@ -110,6 +115,9 @@ export const docNames = (w: Workspace): string[] => [...Object.values(w.docs).ma
 export const freeDocName = (w: Workspace, base: string): string => freeName(base, docNames(w))
 /** A browser library's own name changed (a Drive file's name is Google's, see `renameDriveFile`). Not an edit: no history. */
 export const renameDoc = (w: Workspace, id: DocId, name: string): Workspace => patchDoc(w, id, (d) => (d.name === name ? null : { name }))
+/** A library tied to a file on this device was renamed by renaming the file: its name and its file's. */
+export const renameFile = (w: Workspace, id: DocId, name: string, fileName: string): Workspace =>
+  patchDoc(w, id, (d) => (d.file ? { name, file: { ...d.file, name: fileName } } : null))
 
 // ---- View only (asked for): a Drive file not known to be the signed-in user's own (someone else's, or any while
 // signed out) is shown and studied, never changed: no content change, undo step or cut ever touches it. ----
@@ -122,6 +130,10 @@ export const setSignedIn = (w: Workspace, signedIn: boolean, account: string | n
 /** The user's own Drive files with changes not on Google Drive yet (waiting, or paused by a problem), in order. */
 export const unsavedDrive = (w: Workspace): DocId[] =>
   w.order.filter((id) => !!w.docs[id].drive && !viewOnly(w, id) && (hasChanges(w.docs[id]) || !!w.docs[id].problem))
+
+/** The libraries tied to a file on this device with changes still to save (waiting, or paused by a problem), in order. */
+export const unsavedDevice = (w: Workspace): DocId[] =>
+  w.order.filter((id) => !!w.docs[id].file && (hasChanges(w.docs[id]) || !!w.docs[id].problem))
 
 /**
  * Keeps view-only libraries untouchable: their undo steps go and a cut from one becomes a copy. Changes one holds from
@@ -597,13 +609,15 @@ export function replaceDoc(w: Workspace, id: DocId, library: Library, patch: Par
 }
 
 /**
- * Another tab wrote the document: this tab takes it up, with its Drive file as that tab knows it. Changes that tab has
+ * Another tab wrote the document: this tab takes it up, with its Drive file or file on this device (`handle`, stored
+ * with it) as that tab knows it. Changes that tab has
  * not saved yet are its own to save (two tabs never save one change twice), so here they wait elsewhere
  * (`dirtyElsewhere`), and the record written back from here says the same as the one taken.
  */
-export function takeRecord(w: Workspace, rec: DocRecord): Workspace {
+export function takeRecord(w: Workspace, rec: DocRecord, handle: FileSystemFileHandle | null = null): Workspace {
   if (!w.docs[rec.id]) return w
-  return replaceDoc(w, rec.id, rec.library, { drive: rec.drive, dirtyElsewhere: rec.dirty })
+  const file = rec.file && handle ? { ...rec.file, handle } : null
+  return replaceDoc(w, rec.id, rec.library, { drive: rec.drive, file, dirtyElsewhere: rec.dirty })
 }
 
 /**
@@ -658,13 +672,15 @@ const withoutClosed = (w: Workspace, match: (c: ClosedFile) => boolean): Workspa
 
 /**
  * Closes a document, which never removes its file (asked for): it heads the closed files, in place of an older entry
- * for it or for its Drive file, to be opened again from the Explorer.
+ * for it or for its Drive file, to be opened again from the Explorer (a file on this device just closes).
  */
 export function closeDoc(w: Workspace, id: DocId): Workspace {
   const d = w.docs[id]
   if (!d) return w
-  const entry: ClosedFile = { id, name: docName(d), drive: d.drive }
   const rest = withoutClosed(dropDoc(w, id), (c) => c.id === id || (!!d.drive && c.drive?.id === d.drive.id))
+  // A file on this device is not kept: it is on disk, and opens again with Open file.
+  if (d.file) return rest
+  const entry: ClosedFile = { id, name: docName(d), drive: d.drive }
   return { ...rest, closed: [entry, ...rest.closed] }
 }
 
@@ -778,7 +794,13 @@ export const docWithDrive = (w: Workspace, driveId: string): Doc | undefined =>
 // ---- What the browser keeps, and reading it back ----
 
 /** The document's record in the browser backup (`dirty`: a Drive file with changes still to save, here or elsewhere). */
-export const docRecord = (d: Doc): DocRecord => ({ id: d.id, library: d.library, dirty: hasChanges(d) || d.dirtyElsewhere, drive: d.drive })
+export const docRecord = (d: Doc): DocRecord => ({
+  id: d.id,
+  library: d.library,
+  dirty: hasChanges(d) || d.dirtyElsewhere,
+  drive: d.drive,
+  ...(d.file && { file: { name: d.file.name, size: d.file.size, modified: d.file.modified } }),
+})
 
 /**
  * The workspace's own record: the open documents in order, the closed files, the layout, the Explorer, each
@@ -891,13 +913,14 @@ export function readExplorer(raw: unknown): Explorer {
 
 /**
  * The workspace as the browser kept it: each open document (a Drive file with changes still to save marked so,
- * `saved` null), the closed files (their records stay closed), its layout and Explorer checked. A document's name is
- * the local file's it was once tied to (`legacyName`, without ".shrimp"), else its own, else "New library", "New
- * library 2" and so on.
+ * `saved` null), the closed files (their records stay closed), its layout and Explorer checked. A document tied to a
+ * file on this device (its record has a file note and the browser kept the handle) is tied again, named after the
+ * file without ".shrimp"; without the handle it is a browser library under that name. Otherwise its own name, else
+ * "New library", "New library 2" and so on.
  * `signedIn`: whether Google is signed in on start, and as which `account` (when known).
  */
 export function restore(
-  read: { workspace: WorkspaceRecord | null; docs: DocRecord[] },
+  read: { workspace: WorkspaceRecord | null; docs: DocRecord[]; handles?: Record<string, FileSystemFileHandle> },
   groupId: string,
   newId: () => string,
   signedIn = false,
@@ -910,8 +933,12 @@ export function restore(
   for (const rec of read.docs) {
     if (closed.some((c) => c.id === rec.id)) continue
     const own = kept[rec.id]
-    const name = rec.legacyName ? bareName(rec.legacyName) : isString(own) && own.trim() ? own : freeDocName(w, 'New library')
-    const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive })
+    // Tied to its file again when the browser kept the handle; without it, a browser library under the file's name.
+    const handle = rec.file && !rec.drive ? read.handles?.[rec.id] : undefined
+    const fileName = rec.legacyName ?? rec.file?.name
+    const name = handle ? bareName(rec.file!.name) : fileName ? bareName(fileName) : isString(own) && own.trim() ? own : freeDocName(w, 'New library')
+    const file = handle ? { ...rec.file!, handle } : null
+    const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive, file })
     w = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
   }
   w = { ...w, closed }

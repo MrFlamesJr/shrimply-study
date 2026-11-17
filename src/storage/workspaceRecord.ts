@@ -2,15 +2,20 @@ import type { Library } from '../model'
 import { checkLibrary } from './format'
 import type { DriveSource } from './googleDrive'
 
+/** The local file a document is tied to, as its record keeps it (the handle is stored apart). */
+export type FileNote = { name: string; size: number; modified: number }
+
 /**
- * One open document as the browser keeps it. `legacyName` is only read: an older record tied the library to a local
- * file, and it now restores as a browser library under that file's name.
+ * One open document as the browser keeps it. `file` is the local file it is tied to; without its handle (stored
+ * apart) it restores as a browser library under that file's name. `legacyName` is only read: an older record that
+ * only knew the file's name.
  */
 export type DocRecord = {
   id: string
   library: Library
   dirty: boolean
   drive: DriveSource | null
+  file?: FileNote
   legacyName?: string
 }
 
@@ -33,6 +38,14 @@ const readDrive = (d: unknown): DriveSource | null => {
   return s && typeof s.id === 'string' && typeof s.name === 'string' && typeof s.md5 === 'string' && typeof s.shared === 'boolean'
     ? { id: s.id, name: s.name, md5: s.md5, shared: s.shared, mine: s.mine === true, trashed: s.trashed === true, ...(typeof s.owner === 'string' && { owner: s.owner }) }
     : null
+}
+
+const num = (n: unknown): number => (typeof n === 'number' && Number.isFinite(n) ? n : 0)
+
+// A bad file note only loses the note.
+const readFileNote = (f: unknown): FileNote | undefined => {
+  const s = f as { name?: unknown; size?: unknown; modified?: unknown } | null
+  return s && typeof s === 'object' && typeof s.name === 'string' && s.name !== '' ? { name: s.name, size: num(s.size), modified: num(s.modified) } : undefined
 }
 
 // An old file note (and an old backup's file name) only gives the library a name.
@@ -60,6 +73,7 @@ export function parseDocRecord(text: string): DocRecord {
     library: checkLibrary(data.library, 'stored'),
     dirty: data.dirty,
     drive: readDrive(data.drive),
+    ...(readFileNote(data.file) && { file: readFileNote(data.file) }),
     ...legacy(readLegacyName(data.legacyName ?? data.file)),
   }
 }

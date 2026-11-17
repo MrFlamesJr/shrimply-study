@@ -74,6 +74,9 @@
   --ok-tint: color-mix(in oklch, var(--ok-deep) var(--tint), var(--role-fill-ground));
   --bad-soft: color-mix(in oklch, var(--bad-deep) var(--tint-soft), var(--role-fill));
   --bad-tint: color-mix(in oklch, var(--bad-deep) var(--tint), var(--role-fill-ground));
+  /* Small text in the danger color (the sidebar's moved-or-deleted line, a danger menu item): --danger eased toward the
+     text so it keeps 4.5:1 on the surfaces in every theme. */
+  --danger-ink: color-mix(in oklch, var(--danger) 54%, var(--text));
   /* The danger zone: the shared glass (--glass-tile) tinted red, so editing the glass changes it too. */
   --danger-soft: color-mix(
     in oklch,
@@ -254,8 +257,8 @@
   --kit-accent-line: var(--accent-line);
   --kit-focus: var(--focus);
   --kit-danger: var(--danger);
-  /* A danger item's text: the danger color eased toward the text, so it keeps 4.5:1 on the popup in every theme. */
-  --kit-danger-ink: color-mix(in oklch, var(--danger) 62%, var(--text));
+  /* A danger item's text. */
+  --kit-danger-ink: var(--danger-ink);
   --kit-invalid: var(--bad);
   --kit-radius: var(--radius);
   --kit-font: var(--font-body);
