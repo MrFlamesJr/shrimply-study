@@ -352,6 +352,21 @@ button.link:hover:not(:disabled) {
   color: var(--text);
   text-decoration-color: currentColor;
 }
+/* A link button with a key hint (the empty page's Show the Explorer): only its words take the underline, never the
+   key's box (asked for); its words go in a .link-text. */
+button.link:has(> .shortcut),
+button.link:has(> .shortcut):hover:not(:disabled) {
+  text-decoration: none;
+}
+button.link > .link-text {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: var(--underline-offset);
+  transition: text-decoration-color var(--dur-fast) var(--ease);
+}
+button.link:hover:not(:disabled) > .link-text {
+  text-decoration-color: currentColor;
+}
 /* A link that opens a page in a tab of its own (What's new, in the sidebar and in home's What's new box; asked for):
    a link button's small muted text, then the "opens elsewhere" mark, both in the text color on hover, the text
    underlined. A touch target below 800px. */

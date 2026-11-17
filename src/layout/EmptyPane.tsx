@@ -50,7 +50,7 @@ export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, 
       <ul className="wb-empty-actions">
         <li>
           <button type="button" className="link" onClick={onExplorer}>
-            <FolderIcon /> Show the Explorer <Shortcut keys={comboLabel('Mod+Shift+E', mac)} />
+            <FolderIcon /> <span className="link-text">Show the Explorer</span> <Shortcut keys={comboLabel('Mod+Shift+E', mac)} />
           </button>
         </li>
         <li>
