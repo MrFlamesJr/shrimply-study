@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { Card } from '../model'
 import { isBlank, missingPart, sameCard, tidyCard } from '../logic/cardStatus'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { EditCard, type CardPatch } from './EditCard'
 import { Modal, closeModal } from './Modal'
 

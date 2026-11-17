@@ -177,57 +177,162 @@
   flex-direction: column;
   min-height: 0;
 }
-/* The open file, between the brand and the courses: its name, then where it is and whose, and under them, for a
-   shared file not known to be yours, the quiet Pull changes link (its text lined up with theirs). A small well, set
-   apart from the tree by tone (its edges line up with the tree's highlights). New library sits under the well, outside
-   it, as it leaves the file (asked for). */
-.sidebar-file {
-  display: grid;
+/* The open files, between the brand and the courses: a heading row (Files, then New file, Open file and Google Drive
+   as icon buttons), then one row per file: its kind's icon, its name (a dot while it has unsaved changes) and where
+   it lives, set apart from the tree by space. The active file is selected as Calm selects (the accent's see-through
+   tint, the color under it taken out first, and a thin accent line); a pointed-at row takes the tree's highlight.
+   Save, Download and Close sit at the end of the name line, shown while the row is pointed at or holds the focus,
+   their room always kept so the name never moves. Under a shared file not known to be yours, the quiet Pull changes
+   link, its text lined up with the name. */
+.files {
+  --file-btn: 28px;
+  display: flex;
   flex-shrink: 0;
-  grid-template-columns: auto minmax(0, 1fr);
+  flex-direction: column;
+  min-height: 0;
+  max-height: 40vh;
+  margin-bottom: var(--space-2);
+}
+.files-head {
+  display: flex;
   align-items: center;
-  column-gap: var(--space-3);
-  margin: 0 var(--space-2) var(--space-2);
-  padding: var(--space-2) var(--space-3);
-  background: var(--well);
-  border-radius: var(--radius);
-  color: var(--text-muted);
+  padding-right: var(--space-3);
 }
-.sidebar-file svg {
-  flex-shrink: 0;
+.files-head .sidebar-label {
+  flex: 1;
 }
-.sidebar-file p {
+.files .icon-btn {
+  width: var(--file-btn);
+  height: var(--file-btn);
+}
+.files-list {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: var(--space-1);
+  overflow-y: auto;
+  padding: 0 var(--space-2);
+  list-style: none;
 }
-.sidebar-file-name {
-  overflow: hidden;
+.file-row {
+  display: grid;
+  flex-shrink: 0;
+  grid-template-columns: minmax(0, 1fr) auto;
+  border: var(--line) solid transparent;
+  border-radius: var(--radius);
+  color: var(--text-muted);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
+}
+.file-row:hover {
+  background: var(--surface-2);
+}
+.file-row.is-active {
+  background: var(--accent-soft);
+  backdrop-filter: saturate(var(--tint-keep));
+  border-color: var(--accent-line);
+}
+.file-pick,
+.file-pick:hover:not(:disabled) {
+  display: grid;
+  grid-column: 1 / -1;
+  grid-row: 1;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  justify-content: stretch;
+  column-gap: var(--space-3);
+  height: auto;
+  padding: var(--space-1) var(--space-3) var(--space-2);
+  background: transparent;
+  border: 0;
+  border-radius: inherit;
+  color: inherit;
+  text-align: left;
+}
+.file-pick svg {
+  grid-row: 1 / span 2;
+}
+.file-name {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  min-height: var(--file-btn);
+  padding-right: calc(3 * var(--file-btn));
   color: var(--text);
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
+}
+.file-name-text,
+.file-where {
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
-.sidebar-file-where {
-  font-size: var(--text-xs-plus);
+.file-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
 }
-.sidebar-file button.link {
+.file-where {
   grid-column: 2;
-  justify-self: start;
-  margin-left: calc(-1 * var(--space-1));
   font-size: var(--text-xs-plus);
 }
-.sidebar-file button.link svg,
-.sidebar-new svg {
+.file-actions {
+  display: flex;
+  grid-column: 2;
+  grid-row: 1;
+  align-self: start;
+  margin: var(--space-1) var(--space-1) 0 0;
+  opacity: 0;
+  transition: opacity var(--dur-fast) var(--ease);
+}
+.file-row:hover .file-actions,
+.file-row:focus-within .file-actions {
+  opacity: 1;
+}
+.file-pull {
+  grid-column: 1 / -1;
+  grid-row: 3;
+  justify-self: start;
+  margin: calc(-1 * var(--space-2)) 0 var(--space-1) calc(var(--space-3) + 18px + var(--space-3) - var(--space-1));
+  font-size: var(--text-xs-plus);
+}
+.file-pull svg {
   width: 14px;
   height: 14px;
 }
-.sidebar-new {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin: 0 var(--space-2) var(--space-2) calc(var(--space-2) + var(--space-3) - var(--space-1));
-  font-size: var(--text-xs-plus);
+/* Touch: no pointing at a row, so the active row (or the one holding the focus) shows its actions on a line of their
+   own under it, at full touch size; the name keeps the whole width. */
+@media (max-width: 799px) {
+  .files {
+    --file-btn: var(--tap);
+  }
+  .file-name {
+    min-height: 0;
+    padding-right: 0;
+  }
+  .file-pick,
+  .file-pick:hover:not(:disabled) {
+    padding-top: var(--space-2);
+  }
+  .file-actions {
+    display: none;
+    grid-column: 1 / -1;
+    grid-row: 2;
+    justify-self: end;
+    margin: calc(-1 * var(--space-2)) var(--space-1) 0 0;
+  }
+  .file-row.is-active .file-actions,
+  .file-row:focus-within .file-actions {
+    display: flex;
+    opacity: 1;
+  }
+  .file-pull {
+    margin-top: 0;
+  }
 }
 .sidebar-label {
   padding: var(--space-2) var(--space-5) var(--space-1);

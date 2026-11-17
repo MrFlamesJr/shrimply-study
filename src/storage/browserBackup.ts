@@ -110,9 +110,10 @@ export async function clearBackup(): Promise<void> {
   for (const key of await workspaceKeys()) await run('readwrite', (store) => store.delete(key))
 }
 
-/** For the debug page: stores text that is not a backup, to test the startup warning. */
+/** For the debug page: stores text that is not a backup (the single one and every document's), to test the startup warning. */
 export async function breakBackup(): Promise<void> {
   await run('readwrite', (store) => store.put('{ broken', KEY))
+  for (const key of await workspaceKeys()) if (key.startsWith(DOC)) await run('readwrite', (store) => store.put('{ broken', key))
 }
 
 /** For the debug page: what this site stores in the browser and how much it may store, in bytes; null when unknown. */
@@ -174,6 +175,13 @@ async function put(key: string, value: unknown, msg: Written): Promise<boolean> 
 
 /** Resolves false when the browser refused to store it (for example, storage is full). */
 export const writeDoc = (rec: DocRecord): Promise<boolean> => put(DOC + rec.id, docRecordText(rec), { doc: rec.id })
+
+/** One document as stored now (another tab may have written it); null when there is none. Rejects when it can't be read. */
+export async function readDoc(id: string): Promise<DocRecord | null> {
+  if (!(await openDb().catch(() => null))) return null
+  const raw: unknown = await run('readonly', (store) => store.get(DOC + id))
+  return typeof raw === 'string' ? parseDocRecord(raw) : null
+}
 
 /** Resolves false when the browser refused to store it. */
 export const writeWorkspace = (rec: WorkspaceRecord): Promise<boolean> =>

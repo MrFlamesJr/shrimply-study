@@ -1,6 +1,6 @@
 import { href, windowNav, type Nav } from '../route'
 import type { Course } from '../model'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { plural } from '../logic/plural'
 import { PlusIcon } from './Icons'
 

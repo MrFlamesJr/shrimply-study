@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { go, goToNew, href } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import { go, href } from '../route'
+import type { LibraryApi } from '../state/useWorkspace'
 import { QuizTiles } from '../components/QuizTiles'
 import { PageHead } from '../components/Page'
 import { InfoBox } from '../components/InfoBox'
@@ -9,12 +9,19 @@ import { PlusIcon, ShrimpIcon } from '../components/Icons'
 import { plural } from '../logic/plural'
 import { RELEASES } from '../releaseNotes'
 import { LearnMore } from './home/LearnMore'
-import type { Library } from '../model'
 
 type Props = {
-  lib: LibraryApi
-  /** Loads the bundled guide, offered on the welcome page. */
-  guide: () => Promise<Library>
+  /** The active file; null when none is open (home is then the welcome page). */
+  lib: LibraryApi | null
+  driveSetUp: boolean
+  loadLabel: string
+  loadHint: string
+  /** The file picker, each file opening beside the others; resolves true when one opened. */
+  openFile: () => Promise<boolean>
+  /** Opens the bundled guide as a file of its own; resolves true when it opened. */
+  openGuide: () => Promise<boolean>
+  /** "New course": in the active file, or in a new one when none is open. */
+  newCourse: () => void
   /** Home is the welcome page even with courses: a first visit, or once after a release (App decides). */
   welcome: boolean
   /** Back to the course list: the welcome page's main button, or after it opened a library. */
@@ -23,25 +30,21 @@ type Props = {
   openDrive: () => void
 }
 
-export function HomeScreen({ lib, guide, welcome, endWelcome, openDrive }: Props) {
+export function HomeScreen({ lib, driveSetUp, loadLabel, loadHint, openFile, openGuide, newCourse, welcome, endWelcome, openDrive }: Props) {
   // Beside every Open file: the other place a library can come from.
   const fromDrive = (className?: string) =>
-    lib.drive.setUp && (
+    driveSetUp && (
       <button type="button" className={className} title="Open a library saved in your Google Drive" onClick={openDrive}>
         Open from Google Drive
       </button>
     )
-  const { courses } = lib.library
+  const courses = lib?.library.courses ?? []
   const [notesOpen, setNotesOpen] = useState(true)
   const [learnMore, setLearnMore] = useState(false)
-  const open = async (from?: () => Promise<Library>) => {
-    if (!(await lib.open(from))) return
+  const open = async (from: () => Promise<boolean>) => {
+    if (!(await from())) return
     endWelcome()
     go({ name: 'home' })
-  }
-  const newCourse = () => {
-    const course = lib.addCourse()
-    goToNew(course.id, { name: 'course', course: course.name })
   }
   // What's new is always on home, on the welcome page and the course list alike (asked for).
   const whatsNew = (
@@ -84,7 +87,7 @@ export function HomeScreen({ lib, guide, welcome, endWelcome, openDrive }: Props
             </span>
           </li>
         </ol>
-        {lib.drive.setUp && (
+        {driveSetUp && (
           <button
             type="button"
             className="link"
@@ -105,22 +108,18 @@ export function HomeScreen({ lib, guide, welcome, endWelcome, openDrive }: Props
           )}
           <button
             type="button"
-            title={
-              returning
-                ? 'Replaces your cards with a short course about this app'
-                : 'Opens a short course about this app, to try it out'
-            }
-            onClick={() => void open(guide)}
+            title="Opens a short course about this app beside your files, to try it out"
+            onClick={() => void open(openGuide)}
           >
             Try the guide
           </button>
-          <button type="button" title={lib.loadHint} onClick={() => void open()}>
-            {lib.loadLabel}
+          <button type="button" title={loadHint} onClick={() => void open(openFile)}>
+            {loadLabel}
           </button>
           {fromDrive()}
         </div>
         <p className="muted small">
-          {lib.drive.setUp
+          {driveSetUp
             ? 'Your cards stay in this browser. Save them to Google Drive or download them as a .shrimp file to keep a copy, study on another device or share them.'
             : 'Your cards stay in this browser. Download them as a .shrimp file to keep a copy or study on another device.'}
         </p>
@@ -139,8 +138,8 @@ export function HomeScreen({ lib, guide, welcome, endWelcome, openDrive }: Props
         sub={`${plural(courses.length, 'course')} · ${plural(quizCount, 'quiz', 'quizzes')}`}
         actions={
           <>
-            <button type="button" className="mobile-only" title={lib.loadHint} onClick={() => void open()}>
-              {lib.loadLabel}
+            <button type="button" className="mobile-only" title={loadHint} onClick={() => void open(openFile)}>
+              {loadLabel}
             </button>
             {fromDrive('mobile-only')}
             <button type="button" className="add" onClick={newCourse}>
@@ -158,7 +157,7 @@ export function HomeScreen({ lib, guide, welcome, endWelcome, openDrive }: Props
             </h2>
             <span className="muted">{plural(course.quizzes.length, 'quiz', 'quizzes')}</span>
           </div>
-          <QuizTiles lib={lib} course={course} />
+          {lib && <QuizTiles lib={lib} course={course} />}
         </section>
       ))}
     </>

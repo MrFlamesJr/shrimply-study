@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { isTermCard, type Card, type StudyOptions } from '../model'
 import { href, windowNav, type Nav } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { canChoose, usableCards } from '../logic/buildRound'
 import { missingPart } from '../logic/cardStatus'
 import { plural } from '../logic/plural'

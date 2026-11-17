@@ -1,24 +1,29 @@
 import { createRoot } from 'react-dom/client'
 import { Modal, closeModal } from './Modal'
 
+/** One button of `askChoice`. */
+export type Choice<V> = { label: string; value: V; primary?: boolean; danger?: boolean }
+
 /**
- * Asks a yes/no question in a modal (instead of the browser's confirm). Resolves true only for the confirm button.
- * `title` replaces "Are you sure?" where it would read wrong. A blank line in `question` starts a new paragraph.
+ * Asks a question with several answers in a modal: Cancel, then the choices, the primary one last (where the confirm
+ * button of `askConfirm` sits). Resolves the chosen value; Cancel, the ✕, Esc or a click outside resolve null.
+ * A blank line in `question` starts a new paragraph.
  */
-export function askConfirm(question: string, confirmLabel: string, options?: { danger?: boolean; title?: string }): Promise<boolean> {
+export function askChoice<V>(question: string, choices: Choice<V>[], options?: { title?: string }): Promise<V | null> {
   return new Promise((resolve) => {
     const host = document.createElement('div')
     document.body.appendChild(host)
     const root = createRoot(host)
-    let confirmed = false
+    let chosen: V | null = null
     const onClose = () => {
-      resolve(confirmed)
+      resolve(chosen)
       // Unmount after the close event has finished, not from inside it.
       queueMicrotask(() => {
         root.unmount()
         host.remove()
       })
     }
+    const ordered = [...choices.filter((c) => !c.primary), ...choices.filter((c) => c.primary)]
     root.render(
       <Modal title={options?.title ?? 'Are you sure?'} narrow onClose={onClose}>
         {question.split('\n\n').map((part, i) => (
@@ -28,18 +33,30 @@ export function askConfirm(question: string, confirmLabel: string, options?: { d
           <button type="button" onClick={(e) => closeModal(e.currentTarget)}>
             Cancel
           </button>
-          <button
-            type="button"
-            className={options?.danger ? 'danger' : 'primary'}
-            onClick={(e) => {
-              confirmed = true
-              closeModal(e.currentTarget)
-            }}
-          >
-            {confirmLabel}
-          </button>
+          {ordered.map((c) => (
+            <button
+              key={c.label}
+              type="button"
+              className={c.danger ? 'danger' : c.primary ? 'primary' : undefined}
+              onClick={(e) => {
+                chosen = c.value
+                closeModal(e.currentTarget)
+              }}
+            >
+              {c.label}
+            </button>
+          ))}
         </div>
       </Modal>,
     )
   })
+}
+
+/**
+ * Asks a yes/no question in a modal (instead of the browser's confirm). Resolves true only for the confirm button.
+ * `title` replaces "Are you sure?" where it would read wrong. A blank line in `question` starts a new paragraph.
+ */
+export async function askConfirm(question: string, confirmLabel: string, options?: { danger?: boolean; title?: string }): Promise<boolean> {
+  const confirm = { label: confirmLabel, value: true, primary: !options?.danger, danger: options?.danger }
+  return (await askChoice(question, [confirm], { title: options?.title })) === true
 }

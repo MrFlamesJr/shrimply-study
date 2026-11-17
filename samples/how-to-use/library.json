@@ -8,7 +8,7 @@
         {
           "name": "1. Get started",
           "cards": [
-            { "type": "true-false", "statement": "This guide is a regular .shrimp file, like any other.", "answer": true, "explanation": "It's made just like the files you save, and it opened into this browser like one. Change it, add your own courses or delete it all. Download saves it as a .shrimp file of your own." },
+            { "type": "true-false", "statement": "This guide is a regular .shrimp file, like any other.", "answer": true, "explanation": "It's made just like the files you save, and it opened into this browser like one. Change it, add your own courses or delete it all. Save keeps it as a .shrimp file of your own." },
             { "type": "sequence", "title": "What holds what, biggest first", "image": "library.svg", "steps": ["Library", "Course", "Quiz", "Card"], "explanation": "Your library is everything here, kept as one .shrimp file. Make a course for each class, like Biology, and a quiz for each chapter." },
             { "sides": ["Task", "Where to click"], "term": "Make a course", "definition": "New course", "explanation": "At the bottom of the sidebar. It opens the new course, ready for its name." },
             { "sides": ["Task", "Where to click"], "term": "Make a quiz", "definition": "New quiz", "explanation": "A tile on the course page. It opens Edit quiz, where you name it and add cards." },
@@ -81,11 +81,11 @@
               "name": "Files",
               "color": "moss",
               "cards": [
-                { "sides": ["Task", "Where to click"], "term": "Save your library", "definition": "Download", "explanation": "At the top, or Ctrl+S. Everything goes in one .shrimp file you can keep, send or open on another device. A * in the tab title means unsaved changes." },
-                { "sides": ["Task", "Where to click"], "term": "Open a library", "definition": "Open file", "explanation": "At the top. It replaces the library in this browser, and asks first when you have unsaved changes." },
-                { "type": "cloze", "statement": "The top of the sidebar says where the open library is: {On this device}, {Your Google Drive} or {Only in this browser}.", "explanation": ["A .shrimp file you opened or downloaded.", "Or Someone else's Google Drive for one shared with you. Signed out, it says Shared on Google Drive or On Google Drive.", "In no file yet: download it or save it to Drive to keep it."] },
+                { "sides": ["Task", "Where to click"], "term": "Save your library", "definition": "Save", "explanation": "On its row in the sidebar, or Ctrl+S. Everything goes in one .shrimp file you can keep, send or open on another device. A dot by its name, and a * in the tab title, mean unsaved changes. Download, at the top, saves a copy." },
+                { "sides": ["Task", "Where to click"], "term": "Open a library", "definition": "Open file", "explanation": "At the top, or beside Files in the sidebar. It opens beside the libraries already open: select one under Files to see its courses." },
+                { "type": "cloze", "statement": "Under Files, the sidebar says where each open library is: {On this device}, {Your Google Drive} or {Only in this browser}.", "explanation": ["A .shrimp file you opened or saved.", "Or Someone else's Google Drive for one shared with you. Signed out, it says Shared on Google Drive or On Google Drive.", "In no file yet: save it, or save it to Drive, to keep it."] },
                 { "type": "true-false", "statement": "Shrimply Study keeps your cards on its own server.", "answer": false, "explanation": "It has none. Your cards stay in this browser, which keeps a copy between visits, and in the files you save: a .shrimp file or your own Google Drive." },
-                { "type": "choice", "question": "How do you start an empty library?", "mode": "one", "right": ["New library, in the sidebar"], "wrong": ["Delete every course", "Open file", "Reload the page"], "explanation": "It asks first. Save this one first, or its unsaved changes are lost." }
+                { "type": "choice", "question": "How do you start an empty library?", "mode": "one", "right": ["New file, beside Files in the sidebar"], "wrong": ["Delete every course", "Open file", "Reload the page"], "explanation": "The plus. The new library opens beside the others, so nothing is lost." }
               ]
             },
             {

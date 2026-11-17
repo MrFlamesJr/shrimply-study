@@ -1,19 +1,25 @@
 import { useEffect, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { go, goToNew, href } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
-import { BrowserIcon, ChevronsLeftIcon, CloudIcon, FileIcon, PlusIcon, PullIcon, ShrimpIcon, TumbleweedIcon } from '../components/Icons'
+import { href } from '../route'
+import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
+import { BrowserIcon, ChevronsLeftIcon, CloudIcon, CrossIcon, FileIcon, PlusIcon, PullIcon, SaveIcon, ShrimpIcon, TumbleweedIcon } from '../components/Icons'
+import { IconButton } from '../components/IconButton'
 import { ThemeSelect } from '../components/ThemeSelect'
 import type { ThemeId } from '../model'
 
-// `current`: the id of the course or quiz whose page is open.
+// `lib`: the active file (null when none is open). `current`: the id of the course or quiz whose page is open.
 type Props = {
-  lib: LibraryApi
+  ws: WorkspaceApi
+  lib: LibraryApi | null
   current?: string
   open: boolean
   setOpen: (open: boolean) => void
   theme: ThemeId
   setTheme: (theme: ThemeId) => void
+  /** Opens the Google Drive dialog. */
+  onDrive: () => void
+  /** "+ New course": in the active file, or in a new one when none is open. */
+  onNewCourse: () => void
 }
 
 const WIDE = '(min-width: 800px)'
@@ -38,68 +44,125 @@ export function useSidebarOpen() {
 }
 
 /**
- * Which file the library is: its Google Drive file (the user's own or someone else's), the .shrimp file it was
- * opened from or last downloaded to, or none yet (kept only in this browser). New library, once there is something
- * to leave, starts an empty one tied to no file (it asks first when there are courses or changes).
+ * Where a file lives: its Google Drive file (whose only as far as anyone can tell: "Your" needs a sign-in and Google's
+ * word; signed out, nobody knows), the .shrimp file it is tied to, or none yet (kept only in this browser).
  */
-function OpenFile({ lib }: { lib: LibraryApi }) {
-  const drive = lib.drive.file
-  // Whose it is, only as far as anyone can tell: "Your" needs a sign-in and Google's word; signed out, nobody knows.
-  const whose = lib.drive.yours
+function whereOf(doc: LibraryApi): [typeof FileIcon, string] {
+  const drive = doc.drive.file
+  if (!drive) return doc.file ? [FileIcon, 'On this device'] : [BrowserIcon, 'Only in this browser']
+  const whose = doc.drive.yours
     ? 'Your Google Drive'
-    : lib.drive.signedIn()
+    : doc.drive.signedIn()
       ? "Someone else's Google Drive"
-      : drive?.shared
+      : drive.shared
         ? 'Shared on Google Drive'
         : 'On Google Drive'
-  const [Icon, name, where] = drive
-    ? [CloudIcon, drive.name, `${whose}${drive.trashed ? ', in the bin' : ''}`]
-    : lib.fileName
-      ? [FileIcon, lib.fileName, 'On this device']
-      : [BrowserIcon, 'No file yet', 'Only in this browser']
+  return [CloudIcon, `${whose}${drive.trashed ? ', in the bin' : ''}`]
+}
+
+// What Save does for this file, for its tooltip.
+function saveHint(doc: LibraryApi): string {
+  const drive = doc.drive.file
+  if (drive) return doc.drive.savesInto ? `Save into ${drive.name} on Google Drive` : `Save a copy of ${drive.name} to your Google Drive`
+  return doc.file ? `Save into ${doc.file.name}` : 'Save as a .shrimp file'
+}
+
+/**
+ * One open file: its name (a dot while it has unsaved changes) and where it lives; selecting it makes it the active
+ * file, whose courses the tree below shows. Save, Download and Close show while the row is pointed at or holds the
+ * focus (their room always kept). A shared file not known to be yours has the quiet Pull changes link under it.
+ */
+function FileRow({ doc, active, onPick }: { doc: LibraryApi; active: boolean; onPick: () => void }) {
+  const [Icon, where] = whereOf(doc)
+  const drive = doc.drive.file
+  // Tied to a .shrimp file or the user's own Drive file, with nothing new: nothing to save. A file with no home yet
+  // can always be saved as one.
+  const nothing = !doc.hasChanges && (!!doc.file || doc.drive.savesInto)
   return (
-    <div className="sidebar-file">
-      <Icon />
-      <p>
-        <span className="sidebar-file-name" title={name}>
-          {name}
+    <li className={active ? 'file-row is-active' : 'file-row'}>
+      <button type="button" className="file-pick" aria-current={active ? 'true' : undefined} title={doc.name} onClick={onPick}>
+        <Icon />
+        <span className="file-name">
+          <span className="file-name-text">{doc.name}</span>
+          {doc.hasChanges && <span className="file-dot" role="img" aria-label="Unsaved changes" title="Unsaved changes" />}
         </span>
-        <span className="sidebar-file-where">{where}</span>
-      </p>
+        <span className="file-where">{where}</span>
+      </button>
+      <span className="file-actions">
+        <IconButton label={`Save ${doc.name}`} title={nothing ? 'No changes to save' : saveHint(doc)} disabled={nothing} onClick={() => void doc.save()}>
+          <SaveIcon />
+        </IconButton>
+        <IconButton label={`Download ${doc.name}`} title="Download a copy as a .shrimp file" onClick={() => void doc.download()}>
+          <PullIcon />
+        </IconButton>
+        <IconButton
+          label={`Close ${doc.name}`}
+          title={doc.hasChanges ? 'Close this file. It asks to save your changes first.' : 'Close this file'}
+          onClick={() => void doc.close()}
+        >
+          <CrossIcon />
+        </IconButton>
+      </span>
       {/* Someone else's changes come only when pulled, never on their own (asked for); it warns before replacing. */}
-      {drive?.shared && !lib.drive.yours && (
+      {drive?.shared && !doc.drive.yours && (
         <button
           type="button"
-          className="link"
-          title="Bring the newest version from Google Drive here. Asks first, as it replaces your courses here."
+          className="link file-pull"
+          title="Bring the newest version from Google Drive here. Asks first, as it replaces its courses here."
           // The page stays when the pulled library still has it (App moves on quietly when not).
-          onClick={() => void lib.drive.pull()}
+          onClick={() => void doc.drive.pull()}
         >
-          <PullIcon /> {lib.drive.newer ? 'Pull new changes' : 'Pull changes'}
+          <PullIcon /> {doc.drive.newer ? 'Pull new changes' : 'Pull changes'}
         </button>
       )}
-    </div>
+    </li>
   )
 }
 
-/** Out of the open file, to start from nothing: under the file's box, not in it, as it leaves the file (asked for). */
-function NewLibrary({ lib, onNew }: { lib: LibraryApi; onNew: () => void }) {
-  if (!lib.drive.file && !lib.fileName && lib.library.courses.length === 0) return null
+/**
+ * The open files, between the brand and the courses: a heading with New file, Open file and Google Drive, then one
+ * row per file, the active one selected.
+ */
+function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: () => void; closeIfNarrow: () => void }) {
   return (
-    <button
-      type="button"
-      className="link sidebar-new"
-      title="Start over with an empty library, saved later as a new .shrimp file. Anything here that is not saved in a file is deleted, so it asks first."
-      onClick={async () => {
-        if (await lib.newLibrary()) onNew()
-      }}
-    >
-      <PlusIcon /> New library
-    </button>
+    <section className="files" aria-label="Open files">
+      <div className="files-head">
+        <p className="sidebar-label">Files</p>
+        <IconButton
+          label="New file"
+          title="Start an empty library beside the open ones, saved later as a new .shrimp file"
+          onClick={() => {
+            ws.newDoc()
+            closeIfNarrow()
+          }}
+        >
+          <PlusIcon />
+        </IconButton>
+        <IconButton
+          label={ws.loadLabel}
+          title={ws.loadHint}
+          onClick={async () => {
+            if (await ws.openFile()) closeIfNarrow()
+          }}
+        >
+          <FileIcon />
+        </IconButton>
+        <IconButton label="Google Drive" title="Save to your Google Drive, share a link, or open your Drive libraries" onClick={onDrive}>
+          <CloudIcon />
+        </IconButton>
+      </div>
+      {ws.docs.length > 0 && (
+        <ul className="files-list">
+          {ws.docs.map((d) => (
+            <FileRow key={d.id} doc={ws.doc(d.id)} active={d.id === ws.active} onPick={() => ws.activate(d.id)} />
+          ))}
+        </ul>
+      )}
+    </section>
   )
 }
 
-export function Sidebar({ lib, current, open, setOpen, theme, setTheme }: Props) {
+export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -144,16 +207,9 @@ export function Sidebar({ lib, current, open, setOpen, theme, setTheme }: Props)
       <nav className={open ? 'sidebar' : 'sidebar is-closed'} aria-label="Courses" inert={!open}>
         {/* Stays rendered (inert) while closed, so the width can animate. */}
         <div className="sidebar-body">
-          <OpenFile lib={lib} />
-          <NewLibrary
-            lib={lib}
-            onNew={() => {
-              go({ name: 'home' })
-              closeIfNarrow()
-            }}
-          />
+          <OpenFiles ws={ws} onDrive={onDrive} closeIfNarrow={closeIfNarrow} />
           <p className="sidebar-label">Courses</p>
-          {lib.library.courses.length === 0 ? (
+          {!lib || lib.library.courses.length === 0 ? (
             <div className="tree tree-empty">
               <div className="tree-empty-mark">
                 <TumbleweedIcon />
@@ -193,8 +249,7 @@ export function Sidebar({ lib, current, open, setOpen, theme, setTheme }: Props)
               type="button"
               className="add"
               onClick={() => {
-                const course = lib.addCourse()
-                goToNew(course.id, { name: 'course', course: course.name })
+                onNewCourse()
                 closeIfNarrow()
               }}
             >

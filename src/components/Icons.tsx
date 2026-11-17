@@ -18,6 +18,7 @@ import pencil from '../icons/pencil.svg?raw'
 import play from '../icons/play.svg?raw'
 import plus from '../icons/plus.svg?raw'
 import pull from '../icons/pull.svg?raw'
+import save from '../icons/save.svg?raw'
 import shrimp from '../icons/shrimp.svg?raw'
 import split from '../icons/split.svg?raw'
 import trash from '../icons/trash.svg?raw'
@@ -42,8 +43,11 @@ export const GripIcon = icon(grip)
 // Thicker than the others (back to top).
 export const ArrowUpIcon = icon(arrowUp)
 
-// Pulling changes from Google Drive: an arrow down into a tray.
+// Pulling changes from Google Drive, or downloading a copy: an arrow down into a tray.
 export const PullIcon = icon(pull)
+
+// Saving an open file where it lives: a floppy disk.
+export const SaveIcon = icon(save)
 
 // Saving to Google Drive: an arrow up out of a tray (Pull's counterpart).
 export const UploadIcon = icon(upload)

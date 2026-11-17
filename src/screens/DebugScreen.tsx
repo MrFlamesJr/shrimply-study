@@ -6,7 +6,8 @@ import type { ToastKind } from '../logic/pushToast'
 import { breakBackup, clearBackup } from '../storage/browserBackup'
 import { resetPrefs } from '../storage/resetPrefs'
 import { href } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
+import type { Library } from '../model'
 import { JsonSection } from './debug/JsonSection'
 import { LibrarySection } from './debug/LibrarySection'
 import { TokensSection } from './debug/TokensSection'
@@ -15,10 +16,21 @@ const KINDS: ToastKind[] = ['info', 'warning', 'error']
 const LONG =
   'This is a long test message that wraps over several lines, to check spacing, the corner badge and the close button.'
 
-type Props = { lib: LibraryApi; notify: Notify; debugBar: boolean; setDebugBar: (on: boolean) => void }
+// `lib`: the active file, which the tools act on (null when none is open). `ensureDoc`: it, or a new empty one.
+// `openLibrary` and `newDoc` open a file beside the others, staying on this page.
+type Props = {
+  lib: LibraryApi | null
+  ensureDoc: () => LibraryApi
+  openLibrary: (load: () => Promise<Library>, name: string) => Promise<unknown>
+  newDoc: () => void
+  signOut: () => void
+  notify: Notify
+  debugBar: boolean
+  setDebugBar: (on: boolean) => void
+}
 
 // Test tools, reached by typing #/_debug. Not linked from the app.
-export function DebugScreen({ lib, notify, debugBar, setDebugBar }: Props) {
+export function DebugScreen({ lib, ensureDoc, openLibrary, newDoc, signOut, notify, debugBar, setDebugBar }: Props) {
   // A counter keeps each message unique, so repeated clicks stack instead of replacing each other.
   const count = useRef(0)
   const fire = (kind: ToastKind) => notify(kind, `Test ${kind} ${++count.current}.`)
@@ -32,14 +44,14 @@ export function DebugScreen({ lib, notify, debugBar, setDebugBar }: Props) {
   // bar). Replaced, not assigned, so home isn't shown before the reload.
   const resetVisit = () => {
     resetPrefs()
-    lib.drive.signOut()
+    signOut()
     history.replaceState(null, '', href({ name: 'home' }))
     location.reload()
   }
   return (
     <>
       <PageHead title="Debug" sub="Tools for testing the app. Not linked anywhere: open #/_debug." />
-      <LibrarySection lib={lib} notify={notify} />
+      <LibrarySection lib={lib} ensureDoc={ensureDoc} openLibrary={openLibrary} newDoc={newDoc} notify={notify} />
       <section className="debug-section">
         <h2>First visit</h2>
         <p className="muted">
@@ -70,7 +82,7 @@ export function DebugScreen({ lib, notify, debugBar, setDebugBar }: Props) {
       </section>
       <section className="debug-section">
         <h2>Browser backup</h2>
-        <p className="muted">The copy of the library this browser keeps, which comes back on reload.</p>
+        <p className="muted">The copy of the open files this browser keeps, which comes back on reload.</p>
         <div className="actions">
           <button type="button" title="Reload the page; the library comes back from the browser backup" onClick={() => location.reload()}>
             Reload
@@ -122,7 +134,7 @@ export function DebugScreen({ lib, notify, debugBar, setDebugBar }: Props) {
           </button>
         </div>
       </section>
-      <JsonSection lib={lib} notify={notify} />
+      <JsonSection lib={lib} openLibrary={openLibrary} notify={notify} />
       <TokensSection />
     </>
   )

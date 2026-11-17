@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { Card, Format, Question, StudyOptions } from '../model'
 import { windowNav, type Nav } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { useKeydown } from '../hooks/useKeydown'
 import { buildRound, canChoose, refreshQuestions, usableCards } from '../logic/buildRound'
 import { CrossIcon } from '../components/Icons'

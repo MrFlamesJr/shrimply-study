@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { windowNav, type Nav } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { QuizTiles } from '../components/QuizTiles'
 import { AutoText } from '../components/AutoText'
 import { DangerZone, PageHead } from '../components/Page'
@@ -35,7 +35,7 @@ export function CourseScreen({ lib, courseId, nav }: { lib: LibraryApi; courseId
       </div>
       <DangerZone
         label="Delete course"
-        detail={`Deletes this course and its ${plural(course.quizzes.length, 'quiz', 'quizzes')}. You can't undo this.`}
+        detail={`Deletes this course and its ${plural(course.quizzes.length, 'quiz', 'quizzes')}. Ctrl+Z brings it back.`}
         question={`Delete "${course.name}" and its ${plural(course.quizzes.length, 'quiz', 'quizzes')}?`}
         onDelete={() => {
           lib.deleteCourse(course.id)

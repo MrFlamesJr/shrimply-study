@@ -3,7 +3,7 @@ import type { DraggableAttributes, DraggableSyntheticListeners } from '@dnd-kit/
 import { KIND_NAME, SIDE_IMAGE, isTermCard, type Card, type ChoiceCard, type ClozeCard, type Group, type SequenceCard, type TermCard, type TrueFalseCard } from '../model'
 import type { missingPart } from '../logic/cardStatus'
 import { sideNames } from '../logic/sides'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { AutoText, goesOn, nextBox } from './AutoText'
 import { ChoiceField } from './ChoiceField'
 import { ClozeField } from './ClozeField'

@@ -204,8 +204,8 @@ export async function downloadCopy(library: Library, suggested?: string): Promis
 export const fileStorage: StorageAdapter = {
   loadLabel: 'Open file',
   saveLabel: 'Download',
-  loadHint: 'Open a .shrimp file. It replaces the library in this browser.',
-  saveHint: 'Save your library as a .shrimp file',
+  loadHint: 'Open .shrimp files. Each opens beside the files already open.',
+  saveHint: 'Download a copy of this library as a .shrimp file',
   load,
   save: downloadCopy,
 }

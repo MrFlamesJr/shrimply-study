@@ -1,7 +1,7 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { newId, type Card, type Group } from '../model'
 import { windowNav, type Nav } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import type { ParsedCard } from '../logic/parseCards'
 import { isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
 import { inGroupOrder, moveWithinSection, nextColor, sections, withCollapsed } from '../logic/groups'
@@ -319,7 +319,7 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav }
 
       <DangerZone
         label="Delete quiz"
-        detail={`Deletes this quiz and its ${plural(cards.length, 'card')}. You can't undo this.`}
+        detail={`Deletes this quiz and its ${plural(cards.length, 'card')}. Ctrl+Z brings it back.`}
         question={`Delete "${quiz.name}" and its ${plural(cards.length, 'card')}?`}
         onDelete={() => {
           lib.deleteQuiz(quiz.id)

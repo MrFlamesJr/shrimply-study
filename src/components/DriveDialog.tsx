@@ -1,7 +1,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 import { go, href } from '../route'
 import { fileNameProblem } from '../logic/names'
-import type { DriveFile, LibraryApi } from '../state/useLibrary'
+import type { DriveApi, DriveFile } from '../state/useWorkspace'
 import { AutoText } from './AutoText'
 import { IconButton } from './IconButton'
 import { CheckIcon, InfoIcon, PullIcon, ShrimpIcon, TrashIcon, UploadIcon } from './Icons'
@@ -38,20 +38,26 @@ function PanelHead({ icon, title, about, children }: { icon: ReactNode; title: s
  * Google's answer, asked after signing in, never a guess. File names show exactly as they are in Drive.
  * `onOpened`: a library was opened from the list (App then leaves the welcome page for the course list).
  */
-/** `onPick`: Google's file picker, for files the app can't see yet (App closes this dialog while it shows). */
+/**
+ * `onPick`: Google's file picker, for files the app can't see yet (App closes this dialog while it shows). `drive`:
+ * the active file's (the save panel acts on it); with no file open (`hasDoc` false) only the open panel shows.
+ */
 export function DriveDialog({
-  lib,
+  drive,
+  hasDoc,
+  hasChanges,
   onClose,
   onOpened,
   onPick,
 }: {
-  lib: LibraryApi
+  drive: DriveApi
+  hasDoc: boolean
+  hasChanges: boolean
   onClose: () => void
   onOpened: () => void
   onPick: () => void
 }) {
   const missingId = useId()
-  const { drive } = lib
   const file = drive.file
   const [signed, setSigned] = useState(drive.signedIn)
   // Whether the signed-in user can save to `file`, their Drive libraries and their account: undefined while Google
@@ -164,8 +170,8 @@ export function DriveDialog({
         <button
           type="button"
           className="primary"
-          disabled={!lib.hasChanges}
-          title={lib.hasChanges ? undefined : 'No changes to save'}
+          disabled={!hasChanges}
+          title={hasChanges ? undefined : 'No changes to save'}
           onClick={() => void run(() => drive.save())}
         >
           Save to Drive
@@ -310,6 +316,7 @@ export function DriveDialog({
 
   return (
     <Modal title="Google Drive" narrow footer={footer} onClose={onClose}>
+      {hasDoc && (
       <section className="drive-panel" aria-label="Save to Google Drive">
         <PanelHead icon={<UploadIcon />} title="Save to Google Drive" about="About saving">
           <p>Save to my Drive puts this library in a Shrimply Study folder in your Google Drive. From then on, Save to Drive (or Ctrl+S) saves your changes into that same file.</p>
@@ -362,10 +369,11 @@ export function DriveDialog({
           </div>
         )}
       </section>
+      )}
 
       <section className="drive-panel" aria-label="Open from Google Drive">
         <PanelHead icon={<PullIcon />} title="Open from Google Drive" about="About opening">
-          <p>Here are the libraries you saved from Shrimply Study, wherever they are in your Drive. Opening one replaces the courses in this browser. If you have courses, it asks first.</p>
+          <p>Here are the libraries you saved from Shrimply Study, wherever they are in your Drive. Opening one opens it beside your other files.</p>
           <p>Shrimply Study can only see the files it saved itself, and the ones you choose under Don't see your file?: Google keeps the rest of your Drive private from it.</p>
           <p>Libraries other people share don't appear here. To open one, open the share link they send you, with no sign-in. When they save again, select Pull changes in the sidebar to get their changes.</p>
         </PanelHead>
