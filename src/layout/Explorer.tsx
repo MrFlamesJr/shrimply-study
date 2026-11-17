@@ -362,33 +362,35 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   return (
     <div className="explorer" ref={root} role="region" aria-label="Explorer">
-      <div className="explorer-head">
-        <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
-        <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
-        {drive?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
-        <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
-        <IconButton className="explorer-info-btn" label="What the Explorer can do" popoverTarget={helpId}><InfoIcon /></IconButton>
-        <div id={helpId} popover="auto" className="explorer-info">
-          <dl>
-            {HELP.map(([title, text]) => (
-              <div key={title}>
-                <dt>{title}</dt>
-                <dd>{text}</dd>
-              </div>
-            ))}
-          </dl>
+      <div className="explorer-top">
+        <div className="explorer-head">
+          <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
+          <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
+          {drive?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
+          <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
+          <IconButton className="explorer-info-btn" label="What the Explorer can do" popoverTarget={helpId}><InfoIcon /></IconButton>
+          <div id={helpId} popover="auto" className="explorer-info">
+            <dl>
+              {HELP.map(([title, text]) => (
+                <div key={title}>
+                  <dt>{title}</dt>
+                  <dd>{text}</dd>
+                </div>
+              ))}
+            </dl>
+          </div>
         </div>
-      </div>
-      <div className="explorer-search">
-        <AutoText
-          label="Search"
-          value={filter}
-          onChange={setFilter}
-          onEnter={() => root.current!.querySelector<HTMLElement>('.kit-row[tabindex="0"]')?.focus()}
-          onKeyDown={(e) => {
-            if (e.key === 'Escape') setFilter('')
-          }}
-        />
+        <div className="explorer-search">
+          <AutoText
+            label="Search"
+            value={filter}
+            onChange={setFilter}
+            onEnter={() => root.current!.querySelector<HTMLElement>('.kit-row[tabindex="0"]')?.focus()}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') setFilter('')
+            }}
+          />
+        </div>
       </div>
       {drive && !drive.listing.signedIn && (
         <div className="explorer-drive">
