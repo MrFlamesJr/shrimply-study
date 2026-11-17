@@ -1,11 +1,12 @@
 import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { BackToTop } from '../components/BackToTop'
 import { IconButton } from '../components/IconButton'
 import { MoreIcon, SplitIcon } from '../components/Icons'
 import { ownWindow } from '../components/ownWindow'
 import { openMenu, type MenuItem } from '../kit/ContextMenu'
 import type { DragPayload } from '../kit/dnd'
-import { MAIN, allGroups, groupsIn, type Group, type Layout, type Tab, type WindowId } from '../kit/layout'
+import { MAIN, allGroups, groupsIn, windowOf, type Group, type Layout, type Tab, type WindowId } from '../kit/layout'
 import { Popout } from '../kit/Popout'
 import { isEditable, isMac, matches } from '../kit/shortcuts'
 import { DropZones, SplitView } from '../kit/SplitView'
@@ -58,13 +59,48 @@ export type WorkbenchProps = {
   canPopOut: boolean
 }
 
+// Each tab's screen renders into a node of its own (one per tab and window), which its group's slot takes in: a tab
+// moved to another group in the same window keeps its screen (its state too: a study round goes on), only the node
+// moves. Moved to another window it starts afresh there, as what it measured and listened to belonged to the old one.
+type Slots = Map<string, HTMLElement>
+const slotKey = (win: WindowId, tabId: string) => `${win} ${tabId}`
+
 /** The main window's groups, and a popup for each other window of the layout. */
 export function Workbench(p: WorkbenchProps) {
   const { layout } = p
+  const nodes = useRef<Slots>(new Map())
+  const nodeFor = (key: string) => {
+    let node = nodes.current.get(key)
+    if (!node) {
+      node = document.createElement('div')
+      node.className = 'wb-tab-node'
+      nodes.current.set(key, node)
+    }
+    return node
+  }
+  // The screens, all here (a stable place, keyed by tab and window), each into its node.
+  const screens: ReactNode[] = []
+  const live = new Set<string>()
+  for (const g of Object.values(layout.groups)) {
+    const win = windowOf(layout, g.id)
+    if (win === null || (win !== MAIN && !p.popups[win])) continue
+    const keep = mountedTabs(g)
+    for (const id of g.tabs) {
+      const tab = layout.tabs[id]
+      if (!tab || !keep.has(id)) continue
+      const key = slotKey(win, id)
+      live.add(key)
+      screens.push(createPortal(p.renderTab(tab, id === g.active), nodeFor(key), key))
+    }
+  }
+  // Nodes of tabs no longer shown anywhere are let go.
+  useEffect(() => {
+    for (const key of [...nodes.current.keys()]) if (!live.has(key)) nodes.current.delete(key)
+  })
   return (
     <>
       <div className="workbench">
-        <WindowView p={p} win={MAIN} />
+        <WindowView p={p} win={MAIN} nodeFor={nodeFor} />
       </div>
       {Object.keys(layout.windows)
         .filter((w) => w !== MAIN && p.popups[w])
@@ -81,17 +117,21 @@ export function Workbench(p: WorkbenchProps) {
                     Dock
                   </button>
                 </div>
-                <WindowView p={p} win={w} />
+                <WindowView p={p} win={w} nodeFor={nodeFor} />
               </div>
             </Popout>
           )
         })}
+      {/* After the windows, so each slot holds its node before the screen in it measures where it is. */}
+      {screens}
     </>
   )
 }
 
 // One window's tree. Narrow, only the shown group has room (workbench.css): the others stay mounted, hidden.
-function WindowView({ p, win }: { p: WorkbenchProps; win: WindowId }) {
+type NodeFor = (key: string) => HTMLElement
+
+function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nodeFor: NodeFor }) {
   const { layout } = p
   const ids = groupsIn(layout, win)
   const shown = ids.includes(layout.activeGroup) ? layout.activeGroup : ids[0]
@@ -99,7 +139,7 @@ function WindowView({ p, win }: { p: WorkbenchProps; win: WindowId }) {
     <div className="wb-win">
       <SplitView
         root={layout.windows[win].root}
-        renderGroup={(id) => <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} />}
+        renderGroup={(id) => <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} nodeFor={nodeFor} />}
         onResize={(path, sizes) => p.on.resize(win, path, sizes)}
       />
     </div>
@@ -108,7 +148,7 @@ function WindowView({ p, win }: { p: WorkbenchProps; win: WindowId }) {
 
 type Size = { width: number; height: number }
 
-function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean }) {
+function GroupView({ p, win, group: g, shown, nodeFor }: { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean; nodeFor: NodeFor }) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -260,9 +300,15 @@ function GroupView({ p, win, group: g, shown }: { p: WorkbenchProps; win: Window
           {tabs
             .filter((t) => keep.has(t.id))
             .map((t) => (
-              <div key={t.id} className="wb-tab" hidden={t.id !== g.active}>
-                {p.renderTab(t, t.id === g.active)}
-              </div>
+              <div
+                key={t.id}
+                className="wb-tab"
+                hidden={t.id !== g.active}
+                ref={(slot) => {
+                  const node = nodeFor(slotKey(win, t.id))
+                  if (slot && node.parentNode !== slot) slot.appendChild(node)
+                }}
+              />
             ))}
           {tabs.length === 0 && <p className="wb-empty">No tab open</p>}
         </div>

@@ -1,11 +1,11 @@
-import { href, windowNav, type Nav } from '../route'
+import { href, type Nav } from '../route'
 import type { Course } from '../model'
 import type { LibraryApi } from '../state/useWorkspace'
 import { plural } from '../logic/plural'
 import { PlusIcon } from './Icons'
 
-export function QuizTiles({ lib, course, nav }: { lib: LibraryApi; course: Course; nav?: Nav }) {
-  const { goToNew } = nav ?? windowNav({ name: 'course', course: course.name })
+export function QuizTiles({ lib, course, nav }: { lib: LibraryApi; course: Course; nav: Nav }) {
+  const { goToNew } = nav
   return (
     <div className="tiles">
       {course.quizzes.map((quiz) => (

@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { href, parseHash, redirect, resolve, useRoute, type Nav, type Route } from './route'
+import { followRename, href, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
 import { newId, type StudyOptions, type ThemeId } from './model'
 import { useWorkspace, type DocId } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, type Tab } from './kit/layout'
@@ -26,14 +26,14 @@ import { useSpellcheckOnFocus } from './hooks/useSpellcheckOnFocus'
 import { HomeScreen } from './screens/HomeScreen'
 import { DebugScreen } from './screens/DebugScreen'
 import { DebugBar } from './screens/debug/DebugBar'
-import { ChangelogScreen } from './screens/ChangelogScreen'
 import { WorkbenchDemo } from './kit/demo/WorkbenchDemo'
 import { Toasts, useToasts } from './components/Toasts'
 import { askChoice, askConfirm } from './components/ConfirmDialog'
 import { DriveDialog } from './components/DriveDialog'
 
-// The app's own pages, not a file's: shown instead of the workbench (kept mounted under them, popped-out windows too).
-const OWN_PAGES: Route['name'][] = ['debug', 'changelog', 'workbench']
+// The app's own pages shown instead of the workbench: debug in the page cell (the workbench kept, hidden), the kit
+// demo full screen. Every release's notes (#/_changelog) open as a tab instead.
+const OWN_PAGES: Route['name'][] = ['debug', 'workbench']
 const HOME: Route = { name: 'home' }
 // The window size a popped-out group asks for when its pane can't be measured.
 const POPUP = { width: 960, height: 720 }
@@ -50,36 +50,54 @@ export function App() {
   const own = OWN_PAGES.includes(hashRoute.name)
 
   // The address bar follows the main window's active tab (`address`): switching tabs writes its page there
-  // (replacing the entry), going somewhere in it pushes one (makeTabNav), and back, forward or a typed address move
-  // that tab only. On start the address wins. Pages of the app itself and Drive links are left alone.
+  // (replacing the entry), going somewhere in it pushes one (makeTabNav). Each entry names its tab (history.state
+  // `{ tab }`), so Back and Forward go to that tab, wherever it is now, on that page (workspace.followHistory); an
+  // entry with no tab of its own (a typed address) goes to the main window's tab only when its file has that page.
+  // Pages of the app itself and Drive links are left alone; the changelog's address opens it as a tab.
   const addr = ws.address
   const addrKey = addr ? `${addr.id} ${href(addr.data.route)}` : ''
-  // Back, forward, a typed address: in the event itself, and at once (flushSync), so a screen that goes is done with
-  // (its effects cleaned up) before anything else can reach it. Its own writes (below, makeTabNav) find nothing to do.
+  const entryTab = () => {
+    const tab = (history.state as { tab?: unknown } | null)?.tab
+    return typeof tab === 'string' ? tab : null
+  }
+  // In the event itself, and at once (flushSync), so a screen that goes is done with (its effects cleaned up) before
+  // anything else can reach it. Back and Forward fire popstate (and hashchange); the second finds nothing to do.
   const latest = useRef(ws)
   latest.current = ws
   useEffect(() => {
-    const onHash = () => {
+    const onNav = () => {
       const now = latest.current
       const to = parseHash(location.hash)
-      const tab = now.address
-      if (!now.ready || OWN_PAGES.includes(to.name) || to.name === 'drive' || !tab || href(to) === href(tab.data.route)) return
-      flushSync(() => now.setTabRoute(tab.id, to))
+      if (!now.ready || OWN_PAGES.includes(to.name) || to.name === 'drive') return
+      if (to.name === 'changelog') flushSync(() => now.showChangelog())
+      else flushSync(() => now.followHistory(entryTab(), to))
     }
-    addEventListener('hashchange', onHash)
-    return () => removeEventListener('hashchange', onHash)
+    addEventListener('popstate', onNav)
+    addEventListener('hashchange', onNav)
+    return () => {
+      removeEventListener('popstate', onNav)
+      removeEventListener('hashchange', onNav)
+    }
   }, [])
   const started = useRef(false)
-  // The tab's page into the address bar when the tab (or its page) changes; only then, as the address may already
-  // show where the user is going before its hashchange arrives.
+  const lastAddress = useRef<string | null>(null)
+  // The tab's page into the address bar, the entry naming the tab, when the tab (or its page) changes; only then, as
+  // the address may already show where the user is going before its event arrives. Another tab replaces the entry;
+  // the same tab on another page (from the sidebar, the Explorer) adds one, as its own links do. On start the
+  // address goes first.
   useEffect(() => {
     if (!ws.ready) return
     const first = !started.current
     started.current = true
     const here = parseHash(location.hash)
-    if (OWN_PAGES.includes(here.name) || here.name === 'drive' || !addr) return
-    if (first && href(here) !== href(addr.data.route)) return ws.setTabRoute(addr.id, here)
-    if (location.hash !== href(addr.data.route)) location.replace(href(addr.data.route))
+    if (first && here.name === 'changelog') return ws.showChangelog()
+    if (OWN_PAGES.includes(here.name) || here.name === 'drive' || here.name === 'changelog' || !addr) return
+    if (first && ws.followHistory(entryTab(), here)) return
+    const target = href(addr.data.route)
+    const moved = lastAddress.current === addr.id && location.hash !== target
+    lastAddress.current = addr.id
+    if (moved) history.pushState({ tab: addr.id }, '', target)
+    else if (location.hash !== target || entryTab() !== addr.id) history.replaceState({ tab: addr.id }, '', target)
   }, [ws.ready, addrKey])
 
   const navOps: TabNavOps = { setRoute: ws.setTabRoute, ownsAddress: (id) => !own && id === ws.address?.id }
@@ -171,6 +189,8 @@ export function App() {
   }
   const driveId = hashRoute.name === 'drive' ? hashRoute.id : undefined
   const handledLink = useRef<string>(undefined)
+  // A re-render once the link is handled (the address changes without an event then).
+  const [, setDriveDone] = useState(0)
   const checkedDrive = useRef(false)
   useEffect(() => {
     if (!ws.ready) return
@@ -179,7 +199,12 @@ export function App() {
       if (!checkedDrive.current) for (const d of ws.docs) if (d.where === 'drive') void ws.doc(d.id).drive.refresh()
     } else if (handledLink.current !== driveId) {
       handledLink.current = driveId
-      void ws.openDrive(driveId).then(() => redirect(HOME))
+      // Then the address shows the tab it opened in (or home when it did not open).
+      void ws.openDrive(driveId).then(() => {
+        const tab = latest.current.address
+        history.replaceState(tab ? { tab: tab.id } : null, '', href(tab?.data.route ?? HOME))
+        setDriveDone((n) => n + 1)
+      })
     }
     checkedDrive.current = true
   }, [ws.ready, driveId])
@@ -316,6 +341,9 @@ export function App() {
   })
   useSpellcheckOnFocus()
 
+  // What each tab's page was found as, to follow a rename by id (see crumbs).
+  const found = useRef(new Map<string, Found>())
+
   if (!ws.ready) return null
 
   // ---- The workbench ----
@@ -323,14 +351,20 @@ export function App() {
   const wbDocs: Record<string, WorkbenchDoc> = Object.fromEntries(
     ws.docs.map((d) => [d.id, { name: d.name, dirty: d.dirty, library: ws.doc(d.id).library }]),
   )
-  // A pane's breadcrumbs: the file (its home), then the course and quiz the tab's page names. None for a study
-  // session, which has its own head, nor for the Explorer.
+  // A pane's breadcrumbs: the file (its home, under the file's name as it is now), then the course and quiz the tab's
+  // page names, followed by id through a rename (as the page is: the tab's route takes the new name only once the
+  // typing pauses). A page that is gone shows the file alone while the pane moves on. None for a study session or
+  // the Explorer (each has a head of its own, the same height); every release's notes are named as such.
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
+    if (tab.data.kind === 'changelog') return [{ label: 'All releases' }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
     const r = tab.data.route
     if (r.name === 'study') return []
     const name = wbDocs[tab.data.doc].name
-    const { course, quiz } = resolve(wbDocs[tab.data.doc].library, r)
+    const library = wbDocs[tab.data.doc].library
+    const named = resolve(library, r)
+    if (!named.missing) found.current.set(tab.id, { key: href(r), place: named })
+    const { course, quiz } = named.missing ? (followRename(library, r, found.current.get(tab.id))?.place ?? named) : named
     if (!course || (r.name !== 'course' && !quiz)) return [{ label: name }]
     const file: Crumb = { label: name, route: HOME }
     if (r.name === 'course') return [file, { label: course.name }]
@@ -376,14 +410,11 @@ export function App() {
   const studyAlone = !own && groupsIn(ws.layout, MAIN).length === 1 && addr?.data.route.name === 'study'
   // With no file open and no tab, the page is the welcome page.
   const welcomeOnly = !own && ws.docs.length === 0 && Object.keys(ws.layout.tabs).length === 0
-  const fullPage = hashRoute.name === 'changelog' || hashRoute.name === 'workbench'
-  // The changelog's way back: to the page the address bar's tab shows.
-  const back: Nav = { route: hashRoute, go: () => (location.hash = href(addr?.data.route ?? HOME)), redirect, goToNew: () => undefined, takeCreated: () => false }
+  const fullPage = hashRoute.name === 'workbench'
   const appClass = ['app', sidebarOpen ? '' : 'is-side-closed', studyAlone ? 'is-session' : ''].filter(Boolean).join(' ')
 
   return (
     <>
-      {hashRoute.name === 'changelog' && <ChangelogScreen nav={back} />}
       {hashRoute.name === 'workbench' && <WorkbenchDemo />}
       {/* Full-screen pages of the app take the window, as before (a popped-out window closes meanwhile, and its
           tabs come back docked). */}
@@ -423,6 +454,7 @@ export function App() {
           <main className="page own-page">
             <HomeScreen
               lib={null}
+              nav={null}
               driveSetUp={ws.drive.setUp}
               loadLabel={ws.loadLabel}
               loadHint={ws.loadHint}

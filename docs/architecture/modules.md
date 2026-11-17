@@ -373,13 +373,12 @@ export type Created = { get(): string | undefined; set(id: string | undefined): 
 export function buildTabNav(route: Route, fx: TabNavEffects, created: Created): Nav
 // layout/tabNav.ts
 export type TabNavOps = { setRoute(tabId: string, route: Route): void; ownsAddress(tabId: string): boolean }
-export function makeTabNav(tabId: string, route: Route, ops: TabNavOps): Nav   // writes location.hash only for the tab that owns the address bar
+export function makeTabNav(tabId: string, route: Route, ops: TabNavOps): Nav   // pushes or replaces a history entry ({ tab }) only for the tab that owns the address bar
 ```
 
-`Nav` is `{ route; go(r); redirect(r); goToNew(id, r); takeCreated(id): boolean }` (id first), declared in
-`logic/routes.ts`. `PaneScreen` and `App` build one per tab with `makeTabNav`, so a tab's `go` changes that tab's route and
-writes the hash only when the tab is the main window's active one. Screens still accept an optional `nav` and otherwise use
-`windowNav(route)`, the address bar's.
+`Nav` is declared in `src/logic/routes.ts` (re-exported by `src/route.ts`): `{ route; go(r); redirect(r); goToNew(id, r);
+takeCreated(id): boolean }` (id first). Every screen takes its tab's `nav` (required). `route.ts` keeps only the hooks:
+`usePlaceFor` (a tab's place, following renames) and `useRoute`.
 
 ### `src/state/workspace.ts` (pure): the workspace and its transitions (run by `useWorkspace`)
 

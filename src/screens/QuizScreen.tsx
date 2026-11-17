@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { isTermCard, type Card, type StudyOptions } from '../model'
-import { href, windowNav, type Nav } from '../route'
+import { href, type Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { canChoose, usableCards } from '../logic/buildRound'
 import { missingPart } from '../logic/cardStatus'
@@ -21,7 +21,7 @@ type Props = {
   setCollapsed: (collapsed: ReadonlySet<string>) => void
   tipsOpen: boolean
   setTipsOpen: (open: boolean) => void
-  nav?: Nav
+  nav: Nav
   /** Says things in a toast (a card deleted); without it nothing is said. */
   notify?: Notify
   /** Puts back what was last changed (the workspace's undo); the deleted-card toast's Undo button. Without it the toast names Ctrl+Z. */
@@ -40,7 +40,7 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
     onCardOpened?.()
   }, [openCard])
   const found = lib.findQuiz(quizId)
-  const { go, goToNew } = nav ?? windowNav({ name: 'quiz', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '' })
+  const { go, goToNew } = nav
   if (!found) return null
   const { course, quiz } = found
   const studied = usableCards(quiz.cards)

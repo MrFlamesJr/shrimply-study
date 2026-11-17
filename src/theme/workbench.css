@@ -70,8 +70,10 @@
   flex: 1;
   min-height: 0;
 }
-/* The pane is its own scroller. contain keeps fixed-position children (back to top, toasts) inside it. */
+/* The pane is its own scroller. contain keeps fixed-position children inside it. Its width is what its breadcrumbs
+   answer to (@container pane), not the window's. */
 .pane-body {
+  container: pane / inline-size;
   position: absolute;
   inset: 0;
   overflow: auto;
@@ -158,6 +160,33 @@
 .pane-crumbs a:hover {
   color: var(--text);
   text-decoration-color: currentColor;
+}
+/* A narrow pane (as the top row was on phones): one "‹ parent" link instead of the trail, when the page has one. */
+.pane-parent {
+  display: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-overflow: ellipsis;
+  text-underline-offset: var(--underline-offset);
+  transition:
+    color var(--dur-fast) var(--ease),
+    text-decoration-color var(--dur-fast) var(--ease);
+}
+.pane-parent:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+@container pane (max-width: 479px) {
+  .pane-head.has-parent .pane-crumbs {
+    display: none;
+  }
+  .pane-head.has-parent .pane-parent {
+    display: block;
+  }
 }
 
 /* Narrow (the window, not the pane): only the shown group has room. The others stay mounted, so nothing is lost. */

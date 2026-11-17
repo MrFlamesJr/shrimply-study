@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { href } from '../route'
+import { href, type Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { QuizTiles } from '../components/QuizTiles'
 import { PageHead } from '../components/Page'
@@ -13,6 +13,8 @@ import { LearnMore } from './home/LearnMore'
 type Props = {
   /** The active file; null when none is open (home is then the welcome page). */
   lib: LibraryApi | null
+  /** The tab's navigation (its quiz tiles open a new quiz in it); null with no file open. */
+  nav: Nav | null
   driveSetUp: boolean
   loadLabel: string
   loadHint: string
@@ -30,7 +32,7 @@ type Props = {
   openDrive: () => void
 }
 
-export function HomeScreen({ lib, driveSetUp, loadLabel, loadHint, openFile, openGuide, newCourse, welcome, endWelcome, openDrive }: Props) {
+export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile, openGuide, newCourse, welcome, endWelcome, openDrive }: Props) {
   // Beside every Open file: the other place a library can come from.
   const fromDrive = (className?: string) =>
     driveSetUp && (
@@ -157,7 +159,7 @@ export function HomeScreen({ lib, driveSetUp, loadLabel, loadHint, openFile, ope
             </h2>
             <span className="muted">{plural(course.quizzes.length, 'quiz', 'quizzes')}</span>
           </div>
-          {lib && <QuizTiles lib={lib} course={course} />}
+          {lib && nav && <QuizTiles lib={lib} course={course} nav={nav} />}
         </section>
       ))}
     </>

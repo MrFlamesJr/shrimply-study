@@ -2,7 +2,7 @@
 // layout (one tab per document for now), the undo history, the clipboard and the Explorer's state. Nothing here
 // touches the DOM, storage or the clock: times and new ids come in as arguments.
 import { FORMATS, type Library } from '../model'
-import { href, type Route } from '../logic/routes'
+import { href, resolve, type Route } from '../logic/routes'
 import type { DriveSource } from '../storage/googleDrive'
 import type { FileRef } from '../storage/fileStorage'
 import type { DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
@@ -14,7 +14,8 @@ import { freeName } from '../logic/names'
 import { plural } from '../logic/plural'
 
 export type { DocId }
-export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'welcome' }
+// A tab shows a page of a file, the Explorer, the welcome page or every release's notes (the app's own pages).
+export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'welcome' } | { kind: 'changelog' }
 
 export type Doc = {
   id: DocId
@@ -253,6 +254,26 @@ export function showExplorer(w: Workspace, beside: L.GroupId, o: { split: boolea
   const explorer: L.Tab<TabData> = tab ?? { id: o.tabId, data: { kind: 'explorer' } }
   if (o.split) return withLayout(w, L.split(w.layout, target, 'row', 'before', o.groupId, explorer))
   return withLayout(w, tab ? L.activate(w.layout, tab.id) : L.openTab(w.layout, explorer, { group: target }))
+}
+
+/** Every release's notes, in a tab (one at most): where it is, it becomes active; else a new tab (`tabId`) in `group`. */
+export function showChangelog(w: Workspace, group: L.GroupId, tabId: L.TabId): Workspace {
+  const tab = Object.values(w.layout.tabs).find((t) => t.data.kind === 'changelog')
+  if (tab) return withLayout(w, L.activate(w.layout, tab.id))
+  return withLayout(w, L.openTab(w.layout, { id: tabId, data: { kind: 'changelog' } }, { group: w.layout.groups[group] ? group : undefined }))
+}
+
+/**
+ * Back, forward or a typed address: the entry names the tab it belongs to (`tabId`, from history.state). That tab,
+ * where it still is (any group or window), becomes active on the entry's page. With no such tab, the main window's
+ * tab takes the page only when its file has that page; otherwise nothing changes.
+ */
+export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route): Workspace {
+  const tab = docTab(w, tabId)
+  if (tab) return activateTab(setTabRoute(w, tab.id, route), tab.id)
+  const address = addressTab(w)
+  if (!address || resolve(w.docs[address.data.doc].library, route).missing) return w
+  return setTabRoute(w, address.id, route)
 }
 
 /** The group used most recently other than `except` (where the Explorer opens things), or null when there is none. */
@@ -540,8 +561,8 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
     if (data.kind === 'explorer' && !explorer) {
       explorer = true
       tabs[id] = { id, data: { kind: 'explorer' } }
-    } else if (data.kind === 'welcome') {
-      tabs[id] = { id, data: { kind: 'welcome' } }
+    } else if (data.kind === 'welcome' || data.kind === 'changelog') {
+      if (!Object.values(tabs).some((t) => t.data.kind === data.kind)) tabs[id] = { id, data: { kind: data.kind } }
     } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
       const route = readRoute(data.route)
       if (route) tabs[id] = { id, data: docTabData(data.doc, route) }

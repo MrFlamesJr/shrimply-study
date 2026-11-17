@@ -1,6 +1,6 @@
 import { useEffect, useLayoutEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react'
 import type { StudyOptions } from '../model'
-import { parseHash, usePlaceFor, type Route } from '../route'
+import { parseHash, usePlaceFor, type Nav, type Route } from '../route'
 import type { Tab } from '../kit/layout'
 import type { DocId, ItemRef } from '../logic/contentOps'
 import type { TabData } from '../logic/workbenchActions'
@@ -12,6 +12,7 @@ import { CourseScreen } from '../screens/CourseScreen'
 import { QuizScreen } from '../screens/QuizScreen'
 import { EditScreen } from '../screens/EditScreen'
 import { StudyScreen } from '../screens/StudyScreen'
+import { ChangelogScreen } from '../screens/ChangelogScreen'
 import { ExplorerPane } from './ExplorerPane'
 import { makeTabNav, type TabNavOps } from './tabNav'
 
@@ -59,9 +60,14 @@ type Props = {
 // Pages of a file a link may name; the app's own pages (changelog, debug) are left to the address bar.
 const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
 
-/** One tab's screen: a file's page (its own route and navigation), the Explorer, or the welcome page. */
+/** One tab's screen: a file's page (its own route and navigation), the Explorer, or every release's notes. */
 export function PaneScreen({ tab, group, shown, active, s }: Props) {
   const d = tab.data
+  if (d.kind === 'changelog') {
+    // Its way back closes the tab, showing what was beside it.
+    const close: Nav = { route: { name: 'changelog' }, go: () => s.ws.closeTabs([tab.id]), redirect: () => s.ws.closeTabs([tab.id]), goToNew: () => undefined, takeCreated: () => false }
+    return <ChangelogScreen nav={close} />
+  }
   if (d.kind === 'explorer') {
     return (
       <ExplorerPane
@@ -75,20 +81,16 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
       />
     )
   }
-  if (d.kind === 'welcome' || !s.ws.docs.some((x) => x.id === d.doc)) {
-    return (
-      <div className="page">
-        <Home lib={null} s={s} />
-      </div>
-    )
-  }
+  // A file's tab (a tab of a file that is gone never stays: closing a file closes its tabs).
+  if (d.kind !== 'doc' || !s.ws.docs.some((x) => x.id === d.doc)) return null
   return <DocPane tab={tab as Tab<Extract<TabData, { kind: 'doc' }>>} group={group} shown={shown} active={active} s={s} />
 }
 
-function Home({ lib, s }: { lib: LibraryApi | null; s: PaneShared }) {
+function Home({ lib, nav, s }: { lib: LibraryApi; nav: Nav; s: PaneShared }) {
   return (
     <HomeScreen
       lib={lib}
+      nav={nav}
       driveSetUp={s.ws.drive.setUp}
       loadLabel={s.ws.loadLabel}
       loadHint={s.ws.loadHint}
@@ -127,7 +129,8 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
   const box = useRef<HTMLDivElement>(null)
   const [scroller, setScroller] = useState<HTMLElement | null>(null)
   const scrolled = useRef(0)
-  useLayoutEffect(() => setScroller(box.current?.closest<HTMLElement>('.pane-body') ?? null), [])
+  // Found again when the tab moves to another group (its screen moves with it, see Workbench).
+  useLayoutEffect(() => setScroller(box.current?.closest<HTMLElement>('.pane-body') ?? null), [group])
   useLayoutEffect(() => {
     if (!shown || !scroller) return
     scroller.scrollTop = scrolled.current
@@ -147,6 +150,10 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
     const link = (e.target as Element).closest?.('a[href^="#/"]')
     if (!link || e.defaultPrevented || e.shiftKey || e.altKey) return
     const to = parseHash(link.getAttribute('href') ?? '')
+    if (to.name === 'changelog') {
+      e.preventDefault()
+      return ws.showChangelog(group ?? undefined)
+    }
     if (!FILE_PAGES.includes(to.name)) return
     e.preventDefault()
     if (newTab) ws.openPlace(tab.data.doc, to, { group: group ?? undefined, newTab: true, background: true })
@@ -184,7 +191,7 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
         <StudyScreen key={quiz.id + route.format} lib={lib} notify={s.notify} quizId={quiz.id} format={route.format} prefs={s.prefs} nav={nav} active={active} />
       </div>
     )
-  } else if (!('course' in route)) screen = <Home lib={lib} s={s} />
+  } else if (!('course' in route)) screen = <Home lib={lib} nav={nav} s={s} />
 
   return (
     <div ref={box} className="page" onClick={(e) => follow(e, e.ctrlKey || e.metaKey)} onAuxClick={(e) => e.button === 1 && follow(e, true)}>

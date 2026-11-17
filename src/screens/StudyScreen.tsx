@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Card, Format, Question, StudyOptions } from '../model'
-import { windowNav, type Nav } from '../route'
+import type { Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { useKeydown } from '../hooks/useKeydown'
 import { buildRound, canChoose, refreshQuestions, usableCards } from '../logic/buildRound'
@@ -13,7 +13,7 @@ import { Results } from './study/Results'
 
 // `active`: the session is shown in the active group (another pane or window may hold another session); only then
 // do its keys work.
-type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions; nav?: Nav; active?: boolean }
+type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions; nav: Nav; active?: boolean }
 
 const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 'Multiple choice', typing: 'Typing' }
 
@@ -23,7 +23,7 @@ const WIDE_TEXT = 400
 
 export function StudyScreen({ lib, notify, quizId, format, prefs, nav, active = true }: Props) {
   const found = lib.findQuiz(quizId)
-  const { redirect } = nav ?? windowNav({ name: 'study', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '', format })
+  const { redirect } = nav
   const usable = found ? usableCards(found.quiz.cards) : []
   const canStudy = usable.length > 0 && (format !== 'choice' || canChoose(usable))
   const options = { ...prefs, format }

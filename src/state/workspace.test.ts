@@ -12,6 +12,8 @@ import {
   activateDoc,
   closeTabs,
   dockWindow,
+  followHistory,
+  showChangelog,
   moveTab,
   openPlace,
   popOutGroup,
@@ -412,3 +414,41 @@ describe('tabs, groups and windows', () => {
     expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
   })
 })
+
+describe('back and forward', () => {
+  // a's tab on course a1 in group g; b's tab on its home, split into g2 and active there.
+  const setup = () => {
+    let w = setTabRoute(two(), 'ta', { name: 'course', course: 'a1' })
+    w = splitGroup(w, 'g', 'row', 'after', 'g2', { tabId: 'unused', move: 'tb' })
+    return activateTab(w, 'tb')
+  }
+
+  it('an entry goes back to its own tab, wherever it is, on its page; the other tab stays', () => {
+    const w = followHistory(setup(), 'ta', HOME)
+    expect(activeTab(w)?.id).toBe('ta')
+    expect(route(w, 'ta')).toEqual(HOME)
+    expect(route(w, 'tb')).toEqual(HOME)
+    expect(groupOf(w.layout, 'ta')).toBe('g')
+  })
+
+  it("an entry whose tab is gone (or a typed address) goes to the main window's tab only when its file has the page", () => {
+    const w = setup()
+    expect(route(followHistory(w, 'gone', { name: 'course', course: 'b1' }), 'tb')).toEqual({ name: 'course', course: 'b1' })
+    expect(followHistory(w, null, { name: 'course', course: 'a1' })).toBe(w)
+    expect(route(followHistory(w, null, HOME), 'tb')).toEqual(HOME)
+  })
+})
+
+describe("the app's own tabs", () => {
+  it("every release's notes open in one tab at most", () => {
+    let w = showChangelog(two(), 'g', 'tc')
+    expect(activeTab(w)?.data).toEqual({ kind: 'changelog' })
+    w = activateTab(w, 'ta')
+    w = showChangelog(w, 'g', 'tc2')
+    expect(activeTab(w)?.id).toBe('tc')
+    expect(Object.keys(w.layout.tabs)).not.toContain('tc2')
+    const l = readLayout(JSON.parse(JSON.stringify(w.layout)), ['a', 'b'], 'x', ids())
+    expect(l.tabs.tc?.data).toEqual({ kind: 'changelog' })
+  })
+})
+

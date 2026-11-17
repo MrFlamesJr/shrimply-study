@@ -16,6 +16,8 @@ Everything described here runs: `App` mounts the Workbench, the Explorer tab, th
 - **Keys** (`useKeydown`): Ctrl+S saves the active file; Ctrl+Alt+S saves every file with changes; undo and redo
   (`Mod+Z`, `Mod+Shift+Z`, `Ctrl+Y`) are app-wide through `ws.undo` and `ws.redo` and left to the browser inside text
   fields (`isEditable`); `Mod+Shift+E` shows the Explorer; `Mod+\` splits the active group; Ctrl+Alt+Shift+D toggles the debug bar.
+- **Screens** get `lib: LibraryApi` (one document) and `nav: Nav` (their tab's, from `makeTabNav`); none touches the
+  address bar. History entries name their tab (`history.state.tab`); Back and Forward return to it.
 
 ## State: `useWorkspace`
 

@@ -100,3 +100,17 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
     went too (the popout e2e allows the popup's full width).
   - route.ts's pure parts moved to `src/logic/routes.ts` (re-exported), so src/logic stays free of React; the unused
     window-level `usePlace` is gone, and useWorkspace's stale `Nav` type.
+- T12b follow-up, 2026-11-16:
+  - Back and Forward: each history entry names the tab that made it (history.state `{ tab }`, set by makeTabNav and
+    by the address mirror). An entry goes back to its tab wherever it is now (activated, on that page); an entry with
+    no tab of its own (gone, or a typed address) moves the main window's tab only when its file has that page, else
+    nothing happens. The same tab moved from the sidebar or the Explorer now adds an entry too.
+  - A tab moved to another group keeps its screen (a study round goes on): screens render into a node per tab and
+    window, which the group's slot takes in. Moved to another window, it starts afresh (what it measured and listened
+    to belonged to the old window), as before.
+  - Every release's notes are a tab (one at most) instead of a full-screen page, so popped-out windows stay; Back to
+    the app closes it. Only the kit demo (#/_workbench, not linked) still takes the window.
+  - Breadcrumbs: the file's name first (alone and not a link on its home), course, quiz, Edit; followed through a
+    rename at once (by id, as the page is); none over study or the Explorer (their own heads, the same height);
+    "All releases" and "Welcome" for those tabs. A narrow pane (under 480px of its own width) shows "‹ parent". A
+    debug page never shows in a pane (it takes the page cell); a #/_drive/ link opens its file's tab on home.

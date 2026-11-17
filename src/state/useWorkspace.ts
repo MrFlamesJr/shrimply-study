@@ -186,6 +186,10 @@ export type WorkspaceApi = {
   dock(win: WindowId): void
   /** Shows the Explorer: activated where it shows, else split on the left of `beside` (`split`) or as a tab. */
   showExplorer(beside: GroupId, split: boolean): void
+  /** Every release's notes in a tab (one at most), in `group` (default: the active one). */
+  showChangelog(group?: GroupId): void
+  /** Back, forward or a typed address: the entry's own tab (`tabId`, from history.state) takes its page (see workspace.followHistory); true when something changed. */
+  followHistory(tabId: TabId | null, route: Route): boolean
   /** The group used most recently other than `except`. */
   recentGroup(except: GroupId | null): GroupId | null
   /** The one content write path: one undoable step that marks every document it changed as unsaved. */
@@ -1131,6 +1135,15 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     showExplorer: (beside, split) => {
       const made = ids()
       update((w) => W.showExplorer(w, beside, { split, tabId: made.tab, groupId: made.group }))
+    },
+    showChangelog: (group) => {
+      const tab = newId()
+      update((w) => W.showChangelog(w, group ?? w.layout.activeGroup, tab))
+    },
+    followHistory: (tabId, route) => {
+      const before = ref.current
+      update((w) => W.followHistory(w, tabId, route))
+      return ref.current !== before
     },
     recentGroup: (except) => W.recentGroup(ref.current, except),
     apply,

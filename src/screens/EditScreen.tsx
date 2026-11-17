@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { newId, type Card, type Group } from '../model'
-import { windowNav, type Nav } from '../route'
+import type { Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import type { ParsedCard } from '../logic/parseCards'
 import { isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
@@ -29,14 +29,14 @@ type Props = {
   notify: Notify
   collapsed: ReadonlySet<string>
   setCollapsed: (collapsed: ReadonlySet<string>) => void
-  nav?: Nav
+  nav: Nav
   /** Puts back what was last changed (the workspace's undo); the deleted-card toast's Undo button. Without it the toast names Ctrl+Z. */
   undo?: () => void
 }
 
 export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, undo }: Props) {
   const found = lib.findQuiz(quizId)
-  const { go, takeCreated } = nav ?? windowNav({ name: 'edit', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '' })
+  const { go, takeCreated } = nav
   const [importOpen, setImportOpen] = useState(false)
   // Half-filled cards are only marked after a blocked Done.
   const [triedDone, setTriedDone] = useState(false)

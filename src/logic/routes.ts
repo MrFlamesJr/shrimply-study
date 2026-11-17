@@ -91,7 +91,7 @@ export function sameIds(library: Library, { course, quiz }: Place): Place | unde
   return c && (!quiz || q) ? { course: c, quiz: q } : undefined
 }
 
-/** What a screen navigates with: its own route and the ways to leave it. One per window today (`windowNav`), later one per tab. */
+/** What a screen navigates with: its tab's own route and the ways to leave it (layout/tabNav.ts makes one per tab). */
 export type Nav = {
   route: Route
   go(r: Route): void

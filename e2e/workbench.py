@@ -1,7 +1,11 @@
 """The workbench: two files in split panes that stay independent, a tab moved across groups, a tab closed (its file
 stays open), a reload that restores the split and the pages, the Explorer (sidebar button, Ctrl+Shift+E, Reveal in
-Explorer), a group popped out and docked, and study in a split pane and full screen when alone."""
+Explorer), a group popped out and docked, and study in a split pane and full screen when alone. Then: a study tab
+moved to another group goes on with its round, Back returns to the tab an entry belongs to, every release's notes
+open as a tab, and the breadcrumbs (every kind of page, each pane its own trail, a popped-out window, a narrow pane's
+"< parent" link, long names, lined up with the page, a crumb moving only its pane, renames, a page that is gone)."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -140,5 +144,194 @@ def run(page, base):
     need(not page.locator('.sidebar').is_visible(), 'the shell steps aside for a full-screen session')
     page.keyboard.press('Escape')
     wait_for(page, lambda: page.locator('.app.is-session').count() == 0, 'Esc leaves the session')
+
+    study_moves(page)
+    back_returns_to_its_tab(page)
+    changelog_tab(page)
+    breadcrumbs(page)
+    new_quiz_in_popup(page)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
+
+
+def active_group(page):
+    return page.locator('.wb-cell .wb-group.is-focused')
+
+
+def start_split(page):
+    """The active group split in two (a copy of its tab on the right); returns both groups."""
+    active_group(page).get_by_role('button', name='Split right').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'the split makes two groups')
+    return group(page, 0), group(page, 1)
+
+
+def study_moves(page):
+    """A study tab dragged to another group keeps its round (its screen moves, not mounted anew)."""
+    g1, g2 = start_split(page)
+    shown(g2).get_by_role('button', name='Start').click()
+    shown(g2).locator('.session-stack').wait_for()
+    need(shown(g2).locator('.pane-head').count() == 0 and g2.locator('.pane-head').count() == 0, 'a study session has no breadcrumbs (its own head)')
+    shown(g2).locator('.flip-card').click()
+    shown(g2).get_by_role('button', name=re.compile('^Knew it')).click()
+    wait_for(page, lambda: shown(g2).locator('.session-count').inner_text().startswith('2 /'), 'the round goes on to question 2')
+    src = g2.locator('[role=tab]').first.bounding_box()
+    dst = g1.locator('[role=tablist]').bounding_box()
+    drag(page, center(src), (dst['x'] + dst['width'] - 40, dst['y'] + dst['height'] / 2))
+    wait_for(page, lambda: groups(page).count() == 1, 'the study tab moved into the other group')
+    count = shown(group(page, 0)).locator('.session-count')
+    count.wait_for()
+    need(count.inner_text().startswith('2 /'), f'the moved round goes on where it was, not from the start: {count.inner_text()}')
+    page.keyboard.press('Escape')
+    wait_for(page, lambda: shown(group(page, 0)).locator('.session-stack').count() == 0, 'Esc leaves the moved session')
+
+
+def back_returns_to_its_tab(page):
+    """Back goes to the tab its entry belongs to, on that page; the other file's tab stays where it is."""
+    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    a = active_group(page)
+    if len(crumbs(a)) > 1:
+        a.locator('.pane-crumbs a').first.click()
+    wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'the test library tab is on its home')
+    shown(active_group(page)).locator('.course-row a').first.click()
+    wait_for(page, lambda: len(crumbs(active_group(page))) == 2, 'the test library tab goes to a course')
+    guide = active_group(page).locator('[role=tab]', has_text='Guide').first
+    if guide.count() == 0:
+        page.locator('.file-row', has_text='Guide').locator('.file-pick').click()
+    else:
+        guide.click()
+    wait_for(page, lambda: crumbs(active_group(page))[0] == 'Guide', 'the guide tab is shown')
+    guide_trail = crumbs(active_group(page))
+    page.go_back()
+    wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'Back shows the test library tab on its home again')
+    tabs = active_group(page).locator('[role=tab]', has_text='Guide')
+    tabs.first.click()
+    wait_for(page, lambda: crumbs(active_group(page)) == guide_trail, 'the guide tab was left where it was')
+    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+
+
+def changelog_tab(page):
+    """Every release's notes open as a tab beside the files (the shell and any popped-out window stay)."""
+    g = active_group(page)
+    if crumbs(g) != ['Test library']:
+        g.locator('.pane-crumbs a').first.click()
+        wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'home again')
+    shown(active_group(page)).get_by_role('link', name='See all releases').click()
+    wait_for(page, lambda: page.locator('[role=tab]', has_text='All releases').count() == 1, 'the notes open as a tab')
+    need(page.locator('.sidebar').is_visible(), 'the shell stays')
+    need(crumbs(active_group(page)) == ['All releases'], 'its pane head names it')
+    shown(active_group(page)).get_by_role('button', name='Back to the app').click()
+    wait_for(page, lambda: page.locator('[role=tab]', has_text='All releases').count() == 0, 'Back to the app closes the tab')
+
+
+def lined_up(g):
+    """The first crumb starts where the page's title does."""
+    crumb = g.locator('.pane-crumbs li').first.bounding_box()
+    title = shown(g).locator('.page-head h1').first.bounding_box()
+    return abs(crumb['x'] - title['x']) <= 2
+
+
+def breadcrumbs(page):
+    a = active_group(page)
+    if crumbs(a) != ['Test library']:
+        a.locator('.pane-crumbs a').first.click()
+    # A file's home: its name alone, not a link, the same name as its row in the sidebar.
+    wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'a home shows the file name alone')
+    need(active_group(page).locator('.pane-crumbs a').count() == 0, 'the lone file name is not a link')
+    need(page.locator('.file-row .file-name-text', has_text='Test library').count() == 1, 'the same name as its sidebar row')
+
+    # Split: a course page on the right, the quiz's editor on the left; each pane its own trail.
+    g1, g2 = start_split(page)
+    shown(g2).locator('.course-row a').first.click()
+    wait_for(page, lambda: len(crumbs(g2)) == 2, 'the right pane shows a course')
+    course = crumbs(g2)[1]
+    shown(g1).locator('.course-row a').first.click()
+    wait_for(page, lambda: len(crumbs(g1)) == 2, 'the left pane shows the course')
+    shown(g1).locator('a.tile').first.click()
+    wait_for(page, lambda: len(crumbs(g1)) == 3, 'the left pane shows a quiz')
+    quiz = crumbs(g1)[2]
+    shown(g1).get_by_role('button', name='Edit quiz').click()
+    wait_for(page, lambda: crumbs(g1) == ['Test library', course, quiz, 'Edit'], 'the editor: file, course, quiz, Edit')
+    need(crumbs(g2) == ['Test library', course], 'the right pane keeps its own trail')
+
+    # A crumb moves only its own pane.
+    g1.locator('.pane-crumbs a', has_text=quiz).click()
+    wait_for(page, lambda: crumbs(g1) == ['Test library', course, quiz], 'the quiz crumb goes to the quiz page')
+    need(crumbs(g2) == ['Test library', course], 'the other pane does not move')
+    need(lined_up(g1) and lined_up(g2), 'the crumbs line up with each page')
+
+    # A rename shows in every trail at once (before the address follows), in both panes.
+    field = shown(g2).get_by_label('Course name')
+    field.click()
+    field.press('End')
+    field.press_sequentially(' renamed')
+    page.wait_for_timeout(120)
+    need(crumbs(g2)[1] == course + ' renamed' and crumbs(g1)[1] == course + ' renamed', f'renames show at once: {crumbs(g2)} {crumbs(g1)}')
+
+    # Long names truncate inside the pane head, which keeps its height; no crumb overlaps the next.
+    field.press_sequentially(' with a very long name that goes on and on and on, far past what a pane can show in one line')
+    page.evaluate('document.activeElement.blur()')
+    page.wait_for_timeout(400)
+    for g in (g1, g2):
+        head = g.locator('.pane-head').bounding_box()
+        need(head['height'] <= 44, f'the pane head keeps its height: {head}')
+        boxes = [b for b in (li.bounding_box() for li in g.locator('.pane-crumbs li').all()) if b]
+        need(all(b['x'] + b['width'] <= head['x'] + head['width'] + 1 for b in boxes), 'crumbs stay inside the pane head')
+        need(all(boxes[i]['x'] + boxes[i]['width'] <= boxes[i + 1]['x'] + 1 for i in range(len(boxes) - 1)), 'crumbs never overlap')
+        tabs = g.locator('[role=tablist]').bounding_box()
+        need(head['y'] >= tabs['y'] + tabs['height'] - 1, 'the pane head stays under the tab strip')
+
+    # In a popped-out window the pane keeps its trail.
+    with page.context.expect_page() as info:
+        g2.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Move to new window').click()
+    pop = info.value
+    pop.wait_for_selector('.workbench.is-popup .pane-crumbs')
+    trail = [c.strip() for c in pop.locator('.pane-crumbs li > :not(.pane-sep)').all_inner_texts()]
+    need(trail[0] == 'Test library' and len(trail) == 2, f'the popped-out pane keeps its trail: {trail}')
+    pop.get_by_role('button', name='Dock').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'docked again')
+    g1, g2 = group(page, 0), group(page, 1)
+
+    # A narrow pane shows "< parent" instead of the trail.
+    page.set_viewport_size({'width': 390, 'height': 760})
+    page.wait_for_timeout(300)
+    g = active_group(page)
+    parent = g.locator('.pane-parent')
+    wait_for(page, lambda: parent.is_visible(), 'a narrow pane shows the parent link')
+    need(not g.locator('.pane-crumbs').is_visible(), 'and not the trail')
+    need(parent.inner_text().strip().startswith('‹'), f'the parent link: {parent.inner_text()}')
+    page.set_viewport_size({'width': 1280, 'height': 800})
+    page.wait_for_timeout(300)
+
+    # A page that is gone (its course deleted in the other pane): the pane moves home, its trail the file alone.
+    g1, g2 = group(page, 0), group(page, 1)
+    if len(crumbs(g1)) != 3:
+        g1.locator('.pane-crumbs a').nth(1).click()
+    shown(g2).get_by_role('button', name='Delete course').click()
+    page.get_by_role('dialog').get_by_role('button', name='Delete course').click()
+    wait_for(page, lambda: crumbs(g1) == ['Test library'] and crumbs(g2) == ['Test library'], 'both panes go home once the course is gone')
+    page.locator('.toast', has_text="Couldn't find").first.wait_for()
+    page.evaluate('document.activeElement && document.activeElement.blur()')
+    page.keyboard.press('Control+z')
+    page.wait_for_timeout(200)
+
+
+def new_quiz_in_popup(page):
+    """New quiz on a file's home in a popped-out pane goes to the editor in that pane; the main window stays put."""
+    g1 = group(page, 0)
+    main_trail = crumbs(g1)
+    g2 = group(page, 1)
+    if crumbs(g2) != ['Test library']:
+        g2.locator('.pane-crumbs a').first.click()
+        wait_for(page, lambda: crumbs(group(page, 1)) == ['Test library'], 'the right pane on its home')
+    with page.context.expect_page() as info:
+        group(page, 1).get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Move to new window').click()
+    pop = info.value
+    pop.wait_for_selector('.workbench.is-popup .tile-new')
+    pop.locator('.workbench.is-popup .wb-tab:not([hidden]) .tile-new').first.click()
+    pop.wait_for_function("[...document.querySelectorAll('.pane-crumbs li')].some(li => li.textContent.includes('Edit'))", timeout=5000)
+    need(crumbs(group(page, 0)) == main_trail, f'the main window stays where it was: {crumbs(group(page, 0))} != {main_trail}')
+    pop.get_by_role('button', name='Dock').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'docked again')
+

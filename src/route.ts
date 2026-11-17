@@ -1,44 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { followRename, href, parseHash, resolve, type Found, type Nav, type Place, type Route } from './logic/routes'
+import { followRename, href, parseHash, resolve, type Found, type Place, type Route } from './logic/routes'
 import type { Library } from './model'
 
 // The pure parts (Route, parseHash, href, resolve, Nav, followRename) live in logic/routes.ts; this file adds the
-// hooks and the address bar's navigation.
+// hooks. Screens navigate with their tab's Nav (layout/tabNav.ts), never the address bar directly.
 export * from './logic/routes'
 
 // Browsers limit how often a page may change its address (Safari: 100 times in 30 seconds), so after a rename
 // the address follows once the typing pauses.
 const ADDRESS_DELAY = 300
-
-/** Navigate and add a history entry. */
-export function go(route: Route): void {
-  location.hash = href(route)
-}
-
-let createdId: string | undefined
-
-/** Navigate to a course or quiz that was just created (`id`). Its screen selects the name once (see `takeCreated`). */
-export function goToNew(id: string, route: Extract<Route, { name: 'course' | 'edit' }>): void {
-  createdId = id
-  go(route)
-}
-
-/** True only for the first screen that asks about the id `goToNew` just went to, so revisits never select. */
-export function takeCreated(id: string): boolean {
-  if (createdId !== id) return false
-  createdId = undefined
-  return true
-}
-
-/** Navigate without a history entry (used for redirects and leaving a session). */
-export function redirect(route: Route): void {
-  location.replace(href(route))
-}
-
-/** The address bar's navigation: the global functions above, with the given route as the screen's own. */
-export function windowNav(route: Route): Nav {
-  return { route, go, redirect, goToNew, takeCreated }
-}
 
 /**
  * `resolve` for a screen with its own route (a tab), following renames: a rename leaves the route on the old name,
