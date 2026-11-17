@@ -13,11 +13,13 @@ import folder from '../icons/folder.svg?raw'
 import grip from '../icons/grip.svg?raw'
 import image from '../icons/image.svg?raw'
 import info from '../icons/info.svg?raw'
+import more from '../icons/more.svg?raw'
 import pencil from '../icons/pencil.svg?raw'
 import play from '../icons/play.svg?raw'
 import plus from '../icons/plus.svg?raw'
 import pull from '../icons/pull.svg?raw'
 import shrimp from '../icons/shrimp.svg?raw'
+import split from '../icons/split.svg?raw'
 import trash from '../icons/trash.svg?raw'
 import tumbleweed from '../icons/tumbleweed.svg?raw'
 import upload from '../icons/upload.svg?raw'
@@ -66,6 +68,12 @@ export const CloudIcon = icon(cloud)
 export const BrowserIcon = icon(browser)
 
 export const PlusIcon = icon(plus)
+
+// A pane cut in two: split a tab group.
+export const SplitIcon = icon(split)
+
+// Three dots: a group's menu.
+export const MoreIcon = icon(more)
 
 export const CrossIcon = icon(cross)
 
