@@ -193,7 +193,8 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   yet kept across a reload (that needs Explorer.tsx to take them as props).
 
 - Asked for, 2026-11-17 (D, Drive-first files): a library is a Google Drive file or a browser library; "On this device" and
-  saving into a `.shrimp` file are gone (`StorageAdapter` keeps `openFiles` and `download`, copies only, no handles).
+  saving into a `.shrimp` file were gone, until LF below brought them back (`StorageAdapter` then kept only `openFiles` and `download`, copies only,
+  no handles).
   A `.shrimp` file opens as a browser library named after it, with a toast offering Upload to Google Drive. Signed in, a
   new library is made in the user's Drive; a Drive library of your own autosaves 1.5 s after the last edit and
   `needsAttention` (not "unsaved") drives the dot, the corner badge and the warn line. A paused save says why (sign in
@@ -208,9 +209,9 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   of it works in the Explorer, paste in does not. Chosen over "save a copy on Ctrl+S" and "Pull changes" because a
   student of a shared set cannot lose or fork it by accident.
 - Asked for, 2026-11-17 (A, one account per browser): the sign-in moved from each tab's session storage to one
-  localStorage key, `shrimply-google-sign-in`. New tabs and restarts stay signed in, and signing in or out in one tab
-  reaches the others. Sign out flushes pending saves (asking when one cannot be saved), then closes every Drive library,
-  yours and shared, in every tab and forgets everything about the account; browser libraries stay. The hidden own files
+  localStorage key, `shrimply-google-sign-in`. Sign out flushes pending saves (asking when one cannot be saved), then
+  closes the account's own Drive libraries and forgets everything about the account; browser libraries stay. The
+  sign-in was shared by every tab until PT below made it per tab. The hidden own files
   of 2026-11-16 (`hiddenDocs`, `isHidden`, `claimOwners`, `ui.owners`, `HiddenFilesNote`, `logic/signOut.ts`) are replaced
   by this: nothing about a signed-out account is kept, so nothing needs hiding. A 401 pauses saves instead of signing out.
 - Asked for, 2026-11-17 (SH, sharing made plain): the Google Drive dialog is gone. Open (your libraries, Paste a link, a
@@ -228,3 +229,71 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   groups (`TreeView` `drag.accepts`), links and images are not natively draggable and a file dragged from the computer
   drops only on an image slot (`guardNativeDrags`); editor cards stay in their own section.
 - Asked for, 2026-11-17: the Explorer's head and tip stay put at the top, only the tree scrolls, the Drive line at the bottom.
+
+- Asked for, 2026-11-17 (PT, a Google account per tab): replaces the cross-tab half of A. Each tab keeps its own sign-in
+  in sessionStorage (`shrimply-google-tab-sign-in`), so a reload keeps it. The account chosen last, in any tab, is also
+  kept in localStorage (`shrimply-google-sign-in`): a new tab starts as that account (`startSession`) and then keeps it
+  as its own, so a later switch or sign-out elsewhere never reaches it (`lastAfter` says what that key becomes after a
+  sign-in, switch, renewal or sign-out). `onTokenShared` replaced `onSignInChange`: a tab only adopts a fresh token for
+  its own account, so no popup is needed after another tab renewed it. Switch account (`switchAccount`, the account box)
+  and Sign out affect only their tab and close only that account's own Drive libraries there; shared libraries, browser
+  libraries, files on this device and closed entries stay, and the backup records stay as other tabs may use them. A
+  Drive file remembers whose own file it is (`DriveSource.owner`, `Workspace.account`): `isViewOnly(d, signedIn,
+  account)` makes it view only for a tab signed in as someone else, so autosave never writes into another account's
+  file; `forAccount` leaves such libraries out of a restore, and taking up another tab's record skips one owned by
+  another account. Chosen over one shared account because two accounts (school and personal) in two tabs is a real
+  use. Open: the workspace record (tabs, layout) is still last-writer-wins across tabs on different accounts.
+- Asked for, 2026-11-17 (LF, local files that save themselves): reverses the "copies only" half of D. Where the browser
+  can keep a file (Chrome and Edge, File System Access) an opened `.shrimp` stays tied to it (`Doc.file`, `where:
+  'device'`) and saves into it `AUTOSAVE_DELAY` after each edit, through new `StorageAdapter` members (`saveInPlace`,
+  `look`, `sameFile`, `savesInPlace`, `openFiles({ multiple })`); the handle is stored apart from the document record
+  (`handle.<id>`, `writeHandle` / `readHandle`), so the record stays plain data. A save compares the file's modified
+  time with the one last seen (a conflict asks Keep mine or Take the file's version); the browser's write permission is
+  only asked for in a click (`permission`: Allow access and save), and a quiet `look` never asks anything. A moved or
+  deleted file pauses the save as `missing` and the library is only in this browser now, said in red with Locate file
+  (`locate`; the library is tied again when the file holds what was last saved, or the user agrees to replace it). The
+  where line is "On this device · name.shrimp": browsers never give a page the folder, only the file name. Opening a
+  file already open just shows its library (no toast), taking the file's version when it changed outside. Close asks
+  Close anyway, Download a copy or Save and close when the save cannot go through; a closed file on this device is on
+  disk, so its record and handle go and Open file opens it again. Firefox and Safari have no handle: the file opens as
+  a copy in this browser, as in D. Drive-first stays: a Drive library is still the default, and the file is a choice
+  of someone who opened one.
+- Asked for, 2026-11-17 (SP, Save shown only while paused): a library that saves itself (a Drive file of your own, a
+  file on this device) shows no Save button while it saves as it should; a button greyed out nearly always was noise.
+  While its save is paused one button appears in the same place and fixes it in the click (Sign in again and save,
+  Save now, Allow access and save, or choose which to keep); Ctrl+S saves at any time. A browser library's button is
+  Upload to Google Drive, a view-only one's Make a copy. Share has its own `ShareIcon` and Upload `DriveIcon`, our own
+  one-color drawing (never Google's logo); `LinkIcon` stays on the Open dialog's Shared link tab.
+- Asked for, 2026-11-17 (RN, rename a library): double-click the name or F2 in the sidebar (no toolbar button: the
+  toolbar is one click per action and a rename is rare), Rename (F2) in the Explorer's file menu. The sidebar's name
+  becomes an `AutoText` field on the row, so it takes base.css's shared field state rules (`.file-rename` is in those
+  selectors) instead of a copy. `renameDoc` renames a browser library's own name, a Drive file with `renameDriveFile`, a
+  file on this device with `handle.move` where the browser has it (else a toast says the file keeps its name); it
+  refuses an empty name, one that can not be a file name, and a view-only library (`RENAME_VIEW_ONLY_TEXT`), and is no
+  undo step. New file opens with its name field ready; signed in, it opens the Upload dialog, which has Keep in this
+  browser, and closing it any way without uploading (that button, the ✕, Esc, a click outside) renames the library to
+  the typed name (`onRename`), so the name asked for is never lost. While a course or quiz is renamed its tabs' routes
+  still hold the old name (they follow after 300ms), so App finds the page again by id (`foundPlace`, handed to the
+  Workbench as `findPlace`, `FindPlace` in `workbenchActions`): tab titles and the sidebar's selection do not fall back
+  to the file's name in between. Open: on touch the sidebar drawer takes the double-click, so only F2 and the
+  Explorer's menu rename there.
+- Asked for, 2026-11-17 (TM, toasts inside modals): everything outside an open modal dialog is inert, so a toast over a
+  dialog could not be hovered or clicked. The toast stack (and the debug bar) now portal into the topmost open modal
+  dialog (`useModalHost`) and back to the body, keeping their countdown across the move. A toast shows its text and ✕ on
+  the first row and an action (Undo) on its own row under the text, at its end, with a 32px hit area (`--tap` below
+  800px). The toast sets its own type, as inside a dialog it would take the dialog's.
+- Asked for, 2026-11-17 (PK, Google's file picker themed): the picker is Google's page, so it can only be styled from
+  outside: our scrim behind it and a dialog-like frame (`--popup`, `--border-strong`, `--radius`), fixed and centered
+  (`.picker-dialog`, `!important` as Google sets inline styles), with `setSize` kept within Google's 566x350 to 1051x650.
+  The Open dialog's Drive list now carries its scroll on to the dialog at its ends (it used to contain it).
+- Asked for, 2026-11-17 (DI, `--danger-ink`): `--danger` only means deleting for good, with one exception: the line of a
+  library whose file on this device was moved or deleted (it is only in this browser now) is red, since the user wants
+  the loss of the file to be hard to miss. Small text in the danger color takes `--danger-ink`, `--danger` eased toward
+  the text in `tokens.css` so it keeps 4.5:1 on the surfaces in every theme (the context menu's danger item, `--kit-danger-ink`,
+  uses it too). A shared token in `tokens.css`, derived, so no theme file changes.
+- Asked for, 2026-11-17: Reset to first visit (debug page) asks first, then forgets everything this browser remembers:
+  `clearAll` empties the backup store, `resetPrefs` removes every `shrimply-` localStorage and sessionStorage key, and
+  the tab's sign-in goes. A change that adds something the browser remembers makes the reset forget it and names it in
+  the debug page's First visit text (a Workflow rule in CLAUDE.md). The Files heading counts open of total libraries
+  ("2/5"): the total is what the Explorer lists (the open ones, the Drive list and the closed ones, via
+  `libraryTotal`), so the Drive list is lifted into `useDriveFiles`, called once in App.
