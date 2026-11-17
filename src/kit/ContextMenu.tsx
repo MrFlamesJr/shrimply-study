@@ -116,7 +116,7 @@ function Menu({ items, place, focusFirst, onDismiss }: {
       setSub({ index: i, focus: viaKey })
       return
     }
-    onDismiss()
+    closeMenu()
     item.onSelect?.()
   }
   const cancelTimer = () => {
