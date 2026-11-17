@@ -59,6 +59,9 @@ Saving, Drive, the browser backup and restoring on start are done here, through
   tab gets its own `Nav` (`makeTabNav`), follows renames in its route (`usePlaceFor`), keeps its own scroll position, and
   follows links to pages of its file inside the tab (Ctrl or middle button: a new tab beside it). Screens get `lib:
   LibraryApi`, `nav: Nav`, and for study `active` (only the active pane's keys work).
+- **Empty groups and the brand.** A group with no tab shows `EmptyPane` (Show the Explorer, New file, Open file, and each open
+  file's home to open there). Clicking the Sidebar's brand opens the active file's home: the file's home tab in the main window
+  when it has one, else a new tab in the active group; with no file open it goes home (the welcome page).
 - **Breadcrumbs.** Each pane's `PaneHead` (a compact plain row, no frosted glass) shows the trail built by `App.crumbs`: the file's name first, then the course and
   quiz, followed by id through renames; none for a study session or the Explorer; "All releases" for a changelog tab. In a pane
   narrower than 480px the trail becomes one "‹ parent" link. A click goes through that pane's own tab.

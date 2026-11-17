@@ -446,12 +446,12 @@ one, and read no clock or random source (times and new ids are arguments; `useWo
 - Files: `changedOnDisk`, `reopenFile`, `docWithDrive`.
 - Persistence: `docRecord`, `workspaceRecord`, `readRoute`, `defaultLayout` (one group, a tab per document),
   `readLayout`, `readExplorer`, `restore`. `readLayout` checks a stored layout: tabs of documents no longer open go, at most
-  one Explorer and one changelog tab stay (a welcome tab kept by an earlier build is left out), popped-out groups come back docked, a file may have no tab, and anything malformed gives the default
+  one Explorer and one changelog tab stay, popped-out groups come back docked, a file may have no tab, and anything malformed gives the default
   layout.
 
 ### `src/state/useWorkspace.ts`
 
-`useWorkspace(adapter, notify, ask, askChoice)` replaces the earlier `useLibrary`. `adapter` (`StorageAdapter`) is the one seam
+`useWorkspace(adapter, notify, ask, askChoice)`. `adapter` (`StorageAdapter`) is the one seam
 for files: the hook calls nothing else for opening, saving in place, saving as, downloading and comparing files. `Notify` is
 declared in `logic/pushToast` and `Choice` in `model.ts`, so the state layer imports no component.
 
@@ -542,6 +542,10 @@ under a new file, choose (`pick`) or remove (the refresh key is the sign-in stat
 and unsaved mark). It never asks Google for a token without a click: signed in with a token that has run out and nothing
 listed yet, the Explorer shows the sign-in button until the user clicks it (`hasFreshToken`). A listing that arrives after a newer
 one was started is dropped. An open from the list becomes an open file: expanded and selected.
+- `EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc })`: what a group with no tab shows (`Workbench`'s
+  `renderEmpty(groupId)`; the default is a plain "No tab open"). A large faded shrimp as a watermark, the quiet title "No tab
+  open", then actions: Show the Explorer (with its shortcut), New file, Open file, and under "Open files" one button per open file
+  (`DocMeta[]`, an icon for where it lives) that opens that file's home in this group (`ws.openPlace(id, home, { group })`).
 - `PaneHead({ crumbs, onCrumb })`: a compact, plain row of breadcrumbs above the pane's page, with no frosted glass or fade;
   `Crumb = { label; route? }`. A plain click goes through the pane's own tab (`onCrumb`); Ctrl, Shift, Alt or another button is
   left to the browser. In a narrow pane (below 480px of the pane's own width, not the window's: `workbench.css`) the trail gives
@@ -560,7 +564,8 @@ one was started is dropped. An open from the list becomes an open file: expanded
   `reveal` and `openCard`).
 - `Sidebar` (`{ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }`): the open
   files from `ws.docs`, the course tree of the active file (`onOpen(route, newTab)` shows a page in the active group), the
-  Explorer button, "+ New course" and the theme select. Under the brand a "Files" heading carries the file actions that a
+  Explorer button, "+ New course" and the theme select. The brand (`onHome`) opens the active file's home: its home tab in the main window if one exists, else a new tab in the active
+  group; with no file open it is the plain link home (the welcome page). Under the brand a "Files" heading carries the file actions that a
   top bar used to hold: New file, Open file, Google Drive and Save all (greyed out with nothing to save).
 - `App` composes them: the shell is the `Sidebar` and a `wb-cell` holding the `Workbench`, which starts at the top of the window (hidden on the debug page
   and the welcome page). A study session alone in the main window keeps the full-screen look. The kit demo is a full-screen page outside the
