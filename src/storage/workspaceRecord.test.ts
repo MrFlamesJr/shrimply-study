@@ -2,7 +2,7 @@ import v1Backup from './fixtures/v1-backup.json?raw'
 import v2Backup from './fixtures/v2-backup.json?raw'
 import { describe, expect, it } from 'vitest'
 import { checkLibrary } from './format'
-import { docRecordText, migrateBackup, parseDocRecord, parseWorkspaceRecord } from './workspaceRecord'
+import { docRecordText, migrateBackup, parseDocRecord, parseWorkspaceRecord, textHash } from './workspaceRecord'
 
 const fixtures: Record<string, string> = { 'v1-backup.json': v1Backup, 'v2-backup.json': v2Backup }
 const fixture = (name: string) => fixtures[name]
@@ -64,5 +64,14 @@ describe('workspace records', () => {
   it('refuses other versions and bad docs', () => {
     expect(() => parseWorkspaceRecord('{"version":2,"docs":[]}')).toThrow()
     expect(() => parseWorkspaceRecord('{"version":1,"docs":[1]}')).toThrow()
+  })
+})
+
+describe('textHash', () => {
+  it('gives the same text the same 14 hex digits, and another text others', () => {
+    expect(textHash(v2Backup)).toMatch(/^[0-9a-f]{14}$/)
+    expect(textHash(v2Backup)).toBe(textHash(v2Backup.slice()))
+    expect(textHash(v2Backup)).not.toBe(textHash(v2Backup + ' '))
+    expect(textHash('')).not.toBe(textHash('a'))
   })
 })

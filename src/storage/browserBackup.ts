@@ -1,4 +1,4 @@
-import { newId, type Library } from '../model'
+import type { Library } from '../model'
 import { checkLibrary } from './format'
 import type { DriveSource } from './googleDrive'
 import {
@@ -7,6 +7,7 @@ import {
   parseWorkspaceRecord,
   readDrive,
   docRecordText,
+  textHash,
   type DocRecord,
   type WorkspaceRecord,
 } from './workspaceRecord'
@@ -140,12 +141,16 @@ const WORKSPACE_KEY = 'workspace.v1'
 const DOC = 'doc.'
 const HANDLE = 'handle.'
 const BROKEN_DOC = 'broken.doc.'
+// The fingerprint (textHash) of the last library.v1 text that became a document, or was found broken and kept aside.
+const MIGRATED = 'migrated.v1'
 
 // The keys of the workspace's records (not the old backup's, not the broken copies).
 async function workspaceKeys(): Promise<string[]> {
   if (!(await openDb().catch(() => null))) return []
   const keys = await run('readonly', (store) => store.getAllKeys())
-  return keys.filter((k): k is string => typeof k === 'string' && (k === WORKSPACE_KEY || k.startsWith(DOC) || k.startsWith(HANDLE)))
+  return keys.filter(
+    (k): k is string => typeof k === 'string' && (k === WORKSPACE_KEY || k === MIGRATED || k.startsWith(DOC) || k.startsWith(HANDLE)),
+  )
 }
 
 const tab = Math.random().toString(36).slice(2)
@@ -202,64 +207,104 @@ export async function deleteDoc(id: string): Promise<void> {
   workspaceTabs?.postMessage({ tab, doc: id })
 }
 
-/**
- * Everything the workspace kept. Nothing stored (or storage blocked) reads as an empty workspace. A document that can't
- * be read is copied aside to broken.doc.<id> and its id listed in broken. With no workspace yet, the single
- * backup (library.v1, left as it is) becomes the first document.
- */
-export async function readWorkspace(): Promise<{
+/** A note for the user: library.v1 changed after it had become a document (an older version of the app in another tab). */
+export const OLDER_TAB_NOTE = 'Changes made in another tab with an older version of the app were opened as their own file.'
+
+export type ReadWorkspace = {
   workspace: WorkspaceRecord | null
   docs: DocRecord[]
   handles: Record<string, FileSystemFileHandle>
+  /** Documents (or library.v1) that could not be read, copied aside. */
   broken: string[]
-}> {
-  const none = { workspace: null, docs: [], handles: {}, broken: [] }
+  /** Documents in `docs` the browser refused to store (a migrated library.v1): write them again. */
+  unstored: string[]
+  /** Things to tell the user. */
+  notes: string[]
+}
+
+/**
+ * Everything the workspace kept. Nothing stored (or storage blocked) reads as an empty workspace. A document that can't
+ * be read is copied aside to broken.doc.<id> and its id listed in broken; the others still load. Docs are the stored
+ * records, plus library.v1 (the single backup, always left as it is) as a document whenever its text is new: see
+ * `migrate`.
+ */
+export async function readWorkspace(): Promise<ReadWorkspace> {
+  const none: ReadWorkspace = { workspace: null, docs: [], handles: {}, broken: [], unstored: [], notes: [] }
   if (!(await openDb().catch(() => null))) return none
   const get = (key: string): Promise<unknown> => run('readonly', (store) => store.get(key))
-  const rawWorkspace = await get(WORKSPACE_KEY)
-  if (rawWorkspace === undefined) {
-    const old = await get(KEY)
-    if (typeof old !== 'string') return none
-    let rec: DocRecord
-    try {
-      rec = migrateBackup(old, newId())
-    } catch {
-      // Kept aside as before (the debug page offers it), never overwritten.
-      await keepBrokenBackup()
-      return { ...none, broken: [KEY] }
-    }
-    const workspace: WorkspaceRecord = { version: 1, docs: [rec.id], layout: null, explorer: null, ui: null }
-    // The workspace only names the document once it is stored; else the next start migrates library.v1 again.
-    if (await writeDoc(rec)) await writeWorkspace(workspace)
-    return { workspace, docs: [rec], handles: {}, broken: [] }
-  }
+  // A copy aside that fails (storage full) loses nothing: the original stays where it is.
+  const putAside = (key: string, value: unknown): Promise<boolean> => run('readwrite', (store) => store.put(value, key)).then(() => true, () => false)
+  const rawWorkspace = await get(WORKSPACE_KEY).catch(() => undefined)
   let workspace: WorkspaceRecord | null = null
   if (typeof rawWorkspace === 'string') {
     try {
       workspace = parseWorkspaceRecord(rawWorkspace)
     } catch {
-      await run('readwrite', (store) => store.put(rawWorkspace, 'broken.' + WORKSPACE_KEY))
+      await putAside('broken.' + WORKSPACE_KEY, rawWorkspace)
     }
   }
   const keys = await run('readonly', (store) => store.getAllKeys())
   const ids = keys.filter((k): k is string => typeof k === 'string' && k.startsWith(DOC)).map((k) => k.slice(DOC.length))
   const order = workspace?.docs ?? []
   const wanted = [...order.filter((id) => ids.includes(id)), ...ids.filter((id) => !order.includes(id))]
-  const docs: DocRecord[] = []
-  const handles: Record<string, FileSystemFileHandle> = {}
-  const broken: string[] = []
+  const read: ReadWorkspace = { ...none, workspace }
   for (const id of wanted) {
-    const raw = await get(DOC + id)
+    let raw: unknown
     try {
+      raw = await get(DOC + id)
+      if (raw === undefined) continue // closed in another tab since
       if (typeof raw !== 'string') throw new Error('The document record is malformed.')
-      docs.push(parseDocRecord(raw))
+      read.docs.push(parseDocRecord(raw))
     } catch {
-      if (typeof raw === 'string') await run('readwrite', (store) => store.put(raw, BROKEN_DOC + id))
-      broken.push(id)
+      if (typeof raw === 'string') await putAside(BROKEN_DOC + id, raw)
+      read.broken.push(id)
       continue
     }
-    const handle = await get(HANDLE + id)
-    if (handle) handles[id] = handle as FileSystemFileHandle
+    const handle = await get(HANDLE + id).catch(() => undefined)
+    if (handle) read.handles[id] = handle as FileSystemFileHandle
   }
-  return { workspace, docs, handles, broken }
+  await migrate(read, ids, rawWorkspace !== undefined, get, putAside).catch(() => undefined) // library.v1 stays: tried again next start
+  return read
+}
+
+/**
+ * library.v1 as a document, once per text. MIGRATED holds the fingerprint of the last text taken; a new one (the first
+ * start of this version, or changes an older version of the app wrote since in another tab) becomes the document
+ * `v1-<fingerprint>`, the same id in every tab, so a retry or two tabs at once write one record. A document already
+ * stored under that id is never overwritten (it may have been edited since). The fingerprint is written only once the
+ * document is stored, so a refused write is tried again next start; a document closed since stays closed.
+ */
+async function migrate(
+  read: ReadWorkspace,
+  ids: string[],
+  hadWorkspace: boolean,
+  get: (key: string) => Promise<unknown>,
+  putAside: (key: string, value: unknown) => Promise<boolean>,
+): Promise<void> {
+  const old = await get(KEY)
+  if (typeof old !== 'string') return
+  const hash = textHash(old)
+  const marker = await get(MIGRATED)
+  if (marker === hash) return
+  const id = `v1-${hash}`
+  let rec: DocRecord
+  try {
+    rec = migrateBackup(old, id)
+  } catch {
+    // Kept aside as before (the debug page offers it), and told once.
+    if (await keepBrokenBackup().then(() => true, () => false)) await putAside(MIGRATED, hash)
+    read.broken.push(KEY)
+    return
+  }
+  // Already a document: under this id, or (an earlier build of this version gave it a random id) with the same courses.
+  const same = JSON.stringify(rec.library)
+  if (ids.includes(id) || read.docs.some((d) => JSON.stringify(d.library) === same)) {
+    await putAside(MIGRATED, hash)
+    return
+  }
+  read.docs.push(rec)
+  if (await writeDoc(rec)) await putAside(MIGRATED, hash)
+  else read.unstored.push(id)
+  // Not the first start of this version: an older one changed library.v1 since (a retry is not news).
+  if (marker !== undefined || (hadWorkspace && !(read.workspace?.docs ?? []).includes(id))) read.notes.push(OLDER_TAB_NOTE)
 }

@@ -73,6 +73,19 @@ describe('history', () => {
     expect(redo(emptyHistory())).toBeNull()
   })
 
+  it('after an undo or a redo, new typing never merges into an older step', () => {
+    // Typed in k, did something else, undid it, typed in k again: two steps, not one.
+    let h = record(record(emptyHistory<number>(), e('type', 0, 'k', 0, 1)), e('toggle', 100, undefined, 1, 2))
+    h = undo(h)!.history
+    h = record(h, e('type again', 200, 'k', 1, 3))
+    expect(h.past.map((x) => x.label)).toEqual(['type', 'type again'])
+    let r = record(emptyHistory<number>(), e('type', 0, 'k', 0, 1))
+    r = redo(undo(r)!.history)!.history
+    r = record(r, e('type again', 200, 'k', 1, 2))
+    expect(r.past.map((x) => x.label)).toEqual(['type', 'type again'])
+    expect(redo(undo(record(emptyHistory<number>(), e('a', 0, 'k')))!.history)!.entry.key).toBe('k')
+  })
+
   it('drop removes from past and future', () => {
     let h = record(record(emptyHistory<number>(), e('a', 0)), e('b', 10000))
     h = undo(h)!.history

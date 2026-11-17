@@ -196,8 +196,10 @@ describe('move', () => {
     const out = move(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'b', course: 'c4', quiz: 'q4', index: 0 }).docs
     const target = out.b.courses[0].quizzes[0]
     expect(target.cards.map((c) => c.id)).toEqual(['k5', 'k1'])
-    expect(target.groups).toEqual([{ id: 'g1', name: 'G', color: 'rose' }])
-    expect(target.cards[1].group).toBe('g1')
+    // A group made in another quiz gets its own id, never the source group's.
+    expect(target.groups).toEqual([{ id: expect.any(String), name: 'G', color: 'rose' }])
+    expect(target.groups[0].id).not.toBe('g1')
+    expect(target.cards[1].group).toBe(target.groups[0].id)
     expect(out.b.sideTypes).toEqual([['Q', 'A']])
     expect(out.a.courses[0].quizzes[0].groups).toEqual(src.groups)
     expect(out.a.courses[0].quizzes[0].cards.map((c) => c.id)).toEqual(['k2'])
@@ -212,6 +214,47 @@ describe('move', () => {
     expect(ids(out.a.courses[0].quizzes[0].cards)).toEqual(['k2', 'k1', 'k3'])
     const into = move(docs, [kref('a', 'c1', 'q1', 'k1')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', group: 'g1' }).docs
     expect(ids(into.a.courses[0].quizzes[0].cards)).toEqual(['k2', 'k3', 'k1'])
+  })
+})
+
+describe('ids never repeat within a file', () => {
+  // Every id in a library, to check none appears twice.
+  const allIds = (l: Library) => l.courses.flatMap((c) => [c.id, ...c.quizzes.flatMap((q) => [q.id, ...q.groups.map((g) => g.id), ...q.cards.map((k) => k.id)])])
+  // Two files with the same ids, as two copies of one backup would be.
+  const twins = (): Docs => {
+    const one = () => lib([course('c1', [quiz('q1', [term('k1', 'k1', { group: 'g1' }), term('k2')], [{ id: 'g1', name: 'G', color: 'rose' }])])])
+    return { a: one(), b: one() }
+  }
+
+  it('a move from a twin file gives the clashing course, quiz, group and card ids new ones, keeping the links', () => {
+    const out = move(twins(), [cref('a', 'c1')], { kind: 'doc', doc: 'b' }).docs
+    expect(new Set(allIds(out.b)).size).toBe(allIds(out.b).length)
+    const moved = out.b.courses[1]
+    expect(moved.name).toBe('C1 (2)')
+    expect(moved.quizzes[0].cards[0].group).toBe(moved.quizzes[0].groups[0].id)
+    expect(moved.quizzes[0].cards.map(termOf)).toEqual(['k1', 'k2'])
+  })
+
+  it('a quiz or cards moved from a twin file take new ids where they clash', () => {
+    const quizzes = move(twins(), [qref('a', 'c1', 'q1')], { kind: 'course', doc: 'b', course: 'c1' }).docs
+    expect(new Set(allIds(quizzes.b)).size).toBe(allIds(quizzes.b).length)
+    const cards = move(twins(), [kref('a', 'c1', 'q1', 'k1'), kref('a', 'c1', 'q1', 'k2')], { kind: 'quiz', doc: 'b', course: 'c1', quiz: 'q1' }).docs
+    expect(new Set(allIds(cards.b)).size).toBe(allIds(cards.b).length)
+    expect(cards.b.courses[0].quizzes[0].cards.map(termOf)).toEqual(['k2', 'k2', 'k1', 'k1'])
+  })
+
+  it('cards from two twin files moved together into a third get apart ids', () => {
+    const docs = { ...twins(), c: lib([course('c9', [quiz('q9')])]) }
+    const out = move(docs, [kref('a', 'c1', 'q1', 'k2'), kref('b', 'c1', 'q1', 'k2')], { kind: 'quiz', doc: 'c', course: 'c9', quiz: 'q9' }).docs
+    const ids = out.c.courses[0].quizzes[0].cards.map((k) => k.id)
+    expect(ids).toHaveLength(2)
+    expect(new Set(ids).size).toBe(2)
+  })
+
+  it('a move within one file keeps every id', () => {
+    const docs = twins()
+    const out = move(docs, [kref('a', 'c1', 'q1', 'k2')], { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 0 }).docs
+    expect(allIds(out.a).sort()).toEqual(allIds(docs.a).sort())
   })
 })
 

@@ -1,7 +1,7 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { emptyLibrary } from '../model'
 import { decodeLibrary } from './format'
-import { sameFile, saveInPlace, type FileRef } from './fileStorage'
+import { openFiles, reread, sameFile, saveInPlace, type FileRef } from './fileStorage'
 
 type Fake = { handle: FileSystemFileHandle; content: () => Uint8Array | null; writes: () => number }
 
@@ -98,5 +98,20 @@ describe('sameFile', () => {
     expect(await sameFile(ref({}), ref({ modified: 3 }))).toBe(false)
     expect(await sameFile(ref({}), ref({ name: 'b.shrimp' }))).toBe(false)
     expect(await sameFile(ref({ handle: fake({}).handle }), ref({}))).toBe(true)
+  })
+})
+
+describe('openFiles', () => {
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('reports a file that can not be read in its place and opens the others', async () => {
+    const good = fake({})
+    await saveInPlace(good.handle, emptyLibrary(), null)
+    const gone = { name: 'gone.shrimp', getFile: async () => { throw new DOMException('A requested file could not be found.', 'NotFoundError') } } as unknown as FileSystemFileHandle
+    vi.stubGlobal('window', { showOpenFilePicker: async () => [gone, good.handle] })
+    const opened = await openFiles()
+    expect(opened?.map((o) => o.ok)).toEqual([false, true])
+    expect(opened?.[0]).toEqual({ ok: false, name: 'gone.shrimp', error: 'A requested file could not be found.' })
+    expect(await reread(gone)).toMatchObject({ ok: false, name: 'gone.shrimp' })
   })
 })

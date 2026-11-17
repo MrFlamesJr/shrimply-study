@@ -63,6 +63,7 @@ describe('older versions', () => {
     expect(cells.cards[5]).toMatchObject({ type: 'true-false', answer: true, image: expect.stringMatching(/^data:image\/png;base64,/) })
     expect(cells.cards[8]).toMatchObject({ type: 'choice', mode: 'all', right: ['Chloroplast', 'Cell wall'], wrong: ['Centriole'] })
     expect(cells.cards[9]).toMatchObject({ type: 'sequence', steps: ['Prophase', 'Metaphase', 'Anaphase', 'Telophase'], explanation: 'PMAT' })
+    expect(cells.cards[13]).toMatchObject({ type: 'choice', mode: 'one', right: ['Nucleus'], group: cells.groups[1].id })
     expect(cells.cards[14]).toMatchObject({ type: 'sequence', group: cells.groups[1].id })
   })
 

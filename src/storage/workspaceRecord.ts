@@ -54,7 +54,7 @@ export function parseWorkspaceRecord(text: string): WorkspaceRecord {
   return { version: 1, docs: data.docs, layout: data.layout ?? null, explorer: data.explorer ?? null, ui: data.ui ?? null }
 }
 
-/** The single-library backup (`library.v1`) as the first document of a workspace. */
+/** The single-library backup (`library.v1`) as a document of the workspace. */
 export function migrateBackup(backupText: string, newId: string): DocRecord {
   const data = JSON.parse(backupText)
   const { changedIds } = data
@@ -68,4 +68,18 @@ export function migrateBackup(backupText: string, newId: string): DocRecord {
     drive: readDrive(data.drive),
     file: typeof data.file === 'string' ? { name: data.file, size: 0, modified: 0 } : null,
   }
+}
+
+/** A fingerprint of a text (cyrb53, 53 bits as 14 hex digits): the same text always gives the same one. */
+export function textHash(text: string): string {
+  let h1 = 0xdeadbeef
+  let h2 = 0x41c6ce57
+  for (let i = 0; i < text.length; i++) {
+    const ch = text.charCodeAt(i)
+    h1 = Math.imul(h1 ^ ch, 2654435761)
+    h2 = Math.imul(h2 ^ ch, 1597334677)
+  }
+  h1 = Math.imul(h1 ^ (h1 >>> 16), 2246822507) ^ Math.imul(h2 ^ (h2 >>> 13), 3266489909)
+  h2 = Math.imul(h2 ^ (h2 >>> 16), 2246822507) ^ Math.imul(h1 ^ (h1 >>> 13), 3266489909)
+  return (4294967296 * (2097151 & h2) + (h1 >>> 0)).toString(16).padStart(14, '0')
 }

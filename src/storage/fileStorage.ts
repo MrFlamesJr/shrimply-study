@@ -55,12 +55,14 @@ export const canSaveInPlace = (): boolean => !!window.showOpenFilePicker && !!wi
 
 export type Opened = { ok: true; library: Library; file: FileRef } | { ok: false; name: string; error: string }
 
-async function readFile(file: File, handle: FileSystemFileHandle | null): Promise<Opened> {
+// Getting the file can fail too (deleted since it was picked, a cloud file that won't download): reported like a broken one.
+async function readFile(getFile: () => Promise<File>, name: string, handle: FileSystemFileHandle | null): Promise<Opened> {
   try {
+    const file = await getFile()
     const library = decodeLibrary(new Uint8Array(await file.arrayBuffer()))
     return { ok: true, library, file: { name: file.name, handle, size: file.size, modified: file.lastModified } }
   } catch (err) {
-    return { ok: false, name: file.name, error: err instanceof Error ? err.message : String(err) }
+    return { ok: false, name, error: err instanceof Error ? err.message : String(err) }
   }
 }
 
@@ -75,16 +77,16 @@ export async function openFiles(): Promise<Opened[] | null> {
       throw err
     }
     if (handles.length === 0) return null
-    return Promise.all(handles.map(async (handle) => readFile(await handle.getFile(), handle)))
+    return Promise.all(handles.map((handle) => readFile(() => handle.getFile(), handle.name, handle)))
   }
   const files = await pickFiles()
   if (files.length === 0) return null
-  return Promise.all(files.map((file) => readFile(file, null)))
+  return Promise.all(files.map((file) => readFile(async () => file, file.name, null)))
 }
 
-/** Reads the file again from disk. */
-export async function reread(handle: FileSystemFileHandle): Promise<Opened> {
-  return readFile(await handle.getFile(), handle)
+/** Reads the file again from disk. A file that can't be read is reported, never thrown. */
+export function reread(handle: FileSystemFileHandle): Promise<Opened> {
+  return readFile(() => handle.getFile(), handle.name, handle)
 }
 
 export type SaveResult =

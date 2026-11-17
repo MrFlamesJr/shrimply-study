@@ -27,16 +27,16 @@ export function record<S>(h: History<S>, e: Entry<S>, o: RecordOptions<S> = {}):
   return { past: past.length > limit ? past.slice(past.length - limit) : past, future: [] }
 }
 
-/** Steps back: the entry to undo (apply its `before`), or null. */
+/** Steps back: the entry to undo (apply its `before`), or null. What is done next never merges into an older step. */
 export function undo<S>(h: History<S>): { history: History<S>; entry: Entry<S> } | null {
   const entry = h.past[h.past.length - 1]
-  return entry ? { entry, history: { past: h.past.slice(0, -1), future: [...h.future, entry] } } : null
+  return entry ? { entry, history: seal({ past: h.past.slice(0, -1), future: [...h.future, entry] }) } : null
 }
 
-/** Steps forward: the entry to redo (apply its `after`), or null. */
+/** Steps forward: the entry to redo (apply its `after`), or null. What is done next never merges into it. */
 export function redo<S>(h: History<S>): { history: History<S>; entry: Entry<S> } | null {
   const entry = h.future[h.future.length - 1]
-  return entry ? { entry, history: { past: [...h.past, entry], future: h.future.slice(0, -1) } } : null
+  return entry ? { entry, history: seal({ past: [...h.past, entry], future: h.future.slice(0, -1) }) } : null
 }
 
 /** Removes the entries `pred` picks, from past and future. */

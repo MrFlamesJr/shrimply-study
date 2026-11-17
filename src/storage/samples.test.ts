@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { decodeLibrary, encodeLibrary } from './format'
+import { checkLibrary, decodeLibrary, encodeLibrary } from './format'
 
 // The project has no Node types (it is a browser app); only this test reads the disk.
 // @ts-expect-error node:fs has no types here
@@ -43,6 +43,11 @@ describe('sample files', () => {
       const library = decodeLibrary(bytes)
       const again = decodeLibrary(encodeLibrary(library))
       expect(plain(again)).toEqual(plain(library))
+    })
+
+    it(`${name}.shrimp survives the browser backup (ids kept)`, () => {
+      const library = decodeLibrary(new Uint8Array(readFileSync(`samples/${name}.shrimp`)))
+      expect(checkLibrary(JSON.parse(JSON.stringify(library)), 'stored')).toEqual(library)
     })
   }
 })

@@ -139,30 +139,44 @@ function withTypes(lib: Library, pairs: Sides[]): Library {
   return types === (lib.sideTypes ?? []) ? lib : { ...lib, sideTypes: types }
 }
 
-const freshQuiz = (q: Quiz, fresh: () => string): Quiz => {
-  const ids = new Map(q.groups.map((g) => [g.id, fresh()]))
+// The id an item takes from the old one.
+type IdFor = (id: string) => string
+
+const withIds = (q: Quiz, idFor: IdFor): Quiz => {
+  const ids = new Map(q.groups.map((g) => [g.id, idFor(g.id)]))
   return {
     ...q,
-    id: fresh(),
+    id: idFor(q.id),
     groups: q.groups.map((g) => ({ ...g, id: ids.get(g.id)! })),
-    cards: q.cards.map(({ group, ...card }) => ({ ...card, id: fresh(), ...(group !== undefined && ids.has(group) && { group: ids.get(group) }) }) as Card),
+    cards: q.cards.map(({ group, ...card }) => ({ ...card, id: idFor(card.id), ...(group !== undefined && ids.has(group) && { group: ids.get(group) }) }) as Card),
   }
 }
 
+// Every id in a library: courses, quizzes, groups and cards.
+const libraryIds = (lib: Library): Set<string> =>
+  new Set(lib.courses.flatMap((c) => [c.id, ...c.quizzes.flatMap((q) => [q.id, ...q.groups.map((g) => g.id), ...q.cards.map((k) => k.id)])]))
+
 // Puts the fragment into the target without checking whether the operation is sensible. `fresh` gives new ids,
-// null keeps them.
+// null keeps them, except an id the target file already uses (a move from a file with the same ids, such as two copies
+// of one backup), which gets a new one: ids never repeat within a file.
 function place(docs: Docs, fragment: Fragment, target: Target, fresh: (() => string) | null): { docs: Docs; created: ItemRef[] } {
   const wrong = targetProblem(docs, fragment.kind, target)
   if (wrong) fail(wrong)
   const lib = withTypes(docs[target.doc], fragment.sideTypes)
   const set = (next: Library) => ({ ...docs, [target.doc]: next })
+  const taken = libraryIds(lib)
+  const idFor: IdFor = (id) => {
+    const out = fresh ? fresh() : taken.has(id) ? newId() : id
+    taken.add(out)
+    return out
+  }
 
   if (fragment.kind === 'course' && target.kind === 'doc') {
     const names = lib.courses.map((c) => c.name)
     const courses = fragment.courses.map((c) => {
       const name = copyName(c.name, names)
       names.push(name)
-      return { ...(fresh ? { ...c, id: fresh(), quizzes: c.quizzes.map((q) => freshQuiz(q, fresh)) } : c), name }
+      return { ...c, id: idFor(c.id), quizzes: c.quizzes.map((q) => withIds(q, idFor)), name }
     })
     return {
       docs: set({ ...lib, courses: insertAt(lib.courses, target.index, courses) }),
@@ -176,7 +190,7 @@ function place(docs: Docs, fragment: Fragment, target: Target, fresh: (() => str
     const quizzes = fragment.quizzes.map((q) => {
       const name = copyName(q.name, names)
       names.push(name)
-      return { ...(fresh ? freshQuiz(q, fresh) : q), name }
+      return { ...withIds(q, idFor), name }
     })
     const next = { ...course, quizzes: insertAt(course.quizzes, target.index, quizzes) }
     return {
@@ -195,14 +209,16 @@ function place(docs: Docs, fragment: Fragment, target: Target, fresh: (() => str
       if (!g) return undefined
       const found = groups.find((x) => x.id === g.id && x.name === g.name) ?? groups.find((x) => x.name === g.name)
       if (found) return found.id
-      const id = fresh ? fresh() : groups.some((x) => x.id === g.id) ? newId() : g.id
+      // A group of another quiz: its own id, never one that quiz's group keeps.
+      const id = fresh ? fresh() : newId()
+      taken.add(id)
       groups.push({ id, name: g.name, color: g.color })
       return id
     }
     const cards = fragment.cards.map(({ card, group }) => {
       const { group: _old, ...rest } = card
       const gid = groupFor(group)
-      return { ...rest, ...(fresh && { id: fresh() }), ...(gid && { group: gid }) } as Card
+      return { ...rest, id: idFor(card.id), ...(gid && { group: gid }) } as Card
     })
     const next = { ...quiz, groups, cards: inGroupOrder(insertAt(quiz.cards, target.index, cards), groups) }
     return {
