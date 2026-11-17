@@ -35,6 +35,8 @@ type Props = {
   onWhatsNew: () => void
   /** A course or quiz of the tree, shown in the active group (`newTab`: in a new tab there). */
   onOpen: (route: Route, newTab: boolean) => void
+  /** A file's row (`FileRow`): the file's home, focused where a tab shows it, else in the active group (App). */
+  onFile: (id: string) => void
 }
 
 const WIDE = '(min-width: 800px)'
@@ -132,7 +134,7 @@ function FileRow({ doc, active, onPick }: { doc: LibraryApi; active: boolean; on
  * The open files, between the brand and the courses: a heading with New file, Open file, Google Drive and Save all,
  * then one row per file, the active one selected.
  */
-function OpenFiles({ ws, onDrive, closeIfNarrow, children }: { ws: WorkspaceApi; onDrive: () => void; closeIfNarrow: () => void; children?: ReactNode }) {
+function OpenFiles({ ws, onDrive, onFile, closeIfNarrow, children }: { ws: WorkspaceApi; onDrive: () => void; onFile: (id: string) => void; closeIfNarrow: () => void; children?: ReactNode }) {
   const unsaved = ws.docs.some((d) => d.dirty)
   return (
     <section className="files" aria-label="Open files">
@@ -173,7 +175,7 @@ function OpenFiles({ ws, onDrive, closeIfNarrow, children }: { ws: WorkspaceApi;
       {ws.docs.length > 0 && (
         <ul className="files-list">
           {ws.docs.map((d) => (
-            <FileRow key={d.id} doc={ws.doc(d.id)} active={d.id === ws.active} onPick={() => ws.activate(d.id)} />
+            <FileRow key={d.id} doc={ws.doc(d.id)} active={d.id === ws.active} onPick={() => onFile(d.id)} />
           ))}
         </ul>
       )}
@@ -182,7 +184,7 @@ function OpenFiles({ ws, onDrive, closeIfNarrow, children }: { ws: WorkspaceApi;
   )
 }
 
-export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
+export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onHome, onWhatsNew, onOpen, onFile }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -256,7 +258,7 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
           >
             <FolderIcon /> Explorer <Shortcut keys={comboLabel('Mod+Shift+E', isMac(navigator.platform))} />
           </button>
-          <OpenFiles ws={ws} onDrive={onDrive} closeIfNarrow={closeIfNarrow}>
+          <OpenFiles ws={ws} onDrive={onDrive} onFile={onFile} closeIfNarrow={closeIfNarrow}>
             <HiddenFilesNote ws={ws} />
           </OpenFiles>
           <p className="sidebar-label">Courses</p>

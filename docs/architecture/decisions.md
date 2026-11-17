@@ -178,3 +178,16 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   shown. A reload's address goes first (`followHistory`: a tab of the named file in the focused group, opened when
   it has none; an app page's tab, opened when there is none). Whether the Welcome tab opens on start is decided by
   the address the visit started on, read before the address bar is rewritten.
+- Asked for, 2026-11-17: opening a page that a tab already shows focuses that tab, in any group of any window
+  (`showing`, `usedLast`: the one used last when several do), inside `openPlace`, `showAppPage` and `showExplorer`, so
+  every way of opening goes through it; Ctrl or the middle button (`newTab`) and Duplicate tab still make a new one.
+  The focused group's window comes to the front after each such opening (App's `bringForward`: `popup.focus()`, or
+  the main window's when the focus moved there). A file's row in the sidebar shows the file's home (App's `onFile`),
+  so the peer's file tree gets it from the handler. A tab the file has in the target group is still reused for its
+  page, as before, when no tab shows the page.
+- Asked for, 2026-11-17: Duplicate tab for every kind of tab, so several Explorers, What's new and Welcome tabs may
+  exist (the one-at-most rule is gone; `readLayout` keeps them all). An Explorer tab may carry its own `view`
+  (open nodes and selection; a duplicate starts from the original's), the first one keeps using the workspace's.
+  PaneScreen hands each `ExplorerPane` the workspace as its tab sees it (`explorer` and `setExplorer` for that tab),
+  so ExplorerPane is unchanged. Its search text and scroll are per tab while open (each tab's own component), not
+  yet kept across a reload (that needs Explorer.tsx to take them as props).

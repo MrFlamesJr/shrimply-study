@@ -38,10 +38,10 @@ export type PaneShared = {
   openGuide(): Promise<boolean>
   /** "New course": into the active file (the pane's, once it is pointed at), or a new one; shown in `group`. */
   newCourse(group?: string): void
-  /** The Explorer's: where it opens and edits things, and the node to reveal. */
+  /** The Explorer's: where it opens and edits things, and the node to reveal (in that Explorer tab only). */
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
-  reveal: string | null
+  reveal: { tab: string; node: string } | null
   onRevealed(): void
   /** A card to open in its quiz page's card dialog (from the Explorer's Edit), for one tab. */
   openCard: { tab: string; card: string } | null
@@ -70,12 +70,13 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
   if (d.kind === 'explorer') {
     return (
       <ExplorerPane
-        ws={s.ws}
+        // Each Explorer tab keeps its own view (a duplicate shows another part): the workspace as this tab sees it.
+        ws={{ ...s.ws, explorer: s.ws.explorerView(tab.id), setExplorer: (view) => s.ws.setExplorerView(tab.id, view) }}
         notify={s.notify}
         ask={s.ask}
         openNode={s.openNode}
         editNode={s.editNode}
-        reveal={s.reveal}
+        reveal={s.reveal?.tab === tab.id ? s.reveal.node : null}
         onRevealed={s.onRevealed}
         tipSeen={s.explorerTipSeen}
         onTipSeen={s.onExplorerTipSeen}

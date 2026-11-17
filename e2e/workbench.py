@@ -189,6 +189,7 @@ def run(page, base):
     empty_group_and_brand(page)
     pop_out_one_tab(page)
     address_names_the_page(page, base)
+    open_focuses_and_duplicates(page)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
@@ -309,6 +310,76 @@ def address_names_the_page(page, base):
     group(page, 0).get_by_role('button', name='More').click()
     page.get_by_role('menuitem', name='Close all').click()
     wait_for(page, lambda: hash_of(page) == '#/_empty', f'an empty group: {hash_of(page)}')
+
+
+def open_focuses_and_duplicates(page):
+    """Opening what is already open focuses its tab, in any window; Ctrl opens another; a file's row shows its home;
+    Duplicate tab copies a tab, and a duplicated Explorer keeps its own open nodes, after a reload too."""
+    g = group(page, 0)
+    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    wait_for(page, lambda: trail(group(page, 0)) == ['Test library', 'Your courses'], "a file's row shows its home")
+    quiz = page.locator('.tree-quizzes a').first
+    name = quiz.inner_text().strip()
+    quiz.click(modifiers=['Control'])
+    wait_for(page, lambda: len(tab_titles(g)) == 2, 'Ctrl opens it in a new tab')
+    selected = lambda: g.locator('[role=tab][aria-selected=true] .kit-tab-title').inner_text().strip()  # noqa: E731
+    need(selected() == 'Test library', 'beside, without showing it')
+    quiz.click()
+    wait_for(page, lambda: selected() == name, 'a plain click focuses the tab already showing it')
+    need(len(tab_titles(g)) == 2, 'and opens no other')
+    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    wait_for(page, lambda: trail(g) == ['Test library', 'Your courses'] and len(tab_titles(g)) == 2, "the file's row focuses its home tab")
+
+    # A tab in a popped-out window: opening its page again brings that window to the front, its tab focused.
+    with page.context.expect_page() as info:
+        g.locator('[role=tab]', has_text=name).click(button='right')
+        page.get_by_role('menuitem', name='Move to new window').click()
+    pop = info.value
+    pop.wait_for_selector('.workbench.is-popup [role=tab]')
+    pop.evaluate('window.__focused = 0; const own = window.focus.bind(window); window.focus = () => { window.__focused++; own() }')
+    g.locator('[role=tab]').first.click()
+    quiz.click()
+    wait_for(page, lambda: pop.evaluate('window.__focused') > 0, 'the popped-out window comes to the front')
+    need(pop.locator('.wb-group.is-focused').count() == 1 and page.locator('.wb-cell .wb-group.is-focused').count() == 0, 'its group has the focus')
+    need(len(tab_titles(g)) == 1, 'nothing opened in the main window')
+    page.locator('.wb-cell .wb-elsewhere').click()
+    page.get_by_role('menuitem', name='Dock all').click()
+    wait_for(page, lambda: pop.is_closed(), 'docked again')
+
+    # Duplicate tab: a file's page beside it.
+    g = group(page, 0)
+    count = len(tab_titles(g))
+    g.locator('[role=tab]').first.click(button='right')
+    page.get_by_role('menuitem', name='Duplicate tab').click()
+    wait_for(page, lambda: len(tab_titles(group(page, 0))) == count + 1, 'Duplicate tab copies it')
+
+    # A duplicated Explorer keeps its own open nodes.
+    page.keyboard.press('Control+Shift+E')
+    tabs = page.locator('.wb-cell [role=tab]', has_text='Explorer')
+    wait_for(page, lambda: tabs.count() == 1, 'the Explorer')
+    tabs.first.click(button='right')
+    page.get_by_role('menuitem', name='Duplicate tab').click()
+    wait_for(page, lambda: tabs.count() == 2, 'a second Explorer')
+    eg = page.locator('.wb-cell .wb-group', has=page.locator('[role=tab]', has_text='Explorer'))
+    first = lambda: shown(eg).locator('[role=treeitem]').first  # noqa: E731
+    before = first().get_attribute('aria-expanded')
+    first().locator('.kit-row-chevron').click()
+    wait_for(page, lambda: first().get_attribute('aria-expanded') != before, 'its first file opens or closes')
+    after = first().get_attribute('aria-expanded')
+    eg.locator('[role=tab]', has_text='Explorer').first.click()
+    wait_for(page, lambda: first().get_attribute('aria-expanded') == before, 'the other Explorer keeps its own')
+    page.wait_for_timeout(700)
+    page.reload()
+    eg = page.locator('.wb-cell .wb-group', has=page.locator('[role=tab]', has_text='Explorer'))
+    eg.first.wait_for()
+    explorers = eg.locator('[role=tab]', has_text='Explorer')
+    wait_for(page, lambda: explorers.count() == 2, 'both Explorers come back')
+    states = []
+    for i in range(2):
+        explorers.nth(i).click()
+        page.wait_for_timeout(150)
+        states.append(shown(eg).locator('[role=treeitem]').first.get_attribute('aria-expanded'))
+    need(sorted(states, key=str) == sorted([before, after], key=str), f'each with its own open nodes: {states}')
 
 
 def elsewhere(page):

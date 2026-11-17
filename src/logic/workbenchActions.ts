@@ -10,7 +10,12 @@ import type { Library } from '../model'
  * What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or one of the app's own pages
  * (`AppPage`: What's new, every release's notes; the welcome page), one tab at most each.
  */
-export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer' } | { kind: AppPage }
+export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer'; view?: ExplorerView } | { kind: AppPage }
+/**
+ * An Explorer tab's own view (asked for: duplicated Explorers show different parts side by side): its open nodes and
+ * selection. A tab without one shows the workspace's.
+ */
+export type ExplorerView = { expanded: string[]; selection: { ids: string[]; anchor: string | null; focus: string | null } }
 export type AppPage = 'changelog' | 'welcome'
 /** The app's own pages' tab titles. */
 export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome' }
@@ -100,7 +105,7 @@ export function canSplit(size: { width: number; height: number }, dir: 'row' | '
 }
 
 export type MenuAction =
-  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'reveal' | 'copyPath' | 'save'
+  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'duplicate' | 'reveal' | 'copyPath' | 'save'
   | 'saveAll' | 'join'
 export type MenuEntry = 'separator' | { action: MenuAction; label: string; shortcut?: string; disabled?: boolean; reason?: string }
 
@@ -156,6 +161,7 @@ export function tabMenu(tab: Tab<TabData>, docs: Docs, g: GroupContext, mac: boo
     entry('closeOthers', 'Close others', g.tabCount < 2 && 'No other tabs in this group.'),
     entry('closeAll', 'Close all'),
     'separator',
+    entry('duplicate', 'Duplicate tab'),
     entry('splitRight', 'Split right', why('row'), mac ? '⌘\\' : 'Ctrl+\\'),
     entry('splitDown', 'Split down', why('column')),
     entry('popOutTab', 'Move to new window', popOutTabWhy(g)),
@@ -171,6 +177,7 @@ export function tabMenu(tab: Tab<TabData>, docs: Docs, g: GroupContext, mac: boo
 /** The menu of a group (its More button). */
 export function groupMenu(g: GroupContext): MenuEntry[] {
   return [
+    entry('duplicate', 'Duplicate tab', g.tabCount === 0 && 'No tab to duplicate.'),
     entry('splitRight', 'Split right', splitWhy(g, 'row')),
     entry('splitDown', 'Split down', splitWhy(g, 'column')),
     entry('join', 'Join with next group', !g.next && 'There is no group after this one.'),

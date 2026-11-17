@@ -3,7 +3,7 @@ import { flushSync } from 'react-dom'
 import { addressOf, followRename, href, parseAddress, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
 import { emptyLibrary, newId, type StudyOptions, type ThemeId } from './model'
 import { useWorkspace, type DocId, type WorkspaceApi } from './state/useWorkspace'
-import { MAIN, groupOf, groupsIn, type Tab } from './kit/layout'
+import { MAIN, groupOf, groupsIn, windowOf, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
 import { openPopup } from './kit/windows'
 import { APP_PAGE_TITLE, canSplit, poppedOut, type TabData, type WorkbenchDoc } from './logic/workbenchActions'
@@ -242,22 +242,28 @@ export function App() {
 
   // A node the Explorer is asked to show (from a tab's Reveal in Explorer), and a card to open in its quiz page's
   // card dialog (the Explorer's Edit on a card).
-  const [reveal, setReveal] = useState<string | null>(null)
+  const [reveal, setReveal] = useState<{ tab: string; node: string } | null>(null)
   const [openCard, setOpenCard] = useState<{ tab: string; card: string } | null>(null)
-  const explorerTabOf = () => Object.values(ws.layout.tabs).find((t) => t.data.kind === 'explorer')
+  // The Explorer acted in: the active tab when it is one, else the one used last (there may be several).
+  const explorerTabOf = () => {
+    const active = ws.layout.groups[ws.layout.activeGroup]?.active
+    const tab = active ? ws.layout.tabs[active] : undefined
+    if (tab?.data.kind === 'explorer') return tab
+    const last = ws.recent.map((id) => ws.layout.tabs[id]).find((t) => t?.data.kind === 'explorer')
+    return last ?? Object.values(ws.layout.tabs).find((t) => t.data.kind === 'explorer')
+  }
   /**
-   * Shows the Explorer: where it already shows, it becomes active; otherwise split on the left of the active group
-   * when the window is 1000px or wider and the group has room, else as a tab.
+   * Shows the Explorer: an Explorer tab, anywhere, is focused (the one used last); with none, it splits on the left
+   * of the active group when the window is 1000px or wider and the group has room, else it opens as a tab.
    */
   const showExplorer = (node?: string) => {
     const main = groupsIn(ws.layout, MAIN)
     const beside = main.includes(ws.layout.activeGroup) ? ws.layout.activeGroup : main[0]
-    const tab = explorerTabOf()
-    const shown = !!tab && Object.values(ws.layout.groups).some((g) => g.active === tab.id)
     const box = document.querySelector(`.wb-group[data-group="${beside}"]`)?.getBoundingClientRect()
     const hasTabs = Object.keys(ws.layout.tabs).length > 0
-    ws.showExplorer(beside, !shown && hasTabs && innerWidth >= 1000 && (!box || canSplit(box, 'row')))
-    if (node) setReveal(node)
+    const tab = ws.showExplorer(beside, hasTabs && innerWidth >= 1000 && (!box || canSplit(box, 'row')))
+    if (node && tab) setReveal({ tab, node })
+    bringForward()
   }
   // The page a node of the Explorer names: a file's home, a course, a quiz page (a card: its quiz page), or with
   // `edit` a quiz's editor.
@@ -279,6 +285,7 @@ export function App() {
     const into = ws.recentGroup(home)
     const shown = into ? ws.openPlace(node.doc, route, { group: into }) : ws.openPlace(node.doc, route, { group: home ?? undefined, newTab: true })
     if (shown && edit && node.kind === 'card') setOpenCard({ tab: shown, card: node.card })
+    bringForward()
   }
   // The Explorer's node for the place a tab shows.
   const nodeOfTab = (tab: Tab<TabData>): string | null => {
@@ -291,6 +298,17 @@ export function App() {
   }
 
   // ---- Windows ----
+
+  // Opening a page focuses the tab already showing it, in any window (asked for): its window comes to the front once
+  // the focus has moved there (after the render that moves it).
+  const [focusAsked, setFocusAsked] = useState(0)
+  const bringForward = () => setFocusAsked((n) => n + 1)
+  useEffect(() => {
+    if (!focusAsked) return
+    const win = windowOf(ws.layout, ws.layout.activeGroup)
+    if (win && win !== MAIN) popups[win]?.focus()
+    else if (win === MAIN && !document.hasFocus()) window.focus()
+  }, [focusAsked])
 
   // The popup of each popped-out window, opened in the click (browsers block it otherwise).
   const [popups, setPopups] = useState<Record<string, Window>>({})
@@ -474,10 +492,21 @@ export function App() {
           onDrive={() => setDriveOpen(true)}
           onNewCourse={() => newCourse()}
           onExplorer={() => showExplorer()}
-          onHome={() => ws.showAppPage('welcome')}
-          onWhatsNew={() => ws.showAppPage('changelog')}
+          onHome={() => {
+            ws.showAppPage('welcome')
+            bringForward()
+          }}
+          onWhatsNew={() => {
+            ws.showAppPage('changelog')
+            bringForward()
+          }}
+          onFile={(id) => {
+            ws.openPlace(id, HOME)
+            bringForward()
+          }}
           onOpen={(route, newTab) => {
             if (ws.active) ws.openPlace(ws.active, route, newTab ? { newTab: true, background: true } : undefined)
+            bringForward()
           }}
         />
         {hashRoute.name === 'debug' && (
@@ -532,6 +561,7 @@ export function App() {
               closeAll: ws.closeAll,
               move: ws.moveTab,
               split: ws.split,
+              duplicate: ws.duplicateTab,
               join: ws.join,
               resize: ws.resize,
               popOut,
@@ -552,11 +582,17 @@ export function App() {
                 onExplorer={() => showExplorer()}
                 onNewFile={() => void ws.newDoc()}
                 onOpenFile={() => void ws.openFile()}
-                onOpenDoc={(id) => void ws.openPlace(id, HOME, { group: groupId })}
+                onOpenDoc={(id) => {
+                  ws.openPlace(id, HOME, { group: groupId })
+                  bringForward()
+                }}
                 elsewhere={popped.reduce((n, w) => n + w.tabs.length, 0)}
                 onShowElsewhere={() => popups[popped[popped.length - 1]?.win]?.focus()}
                 onDockAll={() => popped.forEach((w) => dock(w.win))}
-                onWhatsNew={(background) => ws.showAppPage('changelog', groupId, background)}
+                onWhatsNew={(background) => {
+                  ws.showAppPage('changelog', groupId, background)
+                  bringForward()
+                }}
               />
             )}
           />

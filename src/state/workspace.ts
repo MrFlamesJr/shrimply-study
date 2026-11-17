@@ -210,9 +210,24 @@ export function activateDoc(w: Workspace, id: DocId, tabId: L.TabId): Workspace 
   return withLayout(w, tab ? L.activate(w.layout, tab) : L.openTab(w.layout, { id: tabId, data: docTabData(id, HOME) }, { group }))
 }
 
+// ---- Opening what is already open (asked for): a page shown in a tab anywhere (any group, any window) is focused
+// there, never opened twice; with several, the one used last. Only an explicit new tab (Ctrl or middle click,
+// Duplicate tab) makes another. ----
+
+/** The tab used last of those `match` accepts, else the first of them; null when none. */
+export function usedLast(w: Workspace, match: (t: L.Tab<TabData>) => boolean): L.TabId | null {
+  const recent = w.recent.find((id) => w.layout.tabs[id] && match(w.layout.tabs[id]))
+  return recent ?? Object.values(w.layout.tabs).find(match)?.id ?? null
+}
+
+/** The tab showing exactly this page of a file (compared as written in the address), the one used last. */
+export const showing = (w: Workspace, doc: DocId, route: Route): L.TabId | null =>
+  usedLast(w, (t) => t.data.kind === 'doc' && t.data.doc === doc && href(t.data.route) === href(route))
+
 /**
- * Shows a place of a file in a group (default: the one it opens in, `openingGroup`): in that group's tab of the file,
- * unless `newTab`, else in a new tab (`tabId`) after the group's active tab. Says which tab shows it.
+ * Shows a place of a file. A tab already showing it, anywhere, is focused (unless `newTab`). Otherwise it goes in a
+ * group (default: the one it opens in, `openingGroup`): in that group's tab of the file, unless `newTab`, else in a
+ * new tab (`tabId`) after the group's active tab. Says which tab shows it.
  */
 export function openPlace(
   w: Workspace,
@@ -222,6 +237,8 @@ export function openPlace(
   o: { group?: L.GroupId; newTab?: boolean; background?: boolean } = {},
 ): { workspace: Workspace; tab: L.TabId | null } {
   if (!w.docs[doc]) return { workspace: w, tab: null }
+  const open = o.newTab ? null : showing(w, doc, route)
+  if (open) return { workspace: activateTab(w, open), tab: open }
   const group = o.group && w.layout.groups[o.group] ? o.group : openingGroup(w)
   const reuse = o.newTab ? undefined : tabIn(w.layout, group, doc)
   if (reuse) {
@@ -297,33 +314,62 @@ export function popOutTab(w: Workspace, tabId: L.TabId, win: L.WindowId, groupId
   return next === l ? w : withLayout(w, next)
 }
 
-export const explorerTab = (w: Workspace): L.Tab<TabData> | undefined => Object.values(w.layout.tabs).find((t) => t.data.kind === 'explorer')
+/** The Explorer tab used last (there may be several: Duplicate tab). */
+export const explorerTab = (w: Workspace): L.Tab<TabData> | undefined => {
+  const id = usedLast(w, (t) => t.data.kind === 'explorer')
+  return id ? w.layout.tabs[id] : undefined
+}
+
+/** An Explorer tab's view: its own, else the workspace's. */
+export function explorerView(w: Workspace, tabId: L.TabId): Explorer {
+  const data = w.layout.tabs[tabId]?.data
+  return (data?.kind === 'explorer' && data.view) || w.explorer
+}
+
+/** Sets an Explorer tab's view: its own when it has one, else the workspace's. */
+export function setExplorerView(w: Workspace, tabId: L.TabId, view: Explorer): Workspace {
+  const data = w.layout.tabs[tabId]?.data
+  if (data?.kind === 'explorer' && data.view) return { ...w, layout: L.updateTab(w.layout, tabId, { kind: 'explorer', view }) }
+  return { ...w, explorer: view }
+}
+
+/**
+ * A copy of a tab (`tabId`, asked for) right after it in its group, shown: a file's page as a new tab of the same
+ * file and page; an Explorer with its own view, starting from the original's; What's new and the welcome page alike.
+ */
+export function duplicateTab(w: Workspace, from: L.TabId, tabId: L.TabId): Workspace {
+  const tab = w.layout.tabs[from]
+  const group = L.groupOf(w.layout, from)
+  if (!tab || group === null) return w
+  const data: TabData = tab.data.kind === 'explorer' ? { kind: 'explorer', view: explorerView(w, from) } : { ...tab.data }
+  const index = w.layout.groups[group].tabs.indexOf(from) + 1
+  return withLayout(w, L.openTab(w.layout, { id: tabId, data }, { group, index }))
+}
 
 /** Whether a tab is the one its group shows. */
 export const isShown = (w: Workspace, tabId: L.TabId): boolean => Object.values(w.layout.groups).some((g) => g.active === tabId)
 
 /**
- * Shows the Explorer (there is one at most). Shown in a group already: that group becomes active. Otherwise, with
- * `split` (room for it), it goes into a new group (`groupId`) on the left of `beside`; else it shows as a tab
- * (its own place, or a new tab `tabId` in `beside`).
+ * Shows the Explorer: an Explorer tab, anywhere, is focused (the one used last). With none, with `split` (room for
+ * it), it goes into a new group (`groupId`) on the left of `beside`; else it shows as a new tab `tabId` in `beside`.
  */
 export function showExplorer(w: Workspace, beside: L.GroupId, o: { split: boolean; tabId: L.TabId; groupId: L.GroupId }): Workspace {
   const tab = explorerTab(w)
-  if (tab && isShown(w, tab.id)) return withLayout(w, L.activate(w.layout, tab.id))
+  if (tab) return withLayout(w, L.activate(w.layout, tab.id))
   const target = w.layout.groups[beside] ? beside : w.layout.activeGroup
-  const explorer: L.Tab<TabData> = tab ?? { id: o.tabId, data: { kind: 'explorer' } }
+  const explorer: L.Tab<TabData> = { id: o.tabId, data: { kind: 'explorer' } }
   if (o.split) return withLayout(w, L.split(w.layout, target, 'row', 'before', o.groupId, explorer))
-  return withLayout(w, tab ? L.activate(w.layout, tab.id) : L.openTab(w.layout, explorer, { group: target }))
+  return withLayout(w, L.openTab(w.layout, explorer, { group: target }))
 }
 
 /**
- * One of the app's own pages (What's new, the welcome page) in a tab, one at most each: where it is, it becomes
- * active; else a new tab (`tabId`) in `group`. `background` (a Ctrl or middle click): a new tab is not shown, and one
+ * One of the app's own pages (What's new, the welcome page) in a tab: a tab of it, anywhere, is focused (the one used
+ * last); else a new tab (`tabId`) in `group`. `background` (a Ctrl or middle click): a new tab is not shown, and one
  * already open is left as it is.
  */
 export function showAppPage(w: Workspace, kind: AppPage, group: L.GroupId, tabId: L.TabId, background = false): Workspace {
-  const tab = Object.values(w.layout.tabs).find((t) => t.data.kind === kind)
-  if (tab) return background ? w : withLayout(w, L.activate(w.layout, tab.id))
+  const tab = usedLast(w, (t) => t.data.kind === kind)
+  if (tab) return background ? w : withLayout(w, L.activate(w.layout, tab))
   const at = { group: w.layout.groups[group] ? group : undefined, activate: !background }
   return withLayout(w, L.openTab(w.layout, { id: tabId, data: { kind } }, at))
 }
@@ -342,8 +388,8 @@ export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route,
   if (route.name === 'explorer' || route.name === 'changelog' || route.name === 'welcome') {
     const kind = route.name
     const entry = tabId ? w.layout.tabs[tabId] : undefined
-    const tab = entry?.data.kind === kind ? entry : Object.values(w.layout.tabs).find((t) => t.data.kind === kind)
-    if (tab) return activateTab(w, tab.id)
+    const tab = entry?.data.kind === kind ? entry.id : usedLast(w, (t) => t.data.kind === kind)
+    if (tab) return activateTab(w, tab)
     return o.newTab ? withLayout(w, L.openTab(w.layout, { id: o.newTab, data: { kind } }, { group: mainGroup(w) })) : w
   }
   if (!FILE_PAGES.includes(route.name)) return w
@@ -702,17 +748,14 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
     return defaultLayout(docIds, groupId, newId)
   }
   const tabs: L.Layout<TabData>['tabs'] = {}
-  let explorer = false
   for (const [id, tab] of Object.entries(l.tabs)) {
-    const data = tab?.data as Partial<Extract<TabData, { kind: 'doc' }>> | { kind?: unknown } | undefined
+    const data = tab?.data as Partial<Extract<TabData, { kind: 'doc' }>> | { kind?: unknown; view?: unknown } | undefined
     if (tab?.id !== id || !data) continue
-    if (data.kind === 'explorer' && !explorer) {
-      explorer = true
-      tabs[id] = { id, data: { kind: 'explorer' } }
+    if (data.kind === 'explorer') {
+      // Each keeps its own view (a duplicate); the first one may share the workspace's.
+      tabs[id] = { id, data: 'view' in data && data.view ? { kind: 'explorer', view: readExplorer(data.view) } : { kind: 'explorer' } }
     } else if (data.kind === 'changelog' || data.kind === 'welcome') {
-      // One at most each.
-      const kind = data.kind
-      if (!Object.values(tabs).some((t) => t.data.kind === kind)) tabs[id] = { id, data: { kind } }
+      tabs[id] = { id, data: { kind: data.kind } }
     } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
       const route = readRoute(data.route)
       if (route) tabs[id] = { id, data: docTabData(data.doc, route) }

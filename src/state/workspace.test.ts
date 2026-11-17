@@ -14,6 +14,9 @@ import {
   dockWindow,
   followHistory,
   shownTab,
+  duplicateTab,
+  explorerView,
+  setExplorerView,
   activateGroup,
   showAppPage,
   moveTab,
@@ -426,16 +429,17 @@ describe('what the browser keeps', () => {
     expect(Object.values(l.tabs).map((t) => (t.data.kind === 'doc' ? t.data.doc : ''))).toEqual(['b'])
   })
 
-  it('restores splits, the Explorer (once) and pages, with popped-out groups docked', () => {
+  it('restores splits, each Explorer with its own view and pages, with popped-out groups docked', () => {
     let w = splitGroup(setTabRoute(two(), 'tb', { name: 'course', course: 'b1' }), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
     w = showExplorer(w, 'g2', { split: false, tabId: 'te', groupId: 'g3' })
     w = popOutGroup(w, 'g2', 'pop', 'spare')
     const raw = JSON.parse(JSON.stringify(workspaceRecord(w).layout))
-    raw.tabs.te2 = { id: 'te2', data: { kind: 'explorer' } }
+    raw.tabs.te2 = { id: 'te2', data: { kind: 'explorer', view: { expanded: ['d:a'], selection: { ids: [], anchor: null, focus: null } } } }
     raw.groups.g.tabs.push('te2')
     const l = readLayout(raw, ['a', 'b'], 'x', ids())
     expect(Object.keys(l.windows)).toEqual([MAIN])
-    expect(Object.values(l.tabs).filter((t) => t.data.kind === 'explorer')).toHaveLength(1)
+    expect(Object.values(l.tabs).filter((t) => t.data.kind === 'explorer')).toHaveLength(2)
+    expect(l.tabs.te2.data).toEqual({ kind: 'explorer', view: { expanded: ['d:a'], selection: { ids: [], anchor: null, focus: null } } })
     const tb2 = l.tabs.tb2.data
     expect(tb2.kind === 'doc' && tb2.route).toEqual({ name: 'course', course: 'b1' })
     expect(groupsIn(l, MAIN)).toEqual(['g', 'g2'])
@@ -589,6 +593,46 @@ describe('tabs, groups and windows', () => {
   })
 })
 
+describe('what is already open, and duplicates', () => {
+  it('opening a page that a tab shows, anywhere (a popped-out window too), focuses that tab; a new tab only when asked', () => {
+    let w = setTabRoute(two(), 'ta', { name: 'course', course: 'a1' })
+    w = splitGroup(w, 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = popOutGroup(w, 'g2', 'pop', 'spare')
+    w = activateTab(w, 'ta')
+    const again = openPlace(w, 'b', HOME, 'new', { group: 'g' })
+    expect(again.tab).toBe('tb2')
+    expect(activeTab(again.workspace)?.id).toBe('tb2')
+    expect(Object.keys(again.workspace.layout.tabs)).not.toContain('new')
+    const fresh = openPlace(w, 'b', HOME, 'new', { group: 'g', newTab: true })
+    expect(fresh.tab).toBe('new')
+  })
+
+  it('with several tabs on the page, focuses the one used last', () => {
+    let w = duplicateTab(two(), 'tb', 'tb2')
+    w = activateTab(activateTab(w, 'tb'), 'ta')
+    expect(openPlace(w, 'b', HOME, 'new').tab).toBe('tb')
+    w = activateTab(activateTab(w, 'tb2'), 'ta')
+    expect(openPlace(w, 'b', HOME, 'new').tab).toBe('tb2')
+  })
+
+  it("duplicates a tab right after it; an Explorer gets its own view, starting from the original's", () => {
+    let w = duplicateTab(two(), 'ta', 'ta2')
+    expect(w.layout.groups.g.tabs).toEqual(['ta', 'ta2', 'tb'])
+    expect(activeTab(w)?.id).toBe('ta2')
+    expect(w.layout.tabs.ta2.data).toEqual(w.layout.tabs.ta.data)
+    w = showExplorer(w, 'g', { split: false, tabId: 'te', groupId: 'ge' })
+    const open = { expanded: ['d:a'], selection: { ids: [], anchor: null, focus: null } }
+    w = setExplorerView(w, 'te', open)
+    w = duplicateTab(w, 'te', 'te2')
+    expect(explorerView(w, 'te2')).toEqual(open)
+    w = setExplorerView(w, 'te2', { ...open, expanded: ['d:a', 'd:b'] })
+    expect(explorerView(w, 'te').expanded).toEqual(['d:a'])
+    expect(explorerView(w, 'te2').expanded).toEqual(['d:a', 'd:b'])
+    w = activateTab(w, 'ta')
+    expect(activeTab(showExplorer(w, 'g', { split: true, tabId: 'te3', groupId: 'ge3' }))?.id).toBe('te2')
+  })
+})
+
 describe('back and forward', () => {
   // a's tab on course a1 in group g; b's tab on its home, split into g2 and active there.
   const setup = () => {
@@ -638,7 +682,7 @@ describe('back and forward', () => {
 })
 
 describe("the app's own tabs", () => {
-  it("What's new and the welcome page open in one tab at most each, and come back on reload", () => {
+  it("What's new and the welcome page are focused where they show, and come back on reload", () => {
     let w = showAppPage(two(), 'changelog', 'g', 'tc')
     expect(activeTab(w)?.data).toEqual({ kind: 'changelog' })
     w = activateTab(w, 'ta')
@@ -655,7 +699,7 @@ describe("the app's own tabs", () => {
     const l = readLayout(raw, ['a', 'b'], 'x', ids())
     expect(l.tabs.tc?.data).toEqual({ kind: 'changelog' })
     expect(l.tabs.tw?.data).toEqual({ kind: 'welcome' })
-    expect(l.tabs.tw3).toBeUndefined()
+    expect(l.tabs.tw3?.data).toEqual({ kind: 'welcome' })
   })
 
   it('a Ctrl or middle click opens it in the background, and leaves an open one as it is', () => {

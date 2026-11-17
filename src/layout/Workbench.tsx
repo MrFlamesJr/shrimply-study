@@ -46,6 +46,8 @@ export type WorkbenchProps = {
      */
     split(groupId: string, dir: 'row' | 'column', side: 'before' | 'after', tabId?: string, move?: boolean): void
     join(from: string, into: string): void
+    /** A copy of the tab right after it. */
+    duplicate(tabId: string): void
     resize(win: string, path: number[], sizes: number[]): void
     /**
      * The group, or only its tab `tabId`, into a new window. The host calls kit/windows openPopup synchronously inside
@@ -241,6 +243,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
       else if (a === 'splitRight') on.split(g.id, 'row', 'after', id)
       else if (a === 'splitDown') on.split(g.id, 'column', 'after', id)
       else if (a === 'popOutTab') on.popOut(g.id, id)
+      else if (a === 'duplicate') on.duplicate(id)
       else if (a === 'reveal') on.revealInExplorer(tab)
       else if (a === 'copyPath') {
         const text = copyPathText(tab, docs)
@@ -260,7 +263,9 @@ function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }
       else if (a === 'join') {
         if (next !== undefined) on.join(g.id, next)
       } else if (a === 'popOut') on.popOut(g.id)
-      else if (a === 'dock') on.dock(win)
+      else if (a === 'duplicate') {
+        if (g.active) on.duplicate(g.active)
+      } else if (a === 'dock') on.dock(win)
       else if (a === 'closeAll') on.closeAll(g.id)
     }
     openMenu(items(groupMenu(context()), run), { anchor })
