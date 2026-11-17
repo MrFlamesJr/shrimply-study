@@ -7,6 +7,9 @@
      The rest undoes the browser's popover box (centered, bordered, filled). */
   position: fixed;
   inset: auto var(--space-4) var(--space-4) auto;
+  /* While a study session shows, raised just above the controls under its corner (Toasts.tsx measures them), so a
+     toast never covers an answer or the feedback sheet's buttons. */
+  translate: 0 calc(-1 * var(--toasts-lift, 0px));
   margin: 0;
   border: 0;
   background: none;
@@ -29,7 +32,7 @@
 }
 .toasts:hover,
 .toasts:focus-within {
-  max-height: calc(100vh - 2 * var(--space-4));
+  max-height: calc(100vh - 2 * var(--space-4) - var(--toasts-lift, 0px));
   overflow-y: auto;
   pointer-events: auto;
 }

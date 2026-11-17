@@ -1,12 +1,17 @@
-import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { activeWindow, subscribeWindows } from '../kit/windows'
 import { newId } from '../model'
 import { pushToast, type Notify, type Toast, type ToastKind } from '../logic/pushToast'
+import { toastLift } from '../logic/toastLift'
 import { CrossIcon } from './Icons'
 import { IconButton } from './IconButton'
 
 export type { Notify }
+
+// What a toast never covers: the controls of a study question and its feedback sheet, in any pane (not the flip card
+// itself, which is the card, nor the results list).
+const KEEP_CLEAR = '.session:not(.is-results) :is(button, input, textarea, select, a[href]):not(.flip-card)'
 
 const LIFETIME: Record<ToastKind, number> = { info: 5000, warning: 8000, error: 12000 }
 // A toast with an action stays long enough to reach it.
@@ -48,6 +53,45 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
     win.document.addEventListener('toggle', onToggle, true)
     return () => win.document.removeEventListener('toggle', onToggle, true)
   }, [win])
+
+  // A study session's controls are never covered (the feedback sheet's buttons sit right in this corner, a question's
+  // answers often too): while toasts show, the stack rises above those under its column (`--toasts-lift`, toastLift),
+  // measured again whenever the page changes. Not while it is pointed at or focused: it never moves under the pointer.
+  useLayoutEffect(() => {
+    const stack = ref.current
+    if (!stack || toasts.length === 0) return
+    const doc = win.document
+    let frame = 0
+    const place = () => {
+      frame = 0
+      if (stack.matches(':hover, :focus-within')) return
+      const css = win.getComputedStyle(stack)
+      const column = stack.getBoundingClientRect()
+      const boxes = [...stack.children].map((c) => c.getBoundingClientRect())
+      const content = boxes.length ? Math.max(...boxes.map((r) => r.bottom)) - Math.min(...boxes.map((r) => r.top)) : 0
+      const height = Math.min(content, parseFloat(css.maxHeight) - parseFloat(css.paddingTop))
+      const controls = [...doc.querySelectorAll(KEEP_CLEAR)]
+        .map((el) => el.getBoundingClientRect())
+        .filter((r) => r.width > 0 && r.height > 0 && r.right > column.left && r.left < column.right)
+      const lift = toastLift(win.innerHeight, height, parseFloat(css.bottom), parseFloat(css.rowGap), controls)
+      stack.style.setProperty('--toasts-lift', `${lift}px`)
+    }
+    const soon = () => {
+      if (!frame) frame = win.requestAnimationFrame(place)
+    }
+    place()
+    // The sheet coming or going, a question marked, a pane resized or scrolled, a slide ending.
+    const watch = new (win as typeof window).MutationObserver(soon)
+    watch.observe(doc.body, { subtree: true, childList: true, attributes: true, attributeFilter: ['class', 'hidden'] })
+    win.addEventListener('resize', soon)
+    for (const type of ['scroll', 'animationend', 'transitionend']) doc.addEventListener(type, soon, true)
+    return () => {
+      watch.disconnect()
+      win.cancelAnimationFrame(frame)
+      win.removeEventListener('resize', soon)
+      for (const type of ['scroll', 'animationend', 'transitionend']) doc.removeEventListener(type, soon, true)
+    }
+  }, [toasts, win])
 
   return createPortal(
     <section

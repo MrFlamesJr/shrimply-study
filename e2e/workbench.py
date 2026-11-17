@@ -29,6 +29,22 @@ def groups(page):
     return page.locator('.wb-cell .wb-group')
 
 
+# True when the element itself (or something inside it) is what a click at its center reaches: no toast, dialog or
+# other layer over it.
+UNCOVERED = '''el => {
+  const r = el.getBoundingClientRect()
+  const hit = el.ownerDocument.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+  return !!hit && (hit === el || el.contains(hit))
+}'''
+
+
+def click_clear(page, locator, what):
+    """Clicks the element once nothing covers it (never through a toast); fails when something keeps covering it."""
+    locator.wait_for()
+    wait_for(page, lambda: locator.evaluate(UNCOVERED), f'{what} is not covered (a toast or a layer over it)')
+    locator.click()
+
+
 def group(page, i):
     return groups(page).nth(i)
 
@@ -172,7 +188,9 @@ def study_moves(page):
     shown(g2).locator('.session-stack').wait_for()
     need(shown(g2).locator('.pane-head').count() == 0 and g2.locator('.pane-head').count() == 0, 'a study session has no breadcrumbs (its own head)')
     shown(g2).locator('.flip-card').click()
-    shown(g2).get_by_role('button', name=re.compile('^Knew it')).click()
+    # Off the card: a pointer resting on its picture opens the picture full screen.
+    page.mouse.move(1, 1)
+    click_clear(page, shown(g2).get_by_role('button', name=re.compile('^Knew it')), 'Knew it')
     wait_for(page, lambda: shown(g2).locator('.session-count').inner_text().startswith('2 /'), 'the round goes on to question 2')
     src = g2.locator('[role=tab]').first.bounding_box()
     dst = g1.locator('[role=tablist]').bounding_box()
