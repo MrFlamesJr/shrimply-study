@@ -315,22 +315,23 @@ def news_tabs(page):
 
 
 def whats_new_tab(page):
-    """What's new (every release's notes) opens as a tab beside the files, from home's What's new box and from the
-    sidebar, one at most; a reload brings it back."""
+    """What's new (every release's notes) opens as a tab beside the files, from the sidebar (and an empty group's What's
+    new box: empty_group_and_brand), one at most; a reload brings it back. Home has no What's new box."""
     g = active_group(page)
     if crumbs(g) != ['Test library']:
         g.locator('.pane-crumbs a').first.click()
         wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'home again')
-    link = shown(active_group(page)).get_by_role('link', name="Open What's new")
-    need(link.locator('svg').count() == 1, "the link ends with the opens-elsewhere mark")
-    link.click()
+    need(shown(active_group(page)).locator('.info-box', has_text="What's new").count() == 0, "home has no What's new box")
+    need(page.locator('.sidebar-news + .theme-pick').count() == 1, "the sidebar's What's new sits right above the Theme row")
+    need(page.locator('.sidebar-news svg').count() == 1, "the link ends with the opens-elsewhere mark")
+    page.locator('.sidebar-news').click()
     wait_for(page, lambda: news_tabs(page).count() == 1, "What's new opens as a tab")
     need(page.locator('.sidebar').is_visible(), 'the shell stays')
     g = active_group(page)
     need(trail(g) == ['Shrimply Study', "What's new"], f'its pane head names it, under the app: {trail(g)}')
     need(shown(g).get_by_role('heading', name="What's new").count() == 1, 'its page is titled What\'s new')
     need(shown(g).locator('.release-head').count() >= 1, "every release's notes")
-    # From the sidebar: the same tab, shown again.
+    # Again from the sidebar: the same tab, shown again.
     g.locator('[role=tab]').first.click()
     page.locator('.sidebar-news').click()
     wait_for(page, lambda: news_tabs(page).first.get_attribute('aria-selected') == 'true', 'the sidebar shows it again')
@@ -479,6 +480,14 @@ def empty_group_and_brand(page):
     empty.wait_for()
     need(empty.locator('.wb-empty-mark svg').count() == 1, 'the empty group shows the faded shrimp')
     need(empty.get_by_role('heading', name='No tab open').count() == 1, 'and says no tab is open')
+    # What's new is here (asked for): the newest notes, and the way to its tab, which opens in this group.
+    news = empty.locator('.info-box', has_text="What's new")
+    need(news.count() == 1 and news.locator('.tips-list').count() == 1, "the empty page shows What's new")
+    news.get_by_role('link', name="Open What's new").click()
+    wait_for(page, lambda: trail(group(page, 0)) == ['Shrimply Study', "What's new"], "its link opens What's new in this group")
+    news_tabs(page).first.hover()
+    news_tabs(page).first.locator('button').click()
+    empty.wait_for()
     for name in ['Show the Explorer', 'New file', 'Open file', 'Test library', 'Guide']:
         need(empty.get_by_role('button', name=re.compile(name)).count() >= 1, f'the empty group offers {name}')
     empty.get_by_role('button', name=re.compile('^Test library')).click()

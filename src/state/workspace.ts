@@ -29,6 +29,11 @@ export type Doc = {
   replaced: number
   /** Its Drive file has changes that are not here (found by the quiet look on start). */
   newer: boolean
+  /**
+   * The Google account whose own Drive file this is (as Google said, `drive.mine`), once known: the account signed in
+   * while it was shown as the user's own. Null when not known (it is claimed by the next account shown it).
+   */
+  owner: string | null
 }
 
 /** The libraries of some documents, as a history entry keeps them. */
@@ -73,8 +78,32 @@ export const makeDoc = (id: DocId, library: Library, name: string, more: Partial
   drive: null,
   replaced: 0,
   newer: false,
+  owner: null,
   ...more,
 })
+
+// ---- Files hidden while signed out (asked for): the user's own Drive files never show in a tab that is not signed
+// in with their account. Their libraries and unsaved changes stay as they are, never written over. ----
+
+/**
+ * Hidden in a tab signed in as `account` (null: signed out): the user's own Drive file (as Google last said) while
+ * signed out, or while another account than its owner is signed in. Shared files and local ones never hide.
+ */
+export const isHidden = (d: Doc, account: string | null): boolean =>
+  !!d.drive?.mine && (account === null || (d.owner !== null && d.owner !== account))
+
+/** The open documents hidden for `account`, in order. */
+export const hiddenDocs = (w: Workspace, account: string | null): DocId[] => w.order.filter((id) => isHidden(w.docs[id], account))
+
+/** Every own Drive file shown to `account` with no owner yet becomes that account's. */
+export function claimOwners(w: Workspace, account: string | null): Workspace {
+  if (account === null) return w
+  const claim = w.order.filter((id) => w.docs[id].drive?.mine && w.docs[id].owner === null)
+  if (claim.length === 0) return w
+  const docs = { ...w.docs }
+  for (const id of claim) docs[id] = { ...docs[id], owner: account }
+  return { ...w, docs }
+}
 
 /** `base`, or "base 2" and so on: a name no open document has. */
 export const freeDocName = (w: Workspace, base: string): string => freeName(base, Object.values(w.docs).map(docName))
@@ -576,15 +605,19 @@ export const docRecord = (d: Doc): DocRecord => ({
 })
 
 /**
- * The workspace's own record: the open documents in order, the layout, the Explorer, each document's own name and
- * which tabs were active last.
+ * The workspace's own record: the open documents in order, the layout, the Explorer, each document's own name, the
+ * account each own Drive file belongs to, and which tabs were active last.
  */
 export const workspaceRecord = (w: Workspace): WorkspaceRecord => ({
   version: 1,
   docs: w.order,
   layout: w.layout,
   explorer: w.explorer,
-  ui: { names: Object.fromEntries(w.order.map((id) => [id, w.docs[id].name])), recent: w.recent },
+  ui: {
+    names: Object.fromEntries(w.order.map((id) => [id, w.docs[id].name])),
+    owners: Object.fromEntries(w.order.flatMap((id) => (w.docs[id].owner ? [[id, w.docs[id].owner]] : []))),
+    recent: w.recent,
+  },
 })
 
 const isString = (x: unknown): x is string => typeof x === 'string'
@@ -687,14 +720,16 @@ export function restore(
   groupId: string,
   newId: () => string,
 ): Workspace {
-  const ui = read.workspace?.ui as { names?: Record<string, unknown>; recent?: unknown } | null
+  const ui = read.workspace?.ui as { names?: Record<string, unknown>; owners?: Record<string, unknown>; recent?: unknown } | null
   const kept = ui?.names ?? {}
+  const owners = ui?.owners && typeof ui.owners === 'object' ? ui.owners : {}
   let w = emptyWorkspace(groupId)
   for (const rec of read.docs) {
     const own = kept[rec.id]
     const name = isString(own) && own.trim() ? own : freeDocName(w, 'New library')
     const file = rec.file && { ...rec.file, handle: read.handles[rec.id] ?? null }
-    const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive, file })
+    const owner = isString(owners[rec.id]) ? (owners[rec.id] as string) : null
+    const doc = makeDoc(rec.id, rec.library, name, { saved: rec.dirty ? null : rec.library, drive: rec.drive, file, owner })
     w = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
   }
   const layout = readLayout(read.workspace?.layout, w.order, groupId, newId)

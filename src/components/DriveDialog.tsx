@@ -288,9 +288,9 @@ export function DriveDialog({
           <button
             type="button"
             title="Sign out in this tab. Other tabs keep their own sign-in."
-            onClick={() => {
-              drive.signOut()
-              setSigned(false)
+            onClick={async () => {
+              // It asks first when the user's own Drive files are open (save and close them, or keep them hidden).
+              if (await drive.signOut()) setSigned(false)
             }}
           >
             Sign out

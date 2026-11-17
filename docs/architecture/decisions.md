@@ -158,3 +158,15 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   its icon in a fixed cell so the hover pop moves nothing) in its top-right group's strip, whose menu lists each window
   by its tabs' titles and Dock all; an empty group's page says "2 tabs are in other windows" with Show them (the newest
   window to the front; "Show it" for one) and Dock all, underlined at rest as they sit in a line of text.
+- Asked for, 2026-11-16: the sidebar's What's new link sits right above the Theme row, and the What's new box moved
+  from home (the welcome page and the course list) to an empty group's "No tab open" page, under its actions.
+- Asked for, 2026-11-16: signing out never loses an edit. The user's own Drive files (`drive.mine`) hide while the tab
+  is signed out or signed in with another account; each remembers its account (`owner`, in the workspace record's
+  `ui`, not in storage). A file with no owner yet (kept from before) is claimed by the next account it is shown to;
+  signed out it hides like the others. The tab's account is read with a new `googleDrive.signedInAs` (the account the
+  tab already keeps; no call to Google). Hidden files are never saved, refreshed, written over by an undo or redo
+  (they wait, saying why) or moved out by a cut (it pastes a copy), and never in the address bar. Explicit Sign out
+  asks (Save all and sign out, or Sign out without saving: they hide); the debug page's reset asks the same way and
+  stops when cancelled. Involuntary: a tab that starts signed out says how many are hidden (on each start, as each
+  start is one), and a 401 from Google signs out the same way. The Explorer's own note is left to its owner:
+  `ws.hiddenDocs`, `ws.drive.signedIn()`, `ws.drive.signIn()` and `HiddenFilesNote` are there for it.

@@ -3,7 +3,7 @@ import type { StudyOptions } from '../model'
 import { parseHash, usePlaceFor, type Nav, type Route } from '../route'
 import type { Tab } from '../kit/layout'
 import type { DocId, ItemRef } from '../logic/contentOps'
-import type { AppPage, TabData } from '../logic/workbenchActions'
+import type { TabData } from '../logic/workbenchActions'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
 import type { askConfirm } from '../components/ConfirmDialog'
 import type { Notify } from '../components/Toasts'
@@ -14,6 +14,8 @@ import { EditScreen } from '../screens/EditScreen'
 import { StudyScreen } from '../screens/StudyScreen'
 import { ChangelogScreen } from '../screens/ChangelogScreen'
 import { ExplorerPane } from './ExplorerPane'
+import { CloudIcon } from '../components/Icons'
+import { hiddenFileText } from '../logic/signOut'
 import { makeTabNav, type TabNavOps } from './tabNav'
 
 /** What every tab's screen shares, from App. */
@@ -54,7 +56,7 @@ type Props = {
   s: PaneShared
 }
 
-// Pages of a file a link may name; the app's own pages open as tabs of their own (debug is left to the address bar).
+// Pages of a file a link may name; the app's own pages are left to the address bar (App opens What's new as a tab).
 const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
 
 /** One tab's screen: a file's page (its own route and navigation), the Explorer, What's new or the welcome page. */
@@ -75,23 +77,11 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
       />
     )
   }
+  if (d.kind === 'doc' && s.ws.isHidden(d.doc)) return <HiddenFile s={s} />
   // A file's tab (a tab of a file that is gone never stays: closing a file closes its tabs).
   if (d.kind !== 'doc' || !s.ws.docs.some((x) => x.id === d.doc)) return null
   return <DocPane tab={tab as Tab<Extract<TabData, { kind: 'doc' }>>} group={group} shown={shown} active={active} s={s} />
 }
-
-// A link to one of the app's own pages (What's new) opens its tab in this group; Ctrl or the middle button opens it
-// without showing it, as other links open a new tab beside theirs.
-function openAppPage(e: MouseEvent<HTMLElement>, background: boolean, group: string | null, s: PaneShared): boolean {
-  const link = (e.target as Element).closest?.('a[href^="#/"]')
-  if (!link || e.defaultPrevented || e.shiftKey || e.altKey) return false
-  const to = parseHash(link.getAttribute('href') ?? '').name
-  if (!APP_PAGES.includes(to as AppPage)) return false
-  e.preventDefault()
-  s.ws.showAppPage(to as AppPage, group ?? undefined, background)
-  return true
-}
-const APP_PAGES: AppPage[] = ['changelog', 'welcome']
 
 // The Welcome tab: the welcome page, its buttons acting from here (a new course in this group; Go to my courses: the
 // active file's home here).
@@ -99,7 +89,7 @@ function Welcome({ group, s }: { group: string | null; s: PaneShared }) {
   const { ws } = s
   const lib = ws.active ? ws.doc(ws.active) : null
   return (
-    <div className="page" onClick={(e) => openAppPage(e, e.ctrlKey || e.metaKey, group, s)} onAuxClick={(e) => e.button === 1 && openAppPage(e, true, group, s)}>
+    <div className="page">
       <HomeScreen
         lib={lib}
         nav={null}
@@ -113,6 +103,27 @@ function Welcome({ group, s }: { group: string | null; s: PaneShared }) {
         toCourses={() => ws.active && ws.openPlace(ws.active, { name: 'home' }, { group: group ?? undefined })}
         openDrive={s.openDrive}
       />
+    </div>
+  )
+}
+
+// A hidden file's tab (asked for): nothing of the file shows, only why, and Sign in (signed out).
+function HiddenFile({ s }: { s: PaneShared }) {
+  const signedIn = s.ws.drive.signedIn()
+  return (
+    <div className="page">
+      <section className="empty hidden-file">
+        <CloudIcon />
+        <h1>Hidden file</h1>
+        <p className="muted">{hiddenFileText(signedIn)}</p>
+        {!signedIn && (
+          <div className="actions">
+            <button type="button" className="primary" onClick={() => void s.ws.drive.signIn()}>
+              Sign in with Google
+            </button>
+          </div>
+        )}
+      </section>
     </div>
   )
 }
@@ -177,7 +188,6 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
   // Links to a page of this file go through the tab (the address bar follows only the main window's active tab);
   // Ctrl or the middle button opens it in a new tab beside this one.
   const follow = (e: MouseEvent<HTMLElement>, newTab: boolean) => {
-    if (openAppPage(e, newTab, group, s)) return
     const link = (e.target as Element).closest?.('a[href^="#/"]')
     if (!link || e.defaultPrevented || e.shiftKey || e.altKey) return
     const to = parseHash(link.getAttribute('href') ?? '')

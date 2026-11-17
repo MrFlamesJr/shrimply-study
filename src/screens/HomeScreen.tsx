@@ -3,11 +3,8 @@ import { href, type Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { QuizTiles } from '../components/QuizTiles'
 import { PageHead } from '../components/Page'
-import { InfoBox } from '../components/InfoBox'
-import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
-import { OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
+import { PlusIcon, ShrimpIcon } from '../components/Icons'
 import { plural } from '../logic/plural'
-import { RELEASES } from '../releaseNotes'
 import { LearnMore } from './home/LearnMore'
 
 type Props = {
@@ -41,26 +38,9 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
       </button>
     )
   const courses = lib?.library.courses ?? []
-  const [notesOpen, setNotesOpen] = useState(true)
   const [learnMore, setLearnMore] = useState(false)
   // What opens shows in a tab of its own, on its home.
   const open = (from: () => Promise<boolean>) => void from()
-  // What's new is always on home, on the welcome page and the course list alike (asked for).
-  const whatsNew = (
-    <InfoBox
-      title="What's new"
-      note={`[${RELEASES[0].name}] · ${releaseDate(RELEASES[0].date)}`}
-      open={notesOpen}
-      onToggle={setNotesOpen}
-    >
-      <ReleaseNotes notes={RELEASES[0].notes} />
-      <p className="all-changes">
-        <a className="open-link" href={href({ name: 'changelog' })} title="Every release's notes, in a tab of their own">
-          Open What's new <OpenIcon />
-        </a>
-      </p>
-    </InfoBox>
-  )
   // With courses, the welcome page's main button leads back to them.
   const returning = courses.length > 0
   if (welcome || !returning) {
@@ -124,8 +104,6 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
             ? 'Your cards stay in this browser. Save them to Google Drive or download them as a .shrimp file to keep a copy, study on another device or share them.'
             : 'Your cards stay in this browser. Download them as a .shrimp file to keep a copy or study on another device.'}
         </p>
-        {/* Last, under everything, so the buttons come first (asked for). */}
-        {whatsNew}
         {/* Inside the section, as the page centers it only while it is its only child. */}
         {learnMore && <LearnMore onClose={() => setLearnMore(false)} />}
       </section>
@@ -149,7 +127,6 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
           </>
         }
       />
-      {whatsNew}
       {courses.map((course) => (
         <section key={course.id} className="course-block">
           <div className="course-row">

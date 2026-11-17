@@ -8,7 +8,7 @@ from helpers import load_test_library  # noqa: E402
 
 def heading(page, where, selector='h1'):
     try:
-        page.locator(selector).first.wait_for(timeout=5000)
+        page.locator(f'{selector}:visible').first.wait_for(timeout=5000)
     except Exception:
         raise AssertionError(f'{where}: no {selector} rendered at {page.url}')
 

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { flushSync } from 'react-dom'
 import { href, parseHash, type Route } from '../route'
 import { comboLabel, isMac } from '../kit/shortcuts'
@@ -10,6 +10,7 @@ import { Shortcut } from '../components/Shortcut'
 import { IconButton } from '../components/IconButton'
 import { whereLine } from '../logic/whereLine'
 import { ThemeSelect } from '../components/ThemeSelect'
+import { HiddenFilesNote } from './HiddenFilesNote'
 import type { ThemeId } from '../model'
 
 // `lib`: the active file (null when none is open), whose courses the tree shows. `current`: the id of the course or
@@ -131,7 +132,7 @@ function FileRow({ doc, active, onPick }: { doc: LibraryApi; active: boolean; on
  * The open files, between the brand and the courses: a heading with New file, Open file, Google Drive and Save all,
  * then one row per file, the active one selected.
  */
-function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: () => void; closeIfNarrow: () => void }) {
+function OpenFiles({ ws, onDrive, closeIfNarrow, children }: { ws: WorkspaceApi; onDrive: () => void; closeIfNarrow: () => void; children?: ReactNode }) {
   const unsaved = ws.docs.some((d) => d.dirty)
   return (
     <section className="files" aria-label="Open files">
@@ -176,6 +177,7 @@ function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: 
           ))}
         </ul>
       )}
+      {children}
     </section>
   )
 }
@@ -254,19 +256,9 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
           >
             <FolderIcon /> Explorer <Shortcut keys={comboLabel('Mod+Shift+E', isMac(navigator.platform))} />
           </button>
-          {/* A small link (asked for), as home's What's new box has: every release's notes in a tab. */}
-          <button
-            type="button"
-            className="link open-link sidebar-news"
-            title="Every release's notes, in a tab of their own"
-            onClick={() => {
-              onWhatsNew()
-              closeIfNarrow()
-            }}
-          >
-            What's new <OpenIcon />
-          </button>
-          <OpenFiles ws={ws} onDrive={onDrive} closeIfNarrow={closeIfNarrow} />
+          <OpenFiles ws={ws} onDrive={onDrive} closeIfNarrow={closeIfNarrow}>
+            <HiddenFilesNote ws={ws} />
+          </OpenFiles>
           <p className="sidebar-label">Courses</p>
           {!lib || lib.library.courses.length === 0 ? (
             <div className="tree tree-empty">
@@ -330,6 +322,18 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
               }}
             >
               <PlusIcon /> New course
+            </button>
+            {/* A small link right above the Theme row (asked for), as home's What's new box has: every release's notes in a tab. */}
+            <button
+              type="button"
+              className="link open-link sidebar-news"
+              title="Every release's notes, in a tab of their own"
+              onClick={() => {
+                onWhatsNew()
+                closeIfNarrow()
+              }}
+            >
+              What's new <OpenIcon />
             </button>
             <label className="theme-pick">
               Theme

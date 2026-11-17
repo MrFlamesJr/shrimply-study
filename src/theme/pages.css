@@ -36,6 +36,12 @@
 .empty .actions {
   justify-content: center;
 }
+/* A hidden file's tab (PaneScreen): a faded cloud over why it is hidden. */
+.hidden-file > svg {
+  width: 48px;
+  height: 48px;
+  color: var(--text-muted);
+}
 /* First visit (HomeScreen): the shrimp, the title, three numbered step tiles side by side (a list, number
    beside the text, when the page is narrow), the actions. Numbers stay in the body font and take the theme's
    corners; no accent here but the one gold button. */
@@ -66,15 +72,8 @@
 .welcome > button.link {
   text-decoration-color: currentColor;
 }
-/* What's new, always on home (HomeScreen): the tips box's notes, read left-aligned on the centered welcome page. */
-.welcome > .info-box {
-  margin-top: var(--space-6);
-  text-align: left;
-}
-.welcome > .info-box.is-min {
-  margin-inline: auto;
-}
-/* What's new's way to its tab, under this release's notes: the shared .open-link (base.css), as in the sidebar. */
+/* What's new's way to its tab (the empty group page's box), under this release's notes: the shared .open-link
+   (base.css), as in the sidebar. */
 .info-box-content > .all-changes {
   margin-top: var(--space-4);
 }

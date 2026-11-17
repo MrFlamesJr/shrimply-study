@@ -1,7 +1,7 @@
 // What's new in each release, newest first, written for users (plain, short, sentence case, like all UI text).
 // Only the few new things a student will use and care about (a new way to make or study cards), never polish,
 // fixes or rewordings. A new entry at the top opens the Welcome tab once more; the newest entry's notes are
-// always on home under "What's new [<name>]", and every entry is in the What's new tab (`#/_changelog`). `name`
+// on an empty group's page under "What's new [<name>]", and every entry is in the What's new tab (`#/_changelog`). `name`
 // is the release's branch name exactly as written in Git, unique: App remembers the last one shown in this browser.
 // `date` is the day it went out (merged into main), as YYYY-MM-DD; shown with the name wherever the notes are.
 export const RELEASES: { name: string; date: string; notes: [string, string][] }[] = [

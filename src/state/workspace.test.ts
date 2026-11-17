@@ -17,6 +17,10 @@ import {
   moveTab,
   openPlace,
   popOutGroup,
+  claimOwners,
+  patchDoc,
+  hiddenDocs,
+  isHidden,
   popOutTab,
   recentGroup,
   setTabRoute,
@@ -353,6 +357,40 @@ describe('opening a file that is already open', () => {
     const r = reopenFile(w, 'f', lib(course('z')), file(2), 'x')
     expect(r.ask).toBe(true)
     expect(r.workspace.docs.f.library.courses[0].name).toBe('Mine')
+  })
+})
+
+describe('own Google Drive files while signed out', () => {
+  const drive = (mine: boolean) => ({ id: 'x', name: 'A.shrimp', md5: 'm', shared: !mine, mine, trashed: false })
+  const withDrive = (w: Workspace, id: string, mine: boolean) => patchDoc(w, id, { drive: drive(mine) })
+
+  it('hides the own ones while signed out, never shared or local ones, and claims them for the account shown them', () => {
+    let w = withDrive(withDrive(two(), 'a', true), 'b', false)
+    expect(hiddenDocs(w, null)).toEqual(['a'])
+    expect(hiddenDocs(w, 'ann@example.com')).toEqual([])
+    w = claimOwners(w, 'ann@example.com')
+    expect(w.docs.a.owner).toBe('ann@example.com')
+    expect(w.docs.b.owner).toBeNull()
+    expect(claimOwners(w, 'ann@example.com')).toBe(w)
+    expect(claimOwners(w, null)).toBe(w)
+  })
+
+  it('keeps an owned one hidden for another account, and shows it again to its own, its changes kept', () => {
+    let w = claimOwners(withDrive(two(), 'a', true), 'ann@example.com')
+    w = applyEdit(w, 'Rename', rename('a', 'a1', 'Mine'), 0)
+    expect(isHidden(w.docs.a, 'bob@example.com')).toBe(true)
+    expect(claimOwners(w, 'bob@example.com').docs.a.owner).toBe('ann@example.com')
+    expect(isHidden(w.docs.a, 'ann@example.com')).toBe(false)
+    expect(hasChanges(w.docs.a)).toBe(true)
+  })
+
+  it('remembers whose each one is in the browser', () => {
+    const w = claimOwners(withDrive(two(), 'a', true), 'ann@example.com')
+    const records = w.order.map((id) => docRecord(w.docs[id]))
+    const back = restore({ workspace: JSON.parse(JSON.stringify(workspaceRecord(w))), docs: JSON.parse(JSON.stringify(records)), handles: {} }, 'g2', ids())
+    expect(back.docs.a.owner).toBe('ann@example.com')
+    expect(back.docs.b.owner).toBeNull()
+    expect(hiddenDocs(back, 'bob@example.com')).toEqual(['a'])
   })
 })
 

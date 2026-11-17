@@ -1,7 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
 import { followRename, href, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
-import { newId, type StudyOptions, type ThemeId } from './model'
+import { emptyLibrary, newId, type StudyOptions, type ThemeId } from './model'
 import { useWorkspace, type DocId } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
@@ -355,6 +355,10 @@ export function App() {
   const wbDocs: Record<string, WorkbenchDoc> = Object.fromEntries(
     ws.docs.map((d) => [d.id, { name: d.name, dirty: d.dirty, library: ws.doc(d.id).library }]),
   )
+  // A hidden file's tabs say only that (asked for: nothing of the user's own Drive files shows signed out).
+  for (const t of Object.values(ws.layout.tabs)) {
+    if (t.data.kind === 'doc' && ws.isHidden(t.data.doc)) wbDocs[t.data.doc] = { name: 'Hidden file', dirty: false, library: emptyLibrary() }
+  }
   // A pane's breadcrumbs: the file (its home, under the file's name as it is now), then the course and quiz the tab's
   // page names, followed by id through a rename (as the page is: the tab's route takes the new name only once the
   // typing pauses). A page that is gone shows the file alone while the pane moves on. None for a study session or
@@ -362,6 +366,7 @@ export function App() {
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
     if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
+    if (ws.isHidden(tab.data.doc)) return [{ label: 'Hidden file', icon: 'drive' }]
     const r = tab.data.route
     if (r.name === 'study') return []
     const name = wbDocs[tab.data.doc].name
@@ -523,6 +528,7 @@ export function App() {
                 elsewhere={popped.reduce((n, w) => n + w.tabs.length, 0)}
                 onShowElsewhere={() => popups[popped[popped.length - 1]?.win]?.focus()}
                 onDockAll={() => popped.forEach((w) => dock(w.win))}
+                onWhatsNew={(background) => ws.showAppPage('changelog', groupId, background)}
               />
             )}
           />

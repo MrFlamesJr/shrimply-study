@@ -196,6 +196,13 @@
 .wb-empty-elsewhere button.link {
   text-decoration-color: currentColor;
 }
+/* What's new (asked for: here, not on home), last: the info box read left-aligned, no wider than a page's column;
+   minimized, its chip stays centered. */
+.wb-empty > .info-box {
+  max-width: min(100%, var(--content-w));
+  margin-top: var(--space-5);
+  text-align: left;
+}
 @container pane (max-width: 359px) {
   .wb-empty-mark svg {
     width: 80px;

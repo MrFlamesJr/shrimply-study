@@ -23,7 +23,8 @@ type Props = {
   ensureDoc: () => LibraryApi
   openLibrary: (load: () => Promise<Library>, name: string) => Promise<unknown>
   newDoc: () => void
-  signOut: () => void
+  /** Asks first when the user's own Drive files are open; false when it did not sign out. */
+  signOut: () => Promise<boolean>
   notify: Notify
   debugBar: boolean
   setDebugBar: (on: boolean) => void
@@ -42,9 +43,9 @@ export function DebugScreen({ lib, ensureDoc, openLibrary, newDoc, signOut, noti
   // Signed out too, as a new visit starts signed out (this tab's sign-in only; Google keeps the app's permission, as
   // it would for a new browser). A reload also resets what only lasts the session (sidebar, collapsed groups, debug
   // bar). Replaced, not assigned, so home isn't shown before the reload.
-  const resetVisit = () => {
+  const resetVisit = async () => {
+    if (!(await signOut())) return
     resetPrefs()
-    signOut()
     history.replaceState(null, '', href({ name: 'home' }))
     location.reload()
   }

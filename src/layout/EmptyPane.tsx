@@ -1,5 +1,10 @@
+import { useState, type MouseEvent } from 'react'
 import { comboLabel, isMac } from '../kit/shortcuts'
-import { BrowserIcon, CloudIcon, FileIcon, FolderIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
+import { href } from '../route'
+import { BrowserIcon, CloudIcon, FileIcon, FolderIcon, OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
+import { InfoBox } from '../components/InfoBox'
+import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
+import { RELEASES } from '../releaseNotes'
 import { Shortcut } from '../components/Shortcut'
 import type { DocMeta } from '../state/useWorkspace'
 import { elsewhereText } from '../logic/workbenchActions'
@@ -16,6 +21,8 @@ type Props = {
   elsewhere: number
   onShowElsewhere(): void
   onDockAll(): void
+  /** Opens the What's new tab (`background`: a Ctrl or middle click, without showing it). */
+  onWhatsNew(background: boolean): void
 }
 
 const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
@@ -23,10 +30,17 @@ const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
 /**
  * A group with no tab: a calm page in the style of the empty sidebar, a large faded shrimp (a watermark, not text to
  * read), "No tab open" as a quiet title, then what can go here: the Explorer, a new or opened file, and each open
- * file's home; and how many tabs are in popped-out windows, with ways to them.
+ * file's home; how many tabs are in popped-out windows, with ways to them; then What's new (asked for: here, no
+ * longer on home), the newest release's notes in a box that minimizes to its title, with the way to its tab.
  */
-export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, elsewhere, onShowElsewhere, onDockAll }: Props) {
+export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, elsewhere, onShowElsewhere, onDockAll, onWhatsNew }: Props) {
   const mac = isMac(navigator.platform)
+  const [notesOpen, setNotesOpen] = useState(true)
+  const openNews = (e: MouseEvent, background: boolean) => {
+    if (e.shiftKey || e.altKey) return
+    e.preventDefault()
+    onWhatsNew(background)
+  }
   return (
     <div className="wb-empty">
       <div className="wb-empty-mark">
@@ -78,6 +92,20 @@ export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, 
           </ul>
         </section>
       )}
+      <InfoBox title="What's new" note={`[${RELEASES[0].name}] · ${releaseDate(RELEASES[0].date)}`} open={notesOpen} onToggle={setNotesOpen}>
+        <ReleaseNotes notes={RELEASES[0].notes} />
+        <p className="all-changes">
+          <a
+            className="open-link"
+            href={href({ name: 'changelog' })}
+            title="Every release's notes, in a tab of their own"
+            onClick={(e) => openNews(e, e.ctrlKey || e.metaKey)}
+            onAuxClick={(e) => e.button === 1 && openNews(e, true)}
+          >
+            Open What's new <OpenIcon />
+          </a>
+        </p>
+      </InfoBox>
     </div>
   )
 }

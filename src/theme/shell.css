@@ -332,12 +332,17 @@
 .sidebar-explorer .shortcut {
   margin-left: auto;
 }
-/* What's new, a small link under the Explorer (the shared .open-link), its text in line with the Explorer's icon. */
-.sidebar-news {
-  flex-shrink: 0;
-  align-self: flex-start;
-  margin: calc(-1 * var(--space-1)) var(--space-4) var(--space-2);
-  padding: var(--space-1);
+/* Under the open files: how many of the user's own Drive files are hidden while signed out, then Sign in, underlined
+   at rest as it sits in a line of text. */
+.hidden-files {
+  margin: var(--space-1) var(--space-5) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+.hidden-files button.link {
+  margin-left: var(--space-1);
+  padding: 0;
+  text-decoration-color: currentColor;
 }
 .sidebar-label {
   padding: var(--space-2) var(--space-5) var(--space-1);
@@ -423,6 +428,15 @@
 }
 .sidebar-foot button {
   width: 100%;
+}
+/* What's new, a small link right above the Theme row (the shared .open-link), its text in line with "Theme". */
+.sidebar-foot .sidebar-news {
+  width: auto;
+  margin: var(--space-3) 0 0 var(--space-2);
+  padding: var(--space-1);
+}
+.sidebar-news + .theme-pick {
+  margin-top: var(--space-1);
 }
 /* Theme picker under "+ New course": its name on the left, the quiet select on the right. */
 .theme-pick {

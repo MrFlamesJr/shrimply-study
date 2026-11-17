@@ -171,6 +171,8 @@ let pending: { resolve(token: string): void; reject(err: Error): void } | undefi
 export const signedIn = () => !!account || fresh(token)
 /** A token that works right now, without asking Google (a popup) for a new one. */
 export const hasFreshToken = () => fresh(token)
+/** The account this tab is signed in with, once known; null signed out (or before Google said which it is). */
+export const signedInAs = (): string | null => account ?? null
 
 /** The signed-in user's access token. Asks Google for one (a popup) when there is none or it ran out. */
 export async function signIn(): Promise<string> {

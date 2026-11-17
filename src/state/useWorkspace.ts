@@ -16,6 +16,7 @@ import { comboLabel, isMac } from '../kit/shortcuts'
 import { redoLabel, undoLabel } from '../kit/history'
 import type { GroupId, Layout, TabId, WindowId } from '../kit/layout'
 import * as W from './workspace'
+import { hiddenNote, saveAllThenSignOut } from '../logic/signOut'
 import type { AppPage, Clipboard, DocId, DocTab, Explorer, TabData } from './workspace'
 export type { DocId, DocTab, DriveFile, DriveSource, FileRef, TabData }
 
@@ -46,8 +47,11 @@ export type DriveApi = {
    * signed out, as nobody can tell then) a save is a copy (`saveCopy`), asked for.
    */
   savesInto: boolean
-  /** Signs out in this tab only. */
-  signOut(): void
+  /**
+   * Signs out in this tab only. With the user's own Drive files open it asks first: save and close them, or keep them
+   * hidden until that account signs in again (never discarded). Resolves false when it did not sign out.
+   */
+  signOut(): Promise<boolean>
   /** The signed-in account's email address. */
   account(): Promise<string | null>
   /** Loads Google's sign-in script ahead of a click, so the popup opens at once. */
@@ -159,10 +163,17 @@ export type DocMeta = { id: DocId; name: string; where: 'device' | 'drive' | 'br
 export type WorkspaceApi = {
   /** False until the browser backup has been read (App renders nothing before). */
   ready: boolean
-  /** The open documents, in the sidebar's order. */
+  /** The open documents, in the sidebar's order; never a hidden one. */
   docs: DocMeta[]
-  /** The active file: the active tab's, else the file of the tab active last; null when no tab shows one. */
+  /** The active file: the active tab's, else the file of the tab active last; null when no tab shows one (or it is hidden). */
   active: DocId | null
+  /**
+   * How many open documents are hidden: the user's own Drive files while this tab is signed out, or signed in with
+   * another account (asked for). Kept as they are, unsaved changes too; they show again once that account signs in.
+   */
+  hiddenDocs: number
+  /** Whether a document is hidden (its tabs show a note in place of its pages). */
+  isHidden(id: DocId): boolean
   /** One document's API, the same object until that document (or the sign-in) changes. */
   doc(id: DocId): LibraryApi
   layout: Layout<TabData>
@@ -298,9 +309,21 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   // This tab's Google sign-in, as state, so what the page says follows signing in and out.
   const [signed, setSigned] = useState(google.signedIn)
   const signedRef = useRef(signed)
+  // Its account, once known (null signed out, or before Google said): the user's own Drive files of any other account
+  // (of any, signed out) are hidden (W.isHidden).
+  const [who, setWho] = useState(google.signedInAs)
+  const whoRef = useRef(who)
+  const setWhoNow = (account: string | null) => {
+    whoRef.current = account
+    setWho(account)
+  }
   const setSignedNow = (on: boolean) => {
     signedRef.current = on
     setSigned(on)
+    const known = on ? google.signedInAs() : null
+    setWhoNow(known)
+    // Signed in on the way (a save): which account, asked without a popup.
+    if (on && !known && google.hasFreshToken()) void google.accountEmail().then((a) => setWhoNow(a || null), () => undefined)
   }
   // The latest callbacks from App (they are new functions on every render).
   const deps = useRef({ notify, ask, askChoice })
@@ -397,6 +420,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       ref.current = next
       setWs(next)
       setReady(true)
+      // A tab that starts signed out (a new one) hides the user's own Drive files, and says so.
+      const hidden = signedRef.current ? 0 : W.hiddenDocs(next, null).length
+      if (hidden) say('info', signedOutNote(hidden))
       if (!read) {
         say('warning', 'The courses kept in this browser could not be read, so no files are open. Open your .shrimp file or Google Drive library again.')
         return
@@ -527,9 +553,31 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   // ---- Google Drive, per document (the sign-in is this browser tab's) ----
 
-  // A closed sign-in popup is nothing to report.
+  // Every own Drive file shown to the signed-in account, with no owner yet, is that account's (W.claimOwners).
+  useEffect(() => {
+    if (who) update((w) => W.claimOwners(w, who))
+  }, [ws, who])
+
+  // A closed sign-in popup is nothing to report. Google refusing the sign-in itself (access taken back) signs out.
   const report = (err: unknown, lead = '') => {
+    if (err instanceof google.DriveError && err.status === 401 && signedRef.current) return lostSignIn()
     if (!(err instanceof google.SignInClosed)) say('error', `${lead}${err instanceof Error ? err.message : ''}`.trim())
+  }
+  const endSignIn = () => {
+    google.signOut()
+    setSignedNow(false)
+  }
+  // Signed out without the user asking (a new tab, or Google refused the sign-in): the user's own Drive files hide,
+  // and nothing is lost, which it says once. The hourly renewal is no sign-out: the next action renews it.
+  const signedOutNote = (hidden: number) => `Signed out of Google. ${hiddenNote(hidden, false)} Nothing was lost.`
+  const lostSignIn = () => {
+    endSignIn()
+    const hidden = W.hiddenDocs(ref.current, null).length
+    say('info', hidden ? signedOutNote(hidden) : 'Signed out of Google.')
+  }
+  const hiddenNow = (id: DocId) => {
+    const d = cur(id)
+    return !!d && W.isHidden(d, whoRef.current)
   }
   // What Google last said about a document's Drive file: whether it is the user's own (shows the top row's Save to
   // Drive), and its name (renamed in Drive, it keeps its id).
@@ -732,9 +780,34 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     }
   }
 
-  const signOut = () => {
-    google.signOut()
-    setSignedNow(false)
+  // Signing out (asked for): the user's own Drive files open here are saved and closed first, or kept, hidden until
+  // that account signs in again; nothing is ever discarded. A failed save keeps everything and stays signed in.
+  const signOut = async () => {
+    const own = ref.current.order.map((id) => ref.current.docs[id]).filter((d) => d.drive?.mine && !W.isHidden(d, whoRef.current))
+    if (own.length > 0) {
+      const list = own.map((d) => `${W.docName(d)}${W.hasChanges(d) ? ' (unsaved changes)' : ''}`).join('\n\n')
+      const choice = await deps.current.askChoice<'save' | 'keep'>(
+        `${list}\n\nSave all saves their changes to Google Drive, then closes them. Without saving, they stay in this browser, hidden until you sign in again with this account: nothing is lost.`,
+        [
+          { label: 'Save all and sign out', value: 'save', primary: true },
+          { label: 'Sign out without saving', value: 'keep' },
+        ],
+        { title: 'Save and close your Google Drive files before signing out?' },
+      )
+      if (choice === null) return false
+      if (choice === 'save') {
+        const failed = await saveAllThenSignOut(
+          own.map((d) => ({ id: d.id, dirty: W.hasChanges(d) })),
+          { save: (id) => once(id, () => driveSave(id)), close: (ids) => update((w) => ids.reduce(W.closeDoc, w)), signOut: endSignIn },
+        )
+        if (failed.length === 0) return true
+        const names = failed.flatMap((id) => (cur(id) ? [`"${W.docName(cur(id)!)}"`] : [])).join(', ')
+        say('error', `Still signed in: ${names} could not be saved, so nothing was closed.`)
+        return false
+      }
+    }
+    endSignIn()
+    return true
   }
   const account = async () => {
     try {
@@ -747,9 +820,12 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   const signIn = async () => {
     try {
       await google.signIn()
+      // Which account, so its own files show (another account's stay hidden): asked once its token is here.
+      const known = google.signedInAs() ?? ((await google.accountEmail().catch(() => '')) || null)
       setSignedNow(true)
-      // Whose each open Drive file is, now that Google can say (the sidebar shows it).
-      for (const d of Object.values(ref.current.docs)) if (d.drive) void canSave(d.id)
+      if (known) setWhoNow(known)
+      // Whose each open Drive file is, now that Google can say (the sidebar shows it); never a hidden one.
+      for (const d of Object.values(ref.current.docs)) if (d.drive && !W.isHidden(d, whoRef.current)) void canSave(d.id)
       return true
     } catch (err) {
       report(err)
@@ -1008,10 +1084,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     return last
   }
 
+  // Hidden files wait for their account (saving one would need its sign-in).
   const saveAll = async () => {
     for (const id of ref.current.order) {
       const d = cur(id)
-      if (d && W.hasChanges(d)) await saveDoc(id)
+      if (d && W.hasChanges(d) && !hiddenNow(id)) await saveDoc(id)
     }
   }
 
@@ -1025,33 +1102,47 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const names = ids.flatMap((id) => (cur(id) ? [`"${W.docName(cur(id)!)}"`] : []))
     if (names.length) say('info', `${verb} "${entry.label}" in ${names.join(', ')}.`)
   }
+  // A step that would change a hidden file waits for its account to sign in: a hidden file is never written over.
+  type Entry = { label: string; before: W.Snap }
+  const touchesHidden = (entry: Entry) => Object.keys(entry.before).some(hiddenNow)
+  const waitsForSignIn = (verb: string, entry: Entry) =>
+    say('info', `Sign in to ${verb} "${entry.label}": it changes a Google Drive file that is hidden until you sign in.`)
   const undo = () => {
-    let entry: { label: string; before: W.Snap } | undefined
+    let entry: Entry | undefined
+    let held: Entry | undefined
     update((w) => {
       const step = W.undoEdit(w)
+      if (step && touchesHidden(step.entry)) return ((held = step.entry), w)
       entry = step?.entry
       return step?.workspace ?? w
     })
+    if (held) waitsForSignIn('undo', held)
     if (entry) tell('Undid', entry)
   }
   const redo = () => {
-    let entry: { label: string; before: W.Snap } | undefined
+    let entry: Entry | undefined
+    let held: Entry | undefined
     update((w) => {
       const step = W.redoEdit(w)
+      if (step && touchesHidden(step.entry)) return ((held = step.entry), w)
       entry = step?.entry
       return step?.workspace ?? w
     })
+    if (held) waitsForSignIn('redo', held)
     if (entry) tell('Redid', entry)
   }
   const undoLater = () => {
     const step = W.lastStep(ref.current)
     return () => {
-      let entry: { label: string; before: W.Snap } | undefined
+      let entry: Entry | undefined
+      let held: Entry | undefined
       update((w) => {
         const done = W.undoStep(w, step)
+        if (done && touchesHidden(done.entry)) return ((held = done.entry), w)
         entry = done?.entry
         return done?.workspace ?? w
       })
+      if (held) return waitsForSignIn('undo', held)
       if (entry) tell('Undid', entry)
       else say('info', `Other changes came after this. ${comboLabel('Mod+Z', isMac(navigator.platform))} steps back through them.`)
     }
@@ -1166,6 +1257,10 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       drive: driveFor(d, signed),
     }
   }
+  const shownAddress = W.addressTab(ws)
+  const addressShown = shownAddress && !W.isHidden(ws.docs[shownAddress.data.doc], who) ? shownAddress : null
+  const shownActive = W.activeDoc(ws)
+  const activeShown = shownActive && !W.isHidden(ws.docs[shownActive], who) ? shownActive : null
   const doc = (id: DocId): LibraryApi => {
     const d = cur(id)
     // A document closed meanwhile: an empty one whose actions find nothing to change.
@@ -1179,14 +1274,17 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   return {
     ready,
-    docs: ws.order.map((id) => {
+    docs: ws.order.flatMap((id) => {
       const d = ws.docs[id]
-      return { id, name: W.docName(d), where: W.where(d), dirty: W.hasChanges(d) }
+      return W.isHidden(d, who) ? [] : [{ id, name: W.docName(d), where: W.where(d), dirty: W.hasChanges(d) }]
     }),
-    active: W.activeDoc(ws),
+    active: activeShown,
+    hiddenDocs: W.hiddenDocs(ws, who).length,
+    isHidden: (id) => !!ws.docs[id] && W.isHidden(ws.docs[id], who),
     doc,
     layout: ws.layout,
-    address: W.addressTab(ws),
+    // A hidden file's page never shows in the address bar (its names would).
+    address: addressShown,
     recent: ws.recent,
     activate: (id) => {
       const tab = newId()
@@ -1250,6 +1348,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     cut: (refs) => tryUpdate((w) => W.toClipboard(w, refs, 'cut')),
     paste: (target) => {
       const at = Date.now()
+      // A cut from a file hidden since pastes a copy: the hidden file is never written over.
+      const cb = ref.current.clipboard
+      if (cb?.mode === 'cut' && cb.refs.some((r) => hiddenNow(r.doc))) update((w) => ({ ...w, clipboard: { ...cb, mode: 'copy' } }))
       tryUpdate((w) => W.paste(w, target, newId, at))
     },
     newDoc,
