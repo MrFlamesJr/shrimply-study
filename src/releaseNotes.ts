@@ -6,6 +6,18 @@
 // `date` is the day it went out (merged into main), as YYYY-MM-DD; shown with the name wherever the notes are.
 export const RELEASES: { name: string; date: string; notes: [string, string][] }[] = [
   {
+    name: 'Release-RubberDuck',
+    date: '2026-11-16',
+    notes: [
+      ['Several files at once', 'Open as many .shrimp files as you like; each has its own Save. In Chrome and Edge, Save writes straight back into the file you opened.'],
+      ['Tabs and split view', 'Open pages in tabs, put two side by side or one above the other, and move a pane into its own window.'],
+      ['Explorer', 'Every open file as one tree. Copy, cut, paste or drag courses, quizzes and cards, also from one file to another.'],
+      ['Undo', 'Press Ctrl+Z to take back your last change, in any file.'],
+      ['One answer or all that apply', 'Choose for each choice question whether students pick one answer or select all that apply.'],
+      ['Reorder cards', 'Drag a card by its grip to move it, and add new cards from the top of the list.'],
+    ],
+  },
+  {
     name: 'Release-CrispyBacon',
     date: '2026-11-07',
     notes: [
