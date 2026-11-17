@@ -1,20 +1,33 @@
 /* The Explorer (src/layout/Explorer.tsx): the open files as a tree. The tree itself is the kit's (tree.css); this is
    its head, search and the file rows' extras. Tokens only. */
+/* The container: a quiet see-through well in the theme's corners, a small gap from the pane's edges (so it never touches
+   the tab strip or the sides), the toolbar, tip and tree inside it with a little room. */
 .explorer {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  box-sizing: border-box;
+  height: calc(100% - 2 * var(--space-2));
   min-height: 0;
+  margin: var(--space-2);
+  padding: var(--space-3);
   gap: var(--space-2);
+  background: var(--well);
+  border-radius: var(--radius);
+}
+@media (max-width: 799px) {
+  .explorer {
+    padding: var(--space-2);
+  }
 }
 /* One toolbar: the action icons, then the search filling the rest of the row; under about 320px the search wraps below
    the icons instead of squeezing. It starts right under the pane's tab strip. */
 .explorer-top {
   display: flex;
   flex-wrap: wrap;
-  align-items: center;
+  /* The field keeps its floating label's room above it (--float-room), so the icons line up with the field's bottom,
+     not with the row's middle. */
+  align-items: flex-end;
   gap: var(--space-1) var(--space-2);
-  padding-right: var(--space-2);
 }
 .explorer-head {
   display: flex;
@@ -26,8 +39,6 @@
 .explorer-search {
   flex: 1 1 7.5rem;
   min-width: 0;
-  /* The floating label's room above the field would sit it lower than the icons: pull it up to centre the field. */
-  margin-top: calc(var(--space-1) * -3.5);
 }
 .explorer-tree {
   flex: 1;
@@ -103,7 +114,7 @@
   flex-wrap: wrap;
   align-items: center;
   gap: var(--space-2);
-  padding: 0 var(--space-2);
+  padding: 0 var(--space-1);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
@@ -130,7 +141,7 @@
 /* The tip under the tree. */
 .explorer-tip {
   margin: 0;
-  padding: 0 var(--space-2) var(--space-2);
+  padding: 0 var(--space-1);
   color: var(--text-muted);
   font-size: var(--text-sm);
 }
@@ -169,5 +180,11 @@
     position-anchor: --explorer-info;
     position-area: bottom span-right;
     position-try-fallbacks: flip-block;
+  }
+}
+/* The field's text sits a little above its box's middle on wide screens (smaller touch targets): level the icons with it. */
+@media (min-width: 800px) {
+  .explorer-head {
+    margin-bottom: calc(var(--space-1) / 2);
   }
 }

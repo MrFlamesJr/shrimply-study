@@ -206,10 +206,10 @@ def drive_tests(page, state):
     files = top_level(page)
     sorted_names = ['alpha.shrimp', 'beta.shrimp', 'gamma.shrimp', 'Guide', 'Test library']
     need([f[0] for f in files] == sorted_names, f'open and not open files are sorted together: {files}')
-    need(files[0][1].startswith('Not open') and files[0][2] == 'On Google Drive', f'a library not open says so, and where: {files[0]}')
-    need(drive_row(page, 'alpha').locator('.explorer-chip').inner_text() == 'Not open', 'with a chip')
-    need(files[3][1].startswith('Open, ') and files[3][2] == 'Only in this browser', f'an open file says so, and where: {files[3]}')
-    need(row(page, 'doc', 'Guide').locator('.explorer-chip').count() == 0, 'an open file has no chip')
+    need(files[0][1].startswith('Not open') and files[0][2] == 'On Google Drive', f'a library not open says so in words, and where: {files[0]}')
+    need(drive_row(page, 'alpha').locator('.explorer-chip').count() == 0, 'but shows no chip')
+    need('Open, ' in files[3][1] and files[3][2] == 'Only in this browser', f'an open file says so, and where: {files[3]}')
+    need(row(page, 'doc', 'Guide').locator('.explorer-chip').inner_text() == 'Open', 'an open file has an Open chip')
 
     # Search covers them.
     search = page.locator('.explorer-search textarea')
@@ -244,7 +244,7 @@ def drive_tests(page, state):
     inside = page.locator('.kit-tree .kit-row[data-id^="c:p-beta:"]')
     wait_for(page, lambda: inside.count() >= 1, 'expanding a library not open shows its courses')
     need(page.locator('[role=tab]').count() == tabs and labels(page, 'doc') == docs_before, 'and opens nothing')
-    need('Not open' in drive_row(page, 'beta').locator('.kit-row-desc').inner_text(), 'the library keeps saying it is not open')
+    need('Not open' in drive_row(page, 'beta').locator('.kit-row-desc').inner_text() and drive_row(page, 'beta').locator('.explorer-chip').count() == 0, 'the library keeps saying it is not open, in words only')
     row(page, 'doc', 'Guide').locator('[data-chevron]').click()
     page.wait_for_timeout(300)
     need(page.locator('[role=tab]').count() == tabs, 'expanding an open file opens no tab')
@@ -294,7 +294,7 @@ def drive_tests(page, state):
     need(drive_rows(page) == ['gamma.shrimp'], f'an open library is not listed twice: {drive_rows(page)}')
     files = top_level(page)
     need([f[0] for f in files] == sorted_names, f'it stays in its place: {files}')
-    need(files[0][1].startswith('Open, ') and 'Google Drive' in files[0][2], f'and now says it is open: {files[0]}')
+    need('Open, ' in files[0][1] and 'Google Drive' in files[0][2], f'and now says it is open: {files[0]}')
 
     # Move to bin asks first, then lists again.
     menu(page, drive_row(page, 'gamma'), 'Move to bin')
@@ -341,6 +341,7 @@ def run(page, base):
 
     # The tip, the (i) that explains everything (Esc closes it), and the chevron that reacts like the app's other chevrons.
     need('Right-click anything' in page.locator('.explorer-tip').inner_text(), 'a tip says to right-click')
+    need(page.locator('.explorer-tip').bounding_box()['y'] < page.locator('.kit-tree').bounding_box()['y'], 'above the tree')
     page.get_by_role('button', name='What the Explorer can do').click()
     info = page.locator('.explorer-info')
     wait_for(page, lambda: info.is_visible(), 'the (i) opens the explanation')

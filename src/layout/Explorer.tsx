@@ -83,7 +83,7 @@ const HELP: [string, string][] = [
   ['Rename', 'Press F2 to rename a course or quiz. Names stay unique in their place. On a card, F2 edits it.'],
   ['Delete', 'Delete removes cards at once, with Undo on the message. Quizzes and courses ask first. A file is closed, never deleted.'],
   ['Search', 'Search filters every file, open or not, and keeps the parents of what matches. Esc clears it.'],
-  ['Google Drive', 'Sign in with Google to list your libraries among the files. The ones that are not open say "Not open". Refresh looks again, "Choose files in Google Drive" adds files the app can not see yet, and Move to bin sends one to the bin in your Drive.'],
+  ['Google Drive', 'Sign in with Google to list your libraries among the files. Open files carry an "Open" chip, the others are libraries you can open. Refresh looks again, "Choose files in Google Drive" adds files the app can not see yet, and Move to bin sends one to the bin in your Drive.'],
   ['Undo', 'Ctrl+Z undoes the last change in any file, Ctrl+Shift+Z does it again.'],
   ['Unsaved changes', 'Every change marks its file as unsaved, with a dot, until you save it.'],
 ]
@@ -322,7 +322,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
     return (
       <>
         {st.dirty && <span className="file-dot" title="Unsaved changes" />}
-        {!st.open && <span className="explorer-chip">Not open</span>}
+        {st.open && <span className="explorer-chip">Open</span>}
         <span className="explorer-sr">{st.words}</span>
       </>
     )
@@ -398,6 +398,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
           <span>to see your Google Drive libraries</span>
         </div>
       )}
+      <p className="explorer-tip">Right-click anything to see what you can do with it. On a touch screen, press and hold.</p>
       <div className="explorer-tree">
         <TreeView
           label="Open files"
@@ -467,7 +468,6 @@ export function Explorer(p: ExplorerProps): ReactNode {
           )}
         </div>
       )}
-      <p className="explorer-tip">Right-click anything to see what you can do with it. On a touch screen, press and hold.</p>
       {moving && (
         <Modal title={`Move ${kindCount(moving[0].kind, moving.length)} to`} narrow onClose={() => setMoving(null)}>
           {destinations.length === 0 ? (
