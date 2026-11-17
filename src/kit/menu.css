@@ -41,9 +41,9 @@
 .kit-menu-check, .kit-menu-arrow { display: inline-flex; width: 16px; height: 16px; }
 .kit-menu-check { position: absolute; left: var(--kit-space-3); top: calc(50% - 8px); }
 .kit-menu-shortcut, .kit-menu-arrow { flex: none; }
-.kit-menu-gap { height: var(--kit-space-2); }
-/* A separator is space between groups, never at an end or twice in a row. */
-.kit-menu-gap:first-child, .kit-menu-gap:last-child, .kit-menu-gap + .kit-menu-gap { display: none; }
+/* Items keep one even rhythm (asked for): a separator in the data adds no space, as uneven gaps read as
+   inconsistent spacing and the app draws no divider lines. The order of the items still groups them. */
+.kit-menu-gap { display: none; }
 @media (pointer: coarse) {
   .kit-menu-item { min-height: var(--kit-tap); }
 }
