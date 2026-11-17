@@ -72,5 +72,6 @@
 }
 .explorer-dest button {
   width: 100%;
+  justify-content: flex-start;
   text-align: left;
 }

@@ -30,7 +30,9 @@
 }
 .kit-menu-item:focus-visible { outline: var(--kit-line-thick) solid var(--kit-focus); outline-offset: -2px; }
 .kit-menu-item[aria-disabled="true"] { opacity: var(--kit-dim); }
-.kit-menu-item.is-danger { color: var(--kit-danger); }
+.kit-menu-item.is-danger { color: var(--kit-danger-ink); }
+.kit-menu-item.is-danger:hover:not([aria-disabled="true"]),
+.kit-menu-item.is-danger:focus:not([aria-disabled="true"]) { background: var(--kit-ground); }
 .kit-menu-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kit-menu-shortcut, .kit-menu-arrow { color: var(--kit-muted); font-size: var(--kit-text-xs); white-space: nowrap; }
 .kit-menu-check, .kit-menu-arrow { display: inline-flex; width: 16px; height: 16px; }

@@ -248,6 +248,8 @@
   --kit-accent-line: var(--accent-line);
   --kit-focus: var(--focus);
   --kit-danger: var(--danger);
+  /* A danger item's text: the danger color eased toward the text, so it keeps 4.5:1 on the popup in every theme. */
+  --kit-danger-ink: color-mix(in oklch, var(--danger) 62%, var(--text));
   --kit-invalid: var(--bad);
   --kit-radius: var(--radius);
   --kit-font: var(--font-body);

@@ -183,4 +183,15 @@
   .pane-head {
     height: var(--tap);
   }
+  /* 44px touch targets: the kit's own rules key on a coarse pointer, a narrow window gets them too. */
+  .wb-group .kit-tab {
+    height: var(--tap);
+  }
+  .wb-group .kit-tab-close {
+    width: var(--tap);
+    margin-right: calc(-1 * var(--space-2));
+  }
+  .kit-menu-item {
+    min-height: var(--tap);
+  }
 }
