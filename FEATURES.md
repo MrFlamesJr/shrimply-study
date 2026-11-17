@@ -114,13 +114,13 @@ Ranked backlog. The ranking is by how much each feature helps exam studying (act
 | Choice questions have a mode, picked under the question in the editor: One answer (any correct answer counts, as in Kahoot) or All that apply (check boxes, then Check); study says "Select one answer" or "Select all that apply"; a new question is One answer with one correct and two wrong answers. The file format is version 3 (`"mode"`); older files open with the mode they studied with before (several correct answers: All that apply) | 8 | Kahoot, Google Forms |
 | Confetti on the results: a light burst when a round ends, a bigger one from both bottom corners with a second wave on a perfect score, in the theme's colors; it never blocks a click and is off with reduced motion | 8 | Duolingo, Kahoot |
 | Tests that open every sample file and every released format version on each change, and end-to-end tests in a real browser (`python -I e2e/run.py`) | 8 | |
+| Several files open at once: opening a file, the guide, a Google Drive file or a shared link adds it beside the others instead of replacing your courses (nothing to confirm); the sidebar lists the open files, each with its name, where it is, an unsaved dot, and Save, Download and Close; the course tree is the active file's; closing a file with changes asks Save, Don't save or Cancel; Ctrl+S saves the active file, and in Chrome and Edge Save writes back into the .shrimp file you opened (asking first if it changed on disk; elsewhere it downloads under its name), while Download is always a separate copy; one undo history across every file (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y outside text fields; an undo back to the saved state clears the unsaved dot); every open file, its unsaved changes and its page come back after a reload; your existing library opens as the first file | 9 | VS Code, Google Docs |
 
 ## Todo (ranked)
 
 | # | Feature | Seen in | Notes |
 |---|---|---|---|
 | 1 | Practice test: pick count and question types, score, review mistakes | Quizlet Test | Reuses `buildRound` |
-| 2 | Save back into the opened file: Open keeps the file's handle in Chrome and Edge, Download and Ctrl+S write into it without asking again; other browsers download under the opened name | Google Docs, VS Code | `fileStorage.ts`. The name is already kept (`fileName`, shown in the sidebar) and suggested by Download; today the save dialog still asks each time |
 | 3 | Star cards, study starred only | Quizlet | Adds `starred` to `Card` |
 | 4 | Progress per card and quiz (new, learning, mastered), weakest cards | Quizlet, Kahoot reports | Stores results in the library |
 | 5 | Study several quizzes or a whole course at once | Anki, Quizlet folders | Mixing topics helps exams |
