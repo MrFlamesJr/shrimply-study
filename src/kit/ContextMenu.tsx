@@ -168,7 +168,7 @@ function Menu({ items, place, focusFirst, onDismiss }: {
 
   const subItem = sub ? items[sub.index] : null
   return (
-    <div ref={el} popover="auto" role="menu" className="kit-menu" style={pos} onKeyDown={onKeyDown}
+    <div ref={el} popover="auto" role="menu" className={'kit-menu' + (items.some((i) => isItem(i) && i.checked !== undefined) ? ' has-check' : '')} style={pos} onKeyDown={onKeyDown}
       onPointerDown={() => { pressedIn.current = true }}>
       {items.map((item, i) => {
         if (!isItem(item)) return <div key={i} className="kit-menu-gap" role="separator" />
