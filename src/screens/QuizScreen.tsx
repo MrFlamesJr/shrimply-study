@@ -6,6 +6,7 @@ import { canChoose, usableCards } from '../logic/buildRound'
 import { missingPart } from '../logic/cardStatus'
 import { plural } from '../logic/plural'
 import { CardDialog } from '../components/CardDialog'
+import type { Notify } from '../components/Toasts'
 import { PageHead } from '../components/Page'
 import { PencilIcon, PlayIcon } from '../components/Icons'
 import { QuizCardList } from './quiz/QuizCardList'
@@ -21,9 +22,13 @@ type Props = {
   tipsOpen: boolean
   setTipsOpen: (open: boolean) => void
   nav?: Nav
+  /** Says things in a toast (a card deleted); without it nothing is said. */
+  notify?: Notify
+  /** Puts back what was last changed (the workspace's undo); the deleted-card toast's Undo button. Without it the toast names Ctrl+Z. */
+  undo?: () => void
 }
 
-export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav }: Props) {
+export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav, notify, undo }: Props) {
   // The id of the card open in the edit dialog.
   const [editing, setEditing] = useState<string | null>(null)
   const found = lib.findQuiz(quizId)
@@ -41,6 +46,8 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
   const editingCard = quiz.cards.find((c) => c.id === editing)
   const addCards = () => goToNew(`add:${quiz.id}`, { name: 'edit', course: course.name, quiz: quiz.name })
   const deleteCard = (id: string) => {
+    const number = quiz.cards.findIndex((c) => c.id === id) + 1
+    notify?.('info', undo ? `Deleted card #${number}.` : `Deleted card #${number}. Ctrl+Z puts it back.`, undefined, undo && { label: 'Undo', run: undo })
     lib.setCards(quiz.id, quiz.cards.filter((c) => c.id !== id), quiz.groups)
     setEditing(null)
   }
