@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from 'react'
-import { edgeZone, readDrag, type DragPayload } from './dnd'
+import { edgeZone, endDrag, readDrag, type DragPayload } from './dnd'
 import type { GroupId, Node as Tree } from './layout'
 import './split.css'
 
@@ -108,6 +108,7 @@ function Split({ node, path, render, onResize, min }: BranchProps & { node: Extr
             <div
               role="separator"
               tabIndex={0}
+              aria-label="Resize panes"
               aria-orientation={row ? 'vertical' : 'horizontal'}
               aria-valuemin={0}
               aria-valuemax={100}
@@ -155,8 +156,9 @@ export function DropZones(p: { accept(payload: DragPayload): boolean; onDrop(pay
       }
     }
     const leave = (e: DragEvent) => {
-      const to = e.relatedTarget as Node | null
-      if (!to || !host.contains(to)) setZone(null)
+      // Decided by the pointer, as Safari gives no relatedTarget.
+      const r = host.getBoundingClientRect()
+      if (e.clientX < r.left || e.clientX >= r.right || e.clientY < r.top || e.clientY >= r.bottom) setZone(null)
     }
     const drop = (e: DragEvent) => {
       const z = where(e)
@@ -164,6 +166,7 @@ export function DropZones(p: { accept(payload: DragPayload): boolean; onDrop(pay
       setZone(null)
       if (z && payload) {
         e.preventDefault()
+        endDrag()
         latest.current.onDrop(payload, z)
       }
     }

@@ -40,6 +40,8 @@ export function TabStrip(p: Props) {
     const tabs = Array.from(scroll.current?.querySelectorAll<HTMLElement>('[role="tab"]') ?? [])
     tabs.find((t) => t.dataset.tab === id)?.focus()
   }
+  // The focused tab and its place: when it closes with the focus in the strip, the neighbour takes the focus.
+  const lastFocus = useRef<{ id: string; index: number } | null>(null)
   const rovingId = p.active !== null && p.tabs.some((t) => t.id === p.active) ? p.active : p.tabs[0]?.id
 
   // The wheel scrolls sideways (a native listener: React's wheel is passive).
@@ -63,6 +65,17 @@ export function TabStrip(p: Props) {
     if (tab.offsetLeft < el.scrollLeft) el.scrollLeft = tab.offsetLeft
     else if (tab.offsetLeft + tab.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollLeft = tab.offsetLeft + tab.offsetWidth - el.clientWidth
   }, [p.active])
+
+  useEffect(() => {
+    const el = scroll.current
+    const last = lastFocus.current
+    if (!el || !last || p.tabs.some((t) => t.id === last.id)) return
+    lastFocus.current = null
+    const active = el.ownerDocument.activeElement
+    if (active && active.nodeName !== 'BODY' && active.nodeName !== 'HTML') return
+    const next = p.tabs[Math.min(last.index, p.tabs.length - 1)]
+    if (next) focusTab(next.id)
+  }, [p.tabs])
 
   const keyDown = (e: KeyboardEvent<HTMLElement>, id: string, i: number) => {
     const go = (k: number) => {
@@ -124,6 +137,7 @@ export function TabStrip(p: Props) {
     setDrop(null)
     if (!payload || !at || !p.canDrop(payload)) return
     e.preventDefault()
+    endDrag()
     const own = payload.kind === p.dragKind && payload.ids.length === 1 && p.tabs.some((t) => t.id === payload.ids[0])
     if (own) p.onMove(payload.ids[0], at.index)
     else p.onDrop(payload, at.index)
@@ -138,8 +152,9 @@ export function TabStrip(p: Props) {
         aria-label={p.group}
         onDragOver={dragOver}
         onDragLeave={(e) => {
-          const to = e.relatedTarget as Node | null
-          if (!to || !e.currentTarget.contains(to)) setDrop(null)
+          // Decided by the pointer, as Safari gives no relatedTarget.
+          const r = e.currentTarget.getBoundingClientRect()
+          if (e.clientX < r.left || e.clientX >= r.right || e.clientY < r.top || e.clientY >= r.bottom) setDrop(null)
         }}
         onDrop={dropped}
       >
@@ -150,9 +165,12 @@ export function TabStrip(p: Props) {
             data-tab={t.id}
             aria-selected={t.id === p.active}
             tabIndex={t.id === rovingId ? 0 : -1}
+            aria-label={t.dirty ? `${t.title}, unsaved` : t.title}
             title={t.tooltip}
             className={`kit-tab${t.id === p.active ? ' is-active' : ''}${t.dirty ? ' is-dirty' : ''}`}
             draggable
+            onFocus={() => (lastFocus.current = { id: t.id, index: i })}
+            onBlur={(e) => e.currentTarget.isConnected && (lastFocus.current = null)}
             onClick={() => !hold.fired && p.onActivate(t.id)}
             onPointerDown={(e) => {
               pressed.current = t.id
@@ -184,7 +202,7 @@ export function TabStrip(p: Props) {
               type="button"
               className="kit-tab-close"
               tabIndex={-1}
-              aria-label={`Close ${t.title}`}
+              aria-hidden="true"
               title={`Close ${t.title}`}
               draggable={false}
               onClick={(e) => {
