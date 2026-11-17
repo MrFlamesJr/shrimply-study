@@ -6,7 +6,7 @@ import { MoreIcon, SplitIcon } from '../components/Icons'
 import { ownWindow } from '../components/ownWindow'
 import { openMenu, type MenuItem } from '../kit/ContextMenu'
 import type { DragPayload } from '../kit/dnd'
-import { MAIN, allGroups, groupsIn, windowOf, type Group, type Layout, type Tab, type WindowId } from '../kit/layout'
+import { MAIN, allGroups, groupsIn, windowOf, type Group, type Layout, type Node, type Tab, type WindowId } from '../kit/layout'
 import { Popout } from '../kit/Popout'
 import { isEditable, isMac, matches } from '../kit/shortcuts'
 import { DropZones, SplitView } from '../kit/SplitView'
@@ -131,15 +131,20 @@ export function Workbench(p: WorkbenchProps) {
 // One window's tree. Narrow, only the shown group has room (workbench.css): the others stay mounted, hidden.
 type NodeFor = (key: string) => HTMLElement
 
+// The group at a window's top-left corner: the first child all the way down.
+const cornerOf = (n: Node): string => (n.kind === 'group' ? n.id : cornerOf(n.children[0]))
+
 function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nodeFor: NodeFor }) {
   const { layout } = p
   const ids = groupsIn(layout, win)
   const shown = ids.includes(layout.activeGroup) ? layout.activeGroup : ids[0]
+  // In the main window that group's tab strip makes room for the app's corner while the sidebar is closed (CSS).
+  const corner = win === MAIN ? cornerOf(layout.windows[win].root) : null
   return (
     <div className="wb-win">
       <SplitView
         root={layout.windows[win].root}
-        renderGroup={(id) => <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} nodeFor={nodeFor} />}
+        renderGroup={(id) => <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} corner={id === corner} nodeFor={nodeFor} />}
         onResize={(path, sizes) => p.on.resize(win, path, sizes)}
       />
     </div>
@@ -148,7 +153,7 @@ function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nod
 
 type Size = { width: number; height: number }
 
-function GroupView({ p, win, group: g, shown, nodeFor }: { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean; nodeFor: NodeFor }) {
+function GroupView({ p, win, group: g, shown, corner, nodeFor }: { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean; corner: boolean; nodeFor: NodeFor }) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -255,7 +260,7 @@ function GroupView({ p, win, group: g, shown, nodeFor }: { p: WorkbenchProps; wi
     <div
       ref={root}
       data-group={g.id}
-      className={`wb-group${shown ? ' is-shown' : ''}${focused ? ' is-focused' : ''}`}
+      className={`wb-group${shown ? ' is-shown' : ''}${focused ? ' is-focused' : ''}${corner ? ' is-corner' : ''}`}
       onPointerDownCapture={() => !focused && on.activateGroup(g.id)}
       onFocus={() => !focused && on.activateGroup(g.id)}
       onKeyDown={keyDown}
@@ -295,8 +300,9 @@ function GroupView({ p, win, group: g, shown, nodeFor }: { p: WorkbenchProps; wi
         }
       />
       <div className="wb-pane">
+        {/* The pane's top, above what scrolls (so nothing passes under it). */}
+        {activeTab && crumbs.length > 0 && <PaneHead crumbs={crumbs} onCrumb={(route) => p.onCrumb(activeTab.id, route)} />}
         <div className="pane-body" ref={setBody}>
-          {activeTab && crumbs.length > 0 && <PaneHead crumbs={crumbs} onCrumb={(route) => p.onCrumb(activeTab.id, route)} />}
           {tabs
             .filter((t) => keep.has(t.id))
             .map((t) => (

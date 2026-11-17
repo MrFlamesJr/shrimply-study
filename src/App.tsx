@@ -15,7 +15,6 @@ import { loadTipsOpen, saveTipsOpen } from './storage/tipsPref'
 import { loadStudyOptions, saveStudyOptions } from './storage/studyPref'
 import { loadSeenRelease, saveSeenRelease } from './storage/welcomePref'
 import { RELEASES } from './releaseNotes'
-import { TopBar } from './layout/TopBar'
 import { Sidebar, useSidebarOpen } from './layout/Sidebar'
 import { Workbench } from './layout/Workbench'
 import { PaneScreen, type PaneShared } from './layout/PaneScreen'
@@ -435,7 +434,6 @@ export function App() {
             if (ws.active) ws.openPlace(ws.active, route, newTab ? { newTab: true, background: true } : undefined)
           }}
         />
-        <TopBar openFile={() => void ws.openFile()} loadLabel={ws.loadLabel} loadHint={ws.loadHint} onDrive={() => setDriveOpen(true)} />
         {hashRoute.name === 'debug' && (
           <main className="page own-page">
             <DebugScreen

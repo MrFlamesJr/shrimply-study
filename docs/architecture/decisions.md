@@ -114,3 +114,9 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
     rename at once (by id, as the page is); none over study or the Explorer (their own heads, the same height);
     "All releases" and "Welcome" for those tabs. A narrow pane (under 480px of its own width) shows "‹ parent". A
     debug page never shows in a pane (it takes the page cell); a #/_drive/ link opens its file's tab on home.
+- No top row (asked for, 2026-11-16): the workbench starts at the top of the window. The corner is as tall as a tab
+  strip (36px, 44px below 800px); closed, and on phones, it is just the shrimp and the toggle (no brand name), and
+  the main window's top-left tab strip (`is-corner`) makes room for it, gliding with the workbench when the sidebar
+  slides. Open file, Google Drive and Save all live only on the Files heading (the drawer's too). The pane head is a
+  plain 32px row above the pane's scroller (no glass, no fade); its pad and the page's come from the pane's own width
+  (cqw), so the crumbs line up with the page in any pane. The app's own pages leave room for the corner at the top.

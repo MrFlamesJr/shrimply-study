@@ -3,8 +3,6 @@
    tone and each pane the ground. The kit's --kit-* variables (tokens.css) give the tab strip, sashes and drop zones
    their colors. */
 .workbench {
-  /* The page's pad is set again here so a pane's crumbs line up with its page, as the top row's do in the shell. */
-  --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
   display: flex;
   flex: 1;
   min-width: 0;
@@ -60,22 +58,38 @@
   padding-inline: var(--space-2);
   background: var(--surface-side);
 }
+/* The main window's top-left tab strip makes room for the corner (the shrimp and the sidebar toggle) while the sidebar
+   is closed, and always on phones, where the corner sits over the shown group (shell.css). */
+.app.is-side-closed .wb-cell .wb-group.is-corner > .kit-tabstrip {
+  padding-left: calc(var(--corner-closed) + var(--space-2));
+}
+@media (max-width: 799px) {
+  .wb-cell .wb-group.is-shown > .kit-tabstrip,
+  .app.is-side-closed .wb-cell .wb-group.is-corner > .kit-tabstrip {
+    padding-left: calc(var(--corner-closed) + var(--space-2));
+  }
+}
 .wb-group .kit-tabs-actions .icon-btn {
   width: 32px;
   height: 32px;
   min-height: 0;
 }
+/* A pane: its breadcrumbs on top, then what scrolls. Its width is what the breadcrumbs and its page answer to
+   (@container pane, and the page pad in cqw), not the window's, so the crumbs line up with the page in any pane. */
 .wb-pane {
+  container: pane / inline-size;
+  --page-pad: max(var(--space-7), calc((100cqw - var(--content-w)) / 2));
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* The pane's scroller. contain keeps fixed-position children inside it. */
+.pane-body {
   position: relative;
   flex: 1;
   min-height: 0;
-}
-/* The pane is its own scroller. contain keeps fixed-position children inside it. Its width is what its breadcrumbs
-   answer to (@container pane), not the window's. */
-.pane-body {
-  container: pane / inline-size;
-  position: absolute;
-  inset: 0;
   overflow: auto;
   contain: layout paint;
 }
@@ -98,27 +112,16 @@
   color: var(--text-muted);
 }
 
-/* The pane head: breadcrumbs on the top row's frosted glass (what scrolls under it fogs away, fading out just below
-   its edge). Sticky at the top of the scroller, a layer behind the crumbs so the mask fades the glass, not the text. */
+/* The pane head: a compact, plain row of breadcrumbs on the pane's own ground, the top of the pane (nothing scrolls
+   under it, so it needs no glass), lined up with the page under it. */
 .pane-head {
-  position: sticky;
-  top: 0;
-  z-index: 2;
   display: flex;
+  flex: none;
   align-items: center;
-  height: 40px;
+  height: 32px;
   padding-inline: var(--page-pad) var(--space-3);
+  font-size: var(--text-sm);
   white-space: nowrap;
-}
-.pane-head::before {
-  content: '';
-  position: absolute;
-  z-index: -1;
-  inset: 0 0 calc(-1 * var(--glass-bar-fade));
-  background: var(--glass-bar);
-  backdrop-filter: blur(var(--glass-bar-blur));
-  mask-image: linear-gradient(var(--bg) calc(100% - var(--glass-bar-fade)), transparent);
-  pointer-events: none;
 }
 .pane-crumbs {
   display: flex;
@@ -191,7 +194,8 @@
 
 /* Narrow (the window, not the pane): only the shown group has room. The others stay mounted, so nothing is lost. */
 @media (max-width: 799px) {
-  .workbench {
+  .workbench,
+  .wb-pane {
     --page-pad: var(--space-4);
   }
   .wb-win {

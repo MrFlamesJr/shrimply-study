@@ -179,20 +179,27 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
   /**
-   * The toggle. The page column snaps to its new width in one layout, then the page and the crumbs glide from where
-   * they were by transform alone, so nothing is laid out again each frame while the sidebar slides (CSS). A click
-   * mid-glide starts from where they are. On small screens the drawer covers the page, so nothing else moves.
+   * The toggle. The workbench snaps to its new width in one layout, then it (or the app's own page) and the top-left
+   * tab strip, which makes room for the corner while the sidebar is closed, glide from where they were by transform
+   * alone, so nothing is laid out again each frame while the sidebar slides (CSS). The strip moves inside the
+   * workbench, so it glides only by its own part. A click mid-glide starts from where they are. On small screens the
+   * drawer covers the page, so nothing else moves.
    */
   const toggle = () => {
-    const moving = [...document.querySelectorAll<HTMLElement>('.wb-cell, .own-page')]
+    const outer = [...document.querySelectorAll<HTMLElement>('.wb-cell:not([hidden]), .own-page')]
+    const strip = document.querySelector<HTMLElement>('.wb-cell:not([hidden]) .wb-group.is-corner > .kit-tabstrip')
+    const moving = strip ? [...outer, strip] : outer
     const from = moving.map(left)
     moving.forEach((el) => el.getAnimations().forEach((a) => a.cancel()))
     flushSync(() => setOpen(!open))
     if (matchMedia('(prefers-reduced-motion: reduce)').matches) return
     const tokens = getComputedStyle(document.documentElement)
     const timing = { duration: parseFloat(tokens.getPropertyValue('--dur-slide')), easing: tokens.getPropertyValue('--ease').trim() }
+    const dxs = moving.map((el, i) => from[i] - left(el))
+    // The strip's own part: what is left once the workbench around it has glided.
+    const cell = outer.findIndex((el) => el.classList.contains('wb-cell'))
     moving.forEach((el, i) => {
-      const dx = from[i] - left(el)
+      const dx = el === strip && cell >= 0 ? dxs[i] - dxs[cell] : dxs[i]
       if (dx) el.animate({ transform: [`translateX(${dx}px)`, 'none'] }, timing)
     })
   }
