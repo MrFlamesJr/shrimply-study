@@ -3,7 +3,7 @@ import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs, ItemRef } from './contentOps'
 import {
   addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
-  keyDecision, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
+  dragEffect, keyDecision, menuFor, translateRef, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
   type Clip, type Item, type MenuContext,
 } from './explorerActions'
 
@@ -316,5 +316,65 @@ describe('Google Drive rows', () => {
     const meta = { a: { where: 'On this device', dirty: false }, b: { where: 'Your Google Drive', dirty: true } }
     expect(describeNode(docs, meta, 'd:a')).toBe('Open · On this device')
     expect(describeNode(docs, meta, 'd:b')).toBe('Open · Unsaved · Your Google Drive')
+  })
+})
+
+describe('inside a library that is not open (read-only)', () => {
+  // The peeked library is a document of its own, "p-x", with the same shape as `a`.
+  const both: Docs = { ...docs, 'p-x': lib() }
+  const pc = (id: string): ItemRef => ({ kind: 'course', doc: 'p-x', course: id })
+  const pq = (id: string): ItemRef => ({ kind: 'quiz', doc: 'p-x', course: 'c1', quiz: id })
+  const pk = (id: string): ItemRef => ({ kind: 'card', doc: 'p-x', course: 'c1', quiz: 'q1', card: id })
+  const c = ctx(null, both)
+
+  it('opens and copies; everything that changes it is off with a reason', () => {
+    const course = menuFor(c, ['c:p-x:c1'], 'c:p-x:c1')
+    expect(find(course, 'Open').disabled).toBeUndefined()
+    expect(find(course, 'Copy').disabled).toBeUndefined()
+    for (const label of ['New quiz', 'Rename', 'Cut', 'Move to…', 'Delete']) {
+      expect(find(course, label)).toMatchObject({ disabled: true, reason: 'Open the library to change it.' })
+    }
+    const quiz = menuFor(c, ['q:p-x:c1:q1'], 'q:p-x:c1:q1')
+    for (const label of ['Edit cards', 'New card', 'Rename', 'Delete']) expect(find(quiz, label).disabled).toBe(true)
+    const card = menuFor(c, ['k:p-x:c1:q1:k1'], 'k:p-x:c1:q1:k1')
+    expect(find(card, 'Edit')).toMatchObject({ disabled: true, reason: 'Open the library to change it.' })
+    expect(find(card, 'Copy').disabled).toBeUndefined()
+  })
+  it('nothing is pasted into it, even a copy', () => {
+    const clip: Clip = { mode: 'copy', refs: [quiz('q1')] }
+    expect(pasteTarget(both, clip, 'c:p-x:c1')).toEqual({ reason: 'Open the library to change it.' })
+    expect(find(menuFor(ctx(clip, both), ['c:p-x:c1'], 'c:p-x:c1'), 'Paste').disabled).toBe(true)
+  })
+  it('a copy out of it goes into an open file', () => {
+    const clip: Clip = { mode: 'copy', refs: [pq('q1')] }
+    expect(pasteTarget(both, clip, 'c:a:c2')).toMatchObject({ target: { kind: 'course', doc: 'a', course: 'c2' } })
+  })
+  it('a drag out of it only copies, and a drop into it is refused', () => {
+    expect(dragEffect(['q:p-x:c1:q1'], 'move')).toBe('copy')
+    expect(dragEffect(['q:a:c1:q1'], 'move')).toBe('move')
+    expect(dropRule(both, ['q:p-x:c1:q1'], 'c:a:c2', 'inside', 'move')).toEqual({ ok: true })
+    const plan = dropPlan(both, ['q:p-x:c1:q1'], 'c:a:c2', 'inside', 'move', fresh)
+    expect(plan).toMatchObject({ ok: true, label: 'Copy 1 quiz' })
+    expect(plan.ok && both['p-x'].courses[0].quizzes).toHaveLength(2)
+    expect(dropRule(both, ['q:a:c1:q1'], 'c:p-x:c2', 'inside', 'move')).toEqual({ ok: false, reason: 'Open the library to change it.' })
+  })
+  it('can not be deleted or cut by key', () => {
+    expect(deletePlan(both, ['k:p-x:c1:q1:k1'], false)).toEqual({ reason: 'Open the library to change it.' })
+    expect(keyDecision(c, key('x', { ctrlKey: true }), ['c:p-x:c1'], 'c:p-x:c1')).toEqual({ refuse: 'Open the library to change it.' })
+    expect(keyDecision(c, key('F2'), ['k:p-x:c1:q1:k1'], 'k:p-x:c1:q1:k1')).toEqual({ refuse: 'Open the library to change it.' })
+  })
+  it('the loading and failure rows: retry only', () => {
+    expect(labels(menuFor(c, ['g:x:f1'], 'g:x:f1'))).toEqual(['Retry'])
+    expect(menuFor(c, ['g:l:f1'], 'g:l:f1')).toEqual([])
+  })
+  it('finds the same item in another copy of the library by its places', () => {
+    const other = lib()
+    other.courses[0].id = 'z1'
+    other.courses[0].quizzes[0].id = 'zq1'
+    other.courses[0].quizzes[0].cards[1].id = 'zk2'
+    expect(translateRef(docs.a, other, pk('k2'), 'new')).toEqual({ kind: 'card', doc: 'new', course: 'z1', quiz: 'zq1', card: 'zk2' })
+    expect(translateRef(docs.a, other, pq('q1'), 'new')).toEqual({ kind: 'quiz', doc: 'new', course: 'z1', quiz: 'zq1' })
+    expect(translateRef(docs.a, other, pc('c1'), 'new')).toEqual({ kind: 'course', doc: 'new', course: 'z1' })
+    expect(translateRef(docs.a, { ...other, courses: [] }, pc('c1'), 'new')).toBeNull()
   })
 })

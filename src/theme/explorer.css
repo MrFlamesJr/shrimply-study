@@ -10,19 +10,9 @@
 .explorer-head {
   display: flex;
   align-items: center;
+  justify-content: flex-end;
   gap: var(--space-1);
   padding: 0 var(--space-2);
-}
-/* A title: the theme's display font and glow, like the info box's. */
-.explorer-title {
-  flex: 1;
-  margin: 0;
-  font-family: var(--font-display);
-  font-size: var(--text-info-title);
-  font-weight: var(--weight-bold);
-  letter-spacing: var(--display-tracking);
-  text-transform: var(--display-case);
-  text-shadow: var(--glow-text);
 }
 .explorer-search {
   padding: 0 var(--space-2);
@@ -88,4 +78,12 @@
   padding: 0 var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+/* What is inside a library that is not open (a look, read-only), and its loading and failure rows, read quieter. */
+.explorer .kit-row[data-id^="c:p-"],
+.explorer .kit-row[data-id^="q:p-"],
+.explorer .kit-row[data-id^="k:p-"],
+.explorer .kit-row[data-id^="g:l:"],
+.explorer .kit-row[data-id^="g:x:"] {
+  color: var(--text-muted);
 }

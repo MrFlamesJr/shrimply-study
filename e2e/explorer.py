@@ -235,6 +235,53 @@ def drive_tests(page, state):
     wait_for(page, lambda: state['lists'] > before, 'Refresh asks Google again')
     need(len(drive_rows(page)) == 3, 'the list stays')
 
+    # Expanding a library that is not open only shows what is inside: no file, no tab. Expanding an open file does not open a tab.
+    tabs = page.locator('[role=tab]').count()
+    docs_before = labels(page, 'doc')
+    drive_row(page, 'beta').locator('[data-chevron]').click()
+    inside = page.locator('.kit-tree .kit-row[data-id^="c:p-beta:"]')
+    wait_for(page, lambda: inside.count() >= 1, 'expanding a library not open shows its courses')
+    need(page.locator('[role=tab]').count() == tabs and labels(page, 'doc') == docs_before, 'and opens nothing')
+    need('Not open' in drive_row(page, 'beta').locator('.kit-row-desc').inner_text(), 'the library keeps saying it is not open')
+    row(page, 'doc', 'Guide').locator('[data-chevron]').click()
+    page.wait_for_timeout(300)
+    need(page.locator('[role=tab]').count() == tabs, 'expanding an open file opens no tab')
+    row(page, 'doc', 'Guide').locator('[data-chevron]').click()
+
+    # Inside it is read-only; a copy works and goes into an open file.
+    inside.first.locator('[data-chevron]').click()
+    quizzes = page.locator('.kit-tree .kit-row[data-id^="q:p-beta:"]')
+    wait_for(page, lambda: quizzes.count() >= 1, 'a course inside shows its quizzes')
+    quiz_name = quizzes.first.locator('.kit-row-label').inner_text()
+    quizzes.first.click(button='right')
+    need(page.get_by_role('menuitem', name=re.compile('^Rename')).get_attribute('aria-disabled') == 'true', 'Rename is off inside a library not open')
+    need(page.get_by_role('menuitem', name=re.compile('^Delete')).get_attribute('aria-disabled') == 'true', 'Delete is off too')
+    page.keyboard.press('Escape')
+    quizzes.first.click()
+    page.keyboard.press('Control+c')
+    inside.first.locator('[data-chevron]').click()  # fold it again: fewer rows
+    drive_row(page, 'beta').locator('[data-chevron]').click()
+    expand(page, 'doc', 'Test library')
+    row(page, 'course', '2. Term cards').click()
+    page.keyboard.press('Control+v')
+    expand(page, 'course', '2. Term cards')
+    wait_for(page, lambda: quiz_name in children(page, 'course', '2. Term cards'), 'the copy from a library not open lands in an open file')
+    need(dot(page, 'Test library'), 'and that file shows the unsaved dot')
+    fold(page, 'doc', 'Test library')
+
+    # Enter on something inside opens the library, then that item's page.
+    drive_row(page, 'beta').locator('[data-chevron]').click()
+    wait_for(page, lambda: quizzes.count() == 0 and inside.count() >= 1, 'beta shows its courses again')
+    inside.first.locator('[data-chevron]').click()
+    wait_for(page, lambda: quizzes.count() >= 1, 'and its quizzes')
+    target_quiz = quizzes.first.locator('.kit-row-label').inner_text()
+    quizzes.first.click()
+    page.keyboard.press('Enter')
+    wait_for(page, lambda: 'beta.shrimp' in labels(page, 'doc'), 'Enter on a quiz inside opens the library')
+    back_to_explorer(page)
+    wait_for(page, lambda: page.locator('.pane-crumbs', has_text=target_quiz).count() >= 1, 'and shows that quiz\'s page')
+    need(drive_rows(page) == ['alpha.shrimp', 'gamma.shrimp'], f'it leaves the "not open" ones: {drive_rows(page)}')
+
     # Enter opens a library as a file of the tree: selected, in the same sorted place, no longer "not open".
     drive_row(page, 'alpha').click()
     page.keyboard.press('Enter')
@@ -242,17 +289,10 @@ def drive_tests(page, state):
     back_to_explorer(page)
     wait_for(page, lambda: 'alpha.shrimp' in labels(page, 'doc'), 'Enter opens the library as a file')
     wait_for(page, lambda: selected(page) == ['alpha.shrimp'], f'the opened file is selected: {selected(page)}')
-    need(drive_rows(page) == ['beta.shrimp', 'gamma.shrimp'], f'an open library is not listed twice: {drive_rows(page)}')
+    need(drive_rows(page) == ['gamma.shrimp'], f'an open library is not listed twice: {drive_rows(page)}')
     files = top_level(page)
     need([f[0] for f in files] == sorted_names, f'it stays in its place: {files}')
     need(files[0][1].startswith('Open · ') and 'Google Drive' in files[0][1], f'and now says it is open: {files[0]}')
-
-    # Expanding a library that is not open opens it too.
-    drive_row(page, 'beta').locator('[data-chevron]').click()
-    page.locator('[role=tab]', has_text='beta.shrimp').wait_for()
-    back_to_explorer(page)
-    wait_for(page, lambda: 'beta.shrimp' in labels(page, 'doc'), 'expanding a library opens it')
-    need(drive_rows(page) == ['gamma.shrimp'], 'and it leaves the "not open" ones')
 
     # Move to bin asks first, then lists again.
     menu(page, drive_row(page, 'gamma'), 'Move to bin')

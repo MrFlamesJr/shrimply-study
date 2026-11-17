@@ -32,6 +32,8 @@ export type DriveApi = {
   file: DriveSource | null
   /** True while this tab is signed in with Google (about an hour). Each tab signs in on its own, with any account. */
   signedIn(): boolean
+  /** The sign-in has a token that works right now, so a call needs no popup (listing on its own is only safe then). */
+  canListQuietly(): boolean
   /**
    * The file is the signed-in user's own, as Google said. Signed out, nobody can tell (`file.mine` only remembers
    * that this browser saved it), so no text claims it is "yours" then.
@@ -87,6 +89,11 @@ export type DriveApi = {
    * the picked ones join `list` for good. Resolves how many libraries were added (null after an error).
    */
   pick(): Promise<number | null>
+  /**
+   * Reads a library of the user's Drive without opening it (the Explorer shows what is inside). `version` (its last
+   * change) keeps a read for the session: the same file at the same version is not read again. Null after an error.
+   */
+  peek(id: string, version?: string): Promise<Library | null>
 }
 
 // Everything the UI can read or do with one open document (library). Screens only use this.
@@ -203,7 +210,8 @@ export type WorkspaceApi = {
   undoLabel: string | null
   redoLabel: string | null
   clipboard: Clipboard | null
-  copy(refs: ItemRef[]): void
+  /** `from`: libraries that are not open documents (peeked Drive libraries) the items may come from. */
+  copy(refs: ItemRef[], from?: Docs): void
   cut(refs: ItemRef[]): void
   paste(target: Target): void
   /** An empty document, "New library" (or "New library 2"...), active, its tab on `at` (default home). */
@@ -743,6 +751,22 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       return false
     }
   }
+  // Libraries read to show what is inside them, by file and version.
+  const peeked = useRef(new Map<string, Library>())
+  const peek = async (driveId: string, version = '') => {
+    const key = `${driveId}|${version}`
+    const hit = peeked.current.get(key)
+    if (hit) return hit
+    try {
+      const { library } = await google.readDriveFile(driveId, true)
+      for (const k of peeked.current.keys()) if (k.startsWith(`${driveId}|`)) peeked.current.delete(k)
+      peeked.current.set(key, library)
+      return library
+    } catch (err) {
+      report(err, 'Could not read this Google Drive file. ')
+      return null
+    }
+  }
   const list = async () => {
     try {
       return await google.listDriveFiles()
@@ -787,6 +811,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       setUp: google.driveSetUp,
       file: d?.drive ?? null,
       signedIn: () => signedIn,
+      canListQuietly: () => google.hasFreshToken(),
       yours,
       newer: !!d?.newer,
       savesInto: yours,
@@ -805,6 +830,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       list,
       remove,
       pick,
+      peek,
     }
   }
 
@@ -1210,7 +1236,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     undoLabel: undoLabel(ws.history),
     redoLabel: redoLabel(ws.history),
     clipboard: ws.clipboard,
-    copy: (refs) => tryUpdate((w) => W.toClipboard(w, refs, 'copy')),
+    copy: (refs, from) => tryUpdate((w) => W.toClipboard(w, refs, 'copy', from)),
     cut: (refs) => tryUpdate((w) => W.toClipboard(w, refs, 'cut')),
     paste: (target) => {
       const at = Date.now()

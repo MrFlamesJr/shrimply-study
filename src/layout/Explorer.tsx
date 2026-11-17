@@ -13,11 +13,11 @@ import { flatten, pathTo } from '../kit/tree'
 import { TreeView } from '../kit/TreeView'
 import { itemName, exists, type DocId, type Docs, type ItemRef, type Target } from '../logic/contentOps'
 import {
-  addCard, addCourse, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, dragKind, dragLabel, dropPlan, dropRule,
+  addCard, addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, deletePlan, describeNode, dragKind, dragLabel, dropPlan, dropRule,
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
-import { closedDriveFiles, driveNodeOf, explorerSource, nodeOf, parseDriveNode, type DriveFileInfo, type DriveListing } from '../logic/explorerTree'
+import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type Peek } from '../logic/explorerTree'
 import type { Library } from '../model'
 import { newId } from '../model'
 
@@ -31,8 +31,12 @@ export type ExplorerDrive = {
   /** Google's file picker. */
   pick(): void
   refresh(): void
-  /** Opens a library as a file of the tree. */
-  open(id: string): void
+  /** What the libraries expanded in the tree hold, by file id: read without opening them. */
+  peeks: Record<string, Peek>
+  /** Reads a library to show what is inside (again after a failure). */
+  peek(id: string): void
+  /** Opens a library as a file of the tree; `then`: an item inside it (as the peek shows it) to show once it is open. */
+  open(id: string, then?: ItemRef): void
   /** Asks, then moves it to the bin. */
   remove(file: DriveFileInfo): void
 }
@@ -47,7 +51,8 @@ export type ExplorerProps = {
   apply(label: string, update: (docs: Docs) => Docs): void
   /** Called right after a delete: gives back the way to undo that step, offered on the toast (only while it is still the latest). */
   undoLater?(): () => void
-  copy(refs: ItemRef[]): void
+  /** `from`: libraries that are only peeked at, which the items may come from. */
+  copy(refs: ItemRef[], from?: Docs): void
   cut(refs: ItemRef[]): void
   paste(target: Target): void
   notify: Notify
@@ -73,7 +78,8 @@ const ROW_TOUCH = 44
 const toDocs = (docs: ExplorerDoc[]): Docs => Object.fromEntries(docs.map((d) => [d.id, d.library]))
 
 function nodeExists(docs: Docs, node: string, drive: Set<string>): boolean {
-  if (parseDriveNode(node)) return drive.has(node)
+  const g = parseDriveNode(node)
+  if (g) return drive.has(g.id)
   const r = parseNode(node)
   if (!r) return false
   return r.kind === 'doc' ? r.doc in docs : exists(docs, r)
@@ -95,16 +101,19 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const meta = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { where: d.where, dirty: d.dirty }])), [p.docs])
   const drive = p.drive?.setUp ? p.drive : undefined
   const listing = drive?.listing
-  const source = useMemo(() => explorerSource(p.docs, listing), [p.docs, listing])
+  const peeks = drive?.peeks
+  const source = useMemo(() => explorerSource(p.docs, listing, peeks), [p.docs, listing, peeks])
+  // Everything content operations work on: the open files, and the libraries only looked at (read-only).
+  const docsAll = useMemo(() => ({ ...peekDocs(peeks), ...docs }), [docs, peeks])
   const expanded = p.expanded
-  const driveNodes = useMemo(() => new Set(closedDriveFiles(listing, p.docs).map((f) => driveNodeOf({ kind: 'file', id: f.id }))), [listing, p.docs])
+  const driveNodes = useMemo(() => new Set(closedDriveFiles(listing, p.docs).map((f) => f.id)), [listing, p.docs])
   const order = useMemo(() => flatten(source, expanded, filter).map((r) => r.id), [source, expanded, filter])
   const cutNodes = useMemo(() => new Set(p.clipboard?.mode === 'cut' ? p.clipboard.refs.map(nodeOf) : []), [p.clipboard])
   const rowHeight = touch ? ROW_TOUCH : ROW
 
   const win = () => ownWindow(root.current!)
-  const context = (): MenuContext => ({ docs, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform) })
-  const docsNow = () => toDocs(latest.current.docs)
+  const context = (): MenuContext => ({ docs: docsAll, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform) })
+  const docsNow = () => ({ ...peekDocs(latest.current.drive?.peeks), ...toDocs(latest.current.docs) })
 
   useEffect(() => {
     const mq = win().matchMedia('(max-width: 799px)')
@@ -116,7 +125,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   // Forgets selected nodes that are gone (deleted, moved away, a file closed).
   useEffect(() => {
-    const next = prune(p.selection, (id) => nodeExists(docs, id, driveNodes))
+    const next = prune(p.selection, (id) => nodeExists(docsAll, id, driveNodes))
     if (next !== p.selection) p.onSelection(next)
   })
 
@@ -196,6 +205,12 @@ export function Explorer(p: ExplorerProps): ReactNode {
     p.notify('info', plan.notice, undefined, undo && { label: 'Undo', run: undo })
   }
 
+  // Enter, double click and Open: show the page. Inside a library that is not open, that opens the library first.
+  const openNode = (r: ItemRef | DocRef) => {
+    if (r.kind !== 'doc' && isPeekDoc(r.doc)) drive?.open(peekDriveId(r.doc), r)
+    else p.open(r)
+  }
+
   const run = (action: Action, ids: string[], at: string | null) => {
     const first = ids[0] === undefined ? null : parseNode(ids[0])
     const refs = itemRefs(ids)
@@ -229,10 +244,10 @@ export function Explorer(p: ExplorerProps): ReactNode {
         }
         return
       }
-      case 'open': return first && p.open(first)
+      case 'open': return first && openNode(first)
       case 'edit': return first && first.kind !== 'doc' && p.edit(first)
       case 'rename': return first && first.kind !== 'doc' && first.kind !== 'card' && setRenaming(ids[0])
-      case 'copy': return p.copy(refs)
+      case 'copy': return p.copy(refs, refs.some((r) => isPeekDoc(r.doc)) ? peekDocs(latest.current.drive?.peeks) : undefined)
       case 'cut': return p.cut(refs)
       case 'paste': {
         const r = pasteTarget(docsNow(), latest.current.clipboard, at)
@@ -243,6 +258,10 @@ export function Explorer(p: ExplorerProps): ReactNode {
       case 'driveOpen': {
         const g = parseDriveNode(ids[0])
         return g && drive?.open(g.id)
+      }
+      case 'driveRetry': {
+        const g = parseDriveNode(ids[0])
+        return g && drive?.peek(g.id)
       }
       case 'driveRemove': {
         const g = parseDriveNode(ids[0])
@@ -294,25 +313,26 @@ export function Explorer(p: ExplorerProps): ReactNode {
     )
   }
 
-  // Expanding a closed Drive library opens it, and it stays shut: the open file is a root of its own.
+  // Expanding a library that is not open reads it and shows what is inside; it does not open it.
   const setExpanded = (next: Set<string>) => {
-    const out = new Set(next)
     for (const id of next) {
       const g = parseDriveNode(id)
-      if (g?.kind === 'file' && !expanded.has(id)) {
-        drive?.open(g.id)
-        out.delete(id)
-      }
+      if (g?.kind === 'file' && !expanded.has(id)) drive?.peek(g.id)
     }
-    p.onExpanded(out)
+    p.onExpanded(next)
   }
+  // Open from an earlier visit (the open nodes are kept): read those libraries too.
+  useEffect(() => {
+    for (const f of closedDriveFiles(listing, p.docs)) {
+      if (expanded.has(driveNodeOf({ kind: 'file', id: f.id })) && !peeks?.[f.id]) drive?.peek(f.id)
+    }
+  })
 
   const destinations = moving ? moveDestinations(docs, names, moving) : []
 
   return (
-    <div className="explorer" ref={root}>
+    <div className="explorer" ref={root} role="region" aria-label="Explorer">
       <div className="explorer-head">
-        <h2 className="explorer-title">Explorer</h2>
         <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
         <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
         {drive?.listing.signedIn && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
@@ -346,16 +366,17 @@ export function Explorer(p: ExplorerProps): ReactNode {
           onSelection={p.onSelection}
           filter={filter}
           icon={iconOf}
-          description={(id) => describeNode(docs, meta, id, listing && { listing })}
+          description={(id) => describeNode(docsAll, meta, id, listing && { listing })}
           dimmed={(id) => cutNodes.has(id)}
           onActivate={(id) => {
             const g = parseDriveNode(id)
             if (g) {
-              drive?.open(g.id)
+              if (g.kind === 'failed') drive?.peek(g.id)
+              else if (g.kind !== 'loading') drive?.open(g.id)
               return
             }
             const r = parseNode(id)
-            if (r) p.open(r)
+            if (r) openNode(r)
           }}
           onContextMenu={onContextMenu}
           onKeyDown={(e, focus) => {
@@ -370,9 +391,9 @@ export function Explorer(p: ExplorerProps): ReactNode {
           drag={{
             kind: dragKind,
             allowInside,
-            rule: (payload, target, pos, effect) => dropRule(docs, payload.ids, target, pos, effect),
+            rule: (payload, target, pos, effect) => dropRule(docsAll, payload.ids, target, pos, effect),
             onDrop: (payload, target, pos, effect) => planned(dropPlan(docsNow(), payload.ids, target, pos, effect, newId)),
-            label: (payload, effect) => dragLabel(payload.kind as ItemKind, payload.ids.length, effect),
+            label: (payload, effect) => dragLabel(payload.kind as ItemKind, payload.ids.length, dragEffect(payload.ids, effect)),
           }}
           rename={{
             id: renaming,

@@ -28,14 +28,31 @@ export function refOf(nodeId: string): ItemRef | DocRef {
 export type DriveFileInfo = { id: string; name: string; modified: string }
 /** What Drive gives the Explorer: signed in or not, the list (kept while it refreshes), whether it is loading or failed. */
 export type DriveListing = { signedIn: boolean; loading: boolean; failed: boolean; files: DriveFileInfo[] | null }
-export type DriveNode = { kind: 'file' | 'wait'; id: string }
+/**
+ * A library in the list (`file`), and the one row it can show under it: `wait` (not expanded yet), `loading` while it
+ * is read, `failed` when it could not be.
+ */
+export type DriveNode = { kind: 'file' | 'wait' | 'loading' | 'failed'; id: string }
+/** What a closed library holds once looked at: its content, or that it is being read or could not be. */
+export type Peek = Library | 'loading' | 'failed'
 
-export const driveNodeOf = (n: DriveNode): string => (n.kind === 'file' ? `g:f:${n.id}` : `g:w:${n.id}`)
+const TAG = { file: 'f', wait: 'w', loading: 'l', failed: 'x' } as const
+export const driveNodeOf = (n: DriveNode): string => `g:${TAG[n.kind]}:${n.id}`
+
+// The libraries peeked at are documents of the tree for the content operations, under these ids (never a real one:
+// those are UUIDs).
+export const peekDocId = (driveId: string): DocId => `p-${driveId}`
+export const isPeekDoc = (doc: DocId): boolean => doc.startsWith('p-')
+export const peekDriveId = (doc: DocId): string => doc.slice(2)
+/** The peeked libraries as documents. */
+export const peekDocs = (peeks: Record<string, Peek> | undefined): Docs =>
+  Object.fromEntries(Object.entries(peeks ?? {}).flatMap(([id, p]) => (typeof p === 'string' ? [] : [[peekDocId(id), p]])))
 
 /** The Drive node a tree node id names, or null for any other id. */
 export function parseDriveNode(nodeId: string): DriveNode | null {
-  const m = /^g:([fw]):(.+)$/.exec(nodeId)
-  return m ? { kind: m[1] === 'f' ? 'file' : 'wait', id: m[2] } : null
+  const m = /^g:([fwlx]):(.+)$/.exec(nodeId)
+  const kind = m && ({ f: 'file', w: 'wait', l: 'loading', x: 'failed' } as const)[m[1] as 'f' | 'w' | 'l' | 'x']
+  return m && kind ? { kind, id: m[2] } : null
 }
 
 /** The libraries in the list that are not open (an open one is already a root, whose place says it is on Drive). */
@@ -49,8 +66,8 @@ export function closedDriveFiles(listing: DriveListing | undefined, open: OpenDo
 const collator = new Intl.Collator('en', { sensitivity: 'base', numeric: true })
 
 /** Files, their courses, quizzes and cards (as stored, so in group order); labels from the names and `itemName`. */
-export function explorerSource(open: OpenDoc[], drive?: DriveListing): TreeSource {
-  const docs: Docs = Object.fromEntries(open.map((d) => [d.id, d.library]))
+export function explorerSource(open: OpenDoc[], drive?: DriveListing, peeks?: Record<string, Peek>): TreeSource {
+  const docs: Docs = { ...peekDocs(peeks), ...Object.fromEntries(open.map((d) => [d.id, d.library])) }
   return {
     roots: [
       ...open.map((d) => ({ node: nodeOf({ kind: 'doc', doc: d.id }), name: d.name })),
@@ -62,8 +79,12 @@ export function explorerSource(open: OpenDoc[], drive?: DriveListing): TreeSourc
     children(id) {
       const g = parseDriveNode(id)
       if (g) {
-        // A closed library has one placeholder so its row can be expanded: expanding it opens the library.
-        return g.kind === 'file' ? [driveNodeOf({ kind: 'wait', id: g.id })] : []
+        if (g.kind !== 'file') return []
+        // A library not open shows what is inside it once looked at; before that one placeholder, so it can be expanded.
+        const peek = peeks?.[g.id]
+        if (peek === undefined) return [driveNodeOf({ kind: 'wait', id: g.id })]
+        if (peek === 'loading' || peek === 'failed') return [driveNodeOf({ kind: peek, id: g.id })]
+        return peek.courses.map((c) => nodeOf({ kind: 'course', doc: peekDocId(g.id), course: c.id }))
       }
       const r = refOf(id)
       const lib = docs[r.doc]
@@ -79,7 +100,7 @@ export function explorerSource(open: OpenDoc[], drive?: DriveListing): TreeSourc
       const g = parseDriveNode(id)
       if (g) {
         if (g.kind === 'file') return drive?.files?.find((f) => f.id === g.id)?.name ?? ''
-        return 'Opening…'
+        return g.kind === 'loading' ? 'Loading…' : g.kind === 'failed' ? "Couldn't read this library" : 'Opening…'
       }
       const r = refOf(id)
       return r.kind === 'doc' ? (open.find((d) => d.id === r.doc)?.name ?? '') : itemName(docs, r)

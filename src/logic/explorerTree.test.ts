@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs } from './contentOps'
-import { closedDriveFiles, driveNodeOf, explorerSource, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type OpenDoc } from './explorerTree'
+import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, peekDocId, peekDocs, peekDriveId, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type OpenDoc } from './explorerTree'
 
 const card = (id: string, group?: string): Card => ({ id, term: `T${id}`, definition: 'd', ...(group && { group }) }) as Card
 const library: Library = {
@@ -115,4 +115,30 @@ describe('Google Drive libraries among the files', () => {
     expect(closedDriveFiles(listing({ loading: true }), open)).toHaveLength(3)
     expect(closedDriveFiles(undefined, open)).toEqual([])
   })
+  describe('a library that is not open, looked at', () => {
+    it('shows what is inside once read, under ids of its own', () => {
+      const src = explorerSource(open, listing(), { f1: library })
+      const doc = peekDocId('f1')
+      expect(src.children('g:f:f1')).toEqual([`c:${doc}:c1`, `c:${doc}:c2`])
+      expect(src.children(`c:${doc}:c1`)).toEqual([`q:${doc}:c1:q1`, `q:${doc}:c1:q2`])
+      expect(src.label(`k:${doc}:c1:q1:k2`)).toBe('Tk2')
+      expect(src.label('g:f:f1')).toBe('one.shrimp')
+    })
+    it('shows a loading row, then a failure row, and the placeholder before any look', () => {
+      expect(explorerSource(open, listing(), { f1: 'loading' }).children('g:f:f1')).toEqual(['g:l:f1'])
+      expect(explorerSource(open, listing(), { f1: 'failed' }).children('g:f:f1')).toEqual(['g:x:f1'])
+      expect(explorerSource(open, listing(), {}).children('g:f:f1')).toEqual(['g:w:f1'])
+      const src = explorerSource(open, listing(), { f1: 'loading' })
+      expect(src.label('g:l:f1')).toBe('Loading…')
+      expect(explorerSource(open, listing(), { f1: 'failed' }).label('g:x:f1')).toBe("Couldn't read this library")
+      expect(parseDriveNode('g:x:f1')).toEqual({ kind: 'failed', id: 'f1' })
+    })
+    it('the peeked libraries are documents for content operations, under ids no real document has', () => {
+      expect(peekDocs({ f1: library, f2: 'loading', f3: 'failed' })).toEqual({ [peekDocId('f1')]: library })
+      expect(isPeekDoc(peekDocId('f1'))).toBe(true)
+      expect(isPeekDoc('a')).toBe(false)
+      expect(peekDriveId(peekDocId('f1'))).toBe('f1')
+    })
+  })
 })
+

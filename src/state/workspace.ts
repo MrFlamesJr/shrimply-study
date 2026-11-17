@@ -495,9 +495,12 @@ const what = (f: Fragment) => {
   return n === 1 ? f.kind : f.kind === 'quiz' ? plural(n, 'quiz', 'quizzes') : plural(n, f.kind)
 }
 
-/** Copies (or cuts) the items: their contents as they are now. Throws the reason when they can't be. */
-export function toClipboard(w: Workspace, refs: ItemRef[], mode: 'copy' | 'cut'): Workspace {
-  return { ...w, clipboard: { mode, refs, fragment: extract(libraries(w), refs) } }
+/**
+ * Copies (or cuts) the items: their contents as they are now. `from` adds libraries that are not open documents (a
+ * Google Drive library peeked at in the Explorer), which can be copied from. Throws the reason when they can't be.
+ */
+export function toClipboard(w: Workspace, refs: ItemRef[], mode: 'copy' | 'cut', from: Docs = {}): Workspace {
+  return { ...w, clipboard: { mode, refs, fragment: extract({ ...from, ...libraries(w) }, refs) } }
 }
 
 /**

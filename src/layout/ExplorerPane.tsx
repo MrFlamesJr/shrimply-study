@@ -3,8 +3,10 @@ import type { askConfirm } from '../components/ConfirmDialog'
 import type { Notify } from '../components/Toasts'
 import type { DocId, ItemRef } from '../logic/contentOps'
 import { whereLine } from '../logic/whereLine'
-import type { WorkspaceApi } from '../state/useWorkspace'
-import { hasFreshToken, type DriveFile } from '../storage/googleDrive'
+import type { DriveFile, WorkspaceApi } from '../state/useWorkspace'
+import type { Library } from '../model'
+import { translateRef } from '../logic/explorerActions'
+import { nodeOf, type Peek } from '../logic/explorerTree'
 import { Explorer, type ExplorerDoc, type ExplorerDrive } from './Explorer'
 
 const same = (a: ExplorerDoc, b: ExplorerDoc) =>
@@ -51,7 +53,7 @@ export function ExplorerPane(p: {
   const setUp = ws.drive.setUp
   const signed = setUp && ws.drive.signedIn()
   // Listing asks Google for a token when the hour is up (a popup), which only a click may do: until then, signed out.
-  const shownSigned = signed && (hasFreshToken() || files !== null)
+  const shownSigned = signed && (driveApi.current.canListQuietly() || files !== null)
 
   const refresh = async (): Promise<void> => {
     const api = driveApi.current
@@ -74,20 +76,46 @@ export function ExplorerPane(p: {
   // Opening, closing, saving (unsaved to saved) or saving under a new file all change this key.
   const key = `${signed}|${docs.current.map((d) => `${d.id}:${d.driveId}:${d.name}:${d.dirty}`).join(',')}`
   useEffect(() => {
-    if (signed && !hasFreshToken()) return
+    if (signed && !driveApi.current.canListQuietly()) return
     void refreshed.current()
   }, [key])
 
-  // A library opened from the list becomes an open file of the tree: opened, expanded and selected.
-  const opening = useRef<string | null>(null)
+  // A library opened from the list becomes an open file of the tree: opened, expanded and selected. Opened for an item
+  // inside it (as a peek showed it), that item's page opens, and the item is the selected one.
+  const opening = useRef<{ id: string; then?: ItemRef } | null>(null)
   useEffect(() => {
-    const id = opening.current
-    const doc = id === null ? undefined : docs.current.find((d) => d.driveId === id)
-    if (!doc) return
+    const want = opening.current
+    const doc = want ? docs.current.find((d) => d.driveId === want.id) : undefined
+    if (!want || !doc) return
     opening.current = null
-    const node = `d:${doc.id}`
-    put({ expanded: [...new Set([...latest.current.expanded, node])], selection: { ids: [node], anchor: node, focus: node } })
+    const peeked = peeks[want.id]
+    const item = want.then && typeof peeked === 'object' ? translateRef(peeked, doc.library, want.then, doc.id) : null
+    const node = nodeOf(item ?? { kind: 'doc', doc: doc.id })
+    const path = item ? [`d:${doc.id}`, ...(item.kind === 'course' ? [] : [`c:${doc.id}:${item.course}`]), ...(item.kind === 'card' ? [`q:${doc.id}:${item.course}:${item.quiz}`] : [])] : [`d:${doc.id}`]
+    put({ expanded: [...new Set([...latest.current.expanded, ...path])], selection: { ids: [node], anchor: node, focus: node } })
+    if (item) p.openNode(item)
   })
+
+  // Libraries expanded in the tree while not open: read for a look, never opened.
+  const [peeks, setPeeks] = useState<Record<string, Peek>>({})
+  const reading = useRef(new Set<string>())
+  const peek = (id: string) => {
+    if (reading.current.has(id) || typeof peeks[id] === 'object') return
+    reading.current.add(id)
+    setPeeks((all) => ({ ...all, [id]: 'loading' }))
+    const version = files?.find((f) => f.id === id)?.modified
+    void driveApi.current.peek(id, version).then((library: Library | null) => {
+      reading.current.delete(id)
+      setPeeks((all) => ({ ...all, [id]: library ?? 'failed' }))
+    })
+  }
+  // A library that changed in Drive is read again the next time it is expanded.
+  const stamps = useRef(new Map<string, string>())
+  useEffect(() => {
+    const stale = (files ?? []).filter((f) => stamps.current.has(f.id) && stamps.current.get(f.id) !== f.modified).map((f) => f.id)
+    for (const f of files ?? []) stamps.current.set(f.id, f.modified)
+    if (stale.length) setPeeks((all) => Object.fromEntries(Object.entries(all).filter(([id]) => !stale.includes(id))))
+  }, [files])
 
   const drive: ExplorerDrive = {
     setUp,
@@ -98,8 +126,10 @@ export function ExplorerPane(p: {
     signIn: () => void driveApi.current.signIn().then((ok) => (ok ? refreshed.current() : undefined)),
     pick: () => void driveApi.current.pick().then(() => refreshed.current()),
     refresh: () => void refreshed.current(),
-    open: (id) => {
-      opening.current = id
+    peeks,
+    peek,
+    open: (id, then) => {
+      opening.current = { id, then }
       void ws.openDrive(id, true).then((ok) => {
         if (!ok) opening.current = null
       })

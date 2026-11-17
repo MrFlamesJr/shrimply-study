@@ -1,16 +1,16 @@
 // What the Explorer lets the user do, decided as data: menus per kind of node, keys, creating, renaming, deleting,
 // dragging and moving. All pure (the inputs are never changed); the component only carries the decisions out.
 import { comboLabel, matches } from '../kit/shortcuts'
-import { KIND_NAME, isTermCard, type Card } from '../model'
+import { KIND_NAME, isTermCard, type Card, type Library } from '../model'
 import { canPlace, exists, extract, insert, itemName, move, remove, type DocId, type Docs, type ItemRef, type Target } from './contentOps'
 import { whereLine } from './whereLine'
-import { nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type DriveNode } from './explorerTree'
+import { isPeekDoc, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type DriveNode } from './explorerTree'
 import { freeName, nameTaken } from './names'
 import { plural } from './plural'
 import { sideNames } from './sides'
 
 export type ItemKind = ItemRef['kind']
-export type NodeKind = ItemKind | 'doc' | 'drivefile'
+export type NodeKind = ItemKind | 'doc' | 'drivefile' | 'drivefailed' | 'driveloading'
 export type DocRef = { kind: 'doc'; doc: DocId }
 export type Clip = { mode: 'copy' | 'cut'; refs: ItemRef[] }
 type Effect = 'move' | 'copy'
@@ -19,6 +19,10 @@ type Pos = 'before' | 'inside' | 'after'
 const PLACE = { course: 'a file', quiz: 'a course', card: 'a quiz' } as const
 const MIXED = 'Pick items of one kind.'
 const OPEN_FIRST = 'Open the library first.'
+const READ_ONLY = 'Open the library to change it.'
+
+/** Whether the item is inside a Google Drive library that is only looked at (not open): read-only, copy only. */
+export const isPeekRef = (r: ItemRef): boolean => isPeekDoc(r.doc)
 // A library in the list is in the signed-in user's Drive (what the app saved, or what they picked).
 const NOT_OPEN_WHERE = whereLine({ hasFile: false, drive: { shared: false, trashed: false }, yours: true, signedIn: true })
 const BIN_FROM_MENU = 'Move a Google Drive library to the bin from its own menu.'
@@ -33,7 +37,8 @@ export function parseNode(id: string): ItemRef | DocRef | null {
   return /^[dcqk]:/.test(id) ? refOf(id) : null
 }
 
-const driveKind = (n: DriveNode | null): NodeKind | null => (n === null ? null : 'drivefile')
+const driveKind = (n: DriveNode | null): NodeKind | null =>
+  n === null ? null : n.kind === 'failed' ? 'drivefailed' : n.kind === 'loading' ? 'driveloading' : 'drivefile'
 
 /** What kind the selected nodes are: null for none, 'mixed' for more than one kind. */
 export function selectionKind(ids: string[]): NodeKind | 'mixed' | null {
@@ -106,6 +111,7 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
   const at = node === null ? null : parseNode(node)
   const target = targetFor(docs, node, at?.kind === 'card' ? 'after' : 'inside', kind)
   if (!target) return { reason: `A ${kind} can only go in ${PLACE[kind]}.` }
+  if (isPeekDoc(target.doc)) return { reason: READ_ONLY }
   const reason = canPlace(docs, clipboard.refs, target, clipboard.mode === 'cut' ? 'move' : 'copy')
   return reason ? { reason } : { target }
 }
@@ -115,7 +121,7 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
 export type Action =
   | 'newFile' | 'openFile' | 'newCourse' | 'newQuiz' | 'newCard' | 'open' | 'edit' | 'rename'
   | 'copy' | 'cut' | 'paste' | 'moveTo' | 'delete' | 'save' | 'download' | 'close'
-  | 'driveOpen' | 'driveRemove'
+  | 'driveOpen' | 'driveRemove' | 'driveRetry'
 export type Item = { action: Action; label: string; shortcut?: string; disabled?: boolean; reason?: string; danger?: boolean }
 export type Entry = 'separator' | Item
 export type MenuContext = { docs: Docs; names: Record<DocId, string>; clipboard: Clip | null; mac: boolean }
@@ -140,6 +146,8 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
       item('driveRemove', 'Move to bin', { shortcut: 'Delete', danger: true, ...only('library') }),
     ]
   }
+  if (kind === 'drivefailed') return [item('driveRetry', 'Retry')]
+  if (kind === 'driveloading') return []
   if (kind === 'doc') {
     return [
       item('newCourse', 'New course', only('file')),
@@ -153,24 +161,27 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
 
   const mixed = kind === 'mixed'
   const refs = itemRefs(ids)
+  // Inside a library that is not open: look and copy only.
+  const ro: Partial<Item> = refs.some(isPeekRef) ? { disabled: true, reason: READ_ONLY } : {}
   const oneKind: Partial<Item> = mixed ? { disabled: true, reason: MIXED } : {}
   const destinations = mixed ? [] : moveDestinations(ctx.docs, ctx.names, refs)
-  const moveTo = item('moveTo', 'Move to…', mixed ? oneKind : destinations.length === 0 ? { disabled: true, reason: 'There is nowhere else to move it.' } : {})
+  const moveTo = item('moveTo', 'Move to…', ro.disabled ? ro : mixed ? oneKind : destinations.length === 0 ? { disabled: true, reason: 'There is nowhere else to move it.' } : {})
   const copy = item('copy', 'Copy', { shortcut: sc('Mod+C'), ...oneKind })
-  const cut = item('cut', 'Cut', { shortcut: sc('Mod+X'), ...oneKind })
+  const cut = item('cut', 'Cut', { shortcut: sc('Mod+X'), ...oneKind, ...ro })
   const del = item('delete', 'Delete', {
     shortcut: 'Delete',
     danger: true,
     ...(docIds(ids).length > 0 && { disabled: true, reason: 'Close a file instead of deleting it.' }),
     ...(ids.some((id) => parseDriveNode(id)) && { disabled: true, reason: BIN_FROM_MENU }),
+    ...ro,
   })
 
   if (kind === 'mixed') return [copy, cut, moveTo, 'separator', del]
   if (kind === 'course') {
     return [
       item('open', 'Open', only('course')),
-      item('newQuiz', 'New quiz', only('course')),
-      item('rename', 'Rename', { shortcut: sc('F2'), ...only('course') }),
+      item('newQuiz', 'New quiz', { ...only('course'), ...ro }),
+      item('rename', 'Rename', { shortcut: sc('F2'), ...only('course'), ...ro }),
       'separator',
       copy, cut, paste(), moveTo,
       'separator',
@@ -180,16 +191,16 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   if (kind === 'quiz') {
     return [
       item('open', 'Open', only('quiz')),
-      item('edit', 'Edit cards', only('quiz')),
-      item('newCard', 'New card', only('quiz')),
-      item('rename', 'Rename', { shortcut: sc('F2'), ...only('quiz') }),
+      item('edit', 'Edit cards', { ...only('quiz'), ...ro }),
+      item('newCard', 'New card', { ...only('quiz'), ...ro }),
+      item('rename', 'Rename', { shortcut: sc('F2'), ...only('quiz'), ...ro }),
       'separator',
       copy, cut, paste(), moveTo,
       'separator',
       del,
     ]
   }
-  return [item('edit', 'Edit', { shortcut: sc('F2'), ...only('card') }), 'separator', copy, cut, paste(), moveTo, 'separator', del]
+  return [item('edit', 'Edit', { shortcut: sc('F2'), ...only('card'), ...ro }), 'separator', copy, cut, paste(), moveTo, 'separator', del]
 }
 
 type KeyEvent = { key: string; ctrlKey: boolean; shiftKey: boolean; altKey: boolean; metaKey: boolean }
@@ -297,6 +308,7 @@ export function deletePlan(docs: Docs, ids: string[], mac: boolean): DeletePlan 
   if (ids.some((id) => parseDriveNode(id))) return { reason: BIN_FROM_MENU }
   if (docIds(ids).length > 0) return { reason: 'Close a file instead of deleting it.' }
   const refs = itemRefs(ids)
+  if (refs.some(isPeekRef)) return { reason: READ_ONLY }
   if (refs.length === 0) return { reason: 'Nothing is selected.' }
   const top = topmost(refs)
   const what = top.every((r) => r.kind === top[0].kind) ? kindCount(top[0].kind, top.length) : plural(top.length, 'item')
@@ -355,13 +367,17 @@ export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: 
   const kind = refs[0].kind
   if (refs.some((r) => r.kind !== kind)) return { reason: MIXED }
   const target = targetFor(docs, node, pos, kind)
+  if (target && isPeekDoc(target.doc)) return { reason: READ_ONLY }
   return target ? { target } : { reason: `A ${kind} can only go in ${PLACE[kind]}.` }
 }
+
+/** What a drag of these does: from a library that is not open it only copies, whatever the keys say. */
+export const dragEffect = (ids: string[], effect: Effect): Effect => (itemRefs(ids).some(isPeekRef) ? 'copy' : effect)
 
 export function dropRule(docs: Docs, ids: string[], node: string | null, pos: Pos, effect: Effect): { ok: true } | { ok: false; reason: string } {
   const t = dropTarget(docs, ids, node, pos)
   if ('reason' in t) return { ok: false, reason: t.reason }
-  const reason = canPlace(docs, itemRefs(ids), t.target, effect)
+  const reason = canPlace(docs, itemRefs(ids), t.target, dragEffect(ids, effect))
   return reason ? { ok: false, reason } : { ok: true }
 }
 
@@ -384,7 +400,7 @@ export function placeItems(docs: Docs, refs: ItemRef[], target: Target, effect: 
 
 export function dropPlan(docs: Docs, ids: string[], node: string | null, pos: Pos, effect: Effect, fresh: () => string): Plan {
   const t = dropTarget(docs, ids, node, pos)
-  return 'reason' in t ? { ok: false, reason: t.reason } : placeItems(docs, itemRefs(ids), t.target, effect, fresh)
+  return 'reason' in t ? { ok: false, reason: t.reason } : placeItems(docs, itemRefs(ids), t.target, dragEffect(ids, effect), fresh)
 }
 
 export type Destination = { label: string; target: Target }
@@ -417,4 +433,22 @@ export function ancestorNodes(ref: ItemRef): string[] {
   if (ref.kind !== 'course') nodes.push(nodeOf({ kind: 'course', doc: ref.doc, course: ref.course }))
   if (ref.kind === 'card') nodes.push(nodeOf({ kind: 'quiz', doc: ref.doc, course: ref.course, quiz: ref.quiz }))
   return nodes
+}
+
+/**
+ * The same item in another copy of the same library (a library read for a look, then opened as a document, gets new
+ * ids): found by its places in the lists. Null when the other copy has no such place.
+ */
+export function translateRef(from: Library, to: Library, ref: ItemRef, doc: DocId): ItemRef | null {
+  const c = from.courses.findIndex((x) => x.id === ref.course)
+  const course = to.courses[c]
+  if (!course) return null
+  if (ref.kind === 'course') return { kind: 'course', doc, course: course.id }
+  const q = from.courses[c].quizzes.findIndex((x) => x.id === ref.quiz)
+  const quiz = course.quizzes[q]
+  if (!quiz) return null
+  if (ref.kind === 'quiz') return { kind: 'quiz', doc, course: course.id, quiz: quiz.id }
+  const k = from.courses[c].quizzes[q].cards.findIndex((x) => x.id === ref.card)
+  const card = quiz.cards[k]
+  return card ? { kind: 'card', doc, course: course.id, quiz: quiz.id, card: card.id } : null
 }
