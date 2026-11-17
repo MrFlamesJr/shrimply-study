@@ -5,6 +5,7 @@ import type { DragPayload } from './dnd'
 import { ordered, select, selectAll } from './selection'
 import type { Selection } from './selection'
 import { isMac } from './shortcuts'
+import { createLongPress } from './longPress'
 import { flatten, keyNav, typeahead } from './tree'
 import type { Row, TreeSource } from './tree'
 import './tree.css'
@@ -157,6 +158,7 @@ export function TreeView(p: {
   }
 
   const onClick = (e: ReactMouseEvent) => {
+    if (hold.fired) return
     const t = e.target as Element
     if (t.closest('input')) return
     const { row } = rowAt(e.clientY)
@@ -168,20 +170,32 @@ export function TreeView(p: {
     p.onSelection(select(selection, row.id, { ctrl: e.ctrlKey || e.metaKey, shift: e.shiftKey }, order))
   }
   const onDoubleClick = (e: ReactMouseEvent) => {
+    if (hold.fired) return
     const t = e.target as Element
     if (t.closest('input') || t.closest('[data-chevron]')) return
     const { row } = rowAt(e.clientY)
     if (row) p.onActivate(row.id)
   }
+  const openMenuAt = (x: number, y: number) => {
+    const { row } = rowAt(y)
+    if (row && !selected.has(row.id)) p.onSelection({ ids: [row.id], anchor: row.id, focus: row.id })
+    p.onContextMenu(row ? row.id : null, { x, y })
+  }
   const onContextMenu = (e: ReactMouseEvent) => {
     e.preventDefault()
-    const { row } = rowAt(e.clientY)
-    if (row && !selected.has(row.id)) p.onSelection({ ids: [row.id], anchor: row.id, focus: row.id })
-    p.onContextMenu(row ? row.id : null, { x: e.clientX, y: e.clientY })
+    openMenuAt(e.clientX, e.clientY)
   }
+  // A long press is the touch version of a right click; the latest render's handler is the one that runs.
+  const press = useRef(openMenuAt)
+  press.current = openMenuAt
+  const [hold] = useState(() => createLongPress((x, y) => press.current(x, y)))
 
   const dragIds = (id: string) => (selected.has(id) ? ordered(selection, order) : [id])
   const onDragStart = (e: ReactDragEvent) => {
+    if (hold.fired) {
+      e.preventDefault()
+      return
+    }
     const { row } = rowAt(e.clientY)
     const kind = row && drag ? drag.kind(dragIds(row.id)) : null
     if (!row || !drag || kind === null) {
@@ -262,6 +276,10 @@ export function TreeView(p: {
       onClick={onClick}
       onDoubleClick={onDoubleClick}
       onContextMenu={onContextMenu}
+      onPointerDown={hold.down}
+      onPointerMove={hold.move}
+      onPointerUp={hold.end}
+      onPointerCancel={hold.cancel}
       onDragStart={onDragStart}
       onDragOver={onDragOver}
       onDragLeave={onDragLeave}

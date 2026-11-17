@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { endDrag, readDrag, startDrag, type DragPayload } from './dnd'
+import { createLongPress } from './longPress'
 import './tabs.css'
 
 export type TabItem = { id: string; title: string; description?: string; tooltip?: string; dirty?: boolean; icon?: ReactNode }
@@ -28,6 +29,11 @@ const Cross = () => (
 /** One group's tabs. */
 export function TabStrip(p: Props) {
   const scroll = useRef<HTMLDivElement>(null)
+  // A long press on a tab is the touch version of a right click.
+  const pressed = useRef('')
+  const menu = useRef(p.onContextMenu)
+  menu.current = p.onContextMenu
+  const [hold] = useState(() => createLongPress((x, y) => menu.current(pressed.current, { x, y })))
   // Where a drag would land: the index and the line's left edge inside the scrolling part.
   const [drop, setDrop] = useState<{ index: number; x: number } | null>(null)
   const focusTab = (id: string) => {
@@ -147,7 +153,14 @@ export function TabStrip(p: Props) {
             title={t.tooltip}
             className={`kit-tab${t.id === p.active ? ' is-active' : ''}${t.dirty ? ' is-dirty' : ''}`}
             draggable
-            onClick={() => p.onActivate(t.id)}
+            onClick={() => !hold.fired && p.onActivate(t.id)}
+            onPointerDown={(e) => {
+              pressed.current = t.id
+              hold.down(e)
+            }}
+            onPointerMove={hold.move}
+            onPointerUp={hold.end}
+            onPointerCancel={hold.cancel}
             onAuxClick={(e) => aux(e, t.id)}
             onMouseDown={(e) => e.button === 1 && e.preventDefault()}
             onContextMenu={(e) => {
@@ -155,7 +168,10 @@ export function TabStrip(p: Props) {
               p.onContextMenu(t.id, { x: e.clientX, y: e.clientY })
             }}
             onKeyDown={(e) => e.target === e.currentTarget && keyDown(e, t.id, i)}
-            onDragStart={(e) => startDrag(e.dataTransfer, { kind: p.dragKind, ids: [t.id] }, t.title)}
+            onDragStart={(e) => {
+              if (hold.fired) e.preventDefault()
+              else startDrag(e.dataTransfer, { kind: p.dragKind, ids: [t.id] }, t.title)
+            }}
             onDragEnd={() => {
               endDrag()
               setDrop(null)

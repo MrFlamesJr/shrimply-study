@@ -22,6 +22,7 @@
   outline: none;
   cursor: default;
   user-select: none;
+  -webkit-touch-callout: none;
   transition: background var(--kit-dur) var(--kit-ease);
 }
 .kit-row:hover { background: var(--kit-accent-soft); }

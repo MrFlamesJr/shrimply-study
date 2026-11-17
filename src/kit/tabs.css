@@ -29,6 +29,7 @@
   color: var(--kit-muted);
   cursor: default;
   user-select: none;
+  -webkit-touch-callout: none;
   white-space: nowrap;
   transition: color var(--kit-dur) var(--kit-ease), background var(--kit-dur) var(--kit-ease);
 }

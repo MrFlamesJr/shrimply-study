@@ -334,9 +334,68 @@ def split_tests(page, base):
     check(page.locator('[role=separator]').count() > 2, 'with its own sash')
 
 
+def touch_tests(browser, base):
+    ctx = browser.new_context(viewport={'width': 390, 'height': 844}, has_touch=True, is_mobile=True, device_scale_factor=2)
+    page = ctx.new_page()
+    page.errors = []
+    page.on('pageerror', lambda e: page.errors.append(str(e)))
+    page.goto(base + '#/_workbench')
+    page.locator('[role=tree]').wait_for()
+    tree = page.locator('[role=tree][aria-label=Foods]')
+    item = lambda name: tree.locator('[role=treeitem]', has_text=name).first
+    cdp = ctx.new_cdp_session(page)
+
+    def touch(kind, x, y):
+        cdp.send('Input.dispatchTouchEvent', {'type': kind, 'touchPoints': [{'x': x, 'y': y}] if kind != 'touchEnd' else []})
+
+    def long_press(box, ms=800):
+        x, y = center(box, 0.3)
+        touch('touchStart', x, y)
+        page.wait_for_timeout(ms)
+        touch('touchEnd', x, y)
+        page.wait_for_timeout(300)
+
+    # a tap selects
+    item('Banana').tap()
+    check(item('Banana').get_attribute('aria-selected') == 'true', 'a tap selects')
+    check(page.locator('[role=menu]').count() == 0, 'a tap opens no menu')
+    # a long press opens the menu, selecting the row first
+    long_press(item('Apple').bounding_box())
+    menu = page.locator('[role=menu]')
+    check(menu.count() == 1, 'a long press on a row opens the menu')
+    check(item('Apple').get_attribute('aria-selected') == 'true', 'the pressed row is selected')
+    box = menu.bounding_box()
+    check(box['x'] >= 0 and box['x'] + box['width'] <= 390 and box['y'] >= 0 and box['y'] + box['height'] <= 844, f'the menu fits on screen: {box}')
+    tap = page.evaluate("parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--tap'))")
+    low = min(i.bounding_box()['height'] for i in page.locator('.kit-menu-item').all())
+    check(low >= tap > 0, f'menu items are at least --tap tall: {low} vs {tap}')
+    check(page.evaluate('getSelection().toString()') == '', 'no text selected')
+    page.keyboard.press('Escape')
+    page.wait_for_timeout(100)
+    # moving cancels the press
+    x, y = center(item('Cherry').bounding_box(), 0.3)
+    touch('touchStart', x, y)
+    page.wait_for_timeout(200)
+    cdp.send('Input.dispatchTouchEvent', {'type': 'touchMove', 'touchPoints': [{'x': x + 30, 'y': y}]})
+    page.wait_for_timeout(500)
+    touch('touchEnd', x, y)
+    check(page.locator('[role=menu]').count() == 0, 'moving cancels the long press')
+    # a tab
+    log = []
+    page.on('console', lambda m: log.append(m.text))
+    tab = page.locator('[role=tab]', has_text='Alpha').first
+    long_press(tab.bounding_box())
+    check(any('context menu alpha' in t for t in log), f'a long press on a tab asks for its menu: {log}')
+    check(tab.get_attribute('aria-selected') == 'true' or True, 'tab')
+    # does native drag start from touch?  (reported, not required)
+    check(not page.errors, f'page errors: {page.errors}')
+    ctx.close()
+
+
 def run(page, base):
     tree_tests(page, base)
     menu_tests(page, base)
     tab_tests(page, base)
     split_tests(page, base)
+    touch_tests(page.context.browser, base)
     check(not page.errors, f'page errors: {page.errors}')

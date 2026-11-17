@@ -59,6 +59,8 @@ function Menu({ items, place, focusFirst, onDismiss }: {
   const [sub, setSub] = useState<{ index: number; focus: boolean } | null>(null)
   const timer = useRef<number | null>(null)
   const typed = useRef({ text: '', at: 0 })
+  // A long press opens the menu under the finger: the lift that follows must not pick an item.
+  const pressedIn = useRef(false)
 
   useLayoutEffect(() => {
     const menu = el.current!
@@ -161,7 +163,8 @@ function Menu({ items, place, focusFirst, onDismiss }: {
 
   const subItem = sub ? items[sub.index] : null
   return (
-    <div ref={el} popover="auto" role="menu" className="kit-menu" style={pos} onKeyDown={onKeyDown}>
+    <div ref={el} popover="auto" role="menu" className="kit-menu" style={pos} onKeyDown={onKeyDown}
+      onPointerDown={() => { pressedIn.current = true }}>
       {items.map((item, i) => {
         if (!isItem(item)) return <div key={i} className="kit-menu-gap" role="separator" />
         return (
@@ -184,7 +187,7 @@ function Menu({ items, place, focusFirst, onDismiss }: {
                 timer.current = el.current!.ownerDocument.defaultView!.setTimeout(() => setSub({ index: i, focus: false }), SUB_DELAY)
               }
             }}
-            onClick={(e) => { e.stopPropagation(); choose(i, false) }}
+            onClick={(e) => { e.stopPropagation(); if (pressedIn.current) choose(i, false) }}
           >
             {item.checked && (
               <svg className="kit-menu-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
