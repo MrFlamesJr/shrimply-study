@@ -267,8 +267,8 @@ export function Confetti(p: { level: 'done' | 'perfect'; colors: string[] }): Re
 
 ## The app
 
-Status of each part as built: "mounted" means `App` renders it; "not mounted" means the code and its tests exist but
-no screen shows it yet (see `integration.md`).
+Everything below runs: `App` renders the `Workbench` (tabs, split panes, popped-out windows), the Explorer tab, the Sidebar
+and the TopBar (see `integration.md`). `#/_workbench` is a demo host that uses only the kit.
 
 ### `src/logic/contentOps.ts` (pure): copying, moving and deleting across open files
 
@@ -310,7 +310,7 @@ does not exist.
 
 ### `src/logic/explorerActions.ts` (pure): what the Explorer lets the user do, as data
 
-The decisions behind `src/layout/Explorer.tsx` (not mounted); the component only carries them out. Exports:
+The decisions behind `src/layout/Explorer.tsx`; the component only carries them out. Exports:
 
 ```ts
 export type ItemKind = ItemRef['kind']; export type NodeKind = ItemKind | 'doc'; export type DocRef = { kind: 'doc'; doc: DocId }
@@ -340,7 +340,7 @@ Functions return a result instead of throwing (a refusal is a `reason`). Files c
 
 ### `src/logic/workbenchActions.ts` (pure): what the Workbench shows and does, as data
 
-For `src/layout/Workbench.tsx` (not mounted).
+For `src/layout/Workbench.tsx`.
 
 ```ts
 export type TabData; export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }; export type Docs = Record<string, WorkbenchDoc>
@@ -356,7 +356,15 @@ export function tabMenu(tab, docs, g: GroupContext, mac: boolean): MenuEntry[]; 
 `TabData` is declared here for the Workbench with the same shape as in `state/workspace.ts`. The file imports `resolve`
 from `src/route.ts`.
 
-### `src/logic/tabNav.ts` (pure) and `src/layout/tabNav.ts`: a tab's navigation (not mounted)
+### `src/logic/routes.ts` (pure) and `src/route.ts`
+
+`logic/routes.ts` holds the routes as data: `Route`, `parseHash`, `href`, `resolve(library, route)` (the course and quiz a
+route names, and which is `missing`), `Place`, `sameIds`, `Nav`, `Found` and `followRename`. `src/route.ts` re-exports them
+and adds what needs the browser: `go`, `goToNew`, `takeCreated`, `redirect`, `windowNav(route)`, `useRoute`, `usePlace` and
+`usePlaceFor(library, route, onRouteChange)` (follows renames for a route that belongs to a tab). Logic and state import
+the pure file.
+
+### `src/logic/tabNav.ts` (pure) and `src/layout/tabNav.ts`: a tab's navigation
 
 ```ts
 // logic/tabNav.ts
@@ -368,26 +376,35 @@ export type TabNavOps = { setRoute(tabId: string, route: Route): void; ownsAddre
 export function makeTabNav(tabId: string, route: Route, ops: TabNavOps): Nav   // writes location.hash only for the tab that owns the address bar
 ```
 
-`Nav` is declared in `src/route.ts`: `{ route; go(r); redirect(r); goToNew(id, r); takeCreated(id): boolean }` (id first).
-Screens take an optional `nav` and otherwise use `windowNav(route)`, the address bar's. `route.ts` also has
-`usePlaceFor`, the per-route version of `usePlace`. Built: `state/useWorkspace.ts` still exports a `Nav` type whose
-`goToNew` takes the route first; nothing uses it and it differs from the real one.
+`Nav` is `{ route; go(r); redirect(r); goToNew(id, r); takeCreated(id): boolean }` (id first), declared in
+`logic/routes.ts`. `PaneScreen` and `App` build one per tab with `makeTabNav`, so a tab's `go` changes that tab's route and
+writes the hash only when the tab is the main window's active one. Screens still accept an optional `nav` and otherwise use
+`windowNav(route)`, the address bar's.
 
-### `src/state/workspace.ts` (pure): the workspace and its transitions (mounted, run by `useWorkspace`)
+### `src/state/workspace.ts` (pure): the workspace and its transitions (run by `useWorkspace`)
 
 ```ts
 export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'welcome' }
 export type Doc = { id; library; saved: Library | null; name; file: FileRef | null; drive: DriveSource | null; replaced: number; newer: boolean }
-export type Workspace = { docs: Record<DocId, Doc>; order: DocId[]; layout: Layout<TabData>; history: History<Snap>; clipboard: Clipboard | null; explorer: Explorer }
+export type Workspace = { docs: Record<DocId, Doc>; order: DocId[]; layout: Layout<TabData>; history: History<Snap>;
+  clipboard: Clipboard | null; explorer: Explorer; recent: TabId[] }   // recent: tabs, the one active last first, across groups and windows
 export type Snap = Record<DocId, Library>; export type Clipboard = { mode: 'copy' | 'cut'; refs: ItemRef[]; fragment: Fragment }
 export type Explorer = { expanded: string[]; selection: Selection }
 ```
 
 A document has unsaved changes when `library !== saved` (`hasChanges`). Transitions take a `Workspace`, return a new
-one, and read no clock (times and new ids are arguments):
+one, and read no clock or random source (times and new ids are arguments; `useWorkspace` makes the ids before it runs one):
 
 - Documents: `emptyWorkspace`, `makeDoc`, `docName`, `where`, `freeDocName`, `libraries`.
-- Layout: `tabIdOf`, `activeTab`, `activeDoc`, `addDoc`, `activateDoc`, `setRoute`.
+- Layout (a file may show in several tabs, each with its own page; closing tabs never closes a file): `activeTab`,
+  `activeDoc` (the active tab's file, else the file of the tab active last), `addressTab` (the main window's active tab, which
+  the address bar follows), `tabsOf`, `addDoc`, `activateDoc`, `openPlace(w, doc, route, tabId, { group?, newTab?,
+  background? })` (a place of a file in a group: in that group's tab of the file unless `newTab`), `setTabRoute`,
+  `activateTab`, `activateGroup`, `closeTabs`, `closeOthers`, `closeAll`, `moveTab`, `joinGroups`, `resizeSplit`,
+  `dockWindow`, `splitGroup` (a new group beside one; a dragged tab moves into it, else a copy of a file's tab; the
+  Explorer is never copied), `popOutGroup` (the main window's only group first gets an empty group beside it, so the main
+  window never ends up with nothing), `explorerTab`, `isShown`, `showExplorer` (one Explorer at most: activated where it
+  shows, else split on the left of a group, else a tab), `recentGroup`.
 - Content: `applyEdit(w, label, update, at, key?)` is the one write path; it records only the documents that changed and
   merges entries of the same key within 1.5 s. `undoEdit` and `redoEdit` return `{ workspace, entry }` or null.
   `forget(history, id)`, `patchDoc`, `replaceDoc` (the whole library replaced from outside: saved as it comes, `replaced`
@@ -396,27 +413,35 @@ one, and read no clock (times and new ids are arguments):
 - Clipboard: `toClipboard`, `paste` (a cut moves when its items still exist, else the copy goes in with new ids; throws
   the reason when refused).
 - Files: `changedOnDisk`, `reopenFile`, `docWithDrive`.
-- Persistence: `docRecord`, `workspaceRecord`, `readRoute`, `defaultLayout`, `readLayout`, `readExplorer`, `restore`.
+- Persistence: `docRecord`, `workspaceRecord`, `readRoute`, `defaultLayout` (one group, a tab per document),
+  `readLayout`, `readExplorer`, `restore`. `readLayout` checks a stored layout: tabs of documents no longer open go, at most
+  one Explorer stays, popped-out groups come back docked, a file may have no tab, and anything malformed gives the default
+  layout.
 
-Built: the layout holds one tab per document for now (the default layout is one group with a tab per document).
-`readLayout` checks a stored layout: tabs of documents no longer open go, popped-out groups come back docked, every open
-document has a tab, and anything malformed gives the default layout.
+### `src/state/useWorkspace.ts`
 
-### `src/state/useWorkspace.ts` (mounted)
-
-`useWorkspace(adapter, notify, ask, askChoice, onSwitch)` replaces the earlier `useLibrary`. `onSwitch(route | null)` is
-called when the active document changes (App writes that tab's page into the address bar).
+`useWorkspace(adapter, notify, ask, askChoice)` replaces the earlier `useLibrary`.
 
 ```ts
 export type DocMeta = { id: DocId; name: string; where: 'device' | 'drive' | 'browser'; dirty: boolean }
 export type WorkspaceApi = {
   ready: boolean                                   // the browser backup has been read; App renders nothing before
   docs: DocMeta[]                                  // open documents, in the sidebar's order
-  active: DocId | null                             // the active tab's document
+  active: DocId | null                             // the active tab's file, else the file of the tab active last
   doc(id: DocId): LibraryApi                       // one document's API; the same object until it (or the sign-in) changes
   layout: Layout<TabData>
-  activate(id: DocId): void
-  setRoute(route: Route): void                     // the page the active tab shows
+  address: DocTab | null                           // the main window's active tab when it shows a file: the address bar follows it
+  recent: TabId[]                                  // tabs, the one active most recently first
+  activate(id: DocId): void                        // shows a file: its tab in the active group, else its tab used last, else a new tab on its home
+  openPlace(doc, route, o?: { group?, newTab?, background? }): TabId | null
+  setTabRoute(tabId, route): void
+  activateTab(tabId): void; activateGroup(groupId): void
+  closeTabs(tabIds): void; closeOthers(tabId): void; closeAll(groupId): void
+  moveTab(tabId, toGroup, index): void
+  split(groupId, dir, side, tabId?, move?): void; join(from, into): void; resize(win, path, sizes): void
+  popOut(groupId, win): void; dock(win): void      // the caller opens the popup, in the click
+  showExplorer(beside: GroupId, split: boolean): void
+  recentGroup(except: GroupId | null): GroupId | null
   apply(label: string, update: (docs: Docs) => Docs, key?: string): void   // the one content write path
   undo(): void; redo(): void; undoLabel: string | null; redoLabel: string | null
   clipboard: Clipboard | null
@@ -440,15 +465,12 @@ export type WorkspaceApi = {
 `signedIn`, `yours`, `newer`, `savesInto`, `signOut`, `account`, `prepare`, `signIn`, `canSave`, `open`, `refresh`,
 `pull`, `save`, `saveCopy`, `saveNew`, `share`, `list`, `remove`, `pick`).
 
-Built, differences from the original contract: `WorkspaceApi` has no layout actions (`openTab`, `closeTabs`, `split`,
-`moveTab`, `join`, `resize`, `popOut`, `dock`). Only `activate` and `setRoute` exist, because the Workbench is not mounted
-yet. It adds `active`, `setExplorer`, `openLibrary`, `openDrive`, `drive`, `loadLabel` and `loadHint`, and `newDoc` and
-`openFile` take an optional route. `explorer.expanded` is a `string[]`. Content edits go through `apply`, which marks
-every document it changed as unsaved and schedules that document's browser backup 300 ms later. The workspace's own
-record (open documents, layout, Explorer, names) is written the same way, and what waits is flushed on `pagehide` and
-when the page is hidden.
+Content edits go through `apply`, which marks every document it changed as unsaved and schedules that document's browser
+backup 300 ms later. The workspace's own record (open documents, layout, Explorer, names) is written the same way, and what
+waits is flushed on `pagehide` and when the page is hidden. The hook no longer takes an `onSwitch` callback: the address
+bar follows `address` (see `integration.md`).
 
-### `src/layout/Explorer.tsx`, `Workbench.tsx`, `PaneHead.tsx` (not mounted)
+### `src/layout/`: Explorer, ExplorerPane, Workbench, PaneHead, PaneScreen, Sidebar, TopBar
 
 - `Explorer(p: ExplorerProps)`: every open file as a tree, driven only by its props. Props: `docs: ExplorerDoc[]`
   (`{ id, name, library, dirty, where }`), `expanded`, `onExpanded`, `selection`, `onSelection`, `clipboard`, `apply(label,
@@ -468,8 +490,21 @@ when the page is hidden.
   `cut`, `paste`, `newDoc`, `openFile`, and each file's save, download and close to the workspace. `Explorer` also takes an
   optional `undo()`, shown as an Undo action on the toast of a drop or paste.
 - `PaneHead({ crumbs, onCrumb })`: breadcrumbs for a pane; `Crumb = { label; route? }`.
-- Mounted today: `Sidebar` (lists the open files from `ws.docs`) and `TopBar`. The kit demo `#/_workbench`
-  (`src/kit/demo/WorkbenchDemo`) uses only the kit.
+- `PaneScreen(p: { tab; group; shown; active; s: PaneShared })`: one tab's screen. An Explorer tab renders `ExplorerPane`; a
+  welcome tab (or a tab whose file is gone) renders the welcome `HomeScreen`; a file tab renders `DocPane`: its own `Nav`
+  from `makeTabNav`, `usePlaceFor` for the course and quiz its route names (a deleted one leads to the nearest page with a
+  note, quiet when the library was just replaced), its own scroll position in the pane's `.pane-body`, and links to pages
+  of its file (`#/...`) followed in the tab, or in a new tab beside it with Ctrl or the middle button. It then renders the
+  `Course`, `Quiz`, `Edit`, `Study` or `Home` screen. A study session fills the pane (`pane-session`); `active` says whether
+  its keys work. `PaneShared` is what `App` hands every tab (`ws`, `notify`, `ask`, `navOps`, the study options, the
+  collapsed groups, the tips state, the welcome state, open and new actions, the Explorer's `openNode`, `editNode`,
+  `reveal` and `openCard`).
+- `Sidebar` (`{ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onOpen }`): the open
+  files from `ws.docs`, the course tree of the active file (`onOpen(route, newTab)` shows a page in the active group), the
+  Explorer button, "+ New course" and the theme select. `TopBar({ openFile, loadLabel, loadHint, onDrive })`.
+- `App` composes them: the shell is `Sidebar`, `TopBar` and a `wb-cell` holding the `Workbench` (hidden on the debug page
+  and the welcome page). A study session alone in the main window keeps the full-screen look. The changelog and the kit demo
+  are full-screen pages outside the shell.
 
 ### `src/logic/whereLine.ts` (pure)
 
@@ -507,4 +542,5 @@ Drive" (signed out: nobody can tell), plus ", in the bin" when it is trashed. Us
   When `library.v1` changed after it became a document (an older version of the app in another tab), the text becomes its own
   file and `notes` holds `OLDER_TAB_NOTE`: "Changes made in another tab with an older version of the app were opened as
   their own file." `library.v1` itself is always left as it is.
-- Built: `useWorkspace` reads `broken` (a warning toast) but does not yet use `unstored` or `notes`.
+- `useWorkspace` shows `broken` as a warning toast and `notes` as info toasts, and treats `unstored` documents as not yet
+  written, so the first backup write after the start writes them.
