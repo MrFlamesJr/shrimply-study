@@ -115,6 +115,10 @@ Ranked backlog. The ranking is by how much each feature helps exam studying (act
 | Confetti on the results: a light burst when a round ends, a bigger one from both bottom corners with a second wave on a perfect score, in the theme's colors; it never blocks a click and is off with reduced motion | 8 | Duolingo, Kahoot |
 | Tests that open every sample file and every released format version on each change, and end-to-end tests in a real browser (`python -I e2e/run.py`) | 8 | |
 | Several files open at once: opening a file, the guide, a Google Drive file or a shared link adds it beside the others instead of replacing your courses (nothing to confirm); the sidebar lists the open files, each with its name, where it is, an unsaved dot, and Save, Download and Close; the course tree is the active file's; closing a file with changes asks Save, Don't save or Cancel; Ctrl+S saves the active file, and in Chrome and Edge Save writes back into the .shrimp file you opened (asking first if it changed on disk; elsewhere it downloads under its name), while Download is always a separate copy; one undo history across every file (Ctrl+Z, Ctrl+Shift+Z or Ctrl+Y outside text fields; an undo back to the saved state clears the unsaved dot); every open file, its unsaved changes and its page come back after a reload; your existing library opens as the first file | 9 | VS Code, Google Docs |
+| Tabs and split view: every page opens in a tab of its editor group; right-click a tab (or its group's ⋯) to Close, Close others, Close all, Split right, Split down, Move to new window, Reveal in Explorer, Copy path, Save or Save all; Ctrl+\ splits; drag a tab to reorder it, onto another group, or onto a pane's edge to split there; drag the gap between panes to resize them; each tab keeps its own page, so two files (or two pages of one) sit side by side and move independently; the address bar follows the active tab; a pane's head shows its crumbs from the file's name; a study round alone in the window is full screen as before, and inside a split it fills its pane; narrow screens show one group at a time; the layout comes back after a reload | 9 | VS Code |
+| Explorer: every open file as one tree (files, courses, quizzes, cards), opened from the button at the top of the sidebar or Ctrl+Shift+E, as a tab or beside the page; select several with Ctrl and Shift; copy, cut and paste (Ctrl+C, X, V), drag to move or hold Ctrl to copy, or Move to…, also between files (names that are taken get "(2)", groups and own side types come along, the order is kept); a refused drop says why; new file, course, quiz or card from each item's menu, rename with F2, delete (cards at once with Undo, quizzes and courses ask first); search; Reveal in Explorer from a tab; everything is one undo step and marks every file it touched as unsaved; a long press opens the menu on touch screens | 9 | VS Code, Windows Explorer |
+| Move a pane into its own window (a tab's or group's menu): it shows the same live content, edits show everywhere at once, Dock brings it back, and closing or reloading that window docks it; a window whose main page is gone closes itself | 9 | VS Code |
+| Save all (the button by Files, or Ctrl+Alt+S); deleting a card says so with an Undo button | 9 | |
 
 ## Todo (ranked)
 
@@ -125,12 +129,11 @@ Ranked backlog. The ranking is by how much each feature helps exam studying (act
 | 4 | Progress per card and quiz (new, learning, mastered), weakest cards | Quizlet, Kahoot reports | Stores results in the library |
 | 5 | Study several quizzes or a whole course at once | Anki, Quizlet folders | Mixing topics helps exams |
 | 6 | Kinder answering: typo tolerance in typed answers (one letter off counts, with a "check the spelling" note), and an "I don't know" button in typing and multiple choice | Quizlet | `checkAnswer`. Today one wrong letter is wrong, and a student who does not know must make a wrong guess |
-| 7 | Safer edits and rounds: leaving a half-done round asks first, deleting a card shows an Undo toast, and edits that change nothing (type a letter, delete it) don't set the unsaved mark | Google Docs | `StudyScreen` exit, `EditScreen` delete, `useLibrary` `change` |
+| 7 | Safer rounds: leaving a half-done round asks first | Google Docs | `StudyScreen` exit (deleting a card now has an Undo toast, and an edit undone back to the saved state clears the mark) |
 | 8 | Image-only sides: a picture as the whole term or definition (no text) | Quizlet, Anki | Today a side always needs text. Multiple choice and typing need a text answer, so such a card is asked from its image side only |
 | 9 | Matching game, timed, with best time | Quizlet Match | |
 | 10 | Text-to-speech for terms and definitions | Quizlet, Memrise | Browser speech API, no dependency |
 | 11 | Search across courses and cards | Quizlet | |
-| 12 | Reorder and move quizzes and cards, duplicate a quiz | Quizlet | |
 | 13 | Streaks and daily goal | Duolingo, Quizlet | |
 | 14 | Timer and speed points per question | Kahoot, Quizizz | |
 | 15 | Ghost mode: race your previous score | Kahoot | Needs #4 |
@@ -142,6 +145,7 @@ Ranked backlog. The ranking is by how much each feature helps exam studying (act
 | 21 | Database storage adapter (accounts, sync) | | New `StorageAdapter` |
 | 22 | AI card generation from notes | Quizlet, Knowt | Needs a backend or API key |
 | 23 | Live multiplayer for study groups | Kahoot, Quizlet Live | Needs a backend |
+| 24 | Pinned tabs | VS Code | Considered for the workspace (decision 9), not built |
 
 ## Not planned
 - Spaced-repetition scheduler, confidence rating, exam countdown (removed by decision in step 1).
