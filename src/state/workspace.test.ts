@@ -13,6 +13,8 @@ import {
   closeTabs,
   dockWindow,
   followHistory,
+  shownTab,
+  activateGroup,
   showAppPage,
   moveTab,
   openPlace,
@@ -594,6 +596,30 @@ describe('back and forward', () => {
     w = splitGroup(w, 'g', 'row', 'after', 'g2', { tabId: 'unused', move: 'tb' })
     return activateTab(w, 'tb')
   }
+
+  it("the address names the focused group's tab of any kind, and an app page's address shows its tab", () => {
+    let w = setup()
+    expect(shownTab(w)?.id).toBe('tb')
+    w = activateGroup(w, 'g')
+    expect(shownTab(w)?.id).toBe('ta')
+    w = followHistory(w, null, { name: 'explorer' }, { newTab: 'te' })
+    expect(activeTab(w)?.data).toEqual({ kind: 'explorer' })
+    expect(groupOf(w.layout, 'te')).toBe('g')
+    expect(shownTab(w)?.id).toBe('te')
+    w = activateTab(w, 'ta')
+    expect(activeTab(followHistory(w, null, { name: 'explorer' }, { newTab: 'te2' }))?.id).toBe('te')
+    expect(followHistory(w, null, { name: 'empty' }, { newTab: 'x' })).toBe(w)
+  })
+
+  it("an address naming another open file shows it in the focused group; naming none, the focused tab's file", () => {
+    const w = activateGroup(setup(), 'g')
+    const named = followHistory(w, null, { name: 'course', course: 'b1' }, { doc: 'b', newTab: 'tb2' })
+    expect(activeTab(named)?.id).toBe('tb2')
+    expect(groupOf(named.layout, 'tb2')).toBe('g')
+    expect(route(named, 'tb2')).toEqual({ name: 'course', course: 'b1' })
+    expect(followHistory(w, null, { name: 'course', course: 'b1' })).toBe(w)
+    expect(route(followHistory(w, null, { name: 'course', course: 'a2' }, { doc: 'a', newTab: 'x' }), 'ta')).toEqual({ name: 'course', course: 'a2' })
+  })
 
   it('an entry goes back to its own tab, wherever it is, on its page; the other tab stays', () => {
     const w = followHistory(setup(), 'ta', HOME)

@@ -188,6 +188,7 @@ def run(page, base):
     new_quiz_in_popup(page)
     empty_group_and_brand(page)
     pop_out_one_tab(page)
+    address_names_the_page(page, base)
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
@@ -244,6 +245,70 @@ def pop_out_one_tab(page):
     page.get_by_role('menuitem', name='Dock all').click()
     wait_for(page, lambda: groups(page).count() == 2 and page.locator('.wb-elsewhere').count() == 0, 'Dock all brings both back')
     wait_for(page, lambda: pop.is_closed(), 'their windows close')
+
+
+def hash_of(page):
+    return page.evaluate('location.hash')
+
+
+def address_names_the_page(page, base):
+    """The address names the page in the focused group, for every kind of tab, with its file while several are open;
+    clicking into another group moves it there; a reload restores that page; an address naming a file shows it; an
+    old one without the file works against the active file; an empty focused group names no page."""
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close all').click()
+        page.wait_for_timeout(150)
+    page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
+    g = group(page, 0)
+    wait_for(page, lambda: crumbs(g)[:1] == ['Test library'], 'the test library shows')
+    shown(g).locator('.course-row a').first.click()
+    wait_for(page, lambda: len(crumbs(g)) == 2, 'a course of it')
+    wait_for(page, lambda: hash_of(page).endswith('?file=test-library') and len(hash_of(page)) > len('#/?file=test-library'),
+             f'its page and its file are in the address: {hash_of(page)}')
+    course = hash_of(page)
+
+    # Another group shows the guide; clicking back into the first moves the address back.
+    g.get_by_role('button', name='Split right').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'split')
+    page.locator('.file-row', has_text='Guide').locator('.file-pick').click()
+    wait_for(page, lambda: hash_of(page).endswith('?file=guide'), f'the focused group names the guide: {hash_of(page)}')
+    group(page, 0).locator('[role=tab][aria-selected=true]').click()
+    wait_for(page, lambda: hash_of(page) == course, f'clicking into the other group names its page: {hash_of(page)}')
+
+    # The app's own tabs have addresses of their own, and a reload restores them.
+    page.locator('.sidebar-news').click()
+    wait_for(page, lambda: hash_of(page) == '#/_changelog', f"What's new: {hash_of(page)}")
+    page.locator('a.brand').click()
+    wait_for(page, lambda: hash_of(page) == '#/_welcome', f'the welcome page: {hash_of(page)}')
+    page.wait_for_timeout(700)
+    page.reload()
+    groups(page).first.wait_for()
+    wait_for(page, lambda: trail(active_group(page)) == ['Shrimply Study', 'Welcome'] and hash_of(page) == '#/_welcome', 'the reload shows the Welcome tab again')
+    page.keyboard.press('Control+Shift+E')
+    wait_for(page, lambda: hash_of(page) == '#/_explorer', f'the Explorer: {hash_of(page)}')
+
+    # A file's page: a reload shows exactly it; an address naming the other file shows that file in the focused group.
+    page.goto(base + course)
+    wait_for(page, lambda: crumbs(active_group(page))[:1] == ['Test library'] and len(crumbs(active_group(page))) == 2, 'its address shows the course')
+    page.wait_for_timeout(700)
+    page.reload()
+    groups(page).first.wait_for()
+    wait_for(page, lambda: hash_of(page) == course and len(crumbs(active_group(page))) == 2, f'a reload keeps it: {hash_of(page)}')
+    page.goto(base + '#/?file=guide')
+    wait_for(page, lambda: crumbs(active_group(page))[:1] == ['Guide'], "the guide's home, named by the address")
+    # An old address without the file works against the active file, and gets its file part back.
+    page.goto(base + '#/')
+    wait_for(page, lambda: crumbs(active_group(page)) == ['Guide'] and hash_of(page) == '#/?file=guide', f'an old address: {hash_of(page)}')
+
+    # An empty focused group names no page.
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close all').click()
+        page.wait_for_timeout(150)
+    group(page, 0).get_by_role('button', name='More').click()
+    page.get_by_role('menuitem', name='Close all').click()
+    wait_for(page, lambda: hash_of(page) == '#/_empty', f'an empty group: {hash_of(page)}')
 
 
 def elsewhere(page):

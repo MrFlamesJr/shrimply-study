@@ -146,20 +146,25 @@ export function activeDoc(w: Workspace): DocId | null {
   return tab ? tab.data.doc : null
 }
 
-/**
- * The tab the address bar follows: the main window's active tab (the active group's when it is in the main window,
- * else the main group used last), when it shows a file.
- */
-export function addressTab(w: Workspace): DocTab | null {
+/** The main window's focused group: the active group when it is in the main window, else the main group used last. */
+export function mainGroup(w: Workspace): L.GroupId {
   const main = L.groupsIn(w.layout, L.MAIN)
-  let group = main.includes(w.layout.activeGroup) ? w.layout.activeGroup : undefined
+  if (main.includes(w.layout.activeGroup)) return w.layout.activeGroup
   for (const t of w.recent) {
-    if (group) break
     const g = L.groupOf(w.layout, t)
-    if (g && main.includes(g)) group = g
+    if (g && main.includes(g)) return g
   }
-  return docTab(w, w.layout.groups[group ?? main[0]]?.active)
+  return main[0]
 }
+
+/** The tab the address bar names: the main window's focused group's active tab, of any kind; null when it is empty. */
+export function shownTab(w: Workspace): L.Tab<TabData> | null {
+  const active = w.layout.groups[mainGroup(w)]?.active
+  return (active && w.layout.tabs[active]) || null
+}
+
+/** That tab when it shows a file (a typed address goes to its file). */
+export const addressTab = (w: Workspace): DocTab | null => docTab(w, shownTab(w)?.id)
 
 export const tabsOf = (l: L.Layout<TabData>, doc: DocId): L.TabId[] =>
   Object.values(l.tabs).flatMap((t) => (t.data.kind === 'doc' && t.data.doc === doc ? [t.id] : []))
@@ -323,15 +328,31 @@ export function showAppPage(w: Workspace, kind: AppPage, group: L.GroupId, tabId
   return withLayout(w, L.openTab(w.layout, { id: tabId, data: { kind } }, at))
 }
 
+const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
+
 /**
- * Back, forward or a typed address: the entry names the tab it belongs to (`tabId`, from history.state). That tab,
- * where it still is (any group or window), becomes active on the entry's page. With no such tab, the main window's
- * tab takes the page only when its file has that page; otherwise nothing changes.
+ * Back, forward, a typed address or a reload: the entry names the tab it belongs to (`tabId`, from history.state).
+ * That tab, where it still is (any group or window), becomes active on the entry's page. The app's own pages (the
+ * Explorer, What's new, the welcome page) show their tab, opened in the main window's focused group (`newTab`) when
+ * there is none. A file's page with no tab of its own: the file it names (`doc`, from the address) in its tab there
+ * (`newTab` when it has none); naming none, or the main window's own file, the main window's tab takes the page only
+ * when its file has that page. Otherwise nothing changes.
  */
-export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route): Workspace {
+export function followHistory(w: Workspace, tabId: L.TabId | null, route: Route, o: { doc?: DocId | null; newTab?: L.TabId } = {}): Workspace {
+  if (route.name === 'explorer' || route.name === 'changelog' || route.name === 'welcome') {
+    const kind = route.name
+    const entry = tabId ? w.layout.tabs[tabId] : undefined
+    const tab = entry?.data.kind === kind ? entry : Object.values(w.layout.tabs).find((t) => t.data.kind === kind)
+    if (tab) return activateTab(w, tab.id)
+    return o.newTab ? withLayout(w, L.openTab(w.layout, { id: o.newTab, data: { kind } }, { group: mainGroup(w) })) : w
+  }
+  if (!FILE_PAGES.includes(route.name)) return w
   const tab = docTab(w, tabId)
   if (tab) return activateTab(setTabRoute(w, tab.id, route), tab.id)
   const address = addressTab(w)
+  if (o.doc && w.docs[o.doc] && address?.data.doc !== o.doc) {
+    return o.newTab ? openPlace(w, o.doc, route, o.newTab, { group: mainGroup(w) }).workspace : w
+  }
   if (!address || resolve(w.docs[address.data.doc].library, route).missing) return w
   return setTabRoute(w, address.id, route)
 }
@@ -624,7 +645,7 @@ const isString = (x: unknown): x is string => typeof x === 'string'
 const strings = (x: unknown): x is string[] => Array.isArray(x) && x.every(isString)
 
 // Pages of the app itself, not of a file: a tab that held one (before tabs had their own pages) shows its file's home.
-const OWN = ['home', 'debug', 'changelog', 'workbench']
+const OWN = ['home', 'debug', 'changelog', 'explorer', 'welcome', 'empty', 'workbench']
 /** A route as a tab keeps it, or null (a Drive link is never kept: it would open again). */
 export function readRoute(r: unknown): Route | null {
   const x = r as Record<string, unknown> | null

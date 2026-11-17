@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Library } from '../model'
-import { followRename, href, parseHash, resolve } from './routes'
+import { addressOf, fileKeys, followRename, href, parseAddress, parseHash, resolve } from './routes'
 
 const library: Library = {
   version: 1,
@@ -12,6 +12,32 @@ const library: Library = {
     },
   ],
 }
+
+describe('addresses', () => {
+  it('names the app\'s own tabs and an empty group', () => {
+    for (const name of ['explorer', 'welcome', 'empty', 'changelog'] as const) expect(parseHash(href({ name }))).toEqual({ name })
+    expect(href({ name: 'explorer' })).toBe('#/_explorer')
+  })
+
+  it('names the file with several open, and reads it back; one without it still works', () => {
+    const quiz = { name: 'quiz', course: 'Les vers (2)', quiz: 'Plan 1' } as const
+    const address = addressOf(quiz, 'biologie')
+    expect(address).toBe('#/les-vers-2/plan-1?file=biologie')
+    expect(parseAddress(address)).toEqual({ route: { name: 'quiz', course: 'les-vers-2', quiz: 'plan-1' }, file: 'biologie' })
+    expect(parseAddress('#/les-vers-2')).toEqual({ route: { name: 'course', course: 'les-vers-2' }, file: null })
+    expect(parseAddress(addressOf({ name: 'home' }, 'a b'))).toEqual({ route: { name: 'home' }, file: 'a b' })
+    expect(addressOf(quiz, null)).toBe(href(quiz))
+  })
+
+  it('gives each open file a part of its own', () => {
+    expect(fileKeys([
+      { id: 'a', name: 'Biology.shrimp' },
+      { id: 'b', name: 'Biology' },
+      { id: 'c', name: 'Les vers (2)' },
+      { id: 'd', name: 'biology 2' },
+    ])).toEqual({ a: 'biology', b: 'biology-2', c: 'les-vers-2', d: 'biology-2-2' })
+  })
+})
 
 describe('parseHash', () => {
   it('reads home and the debug page', () => {

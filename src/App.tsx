@@ -1,8 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { followRename, href, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
+import { addressOf, followRename, href, parseAddress, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
 import { emptyLibrary, newId, type StudyOptions, type ThemeId } from './model'
-import { useWorkspace, type DocId } from './state/useWorkspace'
+import { useWorkspace, type DocId, type WorkspaceApi } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
 import { openPopup } from './kit/windows'
@@ -42,6 +42,12 @@ const BLOCKED = 'Your browser blocked the new window. Allow pop-ups for this sit
 
 type DocNode = ItemRef | { kind: 'doc'; doc: DocId }
 
+// The address of what a tab shows (asked for: the address always names the page on screen): a file's page (naming
+// its file while several are shown), the app's own pages by name, and `#/_empty` for no page (an empty group, or a
+// hidden file, which never shows in the address).
+const addressFor = (ws: WorkspaceApi, tab: Tab<TabData> | null): string =>
+  !tab ? href({ name: 'empty' }) : tab.data.kind === 'doc' ? addressOf(tab.data.route, ws.fileKey(tab.data.doc)) : href({ name: tab.data.kind })
+
 export function App() {
   const toasts = useToasts()
   const ws = useWorkspace(fileStorage, toasts.notify, askConfirm, askChoice)
@@ -50,13 +56,15 @@ export function App() {
   const hashRoute = useRoute()
   const own = OWN_PAGES.includes(hashRoute.name)
 
-  // The address bar follows the main window's active tab (`address`): switching tabs writes its page there
-  // (replacing the entry), going somewhere in it pushes one (makeTabNav). Each entry names its tab (history.state
-  // `{ tab }`), so Back and Forward go to that tab, wherever it is now, on that page (workspace.followHistory); an
-  // entry with no tab of its own (a typed address) goes to the main window's tab only when its file has that page.
-  // Pages of the app itself and Drive links are left alone; What's new's address opens its tab.
+  // The address bar names the page in the main window's focused group (`address`, any kind of tab): switching tabs or
+  // groups writes it there (replacing the entry), going somewhere in a tab pushes one (makeTabNav). Each entry names
+  // its tab (history.state `{ tab }`), so Back and Forward go to that tab, wherever it is now, on that page
+  // (workspace.followHistory); an entry with no tab of its own (a typed address, a reload in a new tab) goes to the
+  // file it names, the app's own page it names, or the main window's tab when its file has that page. Pages of the
+  // app itself (debug, the kit demo), Drive links and `#/_empty` are left alone.
   const addr = ws.address
-  const addrKey = addr ? `${addr.id} ${href(addr.data.route)}` : ''
+  const target = addressFor(ws, addr)
+  const addrKey = `${addr?.id ?? ''} ${target}`
   const entryTab = () => {
     const tab = (history.state as { tab?: unknown } | null)?.tab
     return typeof tab === 'string' ? tab : null
@@ -68,10 +76,13 @@ export function App() {
   useEffect(() => {
     const onNav = () => {
       const now = latest.current
-      const to = parseHash(location.hash)
-      if (!now.ready || OWN_PAGES.includes(to.name) || to.name === 'drive') return
-      if (to.name === 'changelog') flushSync(() => now.showAppPage('changelog'))
-      else flushSync(() => now.followHistory(entryTab(), to))
+      const { route: to, file } = parseAddress(location.hash)
+      if (!now.ready || OWN_PAGES.includes(to.name) || to.name === 'drive' || to.name === 'empty') return
+      flushSync(() => now.followHistory(entryTab(), to, file))
+      // Nothing to change (already there, or nowhere to go): the address names what is shown, as written.
+      const shown = latest.current.address
+      const canonical = addressFor(latest.current, shown)
+      if (location.hash !== canonical) history.replaceState({ tab: shown?.id ?? null }, '', canonical)
     }
     addEventListener('popstate', onNav)
     addEventListener('hashchange', onNav)
@@ -90,18 +101,24 @@ export function App() {
     if (!ws.ready) return
     const first = !started.current
     started.current = true
-    const here = parseHash(location.hash)
-    if (first && here.name === 'changelog') return ws.showAppPage('changelog')
-    if (OWN_PAGES.includes(here.name) || here.name === 'drive' || here.name === 'changelog' || !addr) return
-    if (first && ws.followHistory(entryTab(), here)) return
-    const target = href(addr.data.route)
-    const moved = lastAddress.current === addr.id && location.hash !== target
-    lastAddress.current = addr.id
-    if (moved) history.pushState({ tab: addr.id }, '', target)
-    else if (location.hash !== target || entryTab() !== addr.id) history.replaceState({ tab: addr.id }, '', target)
+    const here = parseAddress(location.hash)
+    if (OWN_PAGES.includes(here.route.name) || here.route.name === 'drive') return
+    if (first && here.route.name !== 'empty' && ws.followHistory(entryTab(), here.route, here.file)) return
+    const id = addr?.id ?? null
+    const moved = id !== null && lastAddress.current === id && location.hash !== target
+    lastAddress.current = id
+    if (moved) history.pushState({ tab: id }, '', target)
+    else if (location.hash !== target || entryTab() !== id) history.replaceState({ tab: id }, '', target)
   }, [ws.ready, addrKey])
 
-  const navOps: TabNavOps = { setRoute: ws.setTabRoute, ownsAddress: (id) => !own && id === ws.address?.id }
+  const navOps: TabNavOps = {
+    setRoute: ws.setTabRoute,
+    ownsAddress: (id) => !own && id === ws.address?.id,
+    address: (id, route) => {
+      const tab = ws.layout.tabs[id]
+      return tab?.data.kind === 'doc' ? addressOf(route, ws.fileKey(tab.data.doc)) : href(route)
+    },
+  }
   const tabNav = (tabId: string, route: Route): Nav => makeTabNav(tabId, route, navOps)
 
   // The study options (mode, side, order), remembered in this browser so a reload or a new tab keeps them.
@@ -138,10 +155,12 @@ export function App() {
   // last one shown is remembered in this browser) it opens on start, when the visit starts on home; shown counts as
   // seen. Landing elsewhere keeps it for the next visit.
   const welcomed = useRef(false)
+  // The address the visit started on (the address bar is rewritten once the workspace is read).
+  const startedOn = useRef(parseHash(location.hash).name)
   useEffect(() => {
     if (!ws.ready || welcomed.current) return
     welcomed.current = true
-    if (loadSeenRelease() === RELEASES[0].name || parseHash(location.hash).name !== 'home') return
+    if (loadSeenRelease() === RELEASES[0].name || startedOn.current !== 'home') return
     saveSeenRelease(RELEASES[0].name)
     ws.showAppPage('welcome')
   }, [ws.ready])
@@ -212,7 +231,7 @@ export function App() {
       // Then the address shows the tab it opened in (or home when it did not open).
       void ws.openDrive(driveId).then(() => {
         const tab = latest.current.address
-        history.replaceState(tab ? { tab: tab.id } : null, '', href(tab?.data.route ?? HOME))
+        history.replaceState({ tab: tab?.id ?? null }, '', addressFor(latest.current, tab))
         setDriveDone((n) => n + 1)
       })
     }
@@ -429,7 +448,7 @@ export function App() {
 
   // A study session alone in the main window keeps the full-screen look: the shell steps aside (CSS), and the
   // workbench stays mounted, so nothing else is lost (popped-out windows neither).
-  const studyAlone = !own && groupsIn(ws.layout, MAIN).length === 1 && addr?.data.route.name === 'study'
+  const studyAlone = !own && groupsIn(ws.layout, MAIN).length === 1 && addr?.data.kind === 'doc' && addr.data.route.name === 'study'
   // With no file open and no tab, the page is the welcome page.
   const welcomeOnly = !own && ws.docs.length === 0 && Object.keys(ws.layout.tabs).length === 0
   const fullPage = hashRoute.name === 'workbench'

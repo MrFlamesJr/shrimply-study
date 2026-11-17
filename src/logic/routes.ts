@@ -11,13 +11,19 @@ import { slug } from './names'
 //   #/<course>/<quiz>/study/<format>   full-screen study session
 //   #/_debug                           test tools (not linked; _debug is never a slug)
 //   #/_changelog                       What's new (every release's notes), opened as a tab
+//   #/_explorer, #/_welcome            the Explorer and the welcome page, as tabs
+//   #/_empty                           no page: the focused group is empty (or shows a hidden file)
 //   #/_workbench                       a demo host of the reusable kit (src/kit/demo/, not linked)
 //   #/_drive/<file id>                 a library shared on Google Drive: opens it, then goes home
-// `course` and `quiz` hold names, or the slugs read from the address; `resolve` matches both.
+// `course` and `quiz` hold names, or the slugs read from the address; `resolve` matches both. With several files open,
+// a file's page also names its file: `#/<course>?file=<file>` (`parseAddress`, `addressOf`, `fileKeys`).
 export type Route =
   | { name: 'home' }
   | { name: 'debug' }
   | { name: 'changelog' }
+  | { name: 'explorer' }
+  | { name: 'welcome' }
+  | { name: 'empty' }
   | { name: 'workbench' }
   | { name: 'drive'; id: string }
   | { name: 'course'; course: string }
@@ -28,13 +34,16 @@ export type Route =
 export function parseHash(hash: string): Route {
   let parts: string[]
   try {
-    parts = hash.replace(/^#\/?/, '').split('/').map(decodeURIComponent)
+    parts = hash.replace(/^#\/?/, '').replace(/\?.*$/, '').split('/').map(decodeURIComponent)
   } catch {
     return { name: 'home' } // a broken %-escape
   }
   const [course, quiz, sub, format] = parts
   if (course === '_debug') return { name: 'debug' }
   if (course === '_changelog') return { name: 'changelog' }
+  if (course === '_explorer') return { name: 'explorer' }
+  if (course === '_welcome') return { name: 'welcome' }
+  if (course === '_empty') return { name: 'empty' }
   if (course === '_workbench') return { name: 'workbench' }
   if (course === '_drive') return quiz ? { name: 'drive', id: quiz } : { name: 'home' }
   if (!course) return { name: 'home' }
@@ -54,6 +63,12 @@ export function href(route: Route): string {
       return '#/_debug'
     case 'changelog':
       return '#/_changelog'
+    case 'explorer':
+      return '#/_explorer'
+    case 'welcome':
+      return '#/_welcome'
+    case 'empty':
+      return '#/_empty'
     case 'workbench':
       return '#/_workbench'
     case 'drive':
@@ -67,6 +82,39 @@ export function href(route: Route): string {
     case 'study':
       return `#/${part(route.course)}/${part(route.quiz)}/study/${route.format}`
   }
+}
+
+/** An address: its route, and the file it names (`?file=`), null when it names none (one file open, or an old link). */
+export function parseAddress(hash: string): { route: Route; file: string | null } {
+  const query = hash.match(/\?(.*)$/)?.[1] ?? ''
+  let file: string | null = null
+  try {
+    file = new URLSearchParams(query).get('file') || null
+  } catch {
+    file = null
+  }
+  return { route: parseHash(hash), file }
+}
+
+/** A route's address, naming its file (`file`, from `fileKeys`) when several files are open. */
+export const addressOf = (route: Route, file: string | null): string =>
+  file ? `${href(route)}?file=${encodeURIComponent(file)}` : href(route)
+
+/**
+ * Each open file's part in the address: its name as a slug (without ".shrimp"), made unique among the files given
+ * ("biology", "biology-2"), in their order.
+ */
+export function fileKeys(files: { id: string; name: string }[]): Record<string, string> {
+  const keys: Record<string, string> = {}
+  const taken = new Set<string>()
+  for (const f of files) {
+    const base = slug(f.name.replace(/\.shrimp$/i, '')) || 'file'
+    let key = base
+    for (let n = 2; taken.has(key); n++) key = `${base}-${n}`
+    taken.add(key)
+    keys[f.id] = key
+  }
+  return keys
 }
 
 /**

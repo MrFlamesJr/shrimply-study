@@ -170,3 +170,11 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   stops when cancelled. Involuntary: a tab that starts signed out says how many are hidden (on each start, as each
   start is one), and a 401 from Google signs out the same way. The Explorer's own note is left to its owner:
   `ws.hiddenDocs`, `ws.drive.signedIn()`, `ws.drive.signIn()` and `HiddenFilesNote` are there for it.
+- Asked for, 2026-11-17: the address names the page on screen, the main window's focused group's active tab of any
+  kind. The file goes in a query part, `?file=<slug of its name>` (".shrimp" left out, `-2` and so on for a second
+  file of the same slug), only while several files are shown, so one-file addresses look as before and old links
+  keep working against the active file. An empty focused group, or a hidden file's tab, is `#/_empty`: a neutral
+  address that changes nothing when followed. A followed address that changes nothing is rewritten as what is
+  shown. A reload's address goes first (`followHistory`: a tab of the named file in the focused group, opened when
+  it has none; an app page's tab, opened when there is none). Whether the Welcome tab opens on start is decided by
+  the address the visit started on, read before the address bar is rewritten.

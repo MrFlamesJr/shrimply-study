@@ -7,14 +7,14 @@ import { plural } from '../logic/plural'
 import { cardsEdit } from '../logic/cardsEdit'
 import type { Docs, ItemRef, Target } from '../logic/contentOps'
 import type { Notify } from '../logic/pushToast'
-import type { Route } from '../logic/routes'
+import { fileKeys, type Route } from '../logic/routes'
 import * as backup from '../storage/browserBackup'
 import * as google from '../storage/googleDrive'
 import type { DriveFile, DriveSource } from '../storage/googleDrive'
 import type { FileRef, StorageAdapter } from '../storage/StorageAdapter'
 import { comboLabel, isMac } from '../kit/shortcuts'
 import { redoLabel, undoLabel } from '../kit/history'
-import type { GroupId, Layout, TabId, WindowId } from '../kit/layout'
+import type { GroupId, Layout, Tab, TabId, WindowId } from '../kit/layout'
 import * as W from './workspace'
 import { hiddenNote, saveAllThenSignOut } from '../logic/signOut'
 import type { AppPage, Clipboard, DocId, DocTab, Explorer, TabData } from './workspace'
@@ -177,8 +177,13 @@ export type WorkspaceApi = {
   /** One document's API, the same object until that document (or the sign-in) changes. */
   doc(id: DocId): LibraryApi
   layout: Layout<TabData>
-  /** The main window's active tab when it shows a file: the address bar follows it. */
-  address: DocTab | null
+  /**
+   * The tab the main window's address names: its focused group's active tab, of any kind; null when that group is
+   * empty or shows a hidden file (never named in the address).
+   */
+  address: Tab<TabData> | null
+  /** A file's part in the address while several files are shown (unique among them); null with one. */
+  fileKey(doc: DocId): string | null
   /** Tabs, the one active most recently first. */
   recent: TabId[]
   /** Shows a file: its tab in the active group, else its tab used last, else a new tab on its home. */
@@ -210,8 +215,12 @@ export type WorkspaceApi = {
    * active one); `background` (a Ctrl or middle click) opens it without showing it.
    */
   showAppPage(kind: AppPage, group?: GroupId, background?: boolean): void
-  /** Back, forward or a typed address: the entry's own tab (`tabId`, from history.state) takes its page (see workspace.followHistory); true when something changed. */
-  followHistory(tabId: TabId | null, route: Route): boolean
+  /**
+   * Back, forward, a typed address or a reload: the entry's own tab (`tabId`, from history.state) takes its page, or the
+   * file the address names (`file`, a `fileKey`), or the app's own page's tab (see workspace.followHistory); true when
+   * something changed.
+   */
+  followHistory(tabId: TabId | null, route: Route, file?: string | null): boolean
   /** The group used most recently other than `except`. */
   recentGroup(except: GroupId | null): GroupId | null
   /** The one content write path: one undoable step that marks every document it changed as unsaved. */
@@ -1257,8 +1266,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       drive: driveFor(d, signed),
     }
   }
-  const shownAddress = W.addressTab(ws)
-  const addressShown = shownAddress && !W.isHidden(ws.docs[shownAddress.data.doc], who) ? shownAddress : null
+  const shownAddress = W.shownTab(ws)
+  const addressShown = shownAddress?.data.kind === 'doc' && W.isHidden(ws.docs[shownAddress.data.doc], who) ? null : shownAddress
+  // Each shown file's part in the address, when there are several (hidden ones never count).
+  const shownDocs = ws.order.filter((id) => !W.isHidden(ws.docs[id], who))
+  const keys = shownDocs.length > 1 ? fileKeys(shownDocs.map((id) => ({ id, name: W.docName(ws.docs[id]) }))) : {}
   const shownActive = W.activeDoc(ws)
   const activeShown = shownActive && !W.isHidden(ws.docs[shownActive], who) ? shownActive : null
   const doc = (id: DocId): LibraryApi => {
@@ -1285,6 +1297,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     layout: ws.layout,
     // A hidden file's page never shows in the address bar (its names would).
     address: addressShown,
+    fileKey: (id) => keys[id] ?? null,
     recent: ws.recent,
     activate: (id) => {
       const tab = newId()
@@ -1331,9 +1344,13 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const tab = newId()
       update((w) => W.showAppPage(w, kind, group ?? w.layout.activeGroup, tab, background))
     },
-    followHistory: (tabId, route) => {
+    followHistory: (tabId, route, file) => {
       const before = ref.current
-      update((w) => W.followHistory(w, tabId, route))
+      // The file the address names, by its part (`fileKey`), among the shown ones.
+      const shown = before.order.filter((id) => !W.isHidden(before.docs[id], whoRef.current))
+      const named = file ? shown.find((id) => fileKeys(shown.map((x) => ({ id: x, name: W.docName(before.docs[x]) })))[id] === file) : undefined
+      const newTab = newId()
+      update((w) => W.followHistory(w, tabId, route, { doc: named ?? null, newTab }))
       return ref.current !== before
     },
     recentGroup: (except) => W.recentGroup(ref.current, except),
