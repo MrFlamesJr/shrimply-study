@@ -59,7 +59,9 @@ def run(page, base):
     workspace = after['workspace']
     assert workspace is None or ('"docs":[]' in workspace and '"closed":[]' in workspace), f'and the workspace is empty: {workspace}'
     left = page.evaluate("Object.keys(localStorage).concat(Object.keys(sessionStorage)).filter(k => k.startsWith('shrimply-'))")
-    # The new start notes the release whose welcome page it shows; nothing else (not the theme, not a sign-in) is back.
-    assert left == ['shrimply-seen-release'], f'only the new start own key is left: {left}'
+    # The new start notes the release whose welcome page it shows, and the tab notes that it is signed out; nothing else
+    # (not the theme, not a sign-in) is back.
+    assert sorted(left) == ['shrimply-google-tab-sign-in', 'shrimply-seen-release'], f'only the new start own keys are left: {left}'
+    assert page.evaluate("sessionStorage.getItem('shrimply-google-tab-sign-in')") == '{"signedOut":true}', 'and the tab is signed out'
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))

@@ -1,7 +1,7 @@
-"""One Google account per browser (against a stubbed Google): a new tab is still signed in with its Drive libraries back;
+"""Each tab has its own Google account (against a stubbed Google): a new tab starts signed in with the account chosen last, its Drive libraries back;
 a 401 from Google pauses the save ("Not saved: sign in again") instead of signing out, and signing in again resumes it;
 Sign out with a save that fails asks first (Cancel keeps everything signed in), then closes every Drive library in both
-tabs and a reload shows none; Sign out anyway closes them too.
+this tab only (the other tab keeps its account and libraries) and a reload shows none; Sign out anyway closes them too.
 
 Also the stub the other Drive modules share: `new_state`, `add_file`, `change`, `shrimp`, `stub_google` and the small
 helpers (`sign_in`, `open_from_drive`, `row`, `edit_quiz`...)."""
@@ -57,7 +57,7 @@ def new_state():
     """What the stubbed Google holds and has been asked: `files` by id, switches `fail` (uploads answer 400) and `expired`
     (uploads answer 401), and counts."""
     return {'files': {}, 'next': 1, 'saves': 0, 'creates': [], 'reads': {}, 'fail': False, 'expired': False, 'lists': 0,
-            'trashed': [], 'shared': [], 'unshared': [], 'renames': []}
+            'trashed': [], 'shared': [], 'unshared': [], 'renames': [], 'writes': []}
 
 
 def add_file(state, file_id, name, data=None, mine=True, shared=False):
@@ -96,8 +96,11 @@ def stub_google(context, state):
             return route.fulfill(status=204, headers=CORS)
         if 'gsi/client' in url:
             return route.fulfill(content_type='text/javascript', body=FAKE_GIS)
+        who = req.headers.get('authorization', '').partition('stub-token:')[2] or None
         if '/about' in url:
-            return route.fulfill(headers=CORS, json={'user': {'emailAddress': EMAIL}})
+            return route.fulfill(headers=CORS, json={'user': {'emailAddress': who or EMAIL}})
+        # A file is mine for the account whose token asks (its `owner`, stub@example.com when not named).
+        mine = lambda f: f['mine'] and f.get('owner', EMAIL) == who  # noqa: E731
         files = state['files']
         refuse = lambda status, reason: route.fulfill(status=status, headers=CORS, json={'error': {'errors': [{'reason': reason}], 'message': 'Stub refused'}})  # noqa: E731
         up = re.search(r'/upload/drive/v3/files(?:/([^?/]+))?', url)
@@ -111,10 +114,13 @@ def stub_google(context, state):
                 file_id = f"new{state['next']}"
                 state['next'] += 1
                 add_file(state, file_id, meta['name'], data)
+                files[file_id]['owner'] = who
                 state['creates'].append(meta['name'])
+                state['writes'].append((req.method, file_id, who))
                 return route.fulfill(headers=CORS, json={'id': file_id, 'name': meta['name'], 'md5Checksum': files[file_id]['md5']})
             f = files.get(up.group(1))
-            if not f or not f['mine']:
+            state['writes'].append((req.method, up.group(1), who))
+            if not f or not mine(f):
                 return refuse(404, 'notFound')
             f['data'] = req.post_data_buffer
             f['md5'] = f"m{int(f['md5'][1:]) + 1}"
@@ -125,7 +131,7 @@ def stub_google(context, state):
             f = files.get(m.group(1))
             signed = 'authorization' in req.headers
             if m.group(2):
-                if not f or not f['mine']:
+                if not f or not mine(f):
                     return refuse(404, 'notFound')
                 if req.method == 'POST':
                     f['shared'] = True
@@ -137,7 +143,7 @@ def stub_google(context, state):
                     return route.fulfill(status=204, headers=CORS)
                 return route.fulfill(headers=CORS, json={'permissions': [{'id': 'anyone1', 'type': 'anyone'}] if f['shared'] else []})
             if req.method == 'PATCH':
-                if not f or not f['mine']:
+                if not f or not mine(f):
                     return refuse(404, 'notFound')
                 body = json.loads(req.post_data or '{}')
                 if 'name' in body:
@@ -147,12 +153,12 @@ def stub_google(context, state):
                 f['trashed'] = True
                 state['trashed'].append(m.group(1))
                 return route.fulfill(headers=CORS, json={'id': m.group(1)})
-            if not f or not (f['shared'] or (signed and f['mine'])):
+            if not f or not (f['shared'] or (signed and mine(f))):
                 return refuse(404, 'notFound')
             if 'alt=media' in url:
                 state['reads'][m.group(1)] = state['reads'].get(m.group(1), 0) + 1
                 return route.fulfill(headers=CORS, content_type='application/zip', body=f['data'])
-            return route.fulfill(headers=CORS, json={'name': f['name'], 'md5Checksum': f['md5'], 'trashed': f['trashed'], 'capabilities': {'canEdit': f['mine']}})
+            return route.fulfill(headers=CORS, json={'name': f['name'], 'md5Checksum': f['md5'], 'trashed': f['trashed'], 'capabilities': {'canEdit': mine(f)}})
         # The list endpoint: the app's folder (looked up, or made), else the user's libraries.
         if req.method == 'POST':
             return route.fulfill(headers=CORS, json={'id': 'folder'})
@@ -161,7 +167,7 @@ def stub_google(context, state):
         state['lists'] += 1
         return route.fulfill(headers=CORS, json={'files': [
             {'id': i, 'name': f['name'], 'mimeType': 'application/zip', 'modifiedTime': '2026-11-01T10:00:00Z'}
-            for i, f in files.items() if f['mine'] and not f['trashed']]})
+            for i, f in files.items() if mine(f) and not f['trashed']]})
 
     context.route(re.compile(r'https://(accounts\.google\.com/gsi/client|www\.googleapis\.com/(upload/)?drive/v3/.*)'), drive)
 
@@ -296,17 +302,18 @@ def run(page, base):
     wait_for(page, lambda: signed_out(page), 'signed out')
     need(state['saves'] == saves + 1, 'the pending edit was saved first')
     need(page.get_by_role('dialog').count() == 0 or not page.get_by_role('dialog').is_visible(), 'no question when the save works')
-    page.locator('.toast', has_text='Signed out. Your Google Drive libraries are closed.').first.wait_for()
+    page.locator('.toast', has_text='Signed out in this tab.').first.wait_for()
     wait_for(page, lambda: row(page, 'alpha.shrimp').count() == 0, 'its library is closed')
-    wait_for(fresh, lambda: signed_out(fresh) and row(fresh, 'alpha.shrimp').count() == 0, 'the other tab signs out and closes it too')
+    # Signing out is for this tab only: the other keeps its account and its library.
+    fresh.wait_for_timeout(500)
+    need(not signed_out(fresh) and row(fresh, 'alpha.shrimp').count() == 1, 'the other tab stays signed in with its library')
     page.wait_for_timeout(700)
     page.reload()
     wait_for(page, lambda: signed_out(page), 'a reload is still signed out')
     need(page.locator('.file-row').count() == 0, 'and shows no Drive library')
     fresh.reload()
-    wait_for(fresh, lambda: signed_out(fresh), 'the other tab too after a reload')
-    need(fresh.locator('.file-row').count() == 0, 'with none either')
-    fresh.close()
+    wait_for(fresh, lambda: row(fresh, 'alpha.shrimp').count() == 1, 'the other tab still has its library after a reload')
+    need(not signed_out(fresh), 'and its account')
 
     # Sign out anyway: the unsaved edit is let go, the library closes.
     sign_in(page)
@@ -322,6 +329,7 @@ def run(page, base):
     page.reload()
     wait_for(page, lambda: signed_out(page), 'signed out after a reload')
     need(page.locator('.file-row').count() == 0, 'nothing of the account stays')
+    fresh.close()
     errors = [e for e in page.errors if not any(x in e for x in EXPECTED)] + [e for e in fresh.errors if not any(x in e for x in EXPECTED)]
     if errors:
         raise AssertionError('errors: ' + '; '.join(errors))

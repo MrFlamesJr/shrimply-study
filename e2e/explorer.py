@@ -13,9 +13,12 @@ from kit import center  # noqa: E402
 KIND = {'doc': 'd', 'course': 'c', 'quiz': 'q', 'card': 'k', 'drive': 'g', 'group': 'p'}
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# Google's sign-in script, as the app calls it: a token client that answers at once.
+# Google's sign-in script, as the app calls it: a token client that answers at once. The token names its account: the
+# one asked for with a login hint (renewing), else the next one the test chose (localStorage `e2e-next-account`), else
+# stub@example.com.
 FAKE_GIS = '''window.google = { accounts: { oauth2: {
-  initTokenClient: (cfg) => ({ requestAccessToken: () => setTimeout(() => cfg.callback({ access_token: 'stub-token', expires_in: 3600 }), 0) }),
+  initTokenClient: (cfg) => ({ requestAccessToken: (o) => setTimeout(() => cfg.callback({
+    access_token: 'stub-token:' + ((o && o.login_hint) || localStorage.getItem('e2e-next-account') || 'stub@example.com'), expires_in: 3600 }), 0) }),
   hasGrantedAllScopes: () => true } } }'''
 CORS = {'access-control-allow-origin': '*', 'access-control-allow-headers': '*', 'access-control-allow-methods': '*'}
 
@@ -34,7 +37,8 @@ def stub_google(page, state):
         if 'gsi/client' in url:
             return route.fulfill(content_type='text/javascript', body=FAKE_GIS)
         if '/about' in url:
-            return route.fulfill(headers=CORS, json={'user': {'emailAddress': 'stub@example.com'}})
+            token = req.headers.get('authorization', '').partition('stub-token:')[2]
+            return route.fulfill(headers=CORS, json={'user': {'emailAddress': token or 'stub@example.com'}})
         m = re.search(r'/drive/v3/files/([^?]+)', url)
         if m and req.method == 'PATCH':
             state['trashed'].append(m.group(1))
@@ -721,7 +725,7 @@ def run(page, base):
         raise AssertionError('errors: ' + '; '.join(page.errors))
 
     # Signed out, a Drive file that is open is not "yours" (nobody can tell): the sidebar's words, never "Your".
-    page.evaluate("localStorage.removeItem('shrimply-google-sign-in')")
+    page.evaluate("localStorage.removeItem('shrimply-google-sign-in'); sessionStorage.clear()")
     page.wait_for_timeout(700)  # the workspace record waits out 300ms
     page.reload()
     wait_for(page, lambda: page.locator('.explorer-drive').get_by_role('button', name='Sign in to see your Google Drive').count() == 1, 'signed out again, the link is back')

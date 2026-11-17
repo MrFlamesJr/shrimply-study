@@ -5,10 +5,11 @@ import { CloudIcon } from '../components/Icons'
 /**
  * The sidebar's account box, right under the corner, the one place the Google account lives (shown only when Drive is
  * set up). Signed out: what that means and a Sign in button (a secondary one: the page's gold button stays alone).
- * Signed in (`bottom`): one slim line just above the sidebar's footer: icon, the account's email and Sign out.
+ * Signed in (`bottom`): one slim line just above the sidebar's footer: icon, the account's email, Switch account and Sign out.
  */
 export function AccountBox({ drive, bottom = false }: { drive: WorkspaceApi['drive']; bottom?: boolean }) {
   const signedIn = drive.signedIn()
+  const signedAs = drive.signedAs()
   const [email, setEmail] = useState<string | null>(null)
   useEffect(() => {
     if (!signedIn) return setEmail(null)
@@ -17,7 +18,7 @@ export function AccountBox({ drive, bottom = false }: { drive: WorkspaceApi['dri
     return () => {
       live = false
     }
-  }, [signedIn])
+  }, [signedIn, signedAs])
 
   // Signed out it sits at the top of the sidebar, signed in at the bottom: each place renders only its own state.
   if (signedIn !== bottom) return null
@@ -38,6 +39,9 @@ export function AccountBox({ drive, bottom = false }: { drive: WorkspaceApi['dri
       <span className="account-email" title={email ?? undefined}>
         {email ?? 'Signed in'}
       </span>
+      <button type="button" className="link" title="Sign in with another Google account in this tab; other tabs keep theirs" onClick={() => void drive.switchAccount()}>
+        Switch account
+      </button>
       <button type="button" className="link" title="Sign out of Google in this tab" onClick={() => void drive.signOut()}>
         Sign out
       </button>

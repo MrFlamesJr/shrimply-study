@@ -34,8 +34,8 @@ export function LearnMore({ onClose }: { onClose: () => void }) {
         <div>
           <dt>Signing out</dt>
           <dd>
-            Sign out closes your Google Drive libraries in this browser and forgets your account. Libraries kept only in
-            this browser stay.
+            Sign out closes your own Google Drive libraries in this tab and forgets your account there. Other tabs keep
+            theirs, and each tab can switch to another account for itself. Libraries kept only in this browser stay.
           </dd>
         </div>
         <div>

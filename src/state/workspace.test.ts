@@ -38,6 +38,7 @@ import {
   setSignedIn,
   settleViewOnly,
   signedOut,
+  forAccount,
   unsavedDrive,
   viewOnly,
   docRecord,
@@ -474,7 +475,20 @@ describe('view-only libraries', () => {
     expect(out.docs.kept.drive).toBeNull()
   })
 
-  it('signing out closes every Drive library, own and shared, and forgets their closed entries', () => {
+  it("another account's own Drive file is view only, and closes for that account", () => {
+    const owned = (owner: string) => patchDoc(two(), 'a', { drive: { ...drive(true), owner } })
+    const w = setSignedIn(owned('a@x'), true, 'b@x')
+    expect(viewOnly(w, 'a')).toBe(true)
+    expect(viewOnly(setSignedIn(owned('a@x'), true, 'a@x'), 'a')).toBe(false)
+    // An account not known yet judges nothing.
+    expect(viewOnly(setSignedIn(owned('a@x'), true), 'a')).toBe(false)
+    expect(forAccount(w, 'b@x').order).toEqual(['b'])
+    expect(forAccount(w, 'a@x')).toBe(w)
+    expect(forAccount(setSignedIn(owned('a@x'), false), null).order).toEqual(['b'])
+    expect(forAccount(patchDoc(two(), 'a', { drive: drive(true) }), 'b@x').order).toEqual(['a', 'b'])
+  })
+
+  it('signing out closes only the own Drive libraries, and keeps shared and browser ones and the closed entries', () => {
     let w = setSignedIn(addDoc(two(), makeDoc('c', lib(), 'C', { drive: drive(false) }), HOME, 'tc'), true)
     w = withDrive(w, 'a', true)
     w = closeDoc(w, 'c')
@@ -483,8 +497,10 @@ describe('view-only libraries', () => {
     const out = signedOut(w)
     expect(out.signedIn).toBe(false)
     expect(out.order).toEqual(['b'])
-    expect(out.closed.map((c) => c.id)).toEqual(['d'])
+    expect(out.closed.map((c) => c.id)).toEqual(['d', 'c'])
     expect(Object.values(out.layout.tabs).map((t) => (t.data.kind === 'doc' ? t.data.doc : ''))).toEqual(['b'])
+    // A shared (not own) Drive file stays.
+    expect(signedOut(setSignedIn(withDrive(two(), 'a', false), true)).order).toEqual(['a', 'b'])
   })
 
   it('a copy opens on the same page in the tab that showed the original, which stays open', () => {

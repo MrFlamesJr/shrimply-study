@@ -41,7 +41,7 @@ export function useDriveFiles(ws: WorkspaceApi): DriveFiles {
   const refreshed = useRef(refresh)
   refreshed.current = refresh
   // Opening, closing, saving (unsaved to saved) or saving under a new file all change this key.
-  const key = `${signed}|${ws.docs.map((d) => `${d.id}:${ws.doc(d.id).drive.file?.id ?? null}:${d.name}:${d.dirty}`).join(',')}`
+  const key = `${signed}|${ws.drive.signedAs() ?? ''}|${ws.docs.map((d) => `${d.id}:${ws.doc(d.id).drive.file?.id ?? null}:${d.name}:${d.dirty}`).join(',')}`
   useEffect(() => {
     if (signed && !driveApi.current.canListQuietly()) return
     void refreshed.current()

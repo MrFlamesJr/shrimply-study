@@ -58,6 +58,8 @@ export type Workspace = {
   closed: ClosedFile[]
   /** Signed in with Google: then only the user's own Drive files can change (see `viewOnly`). */
   signedIn: boolean
+  /** The account this tab is signed in as, once known (a Drive file of another account is view only, see `viewOnly`). */
+  account: string | null
   layout: L.Layout<TabData>
   history: History<Snap>
   clipboard: Clipboard | null
@@ -68,11 +70,12 @@ export type Workspace = {
 
 export const emptyExplorer = (): Explorer => ({ expanded: [], selection: emptySelection })
 
-export const emptyWorkspace = (groupId: string, signedIn = false): Workspace => ({
+export const emptyWorkspace = (groupId: string, signedIn = false, account: string | null = null): Workspace => ({
   docs: {},
   order: [],
   closed: [],
   signedIn,
+  account,
   layout: L.emptyLayout(groupId),
   history: emptyHistory(),
   clipboard: null,
@@ -111,9 +114,10 @@ export const renameDoc = (w: Workspace, id: DocId, name: string): Workspace => p
 // ---- View only (asked for): a Drive file not known to be the signed-in user's own (someone else's, or any while
 // signed out) is shown and studied, never changed: no content change, undo step or cut ever touches it. ----
 
-export const viewOnly = (w: Workspace, id: DocId): boolean => !!w.docs[id] && isViewOnly(w.docs[id], w.signedIn)
+export const viewOnly = (w: Workspace, id: DocId): boolean => !!w.docs[id] && isViewOnly(w.docs[id], w.signedIn, w.account)
 
-export const setSignedIn = (w: Workspace, signedIn: boolean): Workspace => (w.signedIn === signedIn ? w : { ...w, signedIn })
+export const setSignedIn = (w: Workspace, signedIn: boolean, account: string | null = null): Workspace =>
+  w.signedIn === signedIn && w.account === account ? w : { ...w, signedIn, account }
 
 /** The user's own Drive files with changes not on Google Drive yet (waiting, or paused by a problem), in order. */
 export const unsavedDrive = (w: Workspace): DocId[] =>
@@ -678,12 +682,22 @@ export const forgetClosed = (w: Workspace, id: DocId): Workspace => withoutClose
 export const forgetClosedDrive = (w: Workspace, driveId: string): Workspace => withoutClosed(w, (c) => c.drive?.id === driveId)
 
 /**
- * Signed out (asked for: the account is forgotten): every Google Drive library closes, the user's own and shared links
- * alike, and none is listed as closed. Browser libraries stay.
+ * Signed out, or switched to another account, in this tab (asked for): the account's own Drive libraries close here.
+ * Everything else stays open: libraries shared by someone else (view only), browser libraries and the closed entries
+ * (other tabs may still use the libraries, so nothing is forgotten for them).
  */
 export function signedOut(w: Workspace): Workspace {
-  const drive = w.order.filter((id) => w.docs[id].drive)
-  return setSignedIn(withoutClosed(drive.reduce(dropDoc, w), (c) => !!c.drive), false)
+  const drive = w.order.filter((id) => w.docs[id].drive?.mine)
+  return setSignedIn(drive.reduce(dropDoc, w), false)
+}
+
+/**
+ * Closes the own Drive libraries that are another account's (their `owner` is known and is not `account`; signed out,
+ * `account` is null: every one with an owner), so a tab signed in as someone else never shows them.
+ */
+export function forAccount(w: Workspace, account: string | null): Workspace {
+  const other = (d: Doc) => !!d.drive?.mine && !!d.drive.owner && d.drive.owner !== account
+  return w.order.filter((id) => other(w.docs[id])).reduce(dropDoc, w)
 }
 
 /**
@@ -880,18 +894,19 @@ export function readExplorer(raw: unknown): Explorer {
  * `saved` null), the closed files (their records stay closed), its layout and Explorer checked. A document's name is
  * the local file's it was once tied to (`legacyName`, without ".shrimp"), else its own, else "New library", "New
  * library 2" and so on.
- * `signedIn`: whether Google is signed in on start.
+ * `signedIn`: whether Google is signed in on start, and as which `account` (when known).
  */
 export function restore(
   read: { workspace: WorkspaceRecord | null; docs: DocRecord[] },
   groupId: string,
   newId: () => string,
   signedIn = false,
+  account: string | null = null,
 ): Workspace {
   const ui = read.workspace?.ui as { names?: Record<string, unknown>; recent?: unknown } | null
   const kept = ui?.names ?? {}
   const closed = read.workspace?.closed ?? []
-  let w = emptyWorkspace(groupId, signedIn)
+  let w = emptyWorkspace(groupId, signedIn, account)
   for (const rec of read.docs) {
     if (closed.some((c) => c.id === rec.id)) continue
     const own = kept[rec.id]
@@ -902,5 +917,7 @@ export function restore(
   w = { ...w, closed }
   const layout = readLayout(read.workspace?.layout, w.order, groupId, newId)
   const recent = strings(ui?.recent) ? ui.recent.filter((t) => layout.tabs[t]) : []
-  return withLayout({ ...w, layout: L.emptyLayout(groupId), recent, explorer: readExplorer(read.workspace?.explorer) }, layout)
+  const shown = withLayout({ ...w, layout: L.emptyLayout(groupId), recent, explorer: readExplorer(read.workspace?.explorer) }, layout)
+  // Another account's own libraries (a record another tab wrote) never show here; signed in with an account not known yet, none is judged.
+  return signedIn && !account ? shown : forAccount(shown, account)
 }

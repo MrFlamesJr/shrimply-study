@@ -1,4 +1,5 @@
 import type { Library } from '../model'
+import { lastAfter, startSession, type Kept } from '../logic/session'
 import { decodeLibrary, encodeLibrary } from './format'
 
 // Google Drive, the only file that talks to Google. Two ways in:
@@ -21,7 +22,7 @@ export const driveSetUp = CLIENT_ID !== '' && API_KEY !== ''
  * Google. `trashed`: in its owner's bin on Google Drive, as last seen. It still opens by its link until it is deleted
  * for good (after 30 days), so it keeps working here, with a warning.
  */
-export type DriveSource = { id: string; name: string; md5: string; shared: boolean; mine: boolean; trashed: boolean }
+export type DriveSource = { id: string; name: string; md5: string; shared: boolean; mine: boolean; trashed: boolean; owner?: string | null }
 
 /** A library in the signed-in user's Drive. */
 export type DriveFile = { id: string; name: string; modified: string }
@@ -128,71 +129,79 @@ export function prepareSignIn(): Promise<void> {
   return script
 }
 
-// One sign-in for every tab (asked for): the token and the account are kept in local storage, so a new tab or a restart
-// reopens the Drive libraries as they were left, and signing in or out in one tab reaches the others (`onSignInChange`).
-// The token lasts about an hour; after that the tab stays signed in and the next action renews it for the same account.
+// Each tab has its own sign-in (asked for): its token and account are kept in the tab's session storage, so a reload
+// keeps them and another tab is never changed by this one. The account chosen last, in any tab, is also kept in local
+// storage: a new tab starts with it (`startSession`) and then keeps it as its own. The token lasts about an hour; after
+// that the tab stays signed in and the next action renews it for the same account.
 type Token = { value: string; until: number }
 const SESSION_KEY = 'shrimply-google-sign-in'
+const TAB_KEY = 'shrimply-google-tab-sign-in'
 const isToken = (t: unknown): t is Token => typeof (t as Token)?.value === 'string' && typeof (t as Token)?.until === 'number'
 const fresh = (t: unknown): t is Token => isToken(t) && t.until > Date.now()
-// What was kept; nothing when blocked or unreadable (then it simply signs in again). A token that ran out still counts
-// as signed in: the next click renews it.
-function readSession(): { token?: Token; account?: string } {
+// What was kept under a key; nothing when absent, blocked or unreadable. A token that ran out still counts as signed
+// in: the next click renews it.
+function readKept(storage: () => Storage, key: string): Kept<Token> | null {
   try {
-    const kept = JSON.parse(localStorage.getItem(SESSION_KEY) ?? '{}')
-    return { token: isToken(kept.token) ? kept.token : undefined, account: typeof kept.account === 'string' ? kept.account : undefined }
+    const text = storage().getItem(key)
+    if (text === null) return null
+    const kept = JSON.parse(text)
+    return {
+      token: isToken(kept.token) ? kept.token : undefined,
+      account: typeof kept.account === 'string' ? kept.account : undefined,
+      ...(kept.signedOut === true && { signedOut: true }),
+    }
   } catch {
-    return {}
+    return null
   }
 }
-// Before this release each tab kept its own sign-in in its session storage, under the same key: the first start after
-// it moves that one into local storage (once), so the user stays signed in and their own files stay theirs.
-function moveOldSession() {
+const writeKept = (storage: () => Storage, key: string, value: Kept<Token> | null) => {
   try {
-    const old = sessionStorage.getItem(SESSION_KEY)
-    if (old === null) return
-    sessionStorage.removeItem(SESSION_KEY)
-    if (localStorage.getItem(SESSION_KEY) === null) localStorage.setItem(SESSION_KEY, old)
+    if (value) storage().setItem(key, JSON.stringify(value))
+    else storage().removeItem(key)
   } catch {
-    // Blocked: nothing to move.
+    // Blocked: the sign-in still works, it just won't outlive a reload or reach new tabs.
   }
 }
-moveOldSession()
-function keepSession() {
-  try {
-    if (token || account) localStorage.setItem(SESSION_KEY, JSON.stringify({ token, account }))
-    else localStorage.removeItem(SESSION_KEY)
-  } catch {
-    // Blocked: the sign-in still works, it just won't outlive a reload or reach other tabs.
-  }
-}
-const kept = readSession()
-let token: Token | undefined = kept.token
+const started = startSession(readKept(() => sessionStorage, TAB_KEY), readKept(() => localStorage, SESSION_KEY))
+let token: Token | undefined = started.session.token
 let client: TokenClient | undefined
 // The signed-in account, once known: renewing the sign-in asks Google for it again instead of offering a choice.
-let account: string | undefined = kept.account
+let account: string | undefined = started.session.account
+const keepTab = () => writeKept(() => sessionStorage, TAB_KEY, token || account ? { token, account } : { signedOut: true })
+// This tab's sign-in is kept; `mode` says what happens to the account chosen last (`lastAfter`).
+function keepSession(mode: 'choose' | 'renew' | 'out', was?: string) {
+  keepTab()
+  const next = lastAfter(mode, mode === 'out' ? { account: was } : { token, account }, readKept(() => localStorage, SESSION_KEY))
+  if (next !== undefined) writeKept(() => localStorage, SESSION_KEY, next)
+}
+if (started.copy) keepTab()
 
-/** Calls the function when another tab signed in, renewed or signed out. Returns the function that stops it. */
-export function onSignInChange(listener: () => void): () => void {
+/**
+ * Calls the function when another tab renewed the sign-in of this tab's account: its fresh token is taken up (no popup
+ * needed). A sign-in, switch or sign-out in another tab never reaches this one. Returns the function that stops it.
+ */
+export function onTokenShared(listener: () => void): () => void {
   const onStorage = (event: StorageEvent) => {
-    if (event.key !== SESSION_KEY && event.key !== null) return
-    const now = readSession()
+    if (event.key !== SESSION_KEY || !account) return
+    const now = readKept(() => localStorage, SESSION_KEY)
+    if (!now || now.account !== account || !fresh(now.token) || (token && now.token.until <= token.until)) return
     token = now.token
-    account = now.account
+    keepTab()
     listener()
   }
   window.addEventListener('storage', onStorage)
   return () => window.removeEventListener('storage', onStorage)
 }
 
-/** Signs out in every tab: the next sign-in offers the account choice. Takes nothing back at Google. */
+/** Signs out in this tab only: the next sign-in offers the account choice. Takes nothing back at Google. */
 export function signOut(): void {
+  const was = account
   token = undefined
   account = undefined
-  keepSession()
+  keepSession('out', was)
 }
 
-let pending: { resolve(token: string): void; reject(err: Error): void } | undefined
+let pending: { resolve(token: Token): void; reject(err: Error): void } | undefined
 
 /** Signed in: its account is known, or it has a token (renewed on the next action once its hour is up). */
 export const signedIn = () => !!account || !!token
@@ -201,9 +210,8 @@ export const hasFreshToken = () => fresh(token)
 /** The account signed in with, once known; null signed out (or before Google said which it is). */
 export const signedInAs = (): string | null => account ?? null
 
-/** The signed-in user's access token. Asks Google for one (a popup) when there is none or it ran out. */
-export async function signIn(): Promise<string> {
-  if (token && token.until > Date.now()) return token.value
+// Asks Google for a token (a popup, or none when renewing the same account).
+async function requestToken(options: { prompt: string; login_hint?: string }): Promise<Token> {
   await prepareSignIn()
   client ??= window.google!.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -216,11 +224,7 @@ export async function signIn(): Promise<string> {
         return
       }
       // A minute early, so a token never runs out halfway through an upload.
-      token = { value: response.access_token, until: Date.now() + ((response.expires_in ?? 3600) - 60) * 1000 }
-      keepSession()
-      // Which account it is, kept with it, so a renewal (after a reload too) stays with it.
-      if (!account) void accountEmail().catch(() => undefined)
-      done?.resolve(response.access_token)
+      done?.resolve({ value: response.access_token, until: Date.now() + ((response.expires_in ?? 3600) - 60) * 1000 })
     },
     error_callback: (error) => {
       const done = pending
@@ -235,9 +239,35 @@ export async function signIn(): Promise<string> {
   return new Promise((resolve, reject) => {
     pending?.reject(new SignInClosed())
     pending = { resolve, reject }
-    // First sign-in: the account choice. Renewing: the same account, without asking.
-    client!.requestAccessToken(account ? { prompt: '', login_hint: account } : { prompt: 'select_account' })
+    client!.requestAccessToken(options)
   })
+}
+
+/** The signed-in user's access token. Asks Google for one (a popup) when there is none or it ran out. */
+export async function signIn(): Promise<string> {
+  if (token && token.until > Date.now()) return token.value
+  // First sign-in: the account choice. Renewing: the same account, without asking.
+  const next = await requestToken(account ? { prompt: '', login_hint: account } : { prompt: 'select_account' })
+  token = next
+  const renewing = !!account
+  keepSession(renewing ? 'renew' : 'choose')
+  // Which account it is, kept with it, so a renewal (after a reload too) stays with it.
+  if (!renewing) void accountEmail().catch(() => undefined)
+  return next.value
+}
+
+/**
+ * Signs this tab in with another Google account (the account choice), for this tab and as the one new tabs start with.
+ * Resolves the account before and after; a closed popup changes nothing (it rejects with `SignInClosed`).
+ */
+export async function switchAccount(): Promise<{ from: string | null; to: string }> {
+  const next = await requestToken({ prompt: 'select_account' })
+  const to = await readEmail(next.value)
+  const from = account ?? null
+  token = next
+  account = to
+  keepSession('choose')
+  return { from, to }
 }
 
 // Google's file picker (asked for): where the user picks .shrimp files the app didn't save itself (uploaded, copied in
@@ -288,11 +318,20 @@ export async function pickDriveFiles(): Promise<{ id: string; name: string }[]> 
   })
 }
 
+const ABOUT = 'https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)'
+async function readEmail(value: string): Promise<string> {
+  const { user } = await (await call(ABOUT, { headers: { Authorization: `Bearer ${value}` } })).json()
+  if (typeof user?.emailAddress !== 'string') throw new DriveError("Couldn't tell which Google account this is. Try again.")
+  return user.emailAddress
+}
+
 /** The signed-in Google account's email address. */
 export async function accountEmail(): Promise<string> {
-  const { user } = await (await withToken('https://www.googleapis.com/drive/v3/about?fields=user(emailAddress)')).json()
-  account = typeof user?.emailAddress === 'string' ? user.emailAddress : undefined
-  keepSession()
+  const { user } = await (await withToken(ABOUT)).json()
+  const now = typeof user?.emailAddress === 'string' ? user.emailAddress : undefined
+  const changed = now !== account
+  account = now
+  keepSession(changed ? 'choose' : 'renew')
   return account ?? ''
 }
 

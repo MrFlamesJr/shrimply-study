@@ -31,7 +31,7 @@ export type WorkspaceRecord = {
 const readDrive = (d: unknown): DriveSource | null => {
   const s = d as DriveSource | null
   return s && typeof s.id === 'string' && typeof s.name === 'string' && typeof s.md5 === 'string' && typeof s.shared === 'boolean'
-    ? { id: s.id, name: s.name, md5: s.md5, shared: s.shared, mine: s.mine === true, trashed: s.trashed === true }
+    ? { id: s.id, name: s.name, md5: s.md5, shared: s.shared, mine: s.mine === true, trashed: s.trashed === true, ...(typeof s.owner === 'string' && { owner: s.owner }) }
     : null
 }
 

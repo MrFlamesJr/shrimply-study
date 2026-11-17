@@ -33,8 +33,10 @@ export type DriveApi = {
   setUp: boolean
   /** The Drive file this library is; null for a browser library. */
   file: DriveSource | null
-  /** True while signed in with Google: one account for every tab of this browser, kept until Sign out. */
+  /** True while this tab is signed in with Google: its own account, kept on reload until Sign out. */
   signedIn(): boolean
+  /** The account this tab is signed in as, once known. */
+  signedAs(): string | null
   /** The sign-in has a token that works right now, so a call needs no popup (listing on its own is only safe then). */
   canListQuietly(): boolean
   /**
@@ -45,11 +47,16 @@ export type DriveApi = {
   /** Saving goes into the file itself (the same as `yours`): any other Drive file is view only. */
   savesInto: boolean
   /**
-   * Signs out in every tab (asked for: the account is forgotten). Saves still waiting go first; when one can't be
-   * saved it asks first (Download a copy, or Sign out anyway). Then every Google Drive library closes, its backup and
-   * closed entry gone; browser libraries stay. Resolves false when it did not sign out.
+   * Signs out in this tab only (other tabs keep their account). Saves still waiting go first; when one can't be
+   * saved it asks first (Download a copy, or Sign out anyway). Then the account's own Drive libraries close in this tab (shared files stay, view only);
+   * browser libraries stay. Resolves false when it did not sign out.
    */
   signOut(): Promise<boolean>
+  /**
+   * Signs in with another Google account in this tab only, which new tabs then start with. Saves still waiting go
+   * first, as for signOut. Then the account's own Drive libraries close in this tab. Resolves false when nothing changed.
+   */
+  switchAccount(): Promise<boolean>
   /** The signed-in account's email address. */
   account(): Promise<string | null>
   /** Loads Google's sign-in script ahead of a click, so the popup opens at once. */
@@ -294,7 +301,7 @@ const FOLLOW_DELAY = 300
 const HOME: Route = { name: 'home' }
 // The ids a transition needs, made before it runs (transitions stay pure).
 const ids = () => ({ tab: newId(), group: newId() })
-const SIGNED_OUT = 'Signed out. Your Google Drive libraries are closed. Sign in to open them again.'
+const SIGNED_OUT = 'Signed out in this tab. Your Google Drive libraries are closed here; other tabs keep theirs.'
 
 // What Google says about a Drive file for the signed-in user.
 type Owner = Awaited<ReturnType<typeof google.ownFile>>
@@ -331,8 +338,12 @@ const driveFrom = (drive: DriveSource, yours = false) =>
 const errorText = (err: unknown) => (err instanceof Error ? ` ${err.message}` : '')
 // The record as written already says this about the document: nothing to write.
 const sameRecord = (rec: backup.DocRecord, d: W.Doc) => rec.library === d.library && rec.dirty === W.hasChanges(d) && rec.drive === d.drive
+// The file is not known to be another account's own (`owner`): this tab's account can ask for it as its own.
+const sameOwner = (drive: DriveSource | null | undefined) => !drive?.owner || !google.signedInAs() || drive.owner === google.signedInAs()
+// A Drive file Google said is the user's own, marked with the account it is the own file of.
+const ownedBy = (drive: DriveSource): DriveSource => (drive.mine ? { ...drive, owner: google.signedInAs() } : drive)
 // The user's own Drive file, which saves itself; anything else never saves.
-const ownDrive = (d: W.Doc | undefined, signedIn: boolean): d is W.Doc & { drive: DriveSource } => !!d?.drive && !isViewOnly(d, signedIn)
+const ownDrive = (d: W.Doc | undefined, w: W.Workspace): d is W.Doc & { drive: DriveSource } => !!d?.drive && !isViewOnly(d, w.signedIn, w.account)
 
 /**
  * The workspace: every open document, the closed ones, the layout (tabs, groups, splits, windows), the undo history
@@ -342,7 +353,7 @@ const ownDrive = (d: W.Doc | undefined, signedIn: boolean): d is W.Doc & { drive
  * never written to the backup (the full app's stays).
  */
 export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, askChoice: AskChoice, options: { pane?: boolean } = {}): WorkspaceApi {
-  const [ws, setWs] = useState<W.Workspace>(() => W.emptyWorkspace('main-group', google.signedIn()))
+  const [ws, setWs] = useState<W.Workspace>(() => W.emptyWorkspace('main-group', google.signedIn(), google.signedInAs()))
   // The latest state, ahead of the render: transitions build on it, so several in one click compose, and the actions
   // (often async) always read what is there now.
   const ref = useRef(ws)
@@ -389,34 +400,28 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     apply(label, (docs) => (docs[id] ? { ...docs, [id]: fn(docs[id]) } : docs), key)
 
   // A change that may turn a library view only (the sign-in, what Google says about a file) goes through here: its
-  // changes from before move to a library of their own, and it says so (W.settleViewOnly). `signedOut`: another tab
-  // signed out, which closes every Drive library here too.
-  const tellKept = (kept: { from: DocId; to: DocId }[], signedOut = false) => {
+  // changes from before move to a library of their own, and it says so (W.settleViewOnly).
+  const tellKept = (kept: { from: DocId; to: DocId }[]) => {
     for (const k of kept) {
       const from = cur(k.from)
       const to = cur(k.to)
       if (!from || !to) continue
-      say(
-        'info',
-        signedOut
-          ? `Signed out in another tab. Your changes to "${W.docName(from)}" that weren't on Google Drive yet are kept in a library of their own in this browser, "${to.name}".`
-          : `"${W.docName(from)}" is view only, so the changes you made to it are kept in a library of their own in this browser, "${to.name}".`,
-      )
+      say('info', `"${W.docName(from)}" is view only, so the changes you made to it are kept in a library of their own in this browser, "${to.name}".`)
     }
   }
-  const settle = (fn: (w: W.Workspace) => W.Workspace, signedOut = false) => {
+  const settle = (fn: (w: W.Workspace) => W.Workspace) => {
     let kept: { from: DocId; to: DocId }[] = []
     update((w) => {
       const done = W.settleViewOnly(fn(w), newId)
       kept = done.kept
       return done.workspace
     })
-    tellKept(kept, signedOut)
+    tellKept(kept)
   }
-  const setSignedNow = (on: boolean) => settle((w) => W.setSignedIn(w, on))
+  const setSignedNow = () => settle((w) => W.setSignedIn(w, google.signedIn(), google.signedInAs()))
   // A call that may have signed in on the way.
   const signedInNow = () => {
-    if (google.signedIn() !== ref.current.signedIn) setSignedNow(google.signedIn())
+    if (google.signedIn() !== ref.current.signedIn || google.signedInAs() !== ref.current.account) setSignedNow()
   }
 
   // Courses created here (by id, the course object as created): a draft only while the library still holds that very
@@ -480,7 +485,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   const saveTimers = useRef(new Map<DocId, ReturnType<typeof setTimeout>>())
   const arm = (id: DocId, delay = AUTOSAVE_DELAY) => {
-    if (!ownDrive(cur(id), ref.current.signedIn)) return
+    if (!ownDrive(cur(id), ref.current)) return
     clearTimeout(saveTimers.current.get(id))
     saveTimers.current.set(
       id,
@@ -512,7 +517,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         read = null
       }
       const signedIn = google.signedIn()
-      let next = read ? W.restore(read, newId(), newId, signedIn) : W.emptyWorkspace(newId(), signedIn)
+      let next = read ? W.restore(read, newId(), newId, signedIn, google.signedInAs()) : W.emptyWorkspace(newId(), signedIn, google.signedInAs())
       for (const rec of read?.docs ?? []) {
         // A record the reading could not write (moving the old backup in) is not stored yet: the first backup write
         // after the start writes it, and warns if that fails too.
@@ -612,7 +617,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   // waiting to be saved, being saved or paused. Those are never dropped: its own record goes out (or its save) and the
   // other tab takes it up instead. Taken up, it is what this tab has written too, so it never goes back as an echo.
   // Deleted there (Delete from this browser), it stays open here and is written again; a Drive file deleted by a
-  // sign-out closes here too. Each tab keeps its own open files and layout; the sign-in is shared.
+  // sign-out closes here too. Each tab keeps its own open files, layout and sign-in.
   useEffect(() => {
     if (!ready) return
     return backup.onWorkspaceWritten((msg) => {
@@ -629,6 +634,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
             return
           }
           if (saveTimers.current.has(id) || running.current.has(id) || W.hasChanges(d) || d.problem) return
+          // Another account's own library, as another tab learned it: this tab keeps the file as it knows it.
+          if (rec.drive?.owner && rec.drive.owner !== ref.current.account && ref.current.account) return
           written.current.set(id, rec)
           update((w) => W.takeRecord(w, rec))
         },
@@ -672,6 +679,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   // Google's answer about the file, as kept with it: whether it is the user's own, its name now and whether it is in the bin.
   const learned = (now: Owner): Partial<DriveSource> => ({
     mine: now.canEdit,
+    owner: now.canEdit ? google.signedInAs() : null,
     ...(now.name && { name: now.name }),
     ...(now.trashed !== undefined && { trashed: now.trashed }),
   })
@@ -757,7 +765,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       clearTimeout(saveTimers.current.get(id))
       saveTimers.current.delete(id)
       const d = cur(id)
-      if (!ownDrive(d, ref.current.signedIn)) return false
+      if (!ownDrive(d, ref.current)) return false
       if (!W.hasChanges(d) && !d.problem) return true
       if (d.problem === 'conflict' && !click) return false
       if (!navigator.onLine) return pause(id, 'offline')
@@ -776,7 +784,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
           const library = cur(id)?.library
           if (!library) return false
           const made = await google.createDriveFile(library, W.bareName(drive.name))
-          driveSaved(id, library, made)
+          driveSaved(id, library, { ...made, owner: google.signedInAs() })
           say('warning', `"${drive.name}" is no longer in your Google Drive (deleted there, or another account is signed in), so this library was saved as a new file, "${made.name}".`)
           return true
         }
@@ -803,7 +811,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     saveTimers.current.delete(id)
     await running.current.get(id)
     const d = cur(id)
-    if (!ownDrive(d, ref.current.signedIn) || (!W.hasChanges(d) && !d.problem)) return true
+    if (!ownDrive(d, ref.current) || (!W.hasChanges(d) && !d.problem)) return true
     return saveDrive(id, click)
   }
 
@@ -816,7 +824,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const library = d.library
       const made = await google.createDriveFile(library, name)
       signedInNow()
-      driveSaved(id, library, made)
+      driveSaved(id, library, { ...made, owner: google.signedInAs() })
       if (!o.quiet) say('info', `Saved "${made.name}" to your Google Drive.`)
       return true
     } catch (err) {
@@ -832,7 +840,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const library = d.library
       const md5 = await google.updateDriveFile(file.id, library)
       signedInNow()
-      driveSaved(id, library, { id: file.id, name: file.name, md5, shared: false, mine: true, trashed: false })
+      driveSaved(id, library, { id: file.id, name: file.name, md5, shared: false, mine: true, trashed: false, owner: google.signedInAs() })
       say('info', `Saved "${file.name}" to your Google Drive, in place of the one there.`)
       return true
     } catch (err) {
@@ -872,7 +880,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     // Changes here or in another tab (`dirtyElsewhere`) are never replaced: their save checks Drive itself.
     if (!google.driveSetUp || !d?.drive || W.hasChanges(d) || d.dirtyElsewhere || d.problem || running.current.has(id) || syncing.current.has(id)) return
     const drive = d.drive
-    const own = ownDrive(d, ref.current.signedIn)
+    const own = ownDrive(d, ref.current)
     // The user's own file is asked about signed in, without a popup; any other through its link (no sign-in).
     if (own && !google.hasFreshToken()) return
     syncing.current.add(id)
@@ -952,30 +960,19 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       if (d.drive) checkOwner(d.id, d.drive.id)
     }
   }
-  // Signed out (here or in another tab): every Google Drive library closes, its backup and closed entry gone.
+  // Signed out or switched to another account in this tab: the account's own Drive libraries close here. Their backup records
+  // stay, as other tabs may still use them; the closed entries stay too.
   const forgetDrive = () => {
     const w = ref.current
-    const open = w.order.filter((id) => w.docs[id].drive)
-    const gone = [...open, ...w.closed.flatMap((c) => (c.drive ? [c.id] : []))]
-    for (const id of open) forgetTimers(id)
+    for (const id of w.order) if (w.docs[id].drive) forgetTimers(id)
     update(W.signedOut)
-    for (const id of gone) void backup.deleteDoc(id).catch(() => undefined)
     peeked.current.clear()
   }
-  // Another tab signed in, renewed the sign-in or signed out: this one follows (asked for: one account per browser).
+  // Another tab renewed this account's sign-in: its fresh token is taken up, and saves paused for a sign-in go on. A
+  // sign-in, switch or sign-out in another tab never reaches this one (asked for).
   useEffect(() => {
     if (!ready) return
-    return google.onSignInChange(() => {
-      if (google.signedIn()) {
-        setSignedNow(true)
-        signedInAgain()
-      } else if (ref.current.signedIn) {
-        // Changes here that weren't on Drive yet are never lost: they stay, as libraries of their own in this browser.
-        settle((w) => W.setSignedIn(w, false), true)
-        forgetDrive()
-        say('info', SIGNED_OUT)
-      }
-    })
+    return google.onTokenShared(signedInAgain)
   }, [ready])
 
   const canSave = async (id: DocId) => {
@@ -1020,7 +1017,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       // Closed here before: it opens again under its own id, its entry gone.
       const id = ref.current.closed.find((c) => c.drive?.id === driveId)?.id ?? newId()
       const tab = newId()
-      update((w) => W.reopenClosed(w, W.makeDoc(id, library, source.name, { drive: source }), HOME, tab))
+      update((w) => W.reopenClosed(w, W.makeDoc(id, library, source.name, { drive: ownedBy(source) }), HOME, tab))
       if (own) signedInNow()
       else checkOwner(id, driveId)
       say('info', `Opened "${source.name}" ${driveFrom(source, own)}.`)
@@ -1033,32 +1030,60 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     }
   }
 
-  // Signing out (asked for) forgets the account: what waits is saved first, then every Drive library closes.
-  const signOut = async () => {
-    // What waits is saved first; edits made while it saved get one more round, and what is left is checked right
-    // before signing out.
+  // Waiting Drive saves go first; edits made while they saved get one more round, and what is left is checked right
+  // before leaving the account. Resolves false when the user cancelled or a copy could not be downloaded.
+  const flushAll = async (title: string, question: string, go: string) => {
     let lost = W.unsavedDrive(ref.current)
     for (let round = 0; lost.length > 0 && round < 2; round++) {
       for (const id of lost) await flush(id)
       lost = W.unsavedDrive(ref.current)
     }
-    if (lost.length > 0) {
-      const names = lost.flatMap((id) => (cur(id) ? [`"${W.docName(cur(id)!)}"`] : [])).join(', ')
-      const choice = await deps.current.askChoice<'download' | 'out'>(
-        `Sign out anyway? Changes to ${names} that aren't saved yet will be lost.`,
-        [
-          { label: 'Download a copy', value: 'download' },
-          { label: 'Sign out anyway', value: 'out', primary: true, danger: true },
-        ],
-        { title: 'Sign out' },
-      )
-      if (choice === null) return false
-      if (choice === 'download') for (const id of lost) if (!(await download(id))) return false
-    }
+    if (lost.length === 0) return true
+    const names = lost.flatMap((id) => (cur(id) ? [`"${W.docName(cur(id)!)}"`] : [])).join(', ')
+    const choice = await deps.current.askChoice<'download' | 'go'>(
+      `${question} Changes to ${names} that aren't saved yet will be lost.`,
+      [
+        { label: 'Download a copy', value: 'download' },
+        { label: go, value: 'go', primary: true, danger: true },
+      ],
+      { title },
+    )
+    if (choice === null) return false
+    if (choice === 'download') for (const id of lost) if (!(await download(id))) return false
+    return true
+  }
+  // Signing out (asked for) forgets the account in this tab only: what waits is saved first, then every Drive library
+  // closes here.
+  const signOut = async () => {
+    if (!(await flushAll('Sign out', 'Sign out anyway?', 'Sign out anyway'))) return false
     google.signOut()
     forgetDrive()
     say('info', SIGNED_OUT)
     return true
+  }
+  // Switching accounts (asked for) is for this tab alone: what waits is saved first, with the old account's token.
+  const switchAccount = async () => {
+    if (!(await flushAll('Switch account', 'Switch account anyway?', 'Switch anyway'))) return false
+    try {
+      const { from, to } = await google.switchAccount()
+      if (from === to) {
+        signedInAgain()
+        return false
+      }
+      forgetDrive()
+      setSignedNow()
+      signedInAgain()
+      say(
+        'info',
+        from
+          ? `Signed in as ${to} in this tab. The Google Drive libraries of ${from} are closed here; other tabs keep theirs.`
+          : `Signed in as ${to} in this tab. Other tabs keep their own account.`,
+      )
+      return true
+    } catch (err) {
+      report(err)
+      return false
+    }
   }
   const account = async () => {
     try {
@@ -1073,7 +1098,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       await renew()
       // Which account, so "Signed in as" can say it: asked once its token is here.
       if (!google.signedInAs()) await google.accountEmail().catch(() => '')
-      setSignedNow(true)
+      setSignedNow()
       signedInAgain()
       return true
     } catch (err) {
@@ -1084,14 +1109,14 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   // Libraries read to show what is inside them, by file and version. A closed link is read through the link.
   const peeked = useRef(new Map<string, Library>())
   const peek = async (driveId: string, version = '') => {
-    const key = `${driveId}|${version}`
+    const key = `${google.signedInAs() ?? ''}|${driveId}|${version}`
     const hit = peeked.current.get(key)
     if (hit) return hit
     const entry = ref.current.closed.find((c) => c.drive?.id === driveId)
-    const own = ref.current.signedIn && (entry?.drive?.mine ?? true)
+    const own = ref.current.signedIn && (entry?.drive?.mine ?? true) && sameOwner(entry?.drive)
     try {
       const { library } = await google.readDriveFile(driveId, own)
-      for (const k of peeked.current.keys()) if (k.startsWith(`${driveId}|`)) peeked.current.delete(k)
+      for (const k of peeked.current.keys()) if (k.includes(`|${driveId}|`)) peeked.current.delete(k)
       peeked.current.set(key, library)
       return library
     } catch (err) {
@@ -1138,17 +1163,19 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     }
   }
 
-  const driveFor = (d: W.Doc | null, signedIn: boolean): DriveApi => {
+  const driveFor = (d: W.Doc | null, signedIn: boolean, signedAs: string | null): DriveApi => {
     const id = d?.id
-    const yours = signedIn && !!d?.drive?.mine
+    const yours = !!d?.drive && !isViewOnly(d, signedIn, signedAs)
     return {
       setUp: google.driveSetUp,
       file: d?.drive ?? null,
       signedIn: () => signedIn,
+      signedAs: () => signedAs,
       canListQuietly: () => google.hasFreshToken(),
       yours,
       savesInto: yours,
       signOut,
+      switchAccount,
       account,
       prepare: () => void google.prepareSignIn().catch(() => undefined),
       signIn,
@@ -1187,7 +1214,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   const closeDoc = async (id: DocId) => {
     const start = cur(id)
     if (!start) return false
-    if (ownDrive(start, ref.current.signedIn)) {
+    if (ownDrive(start, ref.current)) {
       await flush(id)
       // Asked again when changes came in while it saved (typed in another pane meanwhile): those are not saved yet.
       const ask = () =>
@@ -1213,7 +1240,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       clearTimeout(timers.current.get(id))
       await writeNow(id)
     }
-    const yours = ownDrive(d, ref.current.signedIn)
+    const yours = ownDrive(d, ref.current)
     forgetTimers(id)
     update((w) => W.closeDoc(w, id))
     // Its record is kept while another tab has changes in it that are not on Drive yet (reopening finds them).
@@ -1236,10 +1263,10 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (entry.drive && kept?.dirty && kept.drive) {
       doc = W.makeDoc(id, kept.library, entry.name, { drive: kept.drive, saved: null })
     } else if (entry.drive) {
-      const own = ref.current.signedIn && entry.drive.mine
+      const own = ref.current.signedIn && entry.drive.mine && sameOwner(entry.drive)
       try {
         const { library, source } = await google.readDriveFile(entry.drive.id, own)
-        doc = W.makeDoc(id, library, entry.name, { drive: { ...source, shared: own ? entry.drive.shared : true, mine: own ? source.mine : entry.drive.mine } })
+        doc = W.makeDoc(id, library, entry.name, { drive: ownedBy({ ...source, shared: own ? entry.drive.shared : true, mine: own ? source.mine : entry.drive.mine }) })
       } catch (err) {
         report(err, `Could not open "${entry.name}". `)
         return null
@@ -1298,7 +1325,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     }
     const d = cur(id)
     if (!d) return false
-    if (isViewOnly(d, ref.current.signedIn)) {
+    if (isViewOnly(d, ref.current.signedIn, ref.current.account)) {
       say('error', RENAME_VIEW_ONLY_TEXT)
       return false
     }
@@ -1445,8 +1472,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   // ---- One document's API, the same object while nothing it shows changes ----
 
-  const statusOf = (d: W.Doc) => saveStatus(d, { signedIn: ws.signedIn, busy: busy.has(d.id), online })
-  const apis = useRef(new Map<DocId, { doc: W.Doc; signed: boolean; ready: boolean; status: SaveStatus; api: LibraryApi }>())
+  const statusOf = (d: W.Doc) => saveStatus(d, { signedIn: ws.signedIn, account: ws.account, busy: busy.has(d.id), online })
+  const apis = useRef(new Map<DocId, { doc: W.Doc; signed: string; ready: boolean; status: SaveStatus; api: LibraryApi }>())
   const makeApi = (d: W.Doc, status: SaveStatus): LibraryApi => {
     const id = d.id
     const { library } = d
@@ -1538,11 +1565,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
           return changed === w ? w : W.patchDoc(changed, id, (x) => ({ replaced: x.replaced + 1 }))
         })
       },
-      saveNow: async () => (ownDrive(cur(id), ref.current.signedIn) ? flush(id, true) : false),
+      saveNow: async () => (ownDrive(cur(id), ref.current) ? flush(id, true) : false),
       makeCopy: () => makeCopy(id),
       download: async () => void (await download(id)),
       close: () => closeDoc(id),
-      drive: driveFor(d, ws.signedIn),
+      drive: driveFor(d, ws.signedIn, ws.account),
     }
   }
   // Each file's part in the address, when there are several.
@@ -1553,9 +1580,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (!d) return makeApi(W.makeDoc(id, emptyLibrary(), ''), 'browser')
     const status = statusOf(d)
     const hit = apis.current.get(id)
-    if (hit && hit.doc === d && hit.signed === ws.signedIn && hit.ready === ready && hit.status === status) return hit.api
+    if (hit && hit.doc === d && hit.signed === `${ws.signedIn}|${ws.account}` && hit.ready === ready && hit.status === status) return hit.api
     const api = makeApi(d, status)
-    apis.current.set(id, { doc: d, signed: ws.signedIn, ready, status, api })
+    apis.current.set(id, { doc: d, signed: `${ws.signedIn}|${ws.account}`, ready, status, api })
     return api
   }
 
@@ -1660,7 +1687,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     setExplorer: (explorer) => update((w) => ({ ...w, explorer })),
     explorerView: (tabId) => W.explorerView(ws, tabId),
     setExplorerView: (tabId, view) => update((w) => W.setExplorerView(w, tabId, view)),
-    drive: driveFor(null, ws.signedIn),
+    drive: driveFor(null, ws.signedIn, ws.account),
     openLabel: adapter.openLabel,
     openHint: adapter.openHint,
   }

@@ -25,14 +25,19 @@ export const VIEW_ONLY_TEXT = 'This library is view only. Make a copy to change 
 export const RENAME_VIEW_ONLY_TEXT = "You can't rename someone else's file. Make a copy to change it."
 
 /** What a document's saving depends on (a workspace document fits). */
-export type SaveDoc = { library: object; saved: object | null; drive: { mine: boolean } | null; problem: SaveProblem | null }
+export type SaveDoc = { library: object; saved: object | null; drive: { mine: boolean; owner?: string | null } | null; problem: SaveProblem | null }
 
-/** A Drive file not known to be the signed-in user's own is view only; signed out, every Drive file is. */
-export const isViewOnly = (d: Pick<SaveDoc, 'drive'>, signedIn: boolean): boolean => !!d.drive && !(signedIn && d.drive.mine)
+/**
+ * A Drive file not known to be the signed-in user's own is view only; signed out, every Drive file is. One that was
+ * known to be another account's own (`owner`) is view only too while this tab is signed in as someone else: autosave
+ * never writes into it (an `account` not known yet counts as the same).
+ */
+export const isViewOnly = (d: Pick<SaveDoc, 'drive'>, signedIn: boolean, account: string | null = null): boolean =>
+  !!d.drive && !(signedIn && d.drive.mine && (!d.drive.owner || !account || d.drive.owner === account))
 
-export function saveStatus(d: SaveDoc, o: { signedIn: boolean; busy: boolean; online: boolean }): SaveStatus {
+export function saveStatus(d: SaveDoc, o: { signedIn: boolean; account?: string | null; busy: boolean; online: boolean }): SaveStatus {
   if (!d.drive) return 'browser'
-  if (isViewOnly(d, o.signedIn)) return 'viewOnly'
+  if (isViewOnly(d, o.signedIn, o.account)) return 'viewOnly'
   if (o.busy) return 'saving'
   if (d.problem) return d.problem
   if (d.library === d.saved) return 'saved'
