@@ -57,14 +57,28 @@ export function TabStrip(p: Props) {
     return () => el.removeEventListener('wheel', wheel)
   }, [])
 
-  // The active tab scrolls into view when it changes.
+  // The active tab scrolls fully into view when it changes, and again when the strip or its tabs change size
+  // (a window resize, a sidebar opening), so its title is never left hidden behind the edge.
   useEffect(() => {
     const el = scroll.current
-    const tab = el?.querySelector<HTMLElement>('[aria-selected="true"]')
-    if (!el || !tab) return
-    if (tab.offsetLeft < el.scrollLeft) el.scrollLeft = tab.offsetLeft
-    else if (tab.offsetLeft + tab.offsetWidth > el.scrollLeft + el.clientWidth) el.scrollLeft = tab.offsetLeft + tab.offsetWidth - el.clientWidth
-  }, [p.active])
+    if (!el) return
+    const reveal = () => {
+      const tab = el.querySelector<HTMLElement>('[aria-selected="true"]')
+      if (!tab) return
+      if (tab.offsetLeft < el.scrollLeft) el.scrollLeft = tab.offsetLeft
+      else if (tab.offsetLeft + tab.offsetWidth > el.scrollLeft + el.clientWidth) {
+        // To the next tab's left edge, so the tab before it is never left as a lone close button.
+        const need = tab.offsetLeft + tab.offsetWidth - el.clientWidth
+        const edges = Array.from(el.children, (c) => (c as HTMLElement).offsetLeft).filter((x) => x >= need && x <= tab.offsetLeft)
+        el.scrollLeft = Math.min(...edges, tab.offsetLeft)
+      }
+    }
+    reveal()
+    const watch = new ResizeObserver(reveal)
+    watch.observe(el)
+    for (const tab of Array.from(el.children)) watch.observe(tab)
+    return () => watch.disconnect()
+  }, [p.active, p.tabs.length])
 
   useEffect(() => {
     const el = scroll.current

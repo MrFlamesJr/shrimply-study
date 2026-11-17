@@ -220,6 +220,11 @@
     width: var(--tap);
     margin-right: calc(-1 * var(--space-2));
   }
+  /* Only the active tab (or one with unsaved changes) shows its close button, so a tab scrolled half out of the
+     strip never shows a lone close button; the others close from their menu. */
+  .wb-group .kit-tab:not(.is-active):not(.is-dirty) .kit-tab-close {
+    display: none;
+  }
   .kit-menu-item {
     min-height: var(--tap);
   }
