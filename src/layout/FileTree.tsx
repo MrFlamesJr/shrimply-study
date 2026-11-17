@@ -31,7 +31,8 @@ type Props = {
   children?: ReactNode
 }
 
-const HOVER_MS = 400
+// The card opens as soon as the pointer is on a file (asked for: snappy, never a wait).
+const HOVER_MS = 0
 const CARD_GAP = 8
 
 /**

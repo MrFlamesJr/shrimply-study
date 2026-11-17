@@ -204,20 +204,37 @@
   padding: 0 var(--space-1);
   font-size: var(--text-xs-plus);
 }
+/* The theme: one small control, so "Theme" reads as its label (asked for): a thin outline round the muted name and
+   the theme in full text with its chevron; pointed at, the whole of it brightens, and a click anywhere on it opens
+   the list. */
 .theme-pick {
   display: flex;
   align-items: center;
-  gap: var(--space-1);
+  height: 22px;
+  padding-left: var(--space-2);
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
   color: var(--text-muted);
+  cursor: pointer;
   font-size: var(--text-xs-plus);
+  transition:
+    background-color var(--dur-fast) var(--ease),
+    border-color var(--dur-fast) var(--ease);
 }
-.theme-pick select {
-  height: 24px;
+.theme-pick:hover {
+  background: var(--surface-2-clear);
+  border-color: var(--border-strong);
+}
+.theme-pick select,
+.theme-pick select:hover {
+  height: 100%;
   padding: 0 var(--space-2);
+  background: transparent;
+  color: var(--text);
   font-size: var(--text-xs-plus);
 }
 @media (max-width: 799px) {
-  .theme-pick select {
+  .theme-pick {
     height: var(--tap);
   }
 }

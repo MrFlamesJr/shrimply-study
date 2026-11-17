@@ -154,7 +154,19 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
             >
               What's new <OpenIcon />
             </button>
-            <label className="theme-pick">
+            {/* One control: a click on its name opens the list too (a label alone would only focus it). */}
+            <label
+              className="theme-pick"
+              onClick={(e) => {
+                const select = e.currentTarget.querySelector('select')
+                if (!select || e.target === select) return
+                try {
+                  select.showPicker()
+                } catch {
+                  select.focus()
+                }
+              }}
+            >
               Theme
               <ThemeSelect theme={theme} setTheme={setTheme} />
             </label>

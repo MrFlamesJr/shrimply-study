@@ -411,7 +411,8 @@
    a `--border-strong` line, no shadow) with a small arrow on its left edge pointing at the file's row (asked for),
    then three parts told apart by tone and type, never lines: the head (the file's where-icon on a small well, its name
    as a title in the theme's display font over where it lives), its figures side by side on a well (big numbers in the
-   display font, small labels), and short notes, each led by its own small mark. It slides in a few px as it fades. */
+   display font, small labels), and short notes, each led by its own small mark. It shows at once (asked for: snappy),
+   only a quick fade. */
 .file-info {
   position: fixed;
   inset: auto;
@@ -425,19 +426,14 @@
   color: var(--text-muted);
   font-size: var(--text-xs-plus);
   opacity: 0;
-  translate: calc(-1 * var(--space-1)) 0;
 }
 .file-info:popover-open {
   opacity: 1;
-  translate: none;
-  transition:
-    opacity var(--dur-fast) var(--ease),
-    translate var(--dur-fast) var(--ease);
+  transition: opacity var(--dur-fast) var(--ease);
 }
 @starting-style {
   .file-info:popover-open {
     opacity: 0;
-    translate: calc(-1 * var(--space-1)) 0;
   }
 }
 /* The arrow: a small square on its corner, the card's fill with the card's line on its two outer sides. */
