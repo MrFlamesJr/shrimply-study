@@ -24,14 +24,17 @@ type Props = {
   nav: Nav
   /** Says things in a toast (a card deleted); without it nothing is said. */
   notify?: Notify
-  /** Puts back what was last changed (the workspace's undo); the deleted-card toast's Undo button. Without it the toast names Ctrl+Z. */
-  undo?: () => void
+  /**
+   * The deleted-card toast's Undo: called right after the delete, it gives the function that undoes that step only
+   * (the workspace's `undoLater`). Without it the toast names Ctrl+Z.
+   */
+  undoLater?: () => () => void
   /** A card to open in the card dialog as the page shows (the Explorer's Edit); `onCardOpened` once it is. */
   openCard?: string | null
   onCardOpened?: () => void
 }
 
-export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav, notify, undo, openCard, onCardOpened }: Props) {
+export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav, notify, undoLater, openCard, onCardOpened }: Props) {
   // The id of the card open in the edit dialog.
   const [editing, setEditing] = useState<string | null>(null)
   useEffect(() => {
@@ -55,8 +58,9 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
   const addCards = () => goToNew(`add:${quiz.id}`, { name: 'edit', course: course.name, quiz: quiz.name })
   const deleteCard = (id: string) => {
     const number = quiz.cards.findIndex((c) => c.id === id) + 1
-    notify?.('info', undo ? `Deleted card #${number}.` : `Deleted card #${number}. Ctrl+Z puts it back.`, undefined, undo && { label: 'Undo', run: undo })
     lib.setCards(quiz.id, quiz.cards.filter((c) => c.id !== id), quiz.groups)
+    const undo = undoLater?.()
+    notify?.('info', undo ? `Deleted card #${number}.` : `Deleted card #${number}. Ctrl+Z puts it back.`, undefined, undo && { label: 'Undo', run: undo })
     setEditing(null)
   }
   const saveCard = (edited: Card) => lib.updateCard(quiz.id, edited)

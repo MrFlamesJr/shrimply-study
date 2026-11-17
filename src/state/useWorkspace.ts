@@ -1,19 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import { emptyLibrary, newId } from '../model'
-import type { Card, Course, Group, Library, Quiz, Sides } from '../model'
+import type { Card, Choice, Course, Group, Library, Quiz, Sides } from '../model'
 import { addSideType, deleteSideType, renameSideType } from '../logic/sides'
 import { freeName } from '../logic/names'
 import { plural } from '../logic/plural'
 import { cardsEdit } from '../logic/cardsEdit'
 import type { Docs, ItemRef, Target } from '../logic/contentOps'
+import type { Notify } from '../logic/pushToast'
+import type { Route } from '../logic/routes'
 import * as backup from '../storage/browserBackup'
 import * as google from '../storage/googleDrive'
 import type { DriveFile, DriveSource } from '../storage/googleDrive'
-import { openFiles, sameFile, saveAs, saveInPlace, type FileRef } from '../storage/fileStorage'
-import type { StorageAdapter } from '../storage/StorageAdapter'
-import type { Notify } from '../components/Toasts'
-import type { Choice } from '../components/ConfirmDialog'
-import type { Route } from '../route'
+import type { FileRef, StorageAdapter } from '../storage/StorageAdapter'
+import { comboLabel, isMac } from '../kit/shortcuts'
 import { redoLabel, undoLabel } from '../kit/history'
 import type { GroupId, Layout, TabId, WindowId } from '../kit/layout'
 import * as W from './workspace'
@@ -112,7 +111,7 @@ export type LibraryApi = {
   saveHint: string
   findCourse(id: string): Course | undefined
   findQuiz(id: string): { course: Course; quiz: Quiz } | undefined
-  /** Creates "New course" (or "New course 2" and so on: names are unique) and returns it. It stays a draft until renamed or given a quiz. */
+  /** Creates "New course" (or "New course 2" and so on: names are unique) and returns it. It stays a draft until anything changes it (here or in the Explorer). */
   addCourse(): Course
   /** Call when leaving a course page: a draft course is dropped as if it was never created. */
   leaveCourse(id: string): void
@@ -196,6 +195,11 @@ export type WorkspaceApi = {
   apply(label: string, update: (docs: Docs) => Docs, key?: string): void
   undo(): void
   redo(): void
+  /**
+   * Call right after a change: the function it returns undoes that step later (a toast's Undo), only while it is still
+   * the last one; otherwise it says that other changes came after it, and changes nothing.
+   */
+  undoLater(): () => void
   undoLabel: string | null
   redoLabel: string | null
   clipboard: Clipboard | null
@@ -222,6 +226,9 @@ export type WorkspaceApi = {
 
 // The backup holds whole libraries, images included, so each waits for a pause in its edits.
 const BACKUP_DELAY = 300
+// Tabs follow a rename once the typing pauses: the main window's active tab writes its page to the address bar, and
+// browsers limit how often that may change.
+const FOLLOW_DELAY = 300
 const HOME: Route = { name: 'home' }
 // The ids a transition needs, made before it runs (transitions stay pure).
 const ids = () => ({ tab: newId(), group: newId() })
@@ -304,8 +311,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   const edit = (id: DocId, label: string, fn: (lib: Library) => Library, key?: string) =>
     apply(label, (docs) => (docs[id] ? { ...docs, [id]: fn(docs[id]) } : docs), key)
 
-  // Courses created here and not edited since. Kept in memory only, so a reload keeps them.
-  const drafts = useRef(new Set<string>())
+  // Courses created here (by id, the course object as created): a draft only while the library still holds that very
+  // object (W.dropDraft). Kept in memory only, so a reload keeps them.
+  const drafts = useRef(new Map<string, Course>())
 
   // ---- The browser backup: each document's record, the workspace's record, file handles ----
 
@@ -316,6 +324,18 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   const seen = useRef(new Map<DocId, W.Doc>())
   // A document's edit waiting out BACKUP_DELAY before it is written.
   const timers = useRef(new Map<DocId, ReturnType<typeof setTimeout>>())
+  // The library each document's tab routes were last named in, and its change waiting out FOLLOW_DELAY before every
+  // tab of it (shown or not) follows a rename.
+  const named = useRef(new Map<DocId, Library>())
+  const follows = useRef(new Map<DocId, ReturnType<typeof setTimeout>>())
+  const followNow = (id: DocId) => {
+    follows.current.delete(id)
+    const from = named.current.get(id)
+    const d = cur(id)
+    if (!d || !from) return
+    named.current.set(id, d.library)
+    update((w) => W.followRenames(w, id, from))
+  }
   const wsTimer = useRef<ReturnType<typeof setTimeout>>(undefined)
   const wsWritten = useRef<string>(undefined)
   // The browser refused the last backup write, and the user was told (once, until a write works again).
@@ -403,6 +423,12 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const d = ws.docs[id]
       if (seen.current.get(id) === d) continue
       seen.current.set(id, d)
+      const from = named.current.get(id)
+      if (!from) named.current.set(id, d.library)
+      else if (from !== d.library) {
+        clearTimeout(follows.current.get(id))
+        follows.current.set(id, setTimeout(() => followNow(id), FOLLOW_DELAY))
+      }
       const handle = d.file?.handle ?? null
       if ((writtenHandle.current.get(id) ?? null) !== handle) {
         writtenHandle.current.set(id, handle)
@@ -452,8 +478,10 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     return backup.onWorkspaceWritten((msg) => {
       const id = msg.doc
       if (!id || !cur(id) || timers.current.has(id)) return
-      backup.readDoc(id).then(
-        (rec) => {
+      // Its file handle as stored now too (the other tab stores it at once, before the record): taken as it is, and
+      // so never written back here.
+      Promise.all([backup.readDoc(id), backup.readHandle(id)]).then(
+        ([rec, handle]) => {
           if (!cur(id) || timers.current.has(id)) return
           if (!rec) {
             written.current.delete(id)
@@ -461,7 +489,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
             return
           }
           written.current.set(id, rec)
-          update((w) => W.takeRecord(w, rec))
+          const kept = rec.file ? handle : null
+          writtenHandle.current.set(id, kept)
+          update((w) => W.takeRecord(w, rec, kept))
         },
         () => undefined, // unreadable: this tab keeps what it has
       )
@@ -791,11 +821,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const library = d.library
     try {
       if (d.file?.handle) {
-        let result = await saveInPlace(d.file.handle, library, d.file.modified || null)
+        let result = await adapter.saveInPlace(d.file.handle, library, d.file.modified || null)
         if (result.status === 'changed') {
           const question = `"${name}" changed on disk since you opened or saved it here, maybe in another app. Saving replaces it with this version.`
           if (!(await confirm(question, 'Replace', { title: 'File changed on disk' }))) return false
-          result = await saveInPlace(d.file.handle, library, null, true)
+          result = await adapter.saveInPlace(d.file.handle, library, null, true)
         }
         if (result.status === 'saved') {
           const file = result.file
@@ -808,7 +838,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         }
         // Permission refused: Save as instead.
       }
-      const file = await saveAs(library, name)
+      const file = await adapter.saveAs(library, name)
       if (!file) return false
       update((w) => W.markSaved(w, id, library, { file, drive: null }))
       return true
@@ -836,30 +866,39 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (!d) return
     try {
       // Named after the local file, else after its Drive file, else its own name.
-      await adapter.save(d.library, d.file?.name ?? d.drive?.name ?? d.name)
+      await adapter.download(d.library, d.file?.name ?? d.drive?.name ?? d.name)
     } catch (err) {
       say('error', `Download stopped.${errorText(err)}`)
     }
   }
 
   const closeDoc = async (id: DocId) => {
-    const d = cur(id)
-    if (!d) return false
-    if (W.hasChanges(d)) {
-      const choice = await deps.current.askChoice(
-        `Save changes to "${W.docName(d)}"? If you don't save them, they are lost.`,
+    let asked = 0
+    // Asked again when changes came in while it saved (typed in another pane meanwhile): those are not saved yet.
+    const ask = () => {
+      const name = W.docName(cur(id)!)
+      const question = asked++
+        ? `"${name}" changed while it saved. Save these changes too? If you don't save them, they are lost.`
+        : `Save changes to "${name}"? If you don't save them, they are lost.`
+      return deps.current.askChoice<'save' | 'discard'>(
+        question,
         [
           { label: 'Save', value: 'save', primary: true },
           { label: "Don't save", value: 'discard' },
         ],
         { title: 'Close file' },
       )
-      if (choice === null || (choice === 'save' && !(await saveDoc(id)))) return false
     }
-    if (!cur(id)) return false
+    const dirty = () => {
+      const d = cur(id)
+      return d ? W.hasChanges(d) : null
+    }
+    if (!(await W.readyToClose(dirty, ask, () => saveDoc(id)))) return false
     clearTimeout(timers.current.get(id))
     timers.current.delete(id)
-    for (const map of [written, writtenHandle, seen, apis]) map.current.delete(id)
+    clearTimeout(follows.current.get(id))
+    follows.current.delete(id)
+    for (const map of [written, writtenHandle, seen, apis, named]) map.current.delete(id)
     update((w) => W.closeDoc(w, id))
     void backup.deleteDoc(id).catch(() => undefined)
     return true
@@ -886,9 +925,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   }
 
   const openFile = async (at: Route = HOME) => {
-    let opened: Awaited<ReturnType<typeof openFiles>>
+    let opened: Awaited<ReturnType<StorageAdapter['openFiles']>>
     try {
-      opened = await openFiles()
+      opened = await adapter.openFiles()
     } catch (err) {
       say('error', `This file could not be opened.${errorText(err)}`)
       return null
@@ -903,7 +942,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       // One document per file: opened again, it shows the one it is open in.
       let same: W.Doc | undefined
       for (const d of Object.values(ref.current.docs)) {
-        if (d.file && (await sameFile(d.file, o.file).catch(() => false))) {
+        if (d.file && (await adapter.sameFile(d.file, o.file).catch(() => false))) {
           same = d
           break
         }
@@ -973,6 +1012,19 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     })
     if (entry) tell('Redid', entry)
   }
+  const undoLater = () => {
+    const step = W.lastStep(ref.current)
+    return () => {
+      let entry: { label: string; before: W.Snap } | undefined
+      update((w) => {
+        const done = W.undoStep(w, step)
+        entry = done?.entry
+        return done?.workspace ?? w
+      })
+      if (entry) tell('Undid', entry)
+      else say('info', `Other changes came after this. ${comboLabel('Mod+Z', isMac(navigator.platform))} steps back through them.`)
+    }
+  }
   // A refused copy, cut or paste says why and changes nothing.
   const tryUpdate = (fn: (w: W.Workspace) => W.Workspace) => {
     try {
@@ -1006,20 +1058,25 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
       addCourse() {
         const course: Course = { id: newId(), name: freeName('New course', latest().courses.map((c) => c.name)), quizzes: [] }
-        drafts.current.add(course.id)
+        drafts.current.set(course.id, course)
         edit(id, 'Add course', (lib) => ({ ...lib, courses: [...lib.courses, course] }))
         return course
       },
       leaveCourse(courseId) {
-        if (!drafts.current.delete(courseId)) return
-        update((w) => W.dropDraft(w, id, courseId))
+        const draft = drafts.current.get(courseId)
+        if (!draft) return
+        drafts.current.delete(courseId)
+        update((w) => W.dropDraft(w, id, draft))
       },
       renameCourse(courseId, name) {
         drafts.current.delete(courseId)
         edit(id, 'Rename course', (lib) => mapCourses(lib, (c) => (c.id === courseId && c.name !== name ? { ...c, name } : c)), `course:${courseId}`)
       },
       deleteCourse(courseId) {
-        if (drafts.current.delete(courseId)) return update((w) => W.dropDraft(w, id, courseId))
+        const draft = drafts.current.get(courseId)
+        drafts.current.delete(courseId)
+        // Untouched since it was made: gone as if never made. Edited (even from the Explorer): an undoable step.
+        if (draft && latest().courses.includes(draft)) return update((w) => W.dropDraft(w, id, draft))
         edit(id, 'Delete course', (lib) => ({ ...lib, courses: lib.courses.filter((c) => c.id !== courseId) }))
       },
       addQuiz(courseId) {
@@ -1149,6 +1206,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     apply,
     undo,
     redo,
+    undoLater,
     undoLabel: undoLabel(ws.history),
     redoLabel: redoLabel(ws.history),
     clipboard: ws.clipboard,

@@ -1,10 +1,11 @@
 // The workspace as one immutable object, and its pure transitions (useWorkspace runs them): the open documents, the
 // layout (one tab per document for now), the undo history, the clipboard and the Explorer's state. Nothing here
 // touches the DOM, storage or the clock: times and new ids come in as arguments.
-import { FORMATS, type Library } from '../model'
-import { href, resolve, type Route } from '../logic/routes'
+import { FORMATS, type Course, type Library } from '../model'
+import { href, resolve, sameIds, type Route } from '../logic/routes'
+import type { TabData } from '../logic/workbenchActions'
 import type { DriveSource } from '../storage/googleDrive'
-import type { FileRef } from '../storage/fileStorage'
+import type { FileRef } from '../storage/StorageAdapter'
 import type { DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
 import { emptySelection, type Selection } from '../kit/selection'
 import { emptyHistory, record, redo, seal, undo, type Entry, type History } from '../kit/history'
@@ -13,9 +14,7 @@ import { exists, extract, insert, move, type DocId, type Docs, type Fragment, ty
 import { freeName } from '../logic/names'
 import { plural } from '../logic/plural'
 
-export type { DocId }
-// A tab shows a page of a file, the Explorer, the welcome page or every release's notes (the app's own pages).
-export type TabData = { kind: 'doc'; doc: DocId; route: Route } | { kind: 'explorer' } | { kind: 'welcome' } | { kind: 'changelog' }
+export type { DocId, TabData }
 
 export type Doc = {
   id: DocId
@@ -149,23 +148,37 @@ function tabIn(l: L.Layout<TabData>, group: L.GroupId, doc: DocId): L.TabId | un
 
 const docTabData = (doc: DocId, route: Route): TabData => ({ kind: 'doc', doc, route })
 
-/** Adds a file, shown at `route` in a new tab (`tabId`) of the active group. */
-export function addDoc(w: Workspace, doc: Doc, route: Route, tabId: L.TabId): Workspace {
-  const added = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
-  return withLayout(added, L.openTab(w.layout, { id: tabId, data: docTabData(doc.id, route) }))
+/**
+ * The group a file opens in when none is named: the active one, unless it shows the Explorer, which stays in view:
+ * then the group used last besides it, else the Explorer's own (a new tab beside it), as the Explorer opens things.
+ */
+export function openingGroup(w: Workspace): L.GroupId {
+  return activeTab(w)?.data.kind === 'explorer' ? (recentGroup(w, w.layout.activeGroup) ?? w.layout.activeGroup) : w.layout.activeGroup
 }
 
-/** Shows a file: its tab in the active group, else its tab used last anywhere, else a new tab (`tabId`) on its home. */
-export function activateDoc(w: Workspace, id: DocId, tabId: L.TabId): Workspace {
-  if (!w.docs[id]) return w
-  const mine = (t: L.TabId) => docTab(w, t)?.data.doc === id
-  const tab = tabIn(w.layout, w.layout.activeGroup, id) ?? w.recent.find(mine) ?? tabsOf(w.layout, id)[0]
-  return withLayout(w, tab ? L.activate(w.layout, tab) : L.openTab(w.layout, { id: tabId, data: docTabData(id, HOME) }))
+/** Adds a file, shown at `route` in a new tab (`tabId`) of the group it opens in (`openingGroup`). */
+export function addDoc(w: Workspace, doc: Doc, route: Route, tabId: L.TabId): Workspace {
+  const added = { ...w, docs: { ...w.docs, [doc.id]: doc }, order: [...w.order, doc.id] }
+  return withLayout(added, L.openTab(w.layout, { id: tabId, data: docTabData(doc.id, route) }, { group: openingGroup(w) }))
 }
 
 /**
- * Shows a place of a file in a group (default: the active one): in that group's tab of the file, unless `newTab`,
- * else in a new tab (`tabId`) after the group's active tab. Says which tab shows it.
+ * Shows a file: its tab in the group it opens in (`openingGroup`), else its tab used last anywhere (never one under
+ * the active Explorer), else a new tab (`tabId`) on its home there.
+ */
+export function activateDoc(w: Workspace, id: DocId, tabId: L.TabId): Workspace {
+  if (!w.docs[id]) return w
+  const group = openingGroup(w)
+  // The Explorer's group, when the file opens elsewhere: none of its tabs covers the Explorer.
+  const keep = group === w.layout.activeGroup ? null : w.layout.activeGroup
+  const mine = (t: L.TabId) => docTab(w, t)?.data.doc === id && L.groupOf(w.layout, t) !== keep
+  const tab = tabIn(w.layout, group, id) ?? w.recent.find(mine) ?? tabsOf(w.layout, id).find(mine)
+  return withLayout(w, tab ? L.activate(w.layout, tab) : L.openTab(w.layout, { id: tabId, data: docTabData(id, HOME) }, { group }))
+}
+
+/**
+ * Shows a place of a file in a group (default: the one it opens in, `openingGroup`): in that group's tab of the file,
+ * unless `newTab`, else in a new tab (`tabId`) after the group's active tab. Says which tab shows it.
  */
 export function openPlace(
   w: Workspace,
@@ -175,7 +188,7 @@ export function openPlace(
   o: { group?: L.GroupId; newTab?: boolean; background?: boolean } = {},
 ): { workspace: Workspace; tab: L.TabId | null } {
   if (!w.docs[doc]) return { workspace: w, tab: null }
-  const group = o.group && w.layout.groups[o.group] ? o.group : w.layout.activeGroup
+  const group = o.group && w.layout.groups[o.group] ? o.group : openingGroup(w)
   const reuse = o.newTab ? undefined : tabIn(w.layout, group, doc)
   if (reuse) {
     const routed = setTabRoute(w, reuse, route)
@@ -327,18 +340,55 @@ export function redoEdit(w: Workspace): { workspace: Workspace; entry: Entry<Sna
   return { workspace: { ...putBack(w, step.entry.after), history: seal(step.history) }, entry: step.entry }
 }
 
-/** The history without a document: taken out of every entry, and entries left with nothing dropped. */
+/** The step undo would undo now (null for none): give it to `undoStep` to undo that step later, and only that one. */
+export const lastStep = (w: Workspace): Entry<Snap> | null => w.history.past[w.history.past.length - 1] ?? null
+
+/**
+ * Undoes `step` while it is still the last one (a toast's Undo); null once anything came after it (another change,
+ * typing merged into it, an undo) or it is gone, and then nothing changes.
+ */
+export function undoStep(w: Workspace, step: Entry<Snap> | null): { workspace: Workspace; entry: Entry<Snap> } | null {
+  return step && lastStep(w) === step ? undoEdit(w) : null
+}
+
+/**
+ * Tabs of `doc` that a rename left on the old name, named again: each route is read in `before` (the library the
+ * routes were last named in), and its course and quiz found again by id in the library now. A page whose course or
+ * quiz is gone keeps its route (its tab says so when shown).
+ */
+export function followRenames(w: Workspace, doc: DocId, before: Library): Workspace {
+  const now = w.docs[doc]?.library
+  if (!now || now === before) return w
+  const layout = L.mapTabs(w.layout, (tab) => {
+    const d = tab.data
+    if (d.kind !== 'doc' || d.doc !== doc || !('course' in d.route)) return d
+    const was = resolve(before, d.route)
+    const place = was.missing ? undefined : sameIds(now, was)
+    if (!place?.course) return d
+    const route = { ...d.route, course: place.course.name, ...(place.quiz && { quiz: place.quiz.name }) } as Route
+    return href(route) === href(d.route) ? d : { ...d, route }
+  })
+  return layout === w.layout ? w : { ...w, layout }
+}
+
+/**
+ * The history without a document (closed, or replaced from outside). Its own entries go. An entry that also changed
+ * another document (a move between files) can't be undone in half: the other file would lose what moved without the
+ * gone one getting it back. So it goes with every step beyond it (older ones in `past`, those redone after it in
+ * `future`), as undoing those would undo it too: the snapshots hold whole libraries.
+ */
 export function forget(h: History<Snap>, id: DocId): History<Snap> {
-  const strip = (list: Entry<Snap>[]) =>
-    list.flatMap((e) => {
-      if (!(id in e.before) && !(id in e.after)) return [e]
-      const before = { ...e.before }
-      const after = { ...e.after }
-      delete before[id]
-      delete after[id]
-      return Object.keys(after).length === 0 ? [] : [{ ...e, before, after }]
-    })
-  return { past: strip(h.past), future: strip(h.future) }
+  const touches = (e: Entry<Snap>) => id in e.before || id in e.after
+  const shared = (e: Entry<Snap>) => touches(e) && [...Object.keys(e.before), ...Object.keys(e.after)].some((k) => k !== id)
+  // Both lists end with the step taken next (undo takes past's last, redo future's last).
+  const keep = (list: Entry<Snap>[]) => {
+    let cut = -1
+    list.forEach((e, i) => shared(e) && (cut = i))
+    return list.slice(cut + 1).filter((e) => !touches(e))
+  }
+  const past = keep(h.past)
+  const future = keep(h.future)
+  return past.length === h.past.length && future.length === h.future.length ? h : { past, future }
 }
 
 /** Patches a document; the function may return null to change nothing. */
@@ -362,11 +412,12 @@ export function replaceDoc(w: Workspace, id: DocId, library: Library, patch: Par
   }
 }
 
-/** Another tab wrote the document: this tab takes it up (its unsaved mark too), keeping its file handle when it is the same file. */
-export function takeRecord(w: Workspace, rec: DocRecord): Workspace {
-  const d = w.docs[rec.id]
-  if (!d) return w
-  const handle = rec.file && d.file?.name === rec.file.name ? d.file.handle : null
+/**
+ * Another tab wrote the document: this tab takes it up (its unsaved mark too), with `handle`, the file handle kept
+ * with it now (the other tab may have saved it to another file), so the stored handle is never forgotten here.
+ */
+export function takeRecord(w: Workspace, rec: DocRecord, handle: FileSystemFileHandle | null): Workspace {
+  if (!w.docs[rec.id]) return w
   return replaceDoc(w, rec.id, rec.library, {
     saved: rec.dirty ? null : rec.library,
     drive: rec.drive,
@@ -377,6 +428,27 @@ export function takeRecord(w: Workspace, rec: DocRecord): Workspace {
 /** Saved: `saving` is the library as it was when the save started, so an edit made meanwhile keeps the mark. */
 export function markSaved(w: Workspace, id: DocId, saving: Library, patch: Partial<Doc> = {}): Workspace {
   return patchDoc(w, id, { ...patch, saved: saving })
+}
+
+/**
+ * Whether a document may close: with unsaved changes, `ask` (Save, Don't save, or null for Cancel) and, for Save,
+ * `save`; changes made while it saved are asked about again. `dirty` says whether it has changes now (null: it is
+ * gone). Resolves false when it stays open.
+ */
+export async function readyToClose(
+  dirty: () => boolean | null,
+  ask: () => Promise<'save' | 'discard' | null>,
+  save: () => Promise<boolean>,
+): Promise<boolean> {
+  for (;;) {
+    const changes = dirty()
+    if (changes === null) return false
+    if (!changes) return true
+    const choice = await ask()
+    if (choice === null) return false
+    if (choice === 'discard') return dirty() !== null
+    if (!(await save())) return false
+  }
 }
 
 /**
@@ -399,19 +471,20 @@ export function closeDoc(w: Workspace, id: DocId): Workspace {
 }
 
 /**
- * A draft course (created, never renamed nor given a quiz) dropped as if it was never made: when its "Add course" is
- * the last entry and nothing changed since, the library it was added to comes back as it was (so the unsaved mark
- * too) and the entry goes; otherwise the course is just taken out.
+ * A draft course dropped as if it was never made, only while it is still exactly the course created (`draft`, the same
+ * object: never renamed, given a quiz, pasted or moved into, anywhere). When its "Add course" is the last entry and
+ * nothing changed since, the library it was added to comes back as it was (so the unsaved mark too) and the entry
+ * goes; otherwise the course is just taken out. Changed since, it stays: then it is no draft.
  */
-export function dropDraft(w: Workspace, id: DocId, courseId: string): Workspace {
+export function dropDraft(w: Workspace, id: DocId, draft: Course): Workspace {
   const d = w.docs[id]
-  if (!d || !d.library.courses.some((c) => c.id === courseId)) return w
+  if (!d || !d.library.courses.includes(draft)) return w
   const last = w.history.past[w.history.past.length - 1]
   const before = last?.before[id]
-  if (last && Object.keys(last.after).length === 1 && last.after[id] === d.library && before && !before.courses.some((c) => c.id === courseId)) {
+  if (last && Object.keys(last.after).length === 1 && last.after[id] === d.library && before && !before.courses.some((c) => c.id === draft.id)) {
     return { ...patchDoc(w, id, { library: before }), history: { ...w.history, past: w.history.past.slice(0, -1) } }
   }
-  return patchDoc(w, id, { library: { ...d.library, courses: d.library.courses.filter((c) => c.id !== courseId) } })
+  return patchDoc(w, id, { library: { ...d.library, courses: d.library.courses.filter((c) => c !== draft) } })
 }
 
 // ---- Clipboard ----
@@ -561,8 +634,9 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
     if (data.kind === 'explorer' && !explorer) {
       explorer = true
       tabs[id] = { id, data: { kind: 'explorer' } }
-    } else if (data.kind === 'welcome' || data.kind === 'changelog') {
-      if (!Object.values(tabs).some((t) => t.data.kind === data.kind)) tabs[id] = { id, data: { kind: data.kind } }
+    } else if (data.kind === 'changelog') {
+      // One at most; a welcome tab kept by an earlier build is left out.
+      if (!Object.values(tabs).some((t) => t.data.kind === 'changelog')) tabs[id] = { id, data: { kind: 'changelog' } }
     } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
       const route = readRoute(data.route)
       if (route) tabs[id] = { id, data: docTabData(data.doc, route) }

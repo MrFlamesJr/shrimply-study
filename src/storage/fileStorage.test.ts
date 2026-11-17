@@ -1,7 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { emptyLibrary } from '../model'
 import { decodeLibrary } from './format'
-import { openFiles, reread, sameFile, saveInPlace, type FileRef } from './fileStorage'
+import { openFiles, sameFile, saveInPlace } from './fileStorage'
+import type { FileRef } from './StorageAdapter'
 
 type Fake = { handle: FileSystemFileHandle; content: () => Uint8Array | null; writes: () => number }
 
@@ -112,6 +113,5 @@ describe('openFiles', () => {
     const opened = await openFiles()
     expect(opened?.map((o) => o.ok)).toEqual([false, true])
     expect(opened?.[0]).toEqual({ ok: false, name: 'gone.shrimp', error: 'A requested file could not be found.' })
-    expect(await reread(gone)).toMatchObject({ ok: false, name: 'gone.shrimp' })
   })
 })

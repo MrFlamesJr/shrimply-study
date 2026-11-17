@@ -15,7 +15,7 @@ export type DocRecord = {
 export type WorkspaceRecord = { version: 1; docs: string[]; layout: unknown; explorer: unknown; ui: unknown }
 
 // A bad Drive note only loses the link to the file, never the library.
-export const readDrive = (d: unknown): DriveSource | null => {
+const readDrive = (d: unknown): DriveSource | null => {
   const s = d as DriveSource | null
   return s && typeof s.id === 'string' && typeof s.name === 'string' && typeof s.md5 === 'string' && typeof s.shared === 'boolean'
     ? { id: s.id, name: s.name, md5: s.md5, shared: s.shared, mine: s.mine === true, trashed: s.trashed === true }

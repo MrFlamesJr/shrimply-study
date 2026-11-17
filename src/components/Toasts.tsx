@@ -2,11 +2,11 @@ import { useEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { activeWindow, subscribeWindows } from '../kit/windows'
 import { newId } from '../model'
-import { pushToast, type Toast, type ToastAction, type ToastKind } from '../logic/pushToast'
+import { pushToast, type Notify, type Toast, type ToastKind } from '../logic/pushToast'
 import { CrossIcon } from './Icons'
 import { IconButton } from './IconButton'
 
-export type Notify = (kind: ToastKind, text: string, ms?: number, action?: ToastAction) => void
+export type { Notify }
 
 const LIFETIME: Record<ToastKind, number> = { info: 5000, warning: 8000, error: 12000 }
 // A toast with an action stays long enough to reach it.

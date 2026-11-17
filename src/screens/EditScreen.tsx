@@ -30,11 +30,14 @@ type Props = {
   collapsed: ReadonlySet<string>
   setCollapsed: (collapsed: ReadonlySet<string>) => void
   nav: Nav
-  /** Puts back what was last changed (the workspace's undo); the deleted-card toast's Undo button. Without it the toast names Ctrl+Z. */
-  undo?: () => void
+  /**
+   * The deleted-card toast's Undo: called right after the delete, it gives the function that undoes that step only
+   * (the workspace's `undoLater`). Without it the toast names Ctrl+Z.
+   */
+  undoLater?: () => () => void
 }
 
-export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, undo }: Props) {
+export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, undoLater }: Props) {
   const found = lib.findQuiz(quizId)
   const { go, takeCreated } = nav
   const [importOpen, setImportOpen] = useState(false)
@@ -230,8 +233,9 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, 
     patch: patchCard,
     remove: (id) => {
       const number = cards.findIndex((c) => c.id === id) + 1
-      notify('info', undo ? `Deleted card #${number}.` : `Deleted card #${number}. Ctrl+Z puts it back.`, undefined, undo && { label: 'Undo', run: undo })
       put(cards.filter((c) => c.id !== id))
+      const undo = undoLater?.()
+      notify('info', undo ? `Deleted card #${number}.` : `Deleted card #${number}. Ctrl+Z puts it back.`, undefined, undo && { label: 'Undo', run: undo })
     },
     move,
     advance,

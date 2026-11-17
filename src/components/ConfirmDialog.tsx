@@ -1,24 +1,30 @@
 import { createRoot } from 'react-dom/client'
+import type { Choice } from '../model'
 import { activeWindow } from '../kit/windows'
 import { Modal, closeModal } from './Modal'
 
-/** One button of `askChoice`. */
-export type Choice<V> = { label: string; value: V; primary?: boolean; danger?: boolean }
+export type { Choice }
 
 /**
  * Asks a question with several answers in a modal: Cancel, then the choices, the primary one last (where the confirm
- * button of `askConfirm` sits). Resolves the chosen value; Cancel, the ✕, Esc or a click outside resolve null.
+ * button of `askConfirm` sits). Resolves the chosen value; Cancel, the ✕, Esc or a click outside resolve null, and so
+ * does the window it shows in going away (a popped-out pane's popup closed meanwhile).
  * A blank line in `question` starts a new paragraph.
  */
 export function askChoice<V>(question: string, choices: Choice<V>[], options?: { title?: string }): Promise<V | null> {
   return new Promise((resolve) => {
     // In the active window's document (a popped-out pane's popup, or the main one), so the question shows where you work.
-    const { document: doc } = activeWindow()
+    const win = activeWindow()
+    const doc = win.document
     const host = doc.createElement('div')
     doc.body.appendChild(host)
     const root = createRoot(host)
     let chosen: V | null = null
+    let done = false
     const onClose = () => {
+      if (done) return
+      done = true
+      win.removeEventListener('pagehide', gone)
       resolve(chosen)
       // Unmount after the close event has finished, not from inside it.
       queueMicrotask(() => {
@@ -26,6 +32,12 @@ export function askChoice<V>(question: string, choices: Choice<V>[], options?: {
         host.remove()
       })
     }
+    // Its window closed with the question open: nothing was chosen.
+    const gone = () => {
+      chosen = null
+      onClose()
+    }
+    win.addEventListener('pagehide', gone)
     const ordered = [...choices.filter((c) => !c.primary), ...choices.filter((c) => c.primary)]
     root.render(
       <Modal title={options?.title ?? 'Are you sure?'} narrow onClose={onClose}>

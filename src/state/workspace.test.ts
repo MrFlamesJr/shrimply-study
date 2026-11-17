@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLibrary, type Course, type Library } from '../model'
-import type { FileRef } from '../storage/fileStorage'
+import type { FileRef } from '../storage/StorageAdapter'
 import type { DocRecord } from '../storage/workspaceRecord'
 import { MAIN, groupOf, groupsIn } from '../kit/layout'
 import {
@@ -26,13 +26,16 @@ import {
   docRecord,
   dropDraft,
   emptyWorkspace,
+  followRenames,
   freeDocName,
   hasChanges,
+  lastStep,
   makeDoc,
   markSaved,
   paste,
   readLayout,
   readRoute,
+  readyToClose,
   redoEdit,
   reopenFile,
   replaceDoc,
@@ -40,6 +43,7 @@ import {
   takeRecord,
   toClipboard,
   undoEdit,
+  undoStep,
   workspaceRecord,
   type Workspace,
 } from './workspace'
@@ -158,28 +162,89 @@ describe('apply and the history', () => {
   it('a document replaced from outside drops its history entries, keeping the others', () => {
     let w = applyEdit(two(), 'A', rename('a', 'a1', 'One'), 0)
     w = applyEdit(w, 'B', rename('b', 'b1', 'Bee'), 5000)
-    w = applyEdit(w, 'Both', (docs) => rename('b', 'b1', 'Bea')(rename('a', 'a1', 'Uno')(docs)), 10000)
+    w = applyEdit(w, 'A again', rename('a', 'a1', 'Uno'), 10000)
     const pulled = lib(course('n1'))
     w = replaceDoc(w, 'a', pulled)
     expect(w.docs.a.library).toBe(pulled)
     expect(hasChanges(w.docs.a)).toBe(false)
     expect(w.docs.a.replaced).toBe(1)
-    expect(w.history.past.map((e) => [e.label, Object.keys(e.before)])).toEqual([
-      ['B', ['b']],
-      ['Both', ['b']],
-    ])
+    expect(w.history.past.map((e) => [e.label, Object.keys(e.before)])).toEqual([['B', ['b']]])
+  })
+
+  it('a step that also changed the replaced document goes whole, with every step before it', () => {
+    let w = applyEdit(two(), 'B', rename('b', 'b1', 'Bee'), 0)
+    w = applyEdit(w, 'Both', (docs) => rename('b', 'b1', 'Bea')(rename('a', 'a1', 'Uno')(docs)), 5000)
+    w = applyEdit(w, 'B again', rename('b', 'b1', 'Bo'), 10000)
+    w = replaceDoc(w, 'a', lib(course('n1')))
+    expect(w.history.past.map((e) => e.label)).toEqual(['B again'])
+    // Undone, B steps back to what came after the shared step, never past it.
+    expect(undoEdit(w)!.workspace.docs.b.library.courses[0].name).toBe('Bea')
   })
 
   it('takes up another tab\'s record, its unsaved mark too', () => {
     const rec: DocRecord = { id: 'a', library: lib(course('t')), dirty: true, drive: null, file: null }
-    const w = takeRecord(applyEdit(two(), 'A', rename('a', 'a1', 'One'), 0), rec)
+    const w = takeRecord(applyEdit(two(), 'A', rename('a', 'a1', 'One'), 0), rec, null)
     expect(w.docs.a.library).toBe(rec.library)
     expect(hasChanges(w.docs.a)).toBe(true)
     expect(w.history.past).toEqual([])
   })
+
+  it('takes up another tab\'s record with the file handle stored for it now', () => {
+    const handle = { name: 'saved-as.shrimp' } as FileSystemFileHandle
+    const mine = { name: 'x.shrimp', handle: { name: 'x.shrimp' } as FileSystemFileHandle, size: 1, modified: 1 }
+    const w = addDoc(two(), makeDoc('f', lib(), 'x.shrimp', { file: mine }), HOME, 'tf')
+    const rec: DocRecord = { id: 'f', library: lib(course('t')), dirty: false, drive: null, file: { name: 'saved-as.shrimp', size: 2, modified: 2 } }
+    expect(takeRecord(w, rec, handle).docs.f.file).toEqual({ name: 'saved-as.shrimp', size: 2, modified: 2, handle })
+    expect(takeRecord(w, { ...rec, file: null }, null).docs.f.file).toBeNull()
+  })
+
+  it('a toast\'s undo undoes its own step only while it is the last one', () => {
+    const start = two()
+    let w = applyEdit(start, 'Delete', rename('a', 'a1', 'Gone'), 0)
+    const step = lastStep(w)
+    expect(undoStep(w, step)!.workspace.docs.a.library).toBe(start.docs.a.library)
+    w = applyEdit(w, 'Typing', rename('b', 'b1', 'Bee'), 100)
+    expect(undoStep(w, step)).toBeNull()
+    expect(undoStep(undoEdit(w)!.workspace, step)!.workspace.docs.a.library).toBe(start.docs.a.library)
+    expect(undoStep(start, lastStep(start))).toBeNull()
+  })
 })
 
 describe('closing', () => {
+  it('after a move between files, closing one leaves no step that would undo the move in half', () => {
+    let w = addDoc(two(), makeDoc('y', lib(course('y1')), 'Y'), HOME, 'ty')
+    w = applyEdit(w, 'Y first', rename('y', 'y1', 'Why'), 0)
+    w = toClipboard(w, [{ kind: 'course', doc: 'a', course: 'a1' }], 'cut')
+    w = paste(w, { kind: 'doc', doc: 'y' }, () => 'x', 5000)
+    expect(w.docs.y.library.courses.map((c) => c.id)).toEqual(['y1', 'a1'])
+    w = closeDoc(w, 'a')
+    expect(w.history.past).toEqual([])
+    expect(undoEdit(w)).toBeNull()
+    expect(w.docs.y.library.courses.map((c) => c.id)).toEqual(['y1', 'a1'])
+  })
+
+  it('asks until there is nothing left to lose: changes made while it saved are asked about again', async () => {
+    let dirty: boolean | null = true
+    const asked: string[] = []
+    const ask = (answer: 'save' | 'discard' | null) => async () => (asked.push(String(answer)), answer)
+    let saves = 0
+    // The first save lands, but an edit came in meanwhile; the second leaves nothing.
+    const save = async () => {
+      saves++
+      dirty = saves === 1
+      return true
+    }
+    expect(await readyToClose(() => dirty, ask('save'), save)).toBe(true)
+    expect(saves).toBe(2)
+    expect(asked).toEqual(['save', 'save'])
+    dirty = true
+    expect(await readyToClose(() => dirty, ask(null), save)).toBe(false)
+    expect(await readyToClose(() => dirty, ask('discard'), save)).toBe(true)
+    expect(await readyToClose(() => dirty, ask('save'), async () => false)).toBe(false)
+    expect(await readyToClose(() => false, ask('save'), save)).toBe(true)
+    expect(await readyToClose(() => null, ask('save'), save)).toBe(false)
+  })
+
   it('removes the document, its tab and its history, and activates another', () => {
     let w = applyEdit(two(), 'B', rename('b', 'b1', 'Bee'), 0)
     w = closeDoc(w, 'b')
@@ -223,13 +288,45 @@ describe('clipboard', () => {
 })
 
 describe('drafts', () => {
+  const draft = course('d')
+  const added = (start: Workspace) =>
+    applyEdit(start, 'Add course', (docs) => ({ ...docs, a: { ...docs.a, courses: [...docs.a.courses, draft] } }), 0)
+
   it('a draft course left at once is dropped, and the library is the saved one again', () => {
     const start = two()
-    const w = applyEdit(start, 'Add course', (docs) => ({ ...docs, a: { ...docs.a, courses: [...docs.a.courses, course('d')] } }), 0)
-    const dropped = dropDraft(w, 'a', 'd')
+    const dropped = dropDraft(added(start), 'a', draft)
     expect(dropped.docs.a.library).toBe(start.docs.a.library)
     expect(hasChanges(dropped.docs.a)).toBe(false)
     expect(dropped.history.past).toEqual([])
+  })
+
+  it('a draft changed since (renamed in the Explorer, given a quiz, pasted or moved into) stays', () => {
+    const renamed = applyEdit(added(two()), 'Rename course', rename('a', 'd', 'Biology'), 100)
+    expect(dropDraft(renamed, 'a', draft)).toBe(renamed)
+    const withQuiz = applyEdit(added(two()), 'Add quiz', (docs) => ({
+      ...docs,
+      a: { ...docs.a, courses: docs.a.courses.map((c) => (c.id === 'd' ? { ...c, quizzes: [{ id: 'q', name: 'Q', groups: [], cards: [] }] } : c)) },
+    }), 100)
+    expect(dropDraft(withQuiz, 'a', draft)).toBe(withQuiz)
+  })
+})
+
+describe('following renames', () => {
+  it('every tab of the file follows a rename of its course or quiz, shown or not', () => {
+    const quiz = { id: 'q1', name: 'Quiz one', groups: [], cards: [] }
+    let w = addDoc(two(), makeDoc('f', lib({ id: 'c1', name: 'Bio', quizzes: [quiz] }, course('c2', 'Gone')), 'F'), { name: 'quiz', course: 'Bio', quiz: 'Quiz one' }, 'tq')
+    w = openPlace(w, 'f', { name: 'course', course: 'bio' }, 'tc', { newTab: true, background: true }).workspace
+    w = openPlace(w, 'f', { name: 'course', course: 'Gone' }, 'tg', { newTab: true, background: true }).workspace
+    const before = w.docs.f.library
+    w = applyEdit(w, 'Rename course', rename('f', 'c1', 'Biology'), 0)
+    w = applyEdit(w, 'Delete course', (docs) => ({ ...docs, f: { ...docs.f, courses: docs.f.courses.filter((c) => c.id !== 'c2') } }), 5000)
+    const followed = followRenames(w, 'f', before)
+    expect(route(followed, 'tq')).toEqual({ name: 'quiz', course: 'Biology', quiz: 'Quiz one' })
+    expect(route(followed, 'tc')).toEqual({ name: 'course', course: 'Biology' })
+    expect(route(followed, 'tg')).toEqual({ name: 'course', course: 'Gone' })
+    expect(route(followed, 'ta')).toEqual(HOME)
+    // Nothing renamed: the same workspace.
+    expect(followRenames(followed, 'f', followed.docs.f.library)).toBe(followed)
   })
 })
 
@@ -405,6 +502,30 @@ describe('tabs, groups and windows', () => {
     expect(recentGroup(w, 'ge')).toBe('g')
     w = closeTabs(w, ['ta', 'tb'])
     expect(recentGroup(w, 'ge')).toBeNull()
+  })
+
+  it('a file opened while the Explorer is active opens beside it, never over it', () => {
+    let w = showExplorer(two(), 'g', { split: true, tabId: 'te', groupId: 'ge' })
+    // Opened (new, from a file, from Drive): in the group used last besides the Explorer's.
+    const opened = addDoc(w, makeDoc('c', lib(), 'C'), HOME, 'tc')
+    expect(groupOf(opened.layout, 'tc')).toBe('g')
+    expect(opened.layout.groups.ge.active).toBe('te')
+    expect(activeDoc(opened)).toBe('c')
+    // Already open: its tab there; the Explorer stays.
+    w = moveTab(w, 'ta', 'ge', 1)
+    w = activateTab(w, 'te')
+    const shown = activateDoc(w, 'a', 'x')
+    expect(shown.layout.groups.ge.active).toBe('te')
+    expect(groupOf(shown.layout, activeTab(shown)!.id)).toBe('g')
+    expect(activeDoc(shown)).toBe('a')
+    // A place named without a group goes there too.
+    expect(openPlace(w, 'b', { name: 'course', course: 'b1' }, 'p').tab).toBe('tb')
+    // The Explorer as a tab in the only group: a new tab beside it.
+    const tabbed = showExplorer(two(), 'g', { split: false, tabId: 'te', groupId: 'ge' })
+    const beside = addDoc(tabbed, makeDoc('c', lib(), 'C'), HOME, 'tc')
+    expect(groupOf(beside.layout, 'tc')).toBe('g')
+    // Without the Explorer active: the active group, as before.
+    expect(groupOf(addDoc(activateTab(opened, 'tc'), makeDoc('d', lib(), 'D'), HOME, 'td').layout, 'td')).toBe('g')
   })
 
   it('closing a file closes all its tabs, in every group', () => {

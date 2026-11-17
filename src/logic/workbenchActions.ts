@@ -5,7 +5,8 @@ import type { Group, Tab } from '../kit/layout'
 import { resolve, type Route } from './routes'
 import type { Library } from '../model'
 
-export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer' } | { kind: 'welcome' } | { kind: 'changelog' }
+/** What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or every release's notes. */
+export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer' } | { kind: 'changelog' }
 export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }
 export type Docs = Record<string, WorkbenchDoc>
 
@@ -31,7 +32,6 @@ function placeOf(data: TabData, docs: Docs): Place | null {
 export function tabTitle(tab: Tab<TabData>, docs: Docs): string {
   const d = tab.data
   if (d.kind === 'explorer') return 'Explorer'
-  if (d.kind === 'welcome') return 'Welcome'
   if (d.kind === 'changelog') return 'All releases'
   const place = placeOf(d, docs)
   return place ? (place.quiz ?? place.course ?? place.doc.name) : 'Missing file'

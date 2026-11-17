@@ -1,6 +1,6 @@
 import type { Library } from '../model'
 import { decodeLibrary, encodeLibrary } from './format'
-import type { StorageAdapter } from './StorageAdapter'
+import type { FileRef, Opened, SaveResult, StorageAdapter } from './StorageAdapter'
 import guideUrl from '../../samples/how-to-use.shrimp?url'
 import { fileNameProblem } from '../logic/names'
 
@@ -15,12 +15,6 @@ function pickFiles(): Promise<File[]> {
     input.addEventListener('cancel', () => resolve([]))
     input.click()
   })
-}
-
-async function load(): Promise<{ library: Library; name: string } | null> {
-  const file = (await pickFiles())[0]
-  if (!file) return null
-  return { library: decodeLibrary(new Uint8Array(await file.arrayBuffer())), name: file.name }
 }
 
 export async function fetchLibrary(url: string): Promise<Library> {
@@ -47,14 +41,6 @@ declare global {
 
 const PICKER_TYPES: PickerType[] = [{ description: 'Shrimply Study library', accept: { 'application/zip': ['.shrimp'] } }]
 
-/** A local file a library is tied to. `handle` is null where the browser can't write back (Firefox, Safari). */
-export type FileRef = { name: string; handle: FileSystemFileHandle | null; size: number; modified: number }
-
-/** Whether a file can be saved in place (Chrome, Edge). */
-export const canSaveInPlace = (): boolean => !!window.showOpenFilePicker && !!window.showSaveFilePicker
-
-export type Opened = { ok: true; library: Library; file: FileRef } | { ok: false; name: string; error: string }
-
 // Getting the file can fail too (deleted since it was picked, a cloud file that won't download): reported like a broken one.
 async function readFile(getFile: () => Promise<File>, name: string, handle: FileSystemFileHandle | null): Promise<Opened> {
   try {
@@ -66,7 +52,7 @@ async function readFile(getFile: () => Promise<File>, name: string, handle: File
   }
 }
 
-/** Null when nothing was picked. A broken file is reported in its place, never thrown. */
+/** Null when nothing was picked. A broken file is reported in its place, never thrown (a failing picker throws). */
 export async function openFiles(): Promise<Opened[] | null> {
   if (window.showOpenFilePicker) {
     let handles: FileSystemFileHandle[]
@@ -83,17 +69,6 @@ export async function openFiles(): Promise<Opened[] | null> {
   if (files.length === 0) return null
   return Promise.all(files.map((file) => readFile(async () => file, file.name, null)))
 }
-
-/** Reads the file again from disk. A file that can't be read is reported, never thrown. */
-export function reread(handle: FileSystemFileHandle): Promise<Opened> {
-  return readFile(() => handle.getFile(), handle.name, handle)
-}
-
-export type SaveResult =
-  | { status: 'saved'; file: FileRef }
-  | { status: 'changed'; modified: number }
-  | { status: 'denied' }
-  | { status: 'error'; message: string }
 
 /**
  * Writes the library into the file it came from. `expected` is the modified time last seen: when the file has another
@@ -178,7 +153,7 @@ async function pickAndWrite(bytes: Uint8Array, name: string): Promise<FileSystem
 }
 
 /** Save as: the picked file is kept (a handle) where the browser allows, else a download. Null when cancelled. */
-export async function saveAs(library: Library, suggestedName?: string): Promise<FileRef | null> {
+async function saveAs(library: Library, suggestedName?: string): Promise<FileRef | null> {
   const bytes = encodeChecked(library)
   const name = saveName(suggestedName)
   if (window.showSaveFilePicker) {
@@ -195,7 +170,7 @@ export async function saveAs(library: Library, suggestedName?: string): Promise<
  * Resolves the file's name: the one picked in the save dialog, or the suggested one for a plain download (the browser
  * may still add a number to it). Never keeps a handle. Null when the user cancelled the save.
  */
-export async function downloadCopy(library: Library, suggested?: string): Promise<string | null> {
+async function downloadCopy(library: Library, suggested?: string): Promise<string | null> {
   const bytes = encodeChecked(library)
   const name = saveName(suggested)
   if (window.showSaveFilePicker) return (await pickAndWrite(bytes, name))?.name ?? null
@@ -208,6 +183,9 @@ export const fileStorage: StorageAdapter = {
   saveLabel: 'Download',
   loadHint: 'Open .shrimp files. Each opens beside the files already open.',
   saveHint: 'Download a copy of this library as a .shrimp file',
-  load,
-  save: downloadCopy,
+  openFiles,
+  saveInPlace,
+  saveAs,
+  download: downloadCopy,
+  sameFile,
 }

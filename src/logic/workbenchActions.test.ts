@@ -35,7 +35,7 @@ describe('titles', () => {
   })
   it('names the other kinds', () => {
     expect(tabTitle(tab({ kind: 'explorer' }), docs)).toBe('Explorer')
-    expect(tabTitle(tab({ kind: 'welcome' }), docs)).toBe('Welcome')
+    expect(tabTitle(tab({ kind: 'changelog' }), docs)).toBe('All releases')
   })
   it('describes with the file name only away from its home', () => {
     expect(tabDescription(home, docs)).toBeUndefined()
@@ -49,7 +49,7 @@ describe('paths and tooltips', () => {
     expect(copyPathText(home, docs)).toBe('Biology.shrimp')
     expect(copyPathText(course, docs)).toBe('Biology.shrimp/Cell Biology')
     expect(copyPathText(quiz, docs)).toBe('Biology.shrimp/Cell Biology/Quiz 1')
-    expect(copyPathText(tab({ kind: 'welcome' }), docs)).toBeNull()
+    expect(copyPathText(tab({ kind: 'changelog' }), docs)).toBeNull()
   })
   it('marks unsaved changes in the tooltip', () => {
     expect(tabTooltip(quiz, docs)).toBe('Biology.shrimp/Cell Biology/Quiz 1')

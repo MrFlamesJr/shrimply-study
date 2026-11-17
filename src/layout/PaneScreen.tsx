@@ -176,14 +176,14 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
         setTipsOpen={s.setTipsOpen}
         nav={nav}
         notify={s.notify}
-        undo={ws.undo}
+        undoLater={ws.undoLater}
         openCard={card}
         onCardOpened={s.onCardOpened}
       />
     )
   } else if (route.name === 'edit' && quiz) {
     screen = (
-      <EditScreen key={quiz.id} lib={lib} quizId={quiz.id} notify={s.notify} undo={ws.undo} collapsed={s.collapsed} setCollapsed={s.setCollapsed} nav={nav} />
+      <EditScreen key={quiz.id} lib={lib} quizId={quiz.id} notify={s.notify} undoLater={ws.undoLater} collapsed={s.collapsed} setCollapsed={s.setCollapsed} nav={nav} />
     )
   } else if (route.name === 'study' && quiz) {
     return (

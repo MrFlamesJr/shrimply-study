@@ -159,6 +159,19 @@ describe('readWorkspace', () => {
     expect((await readWorkspace()).docs.map((d) => d.id)).toEqual(['a'])
   })
 
+  it('reads back the handle another tab stored for a document', async () => {
+    const { readHandle, writeHandle } = await import('./browserBackup')
+    const handle = { name: 'saved-as.shrimp' } as FileSystemFileHandle
+    expect(await readHandle('b')).toBeNull()
+    await writeHandle('b', handle)
+    expect(await readHandle('b')).toBe(handle)
+    await writeHandle('b', null)
+    expect(await readHandle('b')).toBeNull()
+    vi.stubGlobal('indexedDB', undefined)
+    vi.resetModules()
+    expect(await (await import('./browserBackup')).readHandle('b')).toBeNull()
+  })
+
   it('copies an unreadable document aside and lists it', async () => {
     const { readWorkspace, writeWorkspace } = await import('./browserBackup')
     await writeWorkspace({ version: 1, docs: ['x'], layout: null, explorer: null, ui: null })

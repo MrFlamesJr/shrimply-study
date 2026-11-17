@@ -86,6 +86,8 @@ export const THEMES = [
   { id: 'kahoot', name: 'Kahoot' },
 ] as const
 export type ThemeId = (typeof THEMES)[number]['id']
+/** One answer button of a question with several (ConfirmDialog's `askChoice`, the workspace's Save / Don't save). */
+export type Choice<V> = { label: string; value: V; primary?: boolean; danger?: boolean }
 // Longest group name you can type (a file may hold a longer one; it opens as is).
 export const GROUP_NAME_MAX = 50
 export type Quiz = { id: string; name: string; groups: Group[]; cards: Card[] }

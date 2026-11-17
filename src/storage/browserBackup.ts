@@ -1,11 +1,7 @@
-import type { Library } from '../model'
-import { checkLibrary } from './format'
-import type { DriveSource } from './googleDrive'
 import {
   migrateBackup,
   parseDocRecord,
   parseWorkspaceRecord,
-  readDrive,
   docRecordText,
   textHash,
   type DocRecord,
@@ -14,13 +10,8 @@ import {
 
 export type { DocRecord, WorkspaceRecord }
 
-/**
- * `drive`: the Google Drive file the library came from or was saved to (none in older backups). `file`: the name of
- * the .shrimp file it was opened from or last downloaded to (none in older backups).
- */
-export type Backup = { library: Library; changedIds: string[]; drive: DriveSource | null; file: string | null }
-
-// One JSON text in IndexedDB: localStorage only holds a few MB, too little once cards have images.
+// IndexedDB: localStorage only holds a few MB, too little once cards have images. `library.v1` is the single backup
+// of the version before files (one JSON text), read once to become a document (see `migrate`); never written now.
 const DB = 'studyquiz'
 const STORE = 'backup'
 const KEY = 'library.v1'
@@ -53,25 +44,6 @@ function run<T>(mode: IDBTransactionMode, request: (store: IDBObjectStore) => ID
   )
 }
 
-/**
- * Null when nothing is stored, or when this browser keeps nothing for the site (storage blocked, as in some private
- * windows: then there is nothing to read, and nothing broken). Rejects when the stored backup cannot be read.
- */
-export async function readBackup(): Promise<Backup | null> {
-  // Only storage that can't be opened at all counts as nothing stored: a failed read is a backup that can't be read.
-  if (!(await openDb().catch(() => null))) return null
-  const raw: unknown = await run('readonly', (store) => store.get(KEY))
-  if (typeof raw !== 'string') return null
-  const data = JSON.parse(raw)
-  const { changedIds } = data
-  if (!Array.isArray(changedIds) || !changedIds.every((id) => typeof id === 'string')) {
-    throw new Error('The backup data is malformed.')
-  }
-  // A bad file name only loses the name.
-  const file = typeof data.file === 'string' ? data.file : null
-  return { library: checkLibrary(data.library, 'stored'), changedIds, drive: readDrive(data.drive), file }
-}
-
 /** Copies the stored backup text aside, so an unreadable backup survives the next backup write. */
 export async function keepBrokenBackup(): Promise<void> {
   const raw: unknown = await run('readonly', (store) => store.get(KEY))
@@ -82,27 +54,6 @@ export async function keepBrokenBackup(): Promise<void> {
 export async function readBrokenBackup(): Promise<string | null> {
   const raw: unknown = await run('readonly', (store) => store.get(BROKEN_KEY))
   return typeof raw === 'string' ? raw : null
-}
-
-// Every tab of the site shares the one backup. A tab that writes it tells the others, which take it up, so no tab
-// writes over a change made in another (BroadcastChannel never tells the tab that sent it).
-const tabs = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('shrimply-backup')
-
-/** Calls `taken` each time another tab of the site wrote the backup. Returns the function that stops it. */
-export function onBackupWritten(taken: () => void): () => void {
-  tabs?.addEventListener('message', taken)
-  return () => tabs?.removeEventListener('message', taken)
-}
-
-/** Resolves false when the browser refused to store it (for example, storage is full). */
-export async function writeBackup(backup: Backup): Promise<boolean> {
-  try {
-    await run('readwrite', (store) => store.put(JSON.stringify(backup), KEY))
-    tabs?.postMessage('written')
-    return true
-  } catch {
-    return false
-  }
 }
 
 /** For the debug page: deletes the stored backup. */
@@ -191,6 +142,13 @@ export async function readDoc(id: string): Promise<DocRecord | null> {
 /** Resolves false when the browser refused to store it. */
 export const writeWorkspace = (rec: WorkspaceRecord): Promise<boolean> =>
   put(WORKSPACE_KEY, JSON.stringify(rec), { workspace: true })
+
+/** The file handle kept for a document (another tab may have stored it); null when there is none or it can't be read. */
+export async function readHandle(id: string): Promise<FileSystemFileHandle | null> {
+  if (!(await openDb().catch(() => null))) return null
+  const handle: unknown = await run('readonly', (store) => store.get(HANDLE + id)).catch(() => undefined)
+  return (handle as FileSystemFileHandle | undefined) ?? null
+}
 
 /** Keeps (or, with null, forgets) the file handle of a document. */
 export async function writeHandle(id: string, handle: FileSystemFileHandle | null): Promise<void> {
