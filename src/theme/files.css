@@ -75,8 +75,25 @@
 .file-block:hover {
   border-color: var(--border-strong);
 }
+/* The active file: its block a step higher, touched with the accent, and a short accent mark down its left edge
+   (asked for: plain at a glance which file you are in, in the theme's own colors). */
+.file-block {
+  position: relative;
+}
 .file-block.is-active {
-  background: var(--surface-2);
+  background: var(--side-active);
+}
+/* The mark is the file row's own, in the block's padding beside it, inset evenly from the row's top and bottom, so
+   it stays centered on the row whatever its height (a Pull link under it too). */
+.file-row.is-active::before {
+  position: absolute;
+  top: var(--space-3);
+  bottom: var(--space-3);
+  left: calc(-1 * var(--space-1));
+  width: var(--line-thick);
+  background: var(--accent);
+  border-radius: var(--line-thick);
+  content: '';
 }
 
 /* A file's row */
@@ -92,7 +109,7 @@
   transition: background-color var(--dur) var(--ease);
 }
 .file-row.is-active {
-  background: var(--surface-2);
+  background: var(--side-active);
 }
 .file-pick,
 .file-course,
@@ -390,40 +407,152 @@
   font-weight: var(--weight-bold);
 }
 
-/* The hover card of a file, beside the sidebar (FileTree places it). */
+/* The hover card of a file, beside the sidebar (FileTree places it, its head level with the row): a popup (`--popup`,
+   a `--border-strong` line, no shadow) with a small arrow on its left edge pointing at the file's row (asked for),
+   then three parts told apart by tone and type, never lines: the head (the file's where-icon on a small well, its name
+   as a title in the theme's display font over where it lives), its figures side by side on a well (big numbers in the
+   display font, small labels), and short notes, each led by its own small mark. It slides in a few px as it fades. */
 .file-info {
   position: fixed;
   inset: auto;
-  max-width: 280px;
+  width: 264px;
   margin: 0;
-  padding: var(--space-3);
+  padding: 0;
+  overflow: visible;
   background: var(--popup);
   border: var(--line) solid var(--border-strong);
   border-radius: var(--radius);
   color: var(--text-muted);
   font-size: var(--text-xs-plus);
   opacity: 0;
+  translate: calc(-1 * var(--space-1)) 0;
 }
 .file-info:popover-open {
   opacity: 1;
-  transition: opacity var(--dur-fast) var(--ease);
+  translate: none;
+  transition:
+    opacity var(--dur-fast) var(--ease),
+    translate var(--dur-fast) var(--ease);
 }
 @starting-style {
   .file-info:popover-open {
     opacity: 0;
+    translate: calc(-1 * var(--space-1)) 0;
   }
 }
-.file-info p + p {
-  margin-top: var(--space-1);
+/* The arrow: a small square on its corner, the card's fill with the card's line on its two outer sides. */
+.file-info::before {
+  position: absolute;
+  top: var(--arrow-y, var(--space-6));
+  left: 0;
+  width: 10px;
+  height: 10px;
+  background: var(--popup);
+  border-bottom: var(--line) solid var(--border-strong);
+  border-left: var(--line) solid var(--border-strong);
+  content: '';
+  rotate: 45deg;
+  translate: -50% -50%;
+}
+.file-info-head {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-3);
+  padding: var(--space-3) var(--space-3) var(--space-2);
+}
+.file-info-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  background: var(--well);
+  border-radius: var(--radius);
+  color: var(--text);
+}
+.file-info-icon svg {
+  width: 20px;
+  height: 20px;
 }
 .file-info-title {
+  overflow: hidden;
   color: var(--text);
   font-family: var(--font-display);
-  font-size: var(--text-sm);
+  font-size: var(--text-side-title);
   font-weight: var(--weight-bold);
   letter-spacing: var(--display-tracking);
+  text-overflow: ellipsis;
+  text-shadow: var(--glow-text);
   text-transform: var(--display-case);
-  overflow-wrap: anywhere;
+  white-space: nowrap;
+}
+.file-info-where {
+  margin-top: var(--space-1);
+  font-size: var(--text-xs-plus);
+}
+/* The figures: three even columns on a well, the number big over its small label. */
+.file-info-figures {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin: 0 var(--space-3) var(--space-3);
+  padding: var(--space-2) 0;
+  background: var(--well);
+  border-radius: var(--radius);
+  text-align: center;
+}
+.file-info-figures > div {
+  display: flex;
+  flex-direction: column-reverse;
+}
+.file-info-figures dd {
+  margin: 0;
+  color: var(--text);
+  font-family: var(--font-display);
+  font-size: var(--text-info-title);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  font-variant-numeric: tabular-nums;
+}
+.file-info-figures dt {
+  font-size: var(--text-xs);
+}
+/* The notes: one line each, its mark in a fixed cell in front. */
+.file-info-notes {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0 var(--space-3) var(--space-3);
+  list-style: none;
+}
+.file-info-notes li {
+  display: grid;
+  grid-template-columns: 14px minmax(0, 1fr);
+  align-items: center;
+  column-gap: var(--space-2);
+}
+.file-info-notes svg {
+  width: 14px;
+  height: 14px;
+}
+.file-info-home {
+  overflow: hidden;
+  color: var(--text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file-info-notes .is-unsaved {
+  color: var(--text);
+}
+.file-info-dot {
+  justify-self: center;
+  width: 8px;
+  height: 8px;
+  background: currentColor;
+  border-radius: 50%;
+}
+.file-info-notes .is-info {
+  color: var(--info);
 }
 
 /* Touch: no pointing at a row, so the active row (or the one holding the focus) shows its actions on a line of their

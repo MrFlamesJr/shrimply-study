@@ -141,7 +141,14 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
             <HiddenFilesNote ws={ws} />
           </FileTree>
           <div className="sidebar-foot">
-            {/* A small link right above the Theme row (asked for), as home's What's new box has: every release's notes in a tab. */}
+            <label className="theme-pick">
+              Theme
+              <ThemeSelect theme={theme} setTheme={setTheme} />
+            </label>
+          </div>
+          {/* The sidebar's footer, a slim darker strip at its very bottom (asked for), with a small What's new link, as
+              the empty page's What's new box has: every release's notes in a tab. */}
+          <footer className="sidebar-bar">
             <button
               type="button"
               className="link open-link sidebar-news"
@@ -153,11 +160,7 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onDrive, 
             >
               What's new <OpenIcon />
             </button>
-            <label className="theme-pick">
-              Theme
-              <ThemeSelect theme={theme} setTheme={setTheme} />
-            </label>
-          </div>
+          </footer>
         </div>
       </nav>
       {open && <button type="button" className="scrim" aria-label="Close sidebar" tabIndex={-1} onClick={() => setOpen(false)} />}

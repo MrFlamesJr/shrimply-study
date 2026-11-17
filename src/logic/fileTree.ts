@@ -19,12 +19,17 @@ export function unfoldFor(expanded: ReadonlySet<string>, doc: DocId | null, cour
   return new Set([...expanded, ...ids])
 }
 
+/** How many courses, quizzes and cards a library holds (the hover card's figures). */
+export function libraryCounts(lib: Library): { courses: number; quizzes: number; cards: number } {
+  const quizzes = lib.courses.flatMap((c) => c.quizzes)
+  return { courses: lib.courses.length, quizzes: quizzes.length, cards: quizzes.reduce((n, q) => n + q.cards.length, 0) }
+}
+
 /** "3 courses · 12 quizzes · 456 cards". */
 export function countLine(lib: Library): string {
-  if (lib.courses.length === 0) return 'No courses yet'
-  const quizzes = lib.courses.flatMap((c) => c.quizzes)
-  const cards = quizzes.reduce((n, q) => n + q.cards.length, 0)
-  return [plural(lib.courses.length, 'course'), plural(quizzes.length, 'quiz', 'quizzes'), plural(cards, 'card')].join(' · ')
+  const n = libraryCounts(lib)
+  if (n.courses === 0) return 'No courses yet'
+  return [plural(n.courses, 'course'), plural(n.quizzes, 'quiz', 'quizzes'), plural(n.cards, 'card')].join(' · ')
 }
 
 /** The lines of a file's hover card. */

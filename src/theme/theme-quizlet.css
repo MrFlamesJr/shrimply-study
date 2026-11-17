@@ -67,12 +67,15 @@
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
      --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
-     surfaces' first one unless the theme sets it apart. */
+     surfaces' first one unless the theme sets it apart. The sidebar tree's file blocks rise --lift-side-block above
+     the sidebar, the active file's --lift-side-active. */
   --lift-hue: 274;
   --lift-chroma: 0.04;
   --lift-sunken: -0.05;
   --lift-1: 0.15;
   --lift-sidebar: 0.035;
+  --lift-side-block: 0.03;
+  --lift-side-active: 0.06;
   --lift-2: 0.2;
   --lift-3: 0.245;
   --lift-border: 0.31;
@@ -102,6 +105,7 @@
   --tint-rest: 0%;
   --role-solid: 0;
   --tint-keep: 0.3;
+  --tint-side-active: 7%;
   --role-chroma: 0.07;
   --role-turn: 12;
   --tint-pill: 40%;

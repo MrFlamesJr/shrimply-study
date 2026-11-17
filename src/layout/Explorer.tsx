@@ -1,7 +1,7 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AutoText } from '../components/AutoText'
 import type { askConfirm } from '../components/ConfirmDialog'
-import { BrowserIcon, ChevronsUpIcon, ShrimpIcon, CloudIcon, FileIcon, FolderIcon, InfoIcon, PlusIcon, RefreshIcon } from '../components/Icons'
+import { BrowserIcon, ChevronsUpIcon, ShrimpIcon, CloudIcon, CourseIcon, FileIcon, QuizIcon, FolderIcon, InfoIcon, PlusIcon, RefreshIcon } from '../components/Icons'
 import { IconButton } from '../components/IconButton'
 import { CardDialog } from '../components/CardDialog'
 import { Modal, closeModal } from '../components/Modal'
@@ -61,8 +61,10 @@ export type ExplorerProps = {
   paste(target: Target): void
   notify: Notify
   ask: typeof askConfirm
-  /** Shows it in the current tab (a file's home, a course, a quiz page; a card: its quiz page). */
+  /** Shows it (a file's home, a course, a quiz page; a card: its quiz page) in a tab of its file, reused. */
   open(node: ItemRef | DocRef): void
+  /** Open in new tab: the same page in a tab of its own. */
+  openNew(node: ItemRef | DocRef): void
   /** A quiz: its editor; a card: the card dialog. */
   edit(ref: ItemRef): void
   /** One file's API, for the card dialog (New card opens it right here). */
@@ -302,6 +304,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
         return setAdding({ doc: first.doc, course: first.course, quiz: first.quiz, group, kind: kind ?? 'term', key: 0, card: blankCard(kind ?? 'term', newId(), lastSides(quiz.cards), group) })
       }
       case 'open': return first && openNode(first)
+      case 'openNew': return first && first.kind !== 'card' && !(first.kind !== 'doc' && isPeekDoc(first.doc)) && p.openNew(first)
       case 'edit': return first && first.kind !== 'doc' && p.edit(first)
       case 'rename': return first && first.kind !== 'doc' && first.kind !== 'card' && setRenaming(ids[0])
       case 'copy': return p.copy(refs, refs.some((r) => isPeekDoc(r.doc)) ? peekDocs(latest.current.drive?.peeks) : undefined)
@@ -397,6 +400,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
       const color = docsAll[r.doc]?.courses.find((c) => c.id === r.course)?.quizzes.find((q) => q.id === r.quiz)?.groups.find((x) => x.id === r.group)?.color
       return <span className="explorer-group-dot" data-color={color} />
     }
+    if (r?.kind === 'course') return <span className="explorer-icon"><CourseIcon /></span>
+    if (r?.kind === 'quiz') return <span className="explorer-icon"><QuizIcon /></span>
     if (r?.kind !== 'doc') return null
     const doc = p.docs.find((d) => d.id === r.doc)
     if (!doc) return null

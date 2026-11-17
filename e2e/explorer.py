@@ -507,8 +507,8 @@ def run(page, base):
     before = row(page, 'doc', 'Guide').bounding_box()
     chevron.hover()
     page.wait_for_timeout(400)
-    need(chevron.evaluate('e => getComputedStyle(e).cursor') == 'pointer', 'the chevron shows the pointer')
-    need(chevron.locator('svg').evaluate('e => e.getBoundingClientRect().width') > 20, 'and springs up a size')
+    need(chevron.locator('.kit-row-chevron').evaluate('e => getComputedStyle(e).cursor') == 'pointer', 'the chevron shows the pointer')
+    need(chevron.locator('.kit-row-chevron svg').evaluate('e => e.getBoundingClientRect().width') == 16, 'and does not pop a size')
     need(row(page, 'doc', 'Guide').bounding_box() == before and chevron.bounding_box()['width'] == 16, 'inside its fixed cell: nothing moves')
     page.mouse.move(700, 600)
 
@@ -662,6 +662,18 @@ def run(page, base):
     other_group.locator('[role=tab][aria-selected=true]').first.click(button='right')
     page.get_by_role('menuitem', name='Reveal in Explorer').click()
     wait_for(page, lambda: selected(page) == ['Opposites'], f'Reveal selects the tab\'s quiz: {selected(page)}')
+
+    # Opening from the Explorer reuses the tab its file already has (asked for: no new tab each time); Open in new tab,
+    # in its menu, makes one of its own.
+    tabs_before = page.locator('[role=tab]').count()
+    expand(page, 'doc', 'Test library')
+    row(page, 'course', '1. Start here').dblclick()
+    wait_for(page, lambda: page.locator('.pane-crumbs', has_text='1. Start here').count() >= 1, 'a course opens from the Explorer')
+    need(page.locator('[role=tab]').count() == tabs_before, 'in the tab its file already has, not a new one')
+    menu(page, row(page, 'course', '2. Term cards'), 'Open in new tab')
+    wait_for(page, lambda: page.locator('[role=tab]').count() == tabs_before + 1, 'Open in new tab makes a tab of its own')
+    row(page, 'quiz', 'Opposites').click()  # the selection the reload below keeps
+    wait_for(page, lambda: selected(page) == ['Opposites'], 'Opposites selected again')
 
     # A reload keeps the open nodes and the selection (the rows drawn past the window's edge may differ, so the first ones).
     def shape():

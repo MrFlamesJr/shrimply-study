@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLibrary, type Library } from '../model'
-import { countLine, fileInfo, fileTreeSource, unfoldFor } from './fileTree'
+import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from './fileTree'
 
 const lib = (courses: number[][]): Library => ({
   ...emptyLibrary(),
@@ -39,6 +39,13 @@ describe('unfoldFor', () => {
     const s = new Set(['d:a', 'c:a:c'])
     expect(unfoldFor(s, 'a', 'c')).toBe(s)
     expect(unfoldFor(s, null, null)).toBe(s)
+  })
+})
+
+describe('libraryCounts', () => {
+  it('counts courses, quizzes and cards', () => {
+    expect(libraryCounts(lib([[1, 2], [3]]))).toEqual({ courses: 2, quizzes: 3, cards: 6 })
+    expect(libraryCounts(lib([]))).toEqual({ courses: 0, quizzes: 0, cards: 0 })
   })
 })
 

@@ -64,13 +64,13 @@ describe('menus', () => {
   })
   it('a file', () => {
     const m = menuFor(ctx(), ['d:a'], 'd:a')
-    expect(labels(m)).toEqual(['New course', 'Paste', 'Save', 'Download', 'Close file'])
+    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Paste', 'Save', 'Download', 'Close file'])
     expect(find(m, 'Close file').disabled).toBeUndefined()
     expect(find(menuFor(ctx(), ['d:a', 'd:b'], 'd:a'), 'New course')).toMatchObject({ disabled: true, reason: 'Pick one file.' })
   })
   it('a course', () => {
     const m = menuFor(ctx(), ['c:a:c1'], 'c:a:c1')
-    expect(labels(m)).toEqual(['Open', 'New quiz', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
+    expect(labels(m)).toEqual(['Open', 'Open in new tab', 'New quiz', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
     expect(find(m, 'Rename').shortcut).toBe('F2')
     expect(find(m, 'Copy').shortcut).toBe('Ctrl+C')
     expect(find(m, 'Cut').shortcut).toBe('Ctrl+X')
@@ -79,7 +79,7 @@ describe('menus', () => {
     expect(find(m, 'Move to…').disabled).toBeUndefined()
   })
   it('a quiz and a card', () => {
-    expect(labels(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1'))).toEqual(['Open', 'Edit cards', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
+    expect(labels(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1'))).toEqual(['Open', 'Open in new tab', 'Edit cards', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
     expect(labels(menuFor(ctx(), ['k:a:c1:q1:k1'], 'k:a:c1:q1:k1'))).toEqual(['Edit', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
   })
   it('several of one kind: one-item entries are disabled with a reason, the rest work', () => {
@@ -399,7 +399,7 @@ describe('groups in the Explorer', () => {
 
   it('a group has its own menu: copy, cut, paste, move, reorder, rename, ungroup, delete', () => {
     const m = menuFor(ctx(null, gd), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')
-    expect(labels(m)).toEqual(['Open', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Ungroup', 'Delete'])
+    expect(labels(m)).toEqual(['Open', 'Open in new tab', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Ungroup', 'Delete'])
     expect(find(m, 'Move up')).toMatchObject({ disabled: true, reason: 'It is already first.' })
     expect(find(m, 'Move down').disabled).toBeUndefined()
     expect(find(menuFor(ctx(null, gd), ['p:a:c1:q1:g2'], 'p:a:c1:q1:g2'), 'Move down')).toMatchObject({ disabled: true, reason: 'It is already last.' })

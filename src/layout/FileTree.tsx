@@ -5,13 +5,13 @@ import { flatten, keyNav, typeahead } from '../kit/tree'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
 import type { DocId } from '../logic/contentOps'
 import { nodeOf, refOf } from '../logic/explorerTree'
-import { countLine, fileInfo, fileTreeSource, unfoldFor } from '../logic/fileTree'
+import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from '../logic/fileTree'
 import { plural } from '../logic/plural'
 import { whereLine } from '../logic/whereLine'
 import { ownWindow } from '../components/ownWindow'
 import { IconButton } from '../components/IconButton'
 import {
-  BrowserIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CourseIcon, CrossIcon, FileIcon, PlusIcon, PullIcon, QuizIcon, SaveIcon,
+  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CourseIcon, CrossIcon, FileIcon, OpenIcon, PlusIcon, PullIcon, QuizIcon, SaveIcon,
 } from '../components/Icons'
 
 type Props = {
@@ -90,7 +90,8 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
   const pending = useRef<string | null>(null)
   const typed = useRef({ text: '', at: 0 })
   const [focusId, setFocusId] = useState<string | null>(null)
-  const [hover, setHover] = useState<{ title: string; lines: string[]; top: number } | null>(null)
+  // The file whose card shows, and the middle of its row (the card's arrow points there).
+  const [hover, setHover] = useState<{ doc: DocId; mid: number } | null>(null)
 
   const activeLib = ws.active ? ws.doc(ws.active).library : null
   const currentCourse = (current && activeLib?.courses.find((c) => c.id === current || c.quizzes.some((q) => q.id === current))?.id) || null
@@ -150,8 +151,13 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
     if (!el.matches(':popover-open')) el.showPopover()
     const win = ownWindow(el)
     const side = el.closest('.sidebar')?.getBoundingClientRect().right ?? 0
+    // Its head level with the row, kept inside the window; the arrow then points at the row's middle.
+    const head = el.querySelector<HTMLElement>('.file-info-head')
+    const headMid = head ? head.offsetTop + head.offsetHeight / 2 : CARD_GAP * 3
+    const top = Math.max(CARD_GAP, Math.min(hover.mid - headMid, win.innerHeight - el.offsetHeight - CARD_GAP))
     el.style.left = `${side + CARD_GAP}px`
-    el.style.top = `${Math.max(CARD_GAP, Math.min(hover.top, win.innerHeight - el.offsetHeight - CARD_GAP))}px`
+    el.style.top = `${top}px`
+    el.style.setProperty('--arrow-y', `${Math.max(CARD_GAP * 2, Math.min(hover.mid - top, el.offsetHeight - CARD_GAP * 2))}px`)
   }, [hover])
   useEffect(() => hideCard, [])
 
@@ -231,8 +237,8 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
     const win = ownWindow(row)
     win.clearTimeout(timer.current)
     timer.current = win.setTimeout(() => {
-      const api = ws.doc(doc)
-      setHover({ title: api.name, lines: infoOf(api), top: row.getBoundingClientRect().top })
+      const box = (row.querySelector('.file-pick') ?? row).getBoundingClientRect()
+      setHover({ doc, mid: box.top + box.height / 2 })
     }, HOVER_MS)
   }
 
@@ -473,15 +479,80 @@ export function FileTree({ ws, current, onDrive, onOpen, closeIfNarrow, onNewCou
       )}
       {children}
       <div className="file-info" popover="manual" ref={card}>
-        {hover && (
-          <>
-            <p className="file-info-title">{hover.title}</p>
-            {hover.lines.map((line, i) => (
-              <p key={i}>{line}</p>
-            ))}
-          </>
-        )}
+        {hover && ws.docs.some((d) => d.id === hover.doc) && <FileCard doc={ws.doc(hover.doc)} />}
       </div>
     </section>
+  )
+}
+
+/**
+ * A file's hover card: its icon and name over where it lives, its figures (courses, quizzes, cards) side by side, then
+ * a few notes, each with its own mark: the file it is tied to, saved or not, shared, a newer version waiting.
+ */
+function FileCard({ doc }: { doc: LibraryApi }) {
+  const [Icon, where] = whereOf(doc)
+  const counts = libraryCounts(doc.library)
+  const drive = doc.drive.file
+  const home = drive?.name ?? doc.file?.name ?? null
+  const figures = [
+    [counts.courses, counts.courses === 1 ? 'course' : 'courses'],
+    [counts.quizzes, counts.quizzes === 1 ? 'quiz' : 'quizzes'],
+    [counts.cards, counts.cards === 1 ? 'card' : 'cards'],
+  ] as const
+  // Saved or not says nothing new for a library that lives only in this browser and has nothing new: its where line
+  // already says so.
+  const notes = [
+    home && (
+      <li key="home">
+        {drive ? <CloudIcon /> : <FileIcon />}
+        <span className="file-info-home">{home}</span>
+      </li>
+    ),
+    doc.hasChanges ? (
+      <li key="saved" className="is-unsaved">
+        <span className="file-info-dot" />
+        Unsaved changes
+      </li>
+    ) : (
+      home && (
+        <li key="saved">
+          <CheckIcon />
+          All changes saved
+        </li>
+      )
+    ),
+    drive?.shared && (
+      <li key="shared">
+        <OpenIcon />
+        Shared with a link
+      </li>
+    ),
+    doc.drive.newer && (
+      <li key="newer" className="is-info">
+        <PullIcon />A newer version is on Google Drive
+      </li>
+    ),
+  ].filter(Boolean)
+  return (
+    <>
+      <div className="file-info-head">
+        <span className="file-info-icon">
+          <Icon />
+        </span>
+        <div className="file-info-names">
+          <p className="file-info-title">{doc.name}</p>
+          <p className="file-info-where">{where}</p>
+        </div>
+      </div>
+      <dl className="file-info-figures">
+        {figures.map(([n, label]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{n}</dd>
+          </div>
+        ))}
+      </dl>
+      {notes.length > 0 && <ul className="file-info-notes">{notes}</ul>}
+    </>
   )
 }

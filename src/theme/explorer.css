@@ -94,9 +94,6 @@
   border-color: var(--border-strong);
   font-weight: var(--weight-bold);
 }
-.explorer .kit-row-icon:empty {
-  display: none;
-}
 .explorer .kit-row-desc {
   flex: 0 100 auto;
   min-width: 0;
@@ -181,18 +178,6 @@
 .explorer .kit-row[data-id^="g:l:"],
 .explorer .kit-row[data-id^="g:x:"] {
   color: var(--text-muted);
-}
-/* The tree's chevron is a button: its cell stays 16px (the row never moves) and centres the icon as it springs up
-   (base.css: the shared icon pop); only a chevron that has an icon (a node that can open) shows the pointer. */
-.explorer .kit-row-chevron {
-  align-items: center;
-  justify-content: center;
-}
-.explorer .kit-row-chevron svg {
-  flex: none;
-}
-.explorer .kit-row-chevron:has(svg) {
-  cursor: pointer;
 }
 /* The tip under the tree. */
 .explorer-tip {

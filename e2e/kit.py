@@ -120,7 +120,7 @@ def tree_tests(page, base):
     page.keyboard.press('Escape')
     check(page.evaluate("document.activeElement.getAttribute('role')") == 'treeitem', 'focus returns to the tree after Esc')
     # the empty chevron slot of a leaf selects it, like a click elsewhere
-    item('Banana').locator('[data-chevron]').click()
+    item('Banana').locator('.kit-row-glyph').click()
     check(item('Banana').get_attribute('aria-selected') == 'true' and names().count('Banana') == 1, 'a leaf chevron slot selects')
 
     # drag: move, copy, refused, hover-to-expand

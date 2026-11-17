@@ -18,6 +18,7 @@ export function ExplorerPane(p: {
   notify: Notify
   ask: typeof askConfirm
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
+  openNodeNew(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
   reveal: string | null
   onRevealed(): void
@@ -159,6 +160,7 @@ export function ExplorerPane(p: {
       notify={p.notify}
       ask={p.ask}
       open={p.openNode}
+      openNew={p.openNodeNew}
       edit={p.editNode}
       libOf={(id) => ws.doc(id)}
       newDoc={() => void ws.newDoc()}

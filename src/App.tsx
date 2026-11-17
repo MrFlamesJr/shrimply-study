@@ -286,14 +286,21 @@ export function App() {
     if (!quiz) return null
     return { name: edit && node.kind === 'quiz' ? 'edit' : 'quiz', course: course.name, quiz: quiz.name }
   }
-  // What the Explorer opens goes to the group used last besides its own, or else a new tab beside it.
-  const openFromExplorer = (node: DocNode, edit = false) => {
+  // What the Explorer opens reuses a tab of that file (asked for: no new tab each time): the page itself where a tab
+  // shows it, else the file's tab in the group used last besides the Explorer's, else in the Explorer's own group,
+  // else in any other; only with none (or `newTab`, its Open in new tab) a new tab, in the group used last besides
+  // its own, or beside it.
+  const openFromExplorer = (node: DocNode, edit = false, newTab = false) => {
     const route = placeOf(node, edit)
     if (!route) return
     const tab = explorerTabOf()
     const home = tab ? groupOf(ws.layout, tab.id) : null
     const into = ws.recentGroup(home)
-    const shown = into ? ws.openPlace(node.doc, route, { group: into }) : ws.openPlace(node.doc, route, { group: home ?? undefined, newTab: true })
+    const groups = Object.values(ws.layout.tabs)
+      .filter((t) => t.data.kind === 'doc' && t.data.doc === node.doc)
+      .map((t) => groupOf(ws.layout, t.id))
+    const reuse = newTab ? null : [into, home].find((g) => g && groups.includes(g)) ?? groups.find(Boolean) ?? null
+    const shown = ws.openPlace(node.doc, route, { group: reuse ?? into ?? home ?? undefined, newTab: newTab || (!reuse && !into) })
     if (shown && edit && node.kind === 'card') setOpenCard({ tab: shown, card: node.card })
     bringForward()
   }
@@ -460,6 +467,7 @@ export function App() {
     openGuide: async () => (await ws.openLibrary(loadGuide, 'Guide')) !== null,
     newCourse,
     openNode: (node) => openFromExplorer(node),
+    openNodeNew: (node) => openFromExplorer(node, false, true),
     editNode: (ref) => openFromExplorer(ref, true),
     reveal,
     onRevealed: () => setReveal(null),

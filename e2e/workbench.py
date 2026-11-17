@@ -368,7 +368,7 @@ def open_focuses_and_duplicates(page):
     eg = page.locator('.wb-cell .wb-group', has=page.locator('[role=tab]', has_text='Explorer'))
     first = lambda: shown(eg).locator('[role=treeitem]').first  # noqa: E731
     before = first().get_attribute('aria-expanded')
-    first().locator('.kit-row-chevron').click()
+    first().locator('[data-chevron]').click()
     wait_for(page, lambda: first().get_attribute('aria-expanded') != before, 'its first file opens or closes')
     after = first().get_attribute('aria-expanded')
     eg.locator('[role=tab]', has_text='Explorer').first.click()
@@ -463,7 +463,7 @@ def whats_new_tab(page):
         g.locator('.pane-crumbs a').first.click()
         wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'home again')
     need(shown(active_group(page)).locator('.info-box', has_text="What's new").count() == 0, "home has no What's new box")
-    need(page.locator('.sidebar-news + .theme-pick').count() == 1, "the sidebar's What's new sits right above the Theme row")
+    need(page.locator('.sidebar-bar .sidebar-news').count() == 1, "the sidebar's What's new sits in its footer, under the Theme row")
     need(page.locator('.sidebar-news svg').count() == 1, "the link ends with the opens-elsewhere mark")
     page.locator('.sidebar-news').click()
     wait_for(page, lambda: news_tabs(page).count() == 1, "What's new opens as a tab")

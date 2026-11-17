@@ -28,21 +28,56 @@
 .kit-row:hover { background: var(--kit-accent-soft); }
 .kit-row[aria-selected="true"] { background: var(--kit-accent-soft); border-color: var(--kit-accent-line); }
 .kit-row:focus-visible { outline: var(--kit-line-thick) solid var(--kit-focus); outline-offset: -2px; }
-.kit-row.is-dimmed .kit-row-label, .kit-row.is-dimmed .kit-row-icon { opacity: var(--kit-dim); }
-.kit-row-chevron {
+.kit-row.is-dimmed .kit-row-label, .kit-row.is-dimmed .kit-row-glyph { opacity: var(--kit-dim); }
+/* A row's icon and its fold chevron share one 16px cell (fixed tracks, so both stay centered on it): the icon at rest;
+   while the row is pointed at or holds the keyboard focus it eases into the chevron (a soft cross-fade with a slight
+   scale), pointing right while shut and down while open. With nothing to fold the icon stays; with no icon the
+   chevron shows at rest; on touch the chevron replaces the icon. */
+.kit-row-glyph {
   flex: none;
-  display: inline-flex;
+  display: grid;
+  grid-template: 16px / 16px;
+  place-items: center;
   width: 16px;
   height: 16px;
   color: var(--kit-muted);
 }
+.kit-row-glyph > * {
+  grid-area: 1 / 1;
+  transition:
+    opacity var(--kit-dur) var(--kit-ease),
+    scale var(--kit-dur) var(--kit-ease);
+}
+.kit-row-glyph > :not(.kit-row-chevron) { display: inline-flex; }
+.kit-row-chevron {
+  display: flex;
+  color: var(--kit-muted);
+  cursor: pointer;
+  opacity: 0;
+  scale: 0.8;
+  transition-property: opacity, scale, color;
+}
+.kit-row-chevron:hover { color: var(--kit-text); }
 .kit-row-chevron svg {
   width: 16px;
   height: 16px;
+  rotate: none;
   transition: rotate var(--kit-dur) var(--kit-ease);
 }
-.kit-row-chevron.is-open svg { rotate: 90deg; }
-.kit-row-icon { flex: none; display: inline-flex; align-items: center; }
+.kit-row-glyph.is-open .kit-row-chevron svg { rotate: 90deg; }
+.kit-row:is(:hover, :focus-visible) > .kit-row-glyph.is-foldable > :not(.kit-row-chevron) {
+  opacity: 0;
+  scale: 0.8;
+}
+.kit-row:is(:hover, :focus-visible) > .kit-row-glyph.is-foldable > .kit-row-chevron,
+.kit-row-chevron:only-child {
+  opacity: 1;
+  scale: 1;
+}
+@media (hover: none) {
+  .kit-row-glyph.is-foldable > :not(.kit-row-chevron) { opacity: 0; }
+  .kit-row-glyph.is-foldable > .kit-row-chevron { opacity: 1; scale: 1; }
+}
 .kit-row-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .kit-row-label mark { background: none; color: var(--kit-accent); }
 .kit-row-desc { flex: none; color: var(--kit-muted); font-size: var(--kit-text-xs); white-space: nowrap; }
@@ -100,5 +135,5 @@
 }
 .kit-tree-drop-label.is-refused { color: var(--kit-invalid); }
 @media (prefers-reduced-motion: reduce) {
-  .kit-row, .kit-row-chevron svg { transition: none; }
+  .kit-row, .kit-row-glyph > *, .kit-row-chevron svg { transition: none; }
 }

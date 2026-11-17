@@ -18,9 +18,21 @@
   --row-line: color-mix(in srgb, var(--text) 6%, transparent);
   /* The sidebar: its own step, so a theme can keep it close to the ground while its cards stand well above it. */
   --surface-side: oklch(from var(--bg) calc(l + var(--lift-sidebar)) calc(c + var(--lift-sidebar) * var(--lift-chroma)) var(--lift-hue));
-  /* A file's block in the sidebar's tree: a faint step above the sidebar, toward the raised surface the active file
-     takes; solid, as its row sticks over what scrolls under it. */
-  --side-block: color-mix(in oklch, var(--surface-side), var(--surface-2) 40%);
+  /* The sidebar tree's file blocks, solid (a file's row sticks over what scrolls under it): each a step above the
+     sidebar (--lift-side-block), the active file's a bigger one (--lift-side-active) touched with the accent
+     (--tint-side-active), all in the surfaces' own hue and chroma. */
+  --side-block: oklch(
+    from var(--bg) calc(l + var(--lift-sidebar) + var(--lift-side-block))
+      calc(c + (var(--lift-sidebar) + var(--lift-side-block)) * var(--lift-chroma)) var(--lift-hue)
+  );
+  --side-active: color-mix(
+    in oklch,
+    oklch(
+      from var(--bg) calc(l + var(--lift-sidebar) + var(--lift-side-active))
+        calc(c + (var(--lift-sidebar) + var(--lift-side-active)) * var(--lift-chroma)) var(--lift-hue)
+    ),
+    var(--accent) var(--tint-side-active)
+  );
   --surface: oklch(from var(--bg) calc(l + var(--lift-1)) calc(c + var(--lift-1) * var(--lift-chroma)) var(--lift-hue));
   --surface-2: oklch(from var(--bg) calc(l + var(--lift-2)) calc(c + var(--lift-2) * var(--lift-chroma)) var(--lift-hue));
   --surface-3: oklch(from var(--bg) calc(l + var(--lift-3)) calc(c + var(--lift-3) * var(--lift-chroma)) var(--lift-hue));

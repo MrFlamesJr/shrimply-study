@@ -73,7 +73,7 @@ Keyboard map (keys act on the focused row; the tree is one tab stop with a rovin
 
 Keys with Alt are ignored. Keys typed in a rename field are not handled by the tree.
 
-Mouse: a click selects (Ctrl or Cmd toggles, Shift extends); a click on the chevron expands or collapses; a double click
+Mouse: a click selects (Ctrl or Cmd toggles, Shift extends); a click on the chevron expands or collapses (a row's icon and its chevron share one 16px cell: the icon eases into the chevron while the row is pointed at or focused, and on touch the chevron shows instead); a double click
 activates; a right click opens the menu callback.
 
 Drag and drop: dragging a selected row drags all selected rows (in display order); dragging an unselected row drags just

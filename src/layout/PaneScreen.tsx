@@ -40,6 +40,8 @@ export type PaneShared = {
   newCourse(group?: string): void
   /** The Explorer's: where it opens and edits things, and the node to reveal (in that Explorer tab only). */
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
+  /** The Explorer's Open in new tab. */
+  openNodeNew(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
   reveal: { tab: string; node: string } | null
   onRevealed(): void
@@ -75,6 +77,7 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
         notify={s.notify}
         ask={s.ask}
         openNode={s.openNode}
+        openNodeNew={s.openNodeNew}
         editNode={s.editNode}
         reveal={s.reveal?.tab === tab.id ? s.reveal.node : null}
         onRevealed={s.onRevealed}

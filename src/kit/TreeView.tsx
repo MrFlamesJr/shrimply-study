@@ -317,14 +317,20 @@ export function TreeView(p: {
               }
               style={{ top: i * h, height: h, paddingLeft: row.depth * INDENT + 4 }}
             >
-              <span data-chevron className={'kit-row-chevron' + (row.expanded ? ' is-open' : '')}>
+              <span
+                className={'kit-row-glyph' + (row.expandable ? ' is-foldable' : '') + (row.expanded ? ' is-open' : '')}
+                data-chevron={row.expandable ? '' : undefined}
+                aria-hidden="true"
+              >
+                {p.icon?.(row.id)}
                 {row.expandable && (
-                  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M6 3.5l4.5 4.5L6 12.5" />
-                  </svg>
+                  <span className="kit-row-chevron">
+                    <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="M6 3.5l4.5 4.5L6 12.5" />
+                    </svg>
+                  </span>
                 )}
               </span>
-              {p.icon && <span className="kit-row-icon">{p.icon(row.id)}</span>}
               {renaming && p.rename ? (
                 <RenameInput id={row.id} start={source.label(row.id)} rename={p.rename} onKey={() => { wantFocus.current = true }} />
               ) : (

@@ -130,7 +130,7 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
 // ---- Menus
 
 export type Action =
-  | 'newFile' | 'openFile' | 'newCourse' | 'newQuiz' | 'newCard' | 'open' | 'edit' | 'rename'
+  | 'newFile' | 'openFile' | 'newCourse' | 'newQuiz' | 'newCard' | 'open' | 'openNew' | 'edit' | 'rename'
   | 'copy' | 'cut' | 'paste' | 'moveTo' | 'delete' | 'save' | 'download' | 'close'
   | 'driveOpen' | 'driveRemove' | 'driveRetry' | 'ungroup' | 'moveUp' | 'moveDown'
 export type Item = {
@@ -171,6 +171,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   if (kind === 'driveloading') return []
   if (kind === 'doc') {
     return [
+      item('openNew', 'Open in new tab', only('file')),
       item('newCourse', 'New course', only('file')),
       paste(),
       'separator',
@@ -199,6 +200,9 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
     })
   // Inside a library that is not open: look and copy only.
   const ro: Partial<Item> = refs.some(isPeekRef) ? { disabled: true, reason: READ_ONLY } : {}
+  // Its own tab, beside the one that file's pages reuse (asked for: Open reuses the file's tab).
+  const openNew = (what: string): Item =>
+    item('openNew', 'Open in new tab', refs.some(isPeekRef) ? { disabled: true, reason: OPEN_FIRST } : only(what))
   const oneKind: Partial<Item> = mixed ? { disabled: true, reason: MIXED } : {}
   const destinations = mixed ? [] : moveDestinations(ctx.docs, ctx.names, refs)
   const moveTo = item('moveTo', 'Move to…', ro.disabled ? ro : mixed ? oneKind : destinations.length === 0 ? { disabled: true, reason: 'There is nowhere else to move it.' } : {})
@@ -216,6 +220,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   if (kind === 'course') {
     return [
       item('open', 'Open', only('course')),
+      openNew('course'),
       item('newQuiz', 'New quiz', { ...only('course'), ...ro }),
       item('rename', 'Rename', { shortcut: sc('F2'), ...only('course'), ...ro }),
       'separator',
@@ -227,6 +232,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   if (kind === 'quiz') {
     return [
       item('open', 'Open', only('quiz')),
+      openNew('quiz'),
       item('edit', 'Edit cards', { ...only('quiz'), ...ro }),
       newCard({ ...only('quiz'), ...ro }),
       item('rename', 'Rename', { shortcut: sc('F2'), ...only('quiz'), ...ro }),
@@ -239,6 +245,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   if (kind === 'group') {
     return [
       item('open', 'Open', only('group')),
+      openNew('group'),
       newCard({ ...only('group'), ...ro }),
       item('rename', 'Rename', { shortcut: sc('F2'), ...only('group'), ...ro }),
       'separator',

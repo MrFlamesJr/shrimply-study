@@ -189,15 +189,7 @@
 }
 .sidebar-foot {
   flex-shrink: 0;
-  padding: var(--space-3) var(--space-2) var(--space-4);
-}
-/* What's new, a small link right above the Theme row (the shared .open-link), its text in line with "Theme". */
-.sidebar-foot .sidebar-news {
-  margin: 0 0 0 var(--space-2);
-  padding: var(--space-1);
-}
-.sidebar-news + .theme-pick {
-  margin-top: var(--space-1);
+  padding: var(--space-3) var(--space-2);
 }
 /* Theme picker at the bottom of the sidebar: its name on the left, the quiet select on the right. */
 .theme-pick {
@@ -205,10 +197,24 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-top: var(--space-3);
   padding-left: var(--space-3);
   color: var(--text-muted);
   font-size: var(--text-sm);
+}
+/* The sidebar's footer (asked for): a slim, compact strip at its very bottom, a little darker than the sidebar (the
+   page ground, `--bg`; `--sunken` was too dark, asked for), holding the small What's new link (the shared
+   .open-link), its text in line with "Theme". */
+.sidebar-bar {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  min-height: 28px;
+  padding: 0 var(--space-4);
+  background: var(--bg);
+}
+.sidebar-bar .sidebar-news {
+  padding: 0 var(--space-1);
+  font-size: var(--text-xs-plus);
 }
 .scrim {
   display: none;

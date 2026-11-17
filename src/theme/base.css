@@ -294,20 +294,18 @@ button.quiet:hover:not(:disabled) {
   color: var(--text);
 }
 /* Icon pop, the one hover for an icon that is a button's action (icon buttons, the sidebar toggle, the info box's
-   chevron, the Explorer's tree chevron): never a fill, the icon brightens and pops up a size to catch the eye: a quick scale past its new size
+   chevron): never a fill, the icon brightens and pops up a size to catch the eye: a quick scale past its new size
    and back (`icon-pop`, a transient scale) while its own width and height spring up (not a transform, so at rest
    it stays sharp). The icon sits in a fixed cell (the button, or the info box's chevron cell), so nothing around
    it moves. A fold chevron also turns (`rotate`, below). */
 .icon-btn:hover:not(:disabled),
-.sidebar-toggle:hover:not(:disabled),
-.explorer .kit-row-chevron:hover {
+.sidebar-toggle:hover:not(:disabled) {
   background: transparent;
   color: var(--text);
 }
 .icon-btn svg,
 .sidebar-toggle svg,
-.info-box-chevron svg,
-.explorer .kit-row-chevron svg {
+.info-box-chevron svg {
   transition:
     width var(--dur) var(--spring),
     height var(--dur) var(--spring),
@@ -315,8 +313,7 @@ button.quiet:hover:not(:disabled) {
 }
 .icon-btn:hover:not(:disabled) svg,
 .sidebar-toggle:hover:not(:disabled) svg,
-.info-box-toggle:hover .info-box-chevron svg,
-.explorer .kit-row-chevron:hover svg {
+.info-box-toggle:hover .info-box-chevron svg {
   width: 22px;
   height: 22px;
   animation: icon-pop var(--dur-pop) var(--ease);
