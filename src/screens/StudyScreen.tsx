@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { Card, Format, Question, StudyOptions } from '../model'
-import { redirect } from '../route'
+import { windowNav, type Nav } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { useKeydown } from '../hooks/useKeydown'
 import { buildRound, canChoose, refreshQuestions, usableCards } from '../logic/buildRound'
@@ -11,7 +11,7 @@ import { CardDialog } from '../components/CardDialog'
 import { StudyQuestion, type Result } from './study/Question'
 import { Results } from './study/Results'
 
-type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions }
+type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions; nav?: Nav }
 
 const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 'Multiple choice', typing: 'Typing' }
 
@@ -19,8 +19,9 @@ const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 
 // Never flashcards and never the hidden answer: a card's size must not give its answer away.
 const WIDE_TEXT = 400
 
-export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
+export function StudyScreen({ lib, notify, quizId, format, prefs, nav }: Props) {
   const found = lib.findQuiz(quizId)
+  const { redirect } = nav ?? windowNav({ name: 'study', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '', format })
   const usable = found ? usableCards(found.quiz.cards) : []
   const canStudy = usable.length > 0 && (format !== 'choice' || canChoose(usable))
   const options = { ...prefs, format }

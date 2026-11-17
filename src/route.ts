@@ -140,6 +140,59 @@ export function redirect(route: Route): void {
   location.replace(href(route))
 }
 
+/** What a screen navigates with: its own route and the ways to leave it. One per window today (`windowNav`), later one per tab. */
+export type Nav = {
+  route: Route
+  go(r: Route): void
+  redirect(r: Route): void
+  goToNew(id: string, r: Extract<Route, { name: 'course' | 'edit' }>): void
+  takeCreated(id: string): boolean
+}
+
+/** The address bar's navigation: the global functions above, with the given route as the screen's own. */
+export function windowNav(route: Route): Nav {
+  return { route, go, redirect, goToNew, takeCreated }
+}
+
+/** What `followRename` remembers: the address a place was found at, and the place. */
+export type Found = { key: string; place: Place }
+
+/**
+ * After a rename, the place found again by id and the route that names it now; undefined when the route still
+ * resolves, was not found before at this address (`last.key`), or its course or quiz is gone.
+ */
+export function followRename(library: Library, route: Route, last: Found | undefined): { place: Place; route: Route } | undefined {
+  if (!resolve(library, route).missing || last?.key !== href(route)) return undefined
+  const place = sameIds(library, last.place)
+  if (!place?.course) return undefined
+  return { place, route: { ...route, course: place.course.name, ...(place.quiz && { quiz: place.quiz.name }) } as Route }
+}
+
+/**
+ * `usePlace` for a screen with its own route (a tab): the same following of renames, but the new route goes to
+ * `onRouteChange` (after the typing pauses) instead of the address bar, and what was found is keyed by the route.
+ */
+export function usePlaceFor(library: Library, route: Route, onRouteChange: (route: Route) => void): Place {
+  const last = useRef<Found>(undefined)
+  const change = useRef(onRouteChange)
+  const key = href(route)
+  const named = resolve(library, route)
+  const renamed = named.missing ? followRename(library, route, last.current) : undefined
+  useEffect(() => {
+    change.current = onRouteChange
+    if (!named.missing) last.current = { key, place: named }
+  })
+  const target = renamed?.route
+  const targetKey = target && href(target)
+  useEffect(() => {
+    if (!target) return
+    const timer = setTimeout(() => change.current(target), ADDRESS_DELAY)
+    return () => clearTimeout(timer)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targetKey])
+  return renamed?.place ?? named
+}
+
 /**
  * The route in the address bar. Read on every render, not kept from the last hashchange, so it always matches the
  * address, also right after a navigation in the same click as an edit (a new course, a delete).

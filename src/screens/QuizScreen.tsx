@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { isTermCard, type Card, type StudyOptions } from '../model'
-import { go, goToNew, href } from '../route'
+import { href, windowNav, type Nav } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { canChoose, usableCards } from '../logic/buildRound'
 import { missingPart } from '../logic/cardStatus'
@@ -20,12 +20,14 @@ type Props = {
   setCollapsed: (collapsed: ReadonlySet<string>) => void
   tipsOpen: boolean
   setTipsOpen: (open: boolean) => void
+  nav?: Nav
 }
 
-export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen }: Props) {
+export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, tipsOpen, setTipsOpen, nav }: Props) {
   // The id of the card open in the edit dialog.
   const [editing, setEditing] = useState<string | null>(null)
   const found = lib.findQuiz(quizId)
+  const { go, goToNew } = nav ?? windowNav({ name: 'quiz', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '' })
   if (!found) return null
   const { course, quiz } = found
   const studied = usableCards(quiz.cards)

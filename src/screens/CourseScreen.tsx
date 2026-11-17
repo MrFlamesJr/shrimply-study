@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { go, takeCreated } from '../route'
+import { windowNav, type Nav } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import { QuizTiles } from '../components/QuizTiles'
 import { AutoText } from '../components/AutoText'
@@ -7,10 +7,11 @@ import { DangerZone, PageHead } from '../components/Page'
 import { plural } from '../logic/plural'
 import { nameTaken } from '../logic/names'
 
-export function CourseScreen({ lib, courseId }: { lib: LibraryApi; courseId: string }) {
+export function CourseScreen({ lib, courseId, nav }: { lib: LibraryApi; courseId: string; nav?: Nav }) {
+  const course = lib.findCourse(courseId)
+  const { go, takeCreated } = nav ?? windowNav({ name: 'course', course: course?.name ?? '' })
   // Only right after "+ New course" is the name selected, never on a later visit.
   const [created] = useState(() => takeCreated(courseId))
-  const course = lib.findCourse(courseId)
   if (!course) return null
   return (
     <>
@@ -30,7 +31,7 @@ export function CourseScreen({ lib, courseId }: { lib: LibraryApi; courseId: str
           }
           sub={plural(course.quizzes.length, 'quiz', 'quizzes')}
         />
-        <QuizTiles lib={lib} course={course} />
+        <QuizTiles lib={lib} course={course} nav={nav} />
       </div>
       <DangerZone
         label="Delete course"

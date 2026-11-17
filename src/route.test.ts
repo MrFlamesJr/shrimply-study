@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Library } from './model'
-import { href, parseHash, resolve } from './route'
+import { followRename, href, parseHash, resolve, windowNav } from './route'
 
 const library: Library = {
   version: 1,
@@ -78,5 +78,36 @@ describe('resolve', () => {
 
   it('gives nothing for routes with no course', () => {
     expect(resolve(library, { name: 'home' })).toEqual({})
+  })
+})
+
+describe('followRename', () => {
+  const renamed: Library = {
+    version: 1,
+    courses: [{ id: 'c1', name: 'Vers', quizzes: [{ id: 'q1', name: 'Plan', groups: [], cards: [] }] }],
+  }
+  const route = { name: 'quiz', course: 'Les vers (2)', quiz: 'Plan 1' } as const
+  const last = (key: string) => ({ key, place: resolve(library, route) })
+
+  it('finds the renamed course and quiz by id and names the new route', () => {
+    const found = followRename(renamed, route, last(href(route)))
+    expect(found?.route).toEqual({ name: 'quiz', course: 'Vers', quiz: 'Plan' })
+    expect(found?.place.quiz?.id).toBe('q1')
+  })
+  it('keeps a course route a course route', () => {
+    const r = { name: 'course', course: 'Les vers (2)' } as const
+    expect(followRename(renamed, r, { key: href(r), place: resolve(library, r) })?.route).toEqual({ name: 'course', course: 'Vers' })
+  })
+  it('does nothing while the route resolves, for another address, or when the quiz is gone', () => {
+    expect(followRename(library, route, last(href(route)))).toBeUndefined()
+    expect(followRename(renamed, route, last('#/elsewhere'))).toBeUndefined()
+    expect(followRename(renamed, route, undefined)).toBeUndefined()
+    expect(followRename({ ...renamed, courses: [] }, route, last(href(route)))).toBeUndefined()
+  })
+})
+
+describe('windowNav', () => {
+  it('holds the screen\'s own route', () => {
+    expect(windowNav({ name: 'home' }).route).toEqual({ name: 'home' })
   })
 })

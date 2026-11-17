@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useRef, useState } from 'react'
 import { newId, type Card, type Group } from '../model'
-import { go, takeCreated } from '../route'
+import { windowNav, type Nav } from '../route'
 import type { LibraryApi } from '../state/useLibrary'
 import type { ParsedCard } from '../logic/parseCards'
 import { isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
@@ -28,10 +28,12 @@ type Props = {
   notify: Notify
   collapsed: ReadonlySet<string>
   setCollapsed: (collapsed: ReadonlySet<string>) => void
+  nav?: Nav
 }
 
-export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Props) {
+export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav }: Props) {
   const found = lib.findQuiz(quizId)
+  const { go, takeCreated } = nav ?? windowNav({ name: 'edit', course: found?.course.name ?? '', quiz: found?.quiz.name ?? '' })
   const [importOpen, setImportOpen] = useState(false)
   // Half-filled cards are only marked after a blocked Done.
   const [triedDone, setTriedDone] = useState(false)

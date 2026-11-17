@@ -1,10 +1,11 @@
-import { go } from '../route'
+import { windowNav, type Nav } from '../route'
 import { PageHead } from '../components/Page'
 import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
 import { RELEASES } from '../releaseNotes'
 
 /** Every release's notes, newest first: a page of its own, full screen outside the app shell, with the way back. */
-export function ChangelogScreen() {
+export function ChangelogScreen({ nav }: { nav?: Nav }) {
+  const { go } = nav ?? windowNav({ name: 'changelog' })
   return (
     <main className="page changelog">
       <PageHead
