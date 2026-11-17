@@ -75,3 +75,8 @@
   justify-content: flex-start;
   text-align: left;
 }
+/* Google Drive's status and helper rows read quieter than the libraries. */
+.explorer .kit-row[data-id="g:loading"],
+.explorer .kit-row[data-id="g:pick"] {
+  color: var(--text-muted);
+}

@@ -3,13 +3,13 @@
 import { comboLabel, matches } from '../kit/shortcuts'
 import { KIND_NAME, isTermCard, type Card } from '../model'
 import { canPlace, exists, extract, insert, itemName, move, remove, type DocId, type Docs, type ItemRef, type Target } from './contentOps'
-import { nodeOf, refOf, targetFor } from './explorerTree'
+import { nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type DriveNode } from './explorerTree'
 import { freeName, nameTaken } from './names'
 import { plural } from './plural'
 import { sideNames } from './sides'
 
 export type ItemKind = ItemRef['kind']
-export type NodeKind = ItemKind | 'doc'
+export type NodeKind = ItemKind | 'doc' | 'drivefile' | `drive:${'root' | 'signin' | 'loading' | 'failed' | 'pick'}`
 export type DocRef = { kind: 'doc'; doc: DocId }
 export type Clip = { mode: 'copy' | 'cut'; refs: ItemRef[] }
 type Effect = 'move' | 'copy'
@@ -17,6 +17,8 @@ type Pos = 'before' | 'inside' | 'after'
 
 const PLACE = { course: 'a file', quiz: 'a course', card: 'a quiz' } as const
 const MIXED = 'Pick items of one kind.'
+const OPEN_FIRST = 'Open the library first.'
+const BIN_FROM_MENU = 'Move a Google Drive library to the bin from its own menu.'
 
 /** "1 card", "3 quizzes". */
 export const kindCount = (kind: ItemKind, n: number): string => (kind === 'quiz' ? plural(n, 'quiz', 'quizzes') : plural(n, kind))
@@ -28,9 +30,11 @@ export function parseNode(id: string): ItemRef | DocRef | null {
   return /^[dcqk]:/.test(id) ? refOf(id) : null
 }
 
+const driveKind = (n: DriveNode | null): NodeKind | null => (n === null ? null : n.kind === 'file' || n.kind === 'wait' ? 'drivefile' : `drive:${n.kind}`)
+
 /** What kind the selected nodes are: null for none, 'mixed' for more than one kind. */
 export function selectionKind(ids: string[]): NodeKind | 'mixed' | null {
-  const kinds = new Set(ids.map((id) => parseNode(id)?.kind))
+  const kinds = new Set(ids.map((id) => driveKind(parseDriveNode(id)) ?? parseNode(id)?.kind))
   if (kinds.size === 0) return null
   if (kinds.size > 1 || kinds.has(undefined)) return 'mixed'
   return [...kinds][0]!
@@ -59,7 +63,17 @@ export const cardDescription = (card: Card): string => {
 }
 
 /** The muted text after a row's name: a file's place (marked when it has unsaved changes), a card's sides or kind. */
-export function describeNode(docs: Docs, meta: Record<DocId, { where: string; dirty: boolean }>, node: string): string | null {
+export function describeNode(
+  docs: Docs,
+  meta: Record<DocId, { where: string; dirty: boolean }>,
+  node: string,
+  drive?: { listing: DriveListing; when(iso: string): string },
+): string | null {
+  const g = parseDriveNode(node)
+  if (g) {
+    const file = g.kind === 'file' ? drive?.listing.files?.find((f) => f.id === g.id) : undefined
+    return file && drive ? drive.when(file.modified) : null
+  }
   const r = parseNode(node)
   if (!r) return null
   if (r.kind === 'doc') {
@@ -81,6 +95,7 @@ export const whereIcon = (where: string): 'cloud' | 'browser' | 'file' =>
 export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | null): { target: Target } | { reason: string } {
   if (!clipboard || clipboard.refs.length === 0) return { reason: 'Nothing to paste.' }
   if (Object.keys(docs).length === 0) return { reason: 'Open a file first.' }
+  if (node !== null && parseDriveNode(node)) return { reason: OPEN_FIRST }
   const kind = clipboard.refs[0].kind
   const at = node === null ? null : parseNode(node)
   const target = targetFor(docs, node, at?.kind === 'card' ? 'after' : 'inside', kind)
@@ -94,9 +109,10 @@ export function pasteTarget(docs: Docs, clipboard: Clip | null, node: string | n
 export type Action =
   | 'newFile' | 'openFile' | 'newCourse' | 'newQuiz' | 'newCard' | 'open' | 'edit' | 'rename'
   | 'copy' | 'cut' | 'paste' | 'moveTo' | 'delete' | 'save' | 'download' | 'close'
+  | 'driveOpen' | 'driveRemove' | 'driveSignIn' | 'drivePick' | 'driveRefresh'
 export type Item = { action: Action; label: string; shortcut?: string; disabled?: boolean; reason?: string; danger?: boolean }
 export type Entry = 'separator' | Item
-export type MenuContext = { docs: Docs; names: Record<DocId, string>; clipboard: Clip | null; mac: boolean }
+export type MenuContext = { docs: Docs; names: Record<DocId, string>; clipboard: Clip | null; mac: boolean; driveSignedIn?: boolean }
 
 /** The menu for the selected nodes `ids` (none: empty space); `at` is the node pointed at, where a paste goes. */
 export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Entry[] {
@@ -110,6 +126,19 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   }
 
   if (kind === null) return [item('newFile', 'New file'), item('openFile', 'Open file'), 'separator', paste()]
+  if (kind === 'drivefile') {
+    return [
+      item('driveOpen', 'Open', only('library')),
+      item('paste', 'Paste', { shortcut: sc('Mod+V'), disabled: true, reason: OPEN_FIRST }),
+      'separator',
+      item('driveRemove', 'Move to bin', { shortcut: 'Delete', danger: true, ...only('library') }),
+    ]
+  }
+  if (kind === 'drive:root') return [ctx.driveSignedIn ? item('driveRefresh', 'Refresh') : item('driveSignIn', 'Sign in with Google')]
+  if (kind === 'drive:signin') return [item('driveSignIn', 'Sign in with Google')]
+  if (kind === 'drive:failed') return [item('driveRefresh', 'Retry')]
+  if (kind === 'drive:pick') return [item('drivePick', 'Choose files in Google Drive')]
+  if (kind === 'drive:loading') return []
   if (kind === 'doc') {
     return [
       item('newCourse', 'New course', only('file')),
@@ -132,6 +161,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
     shortcut: 'Delete',
     danger: true,
     ...(docIds(ids).length > 0 && { disabled: true, reason: 'Close a file instead of deleting it.' }),
+    ...(ids.some((id) => parseDriveNode(id)) && { disabled: true, reason: BIN_FROM_MENU }),
   })
 
   if (kind === 'mixed') return [copy, cut, moveTo, 'separator', del]
@@ -169,7 +199,7 @@ export function keyDecision(ctx: MenuContext, e: KeyEvent, ids: string[], at: st
   const action: Action | null = matches(e, 'Mod+C', ctx.mac) ? 'copy'
     : matches(e, 'Mod+X', ctx.mac) ? 'cut'
     : matches(e, 'Mod+V', ctx.mac) ? 'paste'
-    : matches(e, 'Delete', ctx.mac) ? 'delete'
+    : matches(e, 'Delete', ctx.mac) ? (kind === 'drivefile' ? 'driveRemove' : 'delete')
     : matches(e, 'F2', ctx.mac) ? (kind === 'card' ? 'edit' : 'rename')
     : null
   if (!action) return null
@@ -263,6 +293,7 @@ function topmost(refs: ItemRef[]): ItemRef[] {
 }
 
 export function deletePlan(docs: Docs, ids: string[], mac: boolean): DeletePlan | { reason: string } {
+  if (ids.some((id) => parseDriveNode(id))) return { reason: BIN_FROM_MENU }
   if (docIds(ids).length > 0) return { reason: 'Close a file instead of deleting it.' }
   const refs = itemRefs(ids)
   if (refs.length === 0) return { reason: 'Nothing is selected.' }
@@ -312,10 +343,12 @@ export function dragKind(ids: string[]): ItemKind | null {
 }
 
 /** Whether a drop can go inside this node (a card holds nothing). */
-export const allowInside = (node: string): boolean => parseNode(node)?.kind !== 'card'
+export const allowInside = (node: string): boolean => parseNode(node)?.kind !== 'card' && !parseDriveNode(node)
 
 /** Where `ids` dropped at `node` land, or why they can not. */
 export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: Pos): { target: Target } | { reason: string } {
+  const g = node === null ? null : parseDriveNode(node)
+  if (g) return { reason: g.kind === 'file' || g.kind === 'wait' ? OPEN_FIRST : 'Drop items on an open file.' }
   const refs = itemRefs(ids)
   if (refs.length === 0 || refs.length !== ids.length) return { reason: 'That can not be dropped here.' }
   const kind = refs[0].kind

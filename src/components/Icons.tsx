@@ -18,6 +18,7 @@ import pencil from '../icons/pencil.svg?raw'
 import play from '../icons/play.svg?raw'
 import plus from '../icons/plus.svg?raw'
 import pull from '../icons/pull.svg?raw'
+import refresh from '../icons/refresh.svg?raw'
 import save from '../icons/save.svg?raw'
 import shrimp from '../icons/shrimp.svg?raw'
 import split from '../icons/split.svg?raw'
@@ -62,6 +63,9 @@ export const ChevronsUpIcon = icon(chevronsUp)
 
 // A folder: the Explorer's Open file.
 export const FolderIcon = icon(folder)
+
+// An arrow turning back on itself: the Explorer's Refresh Google Drive.
+export const RefreshIcon = icon(refresh)
 
 // The sidebar's open file: a .shrimp file on this device, a library on Google Drive (a plain cloud, never Google's
 // logo), or one kept only in this browser (a browser window).

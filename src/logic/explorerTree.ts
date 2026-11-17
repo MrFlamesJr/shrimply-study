@@ -4,7 +4,7 @@ import type { Library } from '../model'
 import type { TreeSource } from '../kit/tree'
 import { itemName, type DocId, type Docs, type Fragment, type ItemRef, type Target } from './contentOps'
 
-export type OpenDoc = { id: DocId; name: string; library: Library }
+export type OpenDoc = { id: DocId; name: string; library: Library; /** The Google Drive file it is (an open library is a root, so Drive does not list it again). */ driveId?: string | null }
 type DocRef = { kind: 'doc'; doc: DocId }
 
 export function nodeOf(ref: ItemRef | DocRef): string {
@@ -23,12 +23,61 @@ export function refOf(nodeId: string): ItemRef | DocRef {
   throw new Error(`Unknown node "${nodeId}"`)
 }
 
+// ---- Google Drive: a root after the open files, listing the libraries that are not open ("g:" nodes)
+
+export type DriveFileInfo = { id: string; name: string; modified: string }
+/** What the Drive root shows: not signed in, or the list (kept while it refreshes), or the failure. */
+export type DriveListing = { signedIn: boolean; loading: boolean; failed: boolean; files: DriveFileInfo[] | null }
+export type DriveNode =
+  | { kind: 'root' | 'signin' | 'loading' | 'failed' | 'pick' }
+  | { kind: 'file' | 'wait'; id: string }
+
+export const DRIVE_ROOT = 'g:root'
+/** In the expanded list: the Drive root is open unless this is there (so a first visit shows it open). */
+export const DRIVE_CLOSED = 'g:closed'
+
+export const driveNodeOf = (n: DriveNode): string => (n.kind === 'file' ? `g:f:${n.id}` : n.kind === 'wait' ? `g:w:${n.id}` : `g:${n.kind}`)
+
+/** The Drive node a tree node id names, or null for any other id. */
+export function parseDriveNode(nodeId: string): DriveNode | null {
+  const m = /^g:(root|signin|loading|failed|pick|f:(.+)|w:(.+))$/.exec(nodeId)
+  if (!m) return null
+  if (m[2] !== undefined) return { kind: 'file', id: m[2] }
+  if (m[3] !== undefined) return { kind: 'wait', id: m[3] }
+  return { kind: m[1] as 'root' | 'signin' | 'loading' | 'failed' | 'pick' }
+}
+
+/** The root's rows: the sign-in row, "loading", the failure, or every library not open and a row to choose more. */
+export function driveRows(listing: DriveListing, open: OpenDoc[]): string[] {
+  if (!listing.signedIn) return [driveNodeOf({ kind: 'signin' })]
+  if (listing.files === null) return [driveNodeOf({ kind: listing.failed ? 'failed' : 'loading' })]
+  const taken = new Set(open.map((d) => d.driveId))
+  return [
+    ...listing.files.filter((f) => !taken.has(f.id)).map((f) => driveNodeOf({ kind: 'file', id: f.id })),
+    driveNodeOf({ kind: 'pick' }),
+  ]
+}
+
+const DRIVE_LABEL = {
+  root: 'Google Drive',
+  signin: 'Sign in to see your Google Drive libraries',
+  loading: 'Loading your Google Drive…',
+  failed: "Couldn't load your Google Drive",
+  pick: "Don't see a file? Choose files in Google Drive",
+} as const
+
 /** Files, their courses, quizzes and cards (as stored, so in group order); labels from the names and `itemName`. */
-export function explorerSource(open: OpenDoc[]): TreeSource {
+export function explorerSource(open: OpenDoc[], drive?: DriveListing): TreeSource {
   const docs: Docs = Object.fromEntries(open.map((d) => [d.id, d.library]))
   return {
-    roots: open.map((d) => nodeOf({ kind: 'doc', doc: d.id })),
+    roots: [...open.map((d) => nodeOf({ kind: 'doc', doc: d.id })), ...(drive ? [DRIVE_ROOT] : [])],
     children(id) {
+      const g = parseDriveNode(id)
+      if (g) {
+        if (g.kind === 'root') return drive ? driveRows(drive, open) : []
+        // A closed library has one placeholder so its row can be expanded: expanding it opens the library.
+        return g.kind === 'file' ? [driveNodeOf({ kind: 'wait', id: g.id })] : []
+      }
       const r = refOf(id)
       const lib = docs[r.doc]
       if (!lib) return []
@@ -40,6 +89,11 @@ export function explorerSource(open: OpenDoc[]): TreeSource {
       return []
     },
     label(id) {
+      const g = parseDriveNode(id)
+      if (g) {
+        if (g.kind === 'file') return drive?.files?.find((f) => f.id === g.id)?.name ?? ''
+        return g.kind === 'wait' ? 'Opening…' : DRIVE_LABEL[g.kind]
+      }
       const r = refOf(id)
       return r.kind === 'doc' ? (open.find((d) => d.id === r.doc)?.name ?? '') : itemName(docs, r)
     },

@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { AutoText } from '../components/AutoText'
 import type { askConfirm } from '../components/ConfirmDialog'
-import { BrowserIcon, ChevronsUpIcon, CloudIcon, FileIcon, FolderIcon, PlusIcon } from '../components/Icons'
+import { BrowserIcon, ChevronsUpIcon, CloudIcon, FileIcon, FolderIcon, PlusIcon, RefreshIcon } from '../components/Icons'
 import { IconButton } from '../components/IconButton'
 import { Modal, closeModal } from '../components/Modal'
 import { ownWindow } from '../components/ownWindow'
@@ -17,11 +17,26 @@ import {
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, removeItems, renameItem,
   renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
-import { explorerSource, nodeOf } from '../logic/explorerTree'
+import { DRIVE_CLOSED, DRIVE_ROOT, driveRows, explorerSource, nodeOf, parseDriveNode, type DriveFileInfo, type DriveListing } from '../logic/explorerTree'
 import type { Library } from '../model'
 import { newId } from '../model'
 
-export type ExplorerDoc = { id: DocId; name: string; library: Library; dirty: boolean; where: string }
+export type ExplorerDoc = { id: DocId; name: string; library: Library; dirty: boolean; where: string; driveId?: string | null }
+/** The user's Google Drive libraries, listed under the open files. The host does the listing and the calls. */
+export type ExplorerDrive = {
+  /** False when Google Drive is not set up on this site: no Drive root then. */
+  setUp: boolean
+  listing: DriveListing
+  signIn(): void
+  /** Google's file picker. */
+  pick(): void
+  refresh(): void
+  /** Opens a library as a file of the tree. */
+  open(id: string): void
+  /** Asks, then moves it to the bin. */
+  remove(file: DriveFileInfo): void
+}
+const when = (iso: string) => new Date(iso).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
 export type ExplorerProps = {
   docs: ExplorerDoc[]
   expanded: ReadonlySet<string>
@@ -50,6 +65,7 @@ export type ExplorerProps = {
   /** A node id to show: its ancestors open, selected, scrolled to, the tree focused. */
   reveal: string | null
   onRevealed(): void
+  drive?: ExplorerDrive
 }
 
 const ROW = 32
@@ -57,7 +73,8 @@ const ROW_TOUCH = 44
 
 const toDocs = (docs: ExplorerDoc[]): Docs => Object.fromEntries(docs.map((d) => [d.id, d.library]))
 
-function nodeExists(docs: Docs, node: string): boolean {
+function nodeExists(docs: Docs, node: string, drive: Set<string>): boolean {
+  if (parseDriveNode(node)) return drive.has(node)
   const r = parseNode(node)
   if (!r) return false
   return r.kind === 'doc' ? r.doc in docs : exists(docs, r)
@@ -77,13 +94,26 @@ export function Explorer(p: ExplorerProps): ReactNode {
   const docs = useMemo(() => toDocs(p.docs), [p.docs])
   const names = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, d.name])), [p.docs])
   const meta = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { where: d.where, dirty: d.dirty }])), [p.docs])
-  const source = useMemo(() => explorerSource(p.docs), [p.docs])
-  const order = useMemo(() => flatten(source, p.expanded, filter).map((r) => r.id), [source, p.expanded, filter])
+  const drive = p.drive?.setUp ? p.drive : undefined
+  const listing = drive?.listing
+  const source = useMemo(() => explorerSource(p.docs, listing), [p.docs, listing])
+  // The Drive root is open unless the list says it was closed.
+  const expanded = useMemo(() => {
+    const set = new Set(p.expanded)
+    if (drive && !set.has(DRIVE_CLOSED)) set.add(DRIVE_ROOT)
+    else set.delete(DRIVE_ROOT)
+    return set
+  }, [p.expanded, !!drive])
+  const driveNodes = useMemo(() => {
+    const nodes = new Set<string>(listing ? [DRIVE_ROOT, ...driveRows(listing, p.docs)] : [])
+    return nodes
+  }, [listing, p.docs])
+  const order = useMemo(() => flatten(source, expanded, filter).map((r) => r.id), [source, expanded, filter])
   const cutNodes = useMemo(() => new Set(p.clipboard?.mode === 'cut' ? p.clipboard.refs.map(nodeOf) : []), [p.clipboard])
   const rowHeight = touch ? ROW_TOUCH : ROW
 
   const win = () => ownWindow(root.current!)
-  const context = (): MenuContext => ({ docs, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform) })
+  const context = (): MenuContext => ({ docs, names, clipboard: p.clipboard, mac: isMac(win().navigator.platform), driveSignedIn: listing?.signedIn })
   const docsNow = () => toDocs(latest.current.docs)
 
   useEffect(() => {
@@ -96,7 +126,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   // Forgets selected nodes that are gone (deleted, moved away, a file closed).
   useEffect(() => {
-    const next = prune(p.selection, (id) => nodeExists(docs, id))
+    const next = prune(p.selection, (id) => nodeExists(docs, id, driveNodes))
     if (next !== p.selection) p.onSelection(next)
   })
 
@@ -220,6 +250,18 @@ export function Explorer(p: ExplorerProps): ReactNode {
       }
       case 'moveTo': return setMoving(refs)
       case 'delete': return void remove(ids)
+      case 'driveOpen': {
+        const g = parseDriveNode(ids[0])
+        return g && (g.kind === 'file' || g.kind === 'wait') && drive?.open(g.id)
+      }
+      case 'driveRemove': {
+        const g = parseDriveNode(ids[0])
+        const file = g?.kind === 'file' ? listing?.files?.find((f) => f.id === g.id) : undefined
+        return file && drive?.remove(file)
+      }
+      case 'driveSignIn': return drive?.signIn()
+      case 'drivePick': return drive?.pick()
+      case 'driveRefresh': return drive?.refresh()
       case 'save': return docIds(ids).forEach(p.saveDoc)
       case 'download': return docIds(ids).forEach(p.downloadDoc)
       case 'close': return docIds(ids).forEach(p.closeDoc)
@@ -235,7 +277,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
         ? e
         : { label: e.label, shortcut: e.shortcut, disabled: e.disabled, reason: e.reason, danger: e.danger, onSelect: () => run(e.action, ids, target) },
     )
-    openMenu(items, { ...at, doc: root.current!.ownerDocument })
+    if (items.length > 0) openMenu(items, { ...at, doc: root.current!.ownerDocument })
   }
 
   const commitRename = (id: string, name: string) => {
@@ -250,6 +292,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
   }
 
   const iconOf = (id: string): ReactNode => {
+    const g = parseDriveNode(id)
+    if (g) return g.kind === 'root' || g.kind === 'file' ? <span className="explorer-icon"><CloudIcon /></span> : null
     const r = parseNode(id)
     if (r?.kind !== 'doc') return null
     const doc = p.docs.find((d) => d.id === r.doc)
@@ -263,6 +307,24 @@ export function Explorer(p: ExplorerProps): ReactNode {
     )
   }
 
+  // Expanding a closed Drive library opens it, and it stays shut: the open file is a root of its own.
+  const setExpanded = (next: Set<string>) => {
+    const out = new Set(next)
+    for (const id of next) {
+      const g = parseDriveNode(id)
+      if (g?.kind === 'file' && !expanded.has(id)) {
+        drive?.open(g.id)
+        out.delete(id)
+      }
+    }
+    if (drive) {
+      out.delete(DRIVE_ROOT)
+      if (next.has(DRIVE_ROOT)) out.delete(DRIVE_CLOSED)
+      else out.add(DRIVE_CLOSED)
+    }
+    p.onExpanded(out)
+  }
+
   const destinations = moving ? moveDestinations(docs, names, moving) : []
 
   return (
@@ -271,7 +333,8 @@ export function Explorer(p: ExplorerProps): ReactNode {
         <h2 className="explorer-title">Explorer</h2>
         <IconButton label="New file" onClick={p.newDoc}><PlusIcon /></IconButton>
         <IconButton label="Open file" onClick={p.openFile}><FolderIcon /></IconButton>
-        <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set())}><ChevronsUpIcon /></IconButton>
+        {drive && <IconButton label="Refresh Google Drive" onClick={drive.refresh}><RefreshIcon /></IconButton>}
+        <IconButton label="Collapse all" onClick={() => p.onExpanded(new Set(drive ? [DRIVE_CLOSED] : []))}><ChevronsUpIcon /></IconButton>
       </div>
       <div className="explorer-search">
         <AutoText
@@ -289,15 +352,23 @@ export function Explorer(p: ExplorerProps): ReactNode {
           label="Open files"
           source={source}
           rowHeight={rowHeight}
-          expanded={p.expanded}
-          onExpanded={p.onExpanded}
+          expanded={expanded}
+          onExpanded={setExpanded}
           selection={p.selection}
           onSelection={p.onSelection}
           filter={filter}
           icon={iconOf}
-          description={(id) => describeNode(docs, meta, id)}
+          description={(id) => describeNode(docs, meta, id, listing && { listing, when })}
           dimmed={(id) => cutNodes.has(id)}
           onActivate={(id) => {
+            const g = parseDriveNode(id)
+            if (g) {
+              if (g.kind === 'file' || g.kind === 'wait') drive?.open(g.id)
+              else if (g.kind === 'signin') drive?.signIn()
+              else if (g.kind === 'failed') drive?.refresh()
+              else if (g.kind === 'pick') drive?.pick()
+              return
+            }
             const r = parseNode(id)
             if (r) p.open(r)
           }}
