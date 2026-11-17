@@ -2,6 +2,7 @@
 unfolding without changing the active file, a quiz of another file opening and making its file active, the current
 page row, the keyboard, Fold all and the hover card."""
 import os
+import re
 import sys
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -136,6 +137,26 @@ def run(page, base):
         page.select_option('.theme-pick select', theme)
         m = page.evaluate(fit)
         assert m['h'] <= 24 and not m['clipped'] and not m['spill'] and not m['out'], f'the theme control fits with {theme}: {m}'
+    page.select_option('.theme-pick select', options[0])
+
+    # The Files heading counts open of all libraries ("2/2"), on one line in the 280px sidebar and in the drawer below
+    # 800px, in every theme (their display fonts draw at different widths).
+    count = """() => { const c = document.querySelector('.files-count'), h = c.closest('.files-head'), size = parseFloat(getComputedStyle(c).fontSize)
+      return { text: c.textContent, label: c.getAttribute('aria-label'), tall: c.getBoundingClientRect().height > 1.6 * size,
+               clipped: c.scrollWidth > c.clientWidth, spill: h.scrollWidth > h.clientWidth } }"""
+    for width in (1280, 700):
+        page.set_viewport_size({'width': width, 'height': 800})
+        page.wait_for_timeout(300)
+        if width < 800:
+            page.get_by_role('button', name='Expand sidebar').click()
+            page.locator('.files-count').wait_for(state='visible')
+        for theme in options:
+            page.select_option('.theme-pick select', theme)
+            m = page.evaluate(count)
+            assert re.fullmatch(r'\d+/\d+', m['text'].strip()), f"the count reads open/total: {m}"
+            assert re.fullmatch(r'\d+ open of \d+ librar(y|ies)', m['label']), f'and says it in words: {m}'
+            assert not m['tall'] and not m['clipped'] and not m['spill'], f'on one line at {width}px with {theme}: {m}'
+    page.set_viewport_size({'width': 1280, 'height': 800})
     page.select_option('.theme-pick select', options[0])
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))

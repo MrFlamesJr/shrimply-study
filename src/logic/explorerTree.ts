@@ -3,6 +3,7 @@
 import type { Library } from '../model'
 import type { TreeSource } from '../kit/tree'
 import { sections } from './groups'
+import type { ClosedKind } from './explorerActions'
 import { itemName, type DocId, type Docs, type Fragment, type ItemRef, type Target } from './contentOps'
 
 export type OpenDoc = {
@@ -74,6 +75,37 @@ export function closedDriveFiles(listing: DriveListing | undefined, open: OpenDo
   if (!listing?.signedIn || listing.files === null) return []
   const taken = new Set(open.map((d) => d.driveId))
   return listing.files.filter((f) => !taken.has(f.id) && (taken.add(f.id), true))
+}
+
+/**
+ * A closed library that is still listed (it stays in the Explorer when closed): a browser library, or a Drive file
+ * opened from a link. `id` is its file node's id (the Drive file's id, else `b-<closedId>`), `closedId` the workspace's.
+ */
+export type ExplorerClosed = { id: string; name: string; kind: 'browser' | 'link'; closedId: string }
+
+/** The workspace's closed files as the tree lists them. */
+export function closedEntries(closed: { id: string; name: string; drive: { id: string } | null }[]): ExplorerClosed[] {
+  return closed.map((c) => (c.drive ? { id: c.drive.id, name: c.name, kind: 'link', closedId: c.id } : { id: `b-${c.id}`, name: c.name, kind: 'browser', closedId: c.id }))
+}
+
+/**
+ * The libraries that are not open as one list: the user's Drive list (`listed`, null when not signed in), then the
+ * closed ones it does not hold (a Drive id is never listed twice). `closedKinds` says which is which.
+ */
+export function mergeClosed(listed: DriveFileInfo[] | null, closed: ExplorerClosed[] | undefined): { listing: DriveListing & { files: DriveFileInfo[] }; closedKinds: Record<string, ClosedKind> } {
+  const found = [...(listed ?? [])]
+  const kinds: Record<string, ClosedKind> = Object.fromEntries(found.map((f) => [f.id, 'mine' as const]))
+  for (const c of closed ?? []) {
+    if (c.id in kinds) continue
+    kinds[c.id] = c.kind
+    found.push({ id: c.id, name: c.name, modified: '' })
+  }
+  return { listing: { signedIn: true, loading: false, failed: false, files: found }, closedKinds: kinds }
+}
+
+/** How many libraries there are: the open ones and those that are not open (the Drive list and the closed ones). */
+export function libraryTotal(open: OpenDoc[], listed: DriveFileInfo[] | null, closed: ExplorerClosed[] | undefined): number {
+  return open.length + closedDriveFiles(mergeClosed(listed, closed).listing, open).length
 }
 
 // Names compare ignoring case and accents, "2" before "10".

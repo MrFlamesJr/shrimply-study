@@ -175,7 +175,7 @@ def top_level(page):
     """Every file in the tree, open or not, in order: name, its status in words, the place (the icon's tooltip)."""
     return page.evaluate(
         "[...document.querySelectorAll('.kit-tree .kit-row[aria-level=\"1\"]')].map(r => [r.querySelector('.kit-row-label').textContent,"
-        " r.querySelector('.kit-row-desc')?.textContent, r.querySelector('.explorer-icon')?.title])"
+        " r.querySelector('.kit-row-desc .explorer-sr')?.textContent, r.querySelector('.explorer-icon')?.title])"
     )
 
 
@@ -509,6 +509,37 @@ def run(page, base):
     need(chevron.locator('.kit-row-chevron').evaluate('e => getComputedStyle(e).cursor') == 'pointer', 'the chevron shows the pointer')
     need(chevron.locator('.kit-row-chevron svg').evaluate('e => e.getBoundingClientRect().width') == 16, 'and does not pop a size')
     need(row(page, 'doc', 'Guide').bounding_box() == before and chevron.bounding_box()['width'] == 16, 'inside its fixed cell: nothing moves')
+    page.mouse.move(700, 600)
+
+    # A file's where line (place and save status) shows only while its row is pointed at, shrinks before the name does
+    # and never changes the row's height, even with a very long name in a 320px-wide window.
+    guide = row(page, 'doc', 'Guide')
+    where = guide.locator('.explorer-where')
+    opacity = 'e => getComputedStyle(e).opacity'
+    need(where.count() == 1, f'one where line: {where.count()}')
+    wait_for(page, lambda: where.evaluate(opacity) == '0', 'the where line is hidden at rest')
+    guide.hover()
+    wait_for(page, lambda: where.evaluate(opacity) == '1', 'pointing at the row shows the where line')
+    need(where.inner_text().startswith('Only in this browser'), f'it says where the file lives: {where.inner_text()}')
+    page.mouse.move(700, 600)
+    wait_for(page, lambda: where.evaluate(opacity) == '0', 'and it goes again')
+    for width in (1280, 320):
+        page.set_viewport_size({'width': width, 'height': 800})
+        page.wait_for_timeout(300)
+        guide = row(page, 'doc', 'Guide')
+        guide.hover()
+        long_name = 'A very long library name that goes on and on ' * 8
+        m = guide.evaluate("""(r, name) => {
+          const label = r.querySelector('.kit-row-label'), where = r.querySelector('.explorer-where'), h = r.getBoundingClientRect().height
+          const before = label.textContent
+          label.textContent = name
+          const out = { h0: h, h1: r.getBoundingClientRect().height, label: label.getBoundingClientRect().width, where: where.getBoundingClientRect().width,
+                        clipped: label.scrollWidth > label.clientWidth }
+          label.textContent = before
+          return out }""", long_name)
+        need(m['h0'] == m['h1'], f'the row keeps its height with a long name at {width}px: {m}')
+        need(m['label'] > m['where'], f'the name keeps more width than the where line at {width}px: {m}')
+    page.set_viewport_size({'width': 1280, 'height': 800})
     page.mouse.move(700, 600)
 
     # Keyboard: arrows open and move, Home and End jump.

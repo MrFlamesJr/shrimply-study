@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs } from './contentOps'
-import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, peekDocId, peekDocs, peekDriveId, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type OpenDoc } from './explorerTree'
+import { closedDriveFiles, closedEntries, libraryTotal, mergeClosed, driveNodeOf, explorerSource, isPeekDoc, peekDocId, peekDocs, peekDriveId, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing, type OpenDoc } from './explorerTree'
 
 const card = (id: string, group?: string): Card => ({ id, term: `T${id}`, definition: 'd', ...(group && { group }) }) as Card
 const library: Library = {
@@ -169,5 +169,34 @@ describe('targetFor with groups', () => {
   it('a quiz or a course walks up from a group to its place in the parent', () => {
     expect(targetFor(docs, 'p:a:c1:q1:g1', 'after', 'quiz')).toEqual({ kind: 'course', doc: 'a', course: 'c1', index: 1 })
     expect(targetFor(docs, 'p:a:c1:q1:g1', 'before', 'course')).toEqual({ kind: 'doc', doc: 'a', index: 0 })
+  })
+})
+
+describe('closed libraries', () => {
+  const listed = [
+    { id: 'f1', name: 'one.shrimp', modified: 'x' },
+    { id: 'f2', name: 'two.shrimp', modified: 'x' },
+  ]
+  const closed = closedEntries([
+    { id: 'c1', name: 'kept', drive: null },
+    { id: 'c2', name: 'linked', drive: { id: 'f2' } },
+    { id: 'c3', name: 'other link', drive: { id: 'f9' } },
+  ])
+  it('names a closed library by its Drive file, or b-<id> in this browser', () => {
+    expect(closed.map((c) => [c.id, c.kind, c.closedId])).toEqual([['b-c1', 'browser', 'c1'], ['f2', 'link', 'c2'], ['f9', 'link', 'c3']])
+  })
+  it('merges the Drive list with the closed ones it does not hold', () => {
+    const { listing, closedKinds } = mergeClosed(listed, closed)
+    expect(listing.files?.map((f) => f.id)).toEqual(['f1', 'f2', 'b-c1', 'f9'])
+    expect(closedKinds).toEqual({ f1: 'mine', f2: 'mine', 'b-c1': 'browser', f9: 'link' })
+  })
+  it('without a Drive list only the closed ones are there', () => {
+    expect(mergeClosed(null, closed).listing.files).toHaveLength(3)
+    expect(mergeClosed(null, undefined).listing.files).toEqual([])
+  })
+  it('counts the open libraries and the ones not open, each once', () => {
+    const docs: OpenDoc[] = [{ ...open[0], driveId: 'f1' }, open[1]]
+    expect(libraryTotal(docs, listed, closed)).toBe(2 + 3)
+    expect(libraryTotal(docs, null, [])).toBe(2)
   })
 })

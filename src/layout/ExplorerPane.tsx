@@ -2,18 +2,16 @@ import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import type { askConfirm } from '../components/ConfirmDialog'
 import type { Notify } from '../components/Toasts'
 import type { DocId, ItemRef } from '../logic/contentOps'
-import { whereLine } from '../logic/whereLine'
-import type { DriveFile, WorkspaceApi } from '../state/useWorkspace'
+import { whereLine, whereWithStatus } from '../logic/whereLine'
+import type { WorkspaceApi } from '../state/useWorkspace'
+import type { DriveFiles } from '../state/useDriveFiles'
 import type { Library } from '../model'
 import { translateRef } from '../logic/explorerActions'
-import { nodeOf, type Peek } from '../logic/explorerTree'
-import { Explorer, type ExplorerClosed, type ExplorerDoc, type ExplorerDrive } from './Explorer'
+import { closedEntries, nodeOf, type Peek } from '../logic/explorerTree'
+import { Explorer, type ExplorerDoc, type ExplorerDrive } from './Explorer'
 
 const same = (a: ExplorerDoc, b: ExplorerDoc) =>
-  a.id === b.id && a.name === b.name && a.dirty === b.dirty && a.where === b.where && a.place === b.place && a.readOnly === b.readOnly && a.library === b.library && a.driveId === b.driveId
-
-// A closed browser library has no Drive id: its file node in the tree takes this one.
-const browserNode = (closedId: string) => `b-${closedId}`
+  a.id === b.id && a.name === b.name && a.dirty === b.dirty && a.where === b.where && a.line === b.line && a.place === b.place && a.readOnly === b.readOnly && a.library === b.library && a.driveId === b.driveId
 
 /** The Explorer fed by the workspace: its open files, clipboard, undo and the tree's open and selected nodes. */
 export function ExplorerPane(p: {
@@ -34,12 +32,14 @@ export function ExplorerPane(p: {
   share(doc: DocId): void
   /** Downloads a library that is not open as a .shrimp file (App's file storage). */
   downloadLibrary(library: Library, name: string): Promise<void>
+  /** Google Drive's libraries, listed once by App. */
+  driveFiles: DriveFiles
 }): ReactNode {
   const { ws } = p
   const next = ws.docs.map((d): ExplorerDoc => {
     const api = ws.doc(d.id)
     const where = whereLine({ drive: api.drive.file, yours: api.drive.yours, signedIn: api.drive.signedIn() })
-    return { id: d.id, name: d.name, dirty: d.dirty, where, place: d.where, readOnly: d.readOnly, library: api.library, driveId: api.drive.file?.id ?? null }
+    return { id: d.id, name: d.name, dirty: d.dirty, where, line: whereWithStatus(where, api.status), place: d.where, readOnly: d.readOnly, library: api.library, driveId: api.drive.file?.id ?? null }
   })
   // The same array while nothing in it changed: the tree rebuilds when it is a new one.
   const docs = useRef<ExplorerDoc[]>([])
@@ -60,47 +60,23 @@ export function ExplorerPane(p: {
   }
 
   // ---- Closed libraries: a browser library, or a Drive file opened from a link, stay in the tree after closing
-  const closed = useMemo(
-    () => ws.closed.map((c): ExplorerClosed => (c.drive ? { id: c.drive.id, name: c.name, kind: 'link', closedId: c.id } : { id: browserNode(c.id), name: c.name, kind: 'browser', closedId: c.id })),
-    [ws.closed],
-  )
+  const closed = useMemo(() => closedEntries(ws.closed), [ws.closed])
   const closedNow = useRef(closed)
   closedNow.current = closed
 
-  // ---- Google Drive: the libraries it can see, listed on mount, on a sign-in change and after open, save, pick or remove
+  // ---- Google Drive: the libraries it can see, listed by App (`useDriveFiles`), once for the whole app
   const driveApi = useRef(ws.drive)
   driveApi.current = ws.drive
-  const [files, setFiles] = useState<DriveFile[] | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [failed, setFailed] = useState(false)
-  const run = useRef(0)
-  const setUp = ws.drive.setUp
-  const signed = setUp && ws.drive.signedIn()
-
-  const refresh = async (): Promise<void> => {
-    const api = driveApi.current
-    if (!api.setUp || !api.signedIn()) {
-      run.current++
-      setFiles(null)
-      setLoading(false)
-      return
-    }
-    const mine = ++run.current
-    setLoading(true)
-    const list = await api.list()
-    if (mine !== run.current) return
-    setLoading(false)
-    setFailed(list === null)
-    if (list !== null) setFiles(list)
-  }
+  const { files, loading, failed, refresh } = p.driveFiles
   const refreshed = useRef(refresh)
   refreshed.current = refresh
-  // Opening, closing, saving (unsaved to saved) or saving under a new file all change this key.
-  const key = `${signed}|${docs.current.map((d) => `${d.id}:${d.driveId}:${d.name}:${d.dirty}`).join(',')}`
+  const setUp = ws.drive.setUp
+  const signed = setUp && ws.drive.signedIn()
+  // This tab lists them again when it opens, as the list itself only does on a change.
   useEffect(() => {
     if (signed && !driveApi.current.canListQuietly()) return
     void refreshed.current()
-  }, [key])
+  }, [])
 
   // A library opened from the list becomes an open file of the tree: opened, expanded and selected. Opened for an item
   // inside it (as a peek showed it), that item's page opens, and the item is the selected one.

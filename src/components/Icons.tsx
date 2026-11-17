@@ -13,6 +13,7 @@ import link from '../icons/link.svg?raw'
 import course from '../icons/course.svg?raw'
 import cross from '../icons/cross.svg?raw'
 import dock from '../icons/dock.svg?raw'
+import drive from '../icons/drive.svg?raw'
 import eraser from '../icons/eraser.svg?raw'
 import fileIcon from '../icons/file.svg?raw'
 import folder from '../icons/folder.svg?raw'
@@ -28,6 +29,7 @@ import pull from '../icons/pull.svg?raw'
 import quiz from '../icons/quiz.svg?raw'
 import refresh from '../icons/refresh.svg?raw'
 import save from '../icons/save.svg?raw'
+import share from '../icons/share.svg?raw'
 import shrimp from '../icons/shrimp.svg?raw'
 import split from '../icons/split.svg?raw'
 import trash from '../icons/trash.svg?raw'
@@ -88,6 +90,12 @@ export const CloudAlertIcon = icon(cloudAlert)
 
 // Share (a link), and Make a copy (two sheets).
 export const LinkIcon = icon(link)
+
+// Sharing a library: three dots joined by two lines.
+export const ShareIcon = icon(share)
+
+// Google Drive: its triangle as three bands (never Google's logo).
+export const DriveIcon = icon(drive)
 
 export const CopyIcon = icon(copy)
 

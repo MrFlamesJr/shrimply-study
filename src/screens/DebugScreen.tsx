@@ -2,8 +2,9 @@ import { useRef } from 'react'
 import { askConfirm } from '../components/ConfirmDialog'
 import { PageHead } from '../components/Page'
 import type { Notify } from '../components/Toasts'
+import { plural } from '../logic/plural'
 import type { ToastKind } from '../logic/pushToast'
-import { breakBackup, clearBackup } from '../storage/browserBackup'
+import { breakBackup, clearAll, clearBackup } from '../storage/browserBackup'
 import { resetPrefs } from '../storage/resetPrefs'
 import { href } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
@@ -25,13 +26,15 @@ type Props = {
   newDoc: () => void
   /** Asks first when the user's own Drive files are open; false when it did not sign out. */
   signOut: () => Promise<boolean>
+  /** The libraries kept only in this browser: open ones and closed ones. */
+  browserLibraries: number
   notify: Notify
   debugBar: boolean
   setDebugBar: (on: boolean) => void
 }
 
 // Test tools, reached by typing #/_debug. Not linked from the app.
-export function DebugScreen({ lib, ensureDoc, openLibrary, newDoc, signOut, notify, debugBar, setDebugBar }: Props) {
+export function DebugScreen({ lib, ensureDoc, openLibrary, newDoc, signOut, browserLibraries, notify, debugBar, setDebugBar }: Props) {
   // A counter keeps each message unique, so repeated clicks stack instead of replacing each other.
   const count = useRef(0)
   const fire = (kind: ToastKind) => notify(kind, `Test ${kind} ${++count.current}.`)
@@ -40,11 +43,22 @@ export function DebugScreen({ lib, ensureDoc, openLibrary, newDoc, signOut, noti
     await change()
     location.reload()
   }
-  // Signed out too, as a new visit starts signed out (this tab's sign-in only; Google keeps the app's permission, as
-  // it would for a new browser). A reload also resets what only lasts the session (sidebar, collapsed groups, debug
+  // A new visit: signed out (this tab's sign-in only; Google keeps the app's permission, as it would for a new browser),
+  // after asking, since libraries kept only in this browser go with it. Then the whole browser backup and every
+  // preference are forgotten, and a reload also resets what only lasts the session (sidebar, collapsed groups, debug
   // bar). Replaced, not assigned, so home isn't shown before the reload.
   const resetVisit = async () => {
     if (!(await signOut())) return
+    const kept = browserLibraries > 0 ? `This browser forgets ${plural(browserLibraries, 'library', 'libraries')} kept only in it, for good. ` : ''
+    const sure = await askConfirm(
+      `This browser forgets its open libraries, tabs and layout, its preferences and the Google sign-in. ${kept}Libraries on Google Drive stay there.
+
+Download any library kept only in this browser that you want to keep first, and close the app's other tabs, or they write it back.`,
+      'Reset',
+      { danger: true, title: 'Reset to first visit?' },
+    )
+    if (!sure) return
+    await clearAll()
     resetPrefs()
     history.replaceState(null, '', href({ name: 'home' }))
     location.reload()
@@ -56,13 +70,14 @@ export function DebugScreen({ lib, ensureDoc, openLibrary, newDoc, signOut, noti
       <section className="debug-section">
         <h2>First visit</h2>
         <p className="muted">
-          What this browser remembers besides the library: the theme, the study options, whether "How studying
-          works" is open, the last release whose welcome page it showed, and this tab's Google sign-in.
+          Everything this browser remembers: its open libraries, tabs and layout (the whole browser backup), the
+          libraries kept only in it, the theme, the study options, whether "How studying works" is open, the last
+          release whose welcome page it showed, and this tab's Google sign-in.
         </p>
         <div className="actions">
           <button
             type="button"
-            title="Forgets what this browser remembers, signs out of Google in this tab and reloads on home, which is then the welcome page; the library stays"
+            title="Asks first, then forgets the whole browser backup and every preference, signs out of Google in this tab and reloads on home, which is then the welcome page; libraries on Google Drive stay there"
             onClick={resetVisit}
           >
             Reset to first visit

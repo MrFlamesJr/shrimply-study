@@ -62,6 +62,11 @@ export async function clearBackup(): Promise<void> {
   for (const key of await workspaceKeys()) await run('readwrite', (store) => store.delete(key))
 }
 
+/** For the debug page's reset to first visit: every record the backup holds (the workspace, every document, the closed files, the notes), not just the live ones. */
+export async function clearAll(): Promise<void> {
+  await run('readwrite', (store) => store.clear())
+}
+
 /** For the debug page: stores text that is not a backup (the single one and every document's), to test the startup warning. */
 export async function breakBackup(): Promise<void> {
   await run('readwrite', (store) => store.put('{ broken', KEY))

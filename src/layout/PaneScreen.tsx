@@ -14,6 +14,7 @@ import { EditScreen } from '../screens/EditScreen'
 import { StudyScreen } from '../screens/StudyScreen'
 import { ChangelogScreen } from '../screens/ChangelogScreen'
 import { StudyTipsScreen } from '../screens/StudyTipsScreen'
+import type { DriveFiles } from '../state/useDriveFiles'
 import { ExplorerPane } from './ExplorerPane'
 import { fileStorage } from '../storage/fileStorage'
 import { makeTabNav, type TabNavOps } from './tabNav'
@@ -37,6 +38,8 @@ export type PaneShared = {
   /** The Explorer's menus: put a library on Google Drive, or share it (the Share dialog). */
   upload(doc: DocId): void
   share(doc: DocId): void
+  /** Google Drive's libraries, listed once. */
+  driveFiles: DriveFiles
   /** The quiz page's "How studying works" link: that page as a tab in `group` (behind the current one when `background`). */
   onStudyTips(group: string | null, background: boolean): void
   /** "New course": into the active file (the pane's, once it is pointed at), or a new one; shown in `group`. */
@@ -89,6 +92,7 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
         onTipSeen={s.onExplorerTipSeen}
         upload={s.upload}
         share={s.share}
+        driveFiles={s.driveFiles}
         downloadLibrary={async (l, n) => void (await fileStorage.download(l, n))}
       />
     )

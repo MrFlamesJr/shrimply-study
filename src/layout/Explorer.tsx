@@ -16,9 +16,9 @@ import { itemName, exists, type DocId, type Docs, type ItemRef, type Target } fr
 import {
   addCourse, dragEffect, addQuiz, allowInside, ancestorNodes, blankCard, insertCard, deletePlan, describeNode, type Item, type NewCardKind, reorderTarget, ungroupPlan, fileStatus, dragKind, dragLabel, dropPlan, dropRule,
   itemRefs, keyDecision, kindCount, menuFor, moveDestinations, parseNode, pasteTarget, placeItems, readOnlyOf, removeItems, renameItem,
-  renameProblem, whereIcon, docIds, type Action, type ClosedKind, type DocRef, type ItemKind, type MenuContext, type Plan,
+  renameProblem, whereIcon, docIds, type Action, type DocRef, type ItemKind, type MenuContext, type Plan,
 } from '../logic/explorerActions'
-import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type Peek } from '../logic/explorerTree'
+import { closedDriveFiles, driveNodeOf, explorerSource, isPeekDoc, mergeClosed, nodeOf, parseDriveNode, peekDocs, peekDriveId, type DriveFileInfo, type DriveListing, type ExplorerClosed, type Peek } from '../logic/explorerTree'
 import type { Card, Library } from '../model'
 import { newId } from '../model'
 import { lastSides } from '../logic/sides'
@@ -32,17 +32,15 @@ export type ExplorerDoc = {
   dirty: boolean
   /** Where it lives, in words. */
   where: string
+  /** The same with its save status after it: what a row shows while pointed at. */
+  line: string
   /** A Google Drive file or a browser library. */
   place: 'drive' | 'browser'
   /** View only (shared with the user): copy out, never in. */
   readOnly: boolean
   driveId?: string | null
 }
-/**
- * A closed library that is still listed (it stays in the Explorer when closed): a browser library, or a Drive file
- * opened from a link. `id` is its file node's id (the Drive file's id, else `b-<closedId>`), `closedId` the workspace's.
- */
-export type ExplorerClosed = { id: string; name: string; kind: 'browser' | 'link'; closedId: string }
+export type { ExplorerClosed }
 /**
  * The libraries that are not open, listed among the open files: the user's Google Drive libraries and the closed ones.
  * The host does the listing, the reading and the calls.
@@ -169,7 +167,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
 
   const docs = useMemo(() => toDocs(p.docs), [p.docs])
   const names = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, d.name])), [p.docs])
-  const meta = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { where: d.where, dirty: d.dirty, readOnly: d.readOnly }])), [p.docs])
+  const meta = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { where: d.where, line: d.line, dirty: d.dirty, readOnly: d.readOnly }])), [p.docs])
   const files = useMemo(() => Object.fromEntries(p.docs.map((d) => [d.id, { place: d.place, readOnly: d.readOnly }])), [p.docs])
   // `drive` carries every closed library, `google` only what needs Google: nothing of it shows when it is not set up.
   const drive = p.drive
@@ -179,16 +177,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
   // hold (a Drive id is never listed twice). Its place says which is which, for the menus.
   const listed = google?.listing.signedIn ? google.listing.files : null
   const closedList = drive?.closed
-  const { listing, closedKinds } = useMemo(() => {
-    const found = [...(listed ?? [])]
-    const kinds: Record<string, ClosedKind> = Object.fromEntries(found.map((f) => [f.id, 'mine' as const]))
-    for (const c of closedList ?? []) {
-      if (c.id in kinds) continue
-      kinds[c.id] = c.kind
-      found.push({ id: c.id, name: c.name, modified: '' })
-    }
-    return { listing: { signedIn: true, loading: false, failed: false, files: found } satisfies DriveListing, closedKinds: kinds }
-  }, [listed, closedList])
+  const { listing, closedKinds } = useMemo(() => mergeClosed(listed, closedList), [listed, closedList])
   const source = useMemo(() => explorerSource(p.docs, listing, peeks), [p.docs, listing, peeks])
   // Everything content operations work on: the open files, and the libraries only looked at (read-only).
   const docsAll = useMemo(() => ({ ...peekDocs(peeks), ...docs }), [docs, peeks])
@@ -454,6 +443,7 @@ export function Explorer(p: ExplorerProps): ReactNode {
       <>
         {st.dirty && <span className="file-dot" title="Needs attention" />}
         {st.open && <span className="explorer-chip">Open</span>}
+        <span className="explorer-where" aria-hidden="true">{st.line}</span>
         <span className="explorer-sr">{st.words}</span>
       </>
     )

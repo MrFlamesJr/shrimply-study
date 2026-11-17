@@ -88,14 +88,14 @@ export const cardDescription = (card: Card): string => {
 }
 
 /** A file row's state: open or not, whether it has unsaved changes, where it lives, and all of it in words. */
-export type FileStatus = { open: boolean; dirty: boolean; where: string; words: string }
+export type FileStatus = { open: boolean; dirty: boolean; where: string; line: string; words: string }
 
 /**
  * What a file row shows as icons and chips: the place (the icon's tooltip), a dot for unsaved changes, a chip for a
  * library not open; `words` says all of it for a screen reader. Null for a node that is not a file.
  */
 export function fileStatus(
-  meta: Record<DocId, { where: string; dirty: boolean; readOnly?: boolean }>,
+  meta: Record<DocId, { where: string; line: string; dirty: boolean; readOnly?: boolean }>,
   node: string,
   drive?: { listing: DriveListing; closed?: Record<string, ClosedKind> },
 ): FileStatus | null {
@@ -104,11 +104,11 @@ export function fileStatus(
     const found = g.kind === 'file' && drive?.listing.files?.some((f) => f.id === g.id)
     if (!found) return null
     const where = drive?.closed?.[g.id] === 'browser' ? BROWSER_WHERE : NOT_OPEN_WHERE
-    return { open: false, dirty: false, where, words: `Not open, ${where}` }
+    return { open: false, dirty: false, where, line: where, words: `Not open, ${where}` }
   }
   const r = parseNode(node)
   const m = r?.kind === 'doc' ? meta[r.doc] : undefined
-  return m ? { open: true, dirty: m.dirty, where: m.where, words: `Open, ${m.readOnly ? 'view only, ' : ''}${m.dirty ? 'needs attention, ' : ''}${m.where}` } : null
+  return m ? { open: true, dirty: m.dirty, where: m.where, line: m.line, words: `Open, ${m.readOnly ? 'view only, ' : ''}${m.dirty ? 'needs attention, ' : ''}${m.where}` } : null
 }
 
 /** The muted text after a course, quiz or card: a card's sides or kind. Files have chips instead (`fileStatus`). */

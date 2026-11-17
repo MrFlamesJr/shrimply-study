@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, useSyncExternalStore } from 'react'
 import { createPortal } from 'react-dom'
 import { activeWindow, subscribeWindows } from '../kit/windows'
+import { useModalHost } from '../hooks/useModalHost'
 import { newId } from '../model'
 import { pushToast, type Notify, type Toast, type ToastKind } from '../logic/pushToast'
 import { toastLift } from '../logic/toastLift'
@@ -38,6 +39,33 @@ export function useToasts() {
 export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: string): void }) {
   const ref = useRef<HTMLElement>(null)
   const win = useSyncExternalStore(subscribeWindows, activeWindow)
+  // Where each countdown had got to (ms) when the stack moved into or out of a modal dialog: a new container makes new
+  // elements, whose bars would start over. They carry it as a negative delay instead. `seen` is noted as the bars run;
+  // `carried` changes only when the stack moves, so the delay an element was made with never changes under it (a
+  // later render with a newer value would jump its bar ahead).
+  const seen = useRef(new Map<string, number>())
+  const carried = useRef(new Map<string, number>())
+  const note = () => {
+    const bars = [...(ref.current?.querySelectorAll<HTMLElement>('.toast-life') ?? [])]
+    for (const id of seen.current.keys()) if (!bars.some((bar) => bar.dataset.id === id)) seen.current.delete(id)
+    for (const bar of bars) {
+      const anim = bar.getAnimations()[0]
+      if (anim?.currentTime == null) continue
+      seen.current.set(bar.dataset.id!, Number(anim.currentTime) - Number(anim.effect!.getTiming().delay))
+    }
+  }
+  const capture = () => {
+    note()
+    carried.current = new Map(seen.current)
+  }
+  const host = useModalHost(win.document, capture)
+  // A closing dialog is hidden before anything can look: its animations are gone by then. So while the stack sits in
+  // one, the countdowns are noted as they run (a tenth of a second off at worst).
+  useEffect(() => {
+    if (host === win.document.body) return
+    const timer = win.setInterval(note, 100)
+    return () => win.clearInterval(timer)
+  }, [host, win])
   const raise = () => {
     const stack = ref.current
     if (!stack) return
@@ -45,6 +73,7 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
     stack.showPopover()
   }
   useEffect(raise, [toasts.length, win])
+  useLayoutEffect(raise, [host])
   useEffect(() => {
     const onToggle = (e: Event) => {
       const other = e.target !== ref.current && !(e.target as Element).matches('.debug-bar')
@@ -91,7 +120,7 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
       win.removeEventListener('resize', soon)
       for (const type of ['scroll', 'animationend', 'transitionend']) doc.removeEventListener(type, soon, true)
     }
-  }, [toasts, win])
+  }, [toasts, win, host])
 
   return createPortal(
     <section
@@ -126,11 +155,16 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
             <CrossIcon />
           </IconButton>
           <div className="toast-track">
-            <div className="toast-life" style={{ animationDuration: `${t.ms}ms` }} onAnimationEnd={() => dismiss(t.id)} />
+            <div
+              className="toast-life"
+              data-id={t.id}
+              style={{ animationDuration: `${t.ms}ms`, animationDelay: `${-(carried.current.get(t.id) ?? 0)}ms` }}
+              onAnimationEnd={() => dismiss(t.id)}
+            />
           </div>
         </div>
       ))}
     </section>,
-    win.document.body,
+    host,
   )
 }

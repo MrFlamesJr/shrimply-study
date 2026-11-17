@@ -263,11 +263,13 @@
   height: 16px;
   transition: rotate var(--dur) var(--ease);
 }
-:is(.file-pick, .file-course):is(:hover, :focus-visible) > .file-glyph[data-chevron] > svg {
+.file-row:is(:hover, :has(:focus-visible)) > .file-pick > .file-glyph[data-chevron] > svg,
+.file-course-line:is(:hover, :has(:focus-visible)) > .file-course > .file-glyph[data-chevron] > svg {
   opacity: 0;
   scale: 0.8;
 }
-:is(.file-pick, .file-course):is(:hover, :focus-visible) > .file-glyph[data-chevron] > .file-chevron {
+.file-row:is(:hover, :has(:focus-visible)) > .file-pick > .file-glyph[data-chevron] > .file-chevron,
+.file-course-line:is(:hover, :has(:focus-visible)) > .file-course > .file-glyph[data-chevron] > .file-chevron {
   opacity: 1;
   scale: 1;
 }
@@ -355,7 +357,7 @@
 }
 /* Each level reads as its own kind: a file's name biggest, then a course in bold with its book, then a quiz in plain
    muted text with its cards; their icons muted until the row is pointed at or is the page shown. */
-.file-course:hover .file-glyph,
+.file-course-line:is(:hover, :has(:focus-visible)) > .file-course > .file-glyph,
 .file-quiz:hover .file-glyph,
 [aria-current='page'] .file-glyph {
   color: var(--text);

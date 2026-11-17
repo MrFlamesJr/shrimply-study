@@ -2,23 +2,26 @@ import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent
 import { href, parseHash, type Route } from '../route'
 import { flatten, keyNav, typeahead } from '../kit/tree'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
+import type { DriveFiles } from '../state/useDriveFiles'
 import type { DocId } from '../logic/contentOps'
-import { nodeOf, refOf } from '../logic/explorerTree'
+import { closedEntries, libraryTotal, nodeOf, refOf } from '../logic/explorerTree'
 import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from '../logic/fileTree'
-import { statusText } from '../logic/autosave'
+import { needsAttention, statusText, type SaveProblem } from '../logic/autosave'
 import { plural } from '../logic/plural'
-import { whereLine } from '../logic/whereLine'
+import { whereLine, whereWithStatus } from '../logic/whereLine'
 import { ownWindow } from '../components/ownWindow'
 import { IconButton } from '../components/IconButton'
 import {
-  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CopyIcon, CourseIcon, CrossIcon, FolderIcon, LinkIcon, OpenIcon, PlusIcon, PullIcon,
-  QuizIcon, SaveIcon, UploadIcon,
+  BrowserIcon, CheckIcon, ChevronDownIcon, ChevronsUpIcon, CloudIcon, CopyIcon, CourseIcon, CrossIcon, DriveIcon, FolderIcon, OpenIcon, PlusIcon, PullIcon,
+  QuizIcon, SaveIcon, ShareIcon,
 } from '../components/Icons'
 
 type Props = {
   ws: WorkspaceApi
   /** The id of the course or quiz the address tab shows. */
   current?: string
+  /** Google Drive's libraries, for the count of libraries. */
+  driveFiles: DriveFiles
   /** Opens the Open dialog (the Files heading's Open). */
   onOpenDialog: () => void
   /** New file: App asks where it lives when that is a choice. */
@@ -48,17 +51,22 @@ function whereOf(doc: LibraryApi): [typeof CloudIcon, string] {
   const icon = doc.where === 'drive' ? CloudIcon : BrowserIcon
   if (doc.readOnly) return [icon, 'View only']
   const where = whereLine({ drive: doc.drive.file, yours: doc.drive.yours, signedIn: doc.drive.signedIn() })
-  const status = statusText(doc.status)
-  return [icon, status ? `${where} · ${status}` : where]
+  return [icon, whereWithStatus(where, doc.status)]
 }
 
-// The save slot: a Drive library saves now (on only while a save is pending or paused), a browser library uploads, a
-// view-only one makes its own copy.
-function saveSlot(doc: LibraryApi): { label: string; title: string; disabled: boolean } {
-  if (doc.readOnly) return { label: `Make a copy of ${doc.name}`, title: 'Make a copy you can change', disabled: false }
-  if (doc.where === 'browser') return { label: `Upload ${doc.name}`, title: 'Upload to Google Drive', disabled: false }
-  const waiting = doc.status !== 'saved' && doc.status !== 'saving'
-  return { label: `Save ${doc.name}`, title: waiting ? 'Save now' : 'Saved to Google Drive', disabled: !waiting }
+// The save slot: a browser library uploads, a view-only one makes its own copy. A library that saves itself has none
+// while it saves as it should (asked for: a button greyed out nearly always was noise); only a paused save shows one,
+// in the same place, that fixes it in one click (Ctrl+S saves at any time).
+const FIX_TITLE: Record<SaveProblem, string> = {
+  signIn: 'Sign in again and save',
+  offline: 'Save now',
+  conflict: 'Changed on Google Drive: choose which to keep',
+  error: 'Save now',
+}
+function saveSlot(doc: LibraryApi): { label: string; title: string } | null {
+  if (doc.readOnly) return { label: `Make a copy of ${doc.name}`, title: 'Make a copy you can change' }
+  if (doc.where === 'browser') return { label: `Upload ${doc.name}`, title: 'Upload to Google Drive' }
+  return needsAttention(doc.status) ? { label: `Save ${doc.name}`, title: FIX_TITLE[doc.status] } : null
 }
 
 const infoOf = (doc: LibraryApi): string[] =>
@@ -89,7 +97,7 @@ const glyph = (icon: ReactNode, expandable: boolean) => (
  * by themselves (nothing folds by itself). A file's row has its save slot, Share, New course, Download and Close while it is pointed at or holds
  * the focus; pointing at it for a moment shows what it is in a card beside the sidebar.
  */
-export function FileTree({ ws, current, onOpenDialog, onNewFile, onShare, onUpload, onOpen, closeIfNarrow, onNewCourse, onNewQuiz }: Props) {
+export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onShare, onUpload, onOpen, closeIfNarrow, onNewCourse, onNewQuiz }: Props) {
   const uid = useId()
   const root = useRef<HTMLElement>(null)
   const card = useRef<HTMLDivElement>(null)
@@ -249,11 +257,21 @@ export function FileTree({ ws, current, onOpenDialog, onNewFile, onShare, onUplo
     }, HOVER_MS)
   }
 
+  // Open of all the libraries there are: the open ones, the user's Drive libraries and the closed ones.
+  const total = libraryTotal(
+    ws.docs.map((d) => ({ id: d.id, name: d.name, library: ws.doc(d.id).library, driveId: ws.doc(d.id).drive.file?.id ?? null })),
+    ws.drive.setUp && ws.drive.signedIn() ? driveFiles.files : null,
+    closedEntries(ws.closed),
+  )
+  const countTitle = `${ws.docs.length} open of ${plural(total, 'library', 'libraries')}`
+
   return (
     <section className="files" aria-label="Open files" ref={root}>
       <div className="files-head">
         <h2 className="files-title">Files</h2>
-        <span className="files-count">{ws.docs.length}</span>
+        <span className="files-count" title={countTitle} aria-label={countTitle}>
+          {ws.docs.length}/{total}
+        </span>
         <span className="files-gap" />
         <IconButton
           label="New file"
@@ -338,21 +356,22 @@ export function FileTree({ ws, current, onOpenDialog, onNewFile, onShare, onUplo
                       keyboard focus), the same for every library: the save slot, Share, New course, Download a copy
                       and Close, each one click away (asked for: no menu, nothing twice). */}
                   <span className="file-actions">
-                    <IconButton
-                      label={slot.label}
-                      title={slot.title}
-                      disabled={slot.disabled}
-                      tabIndex={rowTab}
-                      onClick={() => {
-                        if (doc.readOnly) void doc.makeCopy()
-                        else if (doc.where === 'browser') onUpload(docId)
-                        else void doc.saveNow()
-                      }}
-                    >
-                      {doc.readOnly ? <CopyIcon /> : doc.where === 'browser' ? <UploadIcon /> : <SaveIcon />}
-                    </IconButton>
+                    {slot && (
+                      <IconButton
+                        label={slot.label}
+                        title={slot.title}
+                        tabIndex={rowTab}
+                        onClick={() => {
+                          if (doc.readOnly) void doc.makeCopy()
+                          else if (doc.where === 'browser') onUpload(docId)
+                          else void doc.saveNow()
+                        }}
+                      >
+                        {doc.readOnly ? <CopyIcon /> : doc.where === 'browser' ? <DriveIcon /> : <SaveIcon />}
+                      </IconButton>
+                    )}
                     <IconButton label={`Share ${doc.name}`} title="Share a link to this library" tabIndex={rowTab} onClick={() => onShare(docId)}>
-                      <LinkIcon />
+                      <ShareIcon />
                     </IconButton>
                     <IconButton
                       label={`New course in ${doc.name}`}

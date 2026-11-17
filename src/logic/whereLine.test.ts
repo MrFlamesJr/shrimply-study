@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { closedNote, whereLine } from './whereLine'
+import { closedNote, whereLine, whereWithStatus } from './whereLine'
 
 const drive = (shared: boolean, trashed = false) => ({ shared, trashed })
 describe('whereLine', () => {
@@ -25,5 +25,15 @@ describe('closedNote', () => {
       'Closed "Bio.shrimp". It\'s on Google Drive: open it again from the Explorer, or from its link.',
     )
     expect(closedNote({ name: 'Bio', drive: null }, false)).toBe('Closed "Bio". It\'s still in this browser: open it again from the Explorer.')
+  })
+})
+
+describe('whereWithStatus', () => {
+  it('adds the status when it has words', () => {
+    expect(whereWithStatus('Your Google Drive', 'saved')).toBe('Your Google Drive · Saved')
+    expect(whereWithStatus('Your Google Drive', 'pending')).toBe('Your Google Drive · Saving…')
+  })
+  it('leaves the place alone when the status has none', () => {
+    expect(whereWithStatus('Only in this browser', 'browser')).toBe('Only in this browser')
   })
 })

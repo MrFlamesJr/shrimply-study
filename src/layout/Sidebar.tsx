@@ -7,6 +7,7 @@ import type { DocId } from '../logic/contentOps'
 import { statusText } from '../logic/autosave'
 import { ChevronsLeftIcon, CloudAlertIcon, CloudOffIcon, FolderIcon, OpenIcon, ShrimpIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
+import type { DriveFiles } from '../state/useDriveFiles'
 import { FileTree } from './FileTree'
 import { ThemeSelect } from '../components/ThemeSelect'
 import { AccountBox } from './AccountBox'
@@ -16,6 +17,8 @@ import type { ThemeId } from '../model'
 type Props = {
   ws: WorkspaceApi
   current?: string
+  /** Google Drive's libraries, for the Files heading's count. */
+  driveFiles: DriveFiles
   open: boolean
   setOpen: (open: boolean) => void
   theme: ThemeId
@@ -61,7 +64,7 @@ export function useSidebarOpen() {
   return [open, setOpen] as const
 }
 
-export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onOpenDialog, onNewFile, onShare, onUpload, onNewCourseIn, onNewQuiz, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
+export function Sidebar({ ws, current, driveFiles, open, setOpen, theme, setTheme, onOpenDialog, onNewFile, onShare, onUpload, onNewCourseIn, onNewQuiz, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -172,6 +175,7 @@ export function Sidebar({ ws, current, open, setOpen, theme, setTheme, onOpenDia
           <FileTree
             ws={ws}
             current={current}
+            driveFiles={driveFiles}
             onOpenDialog={onOpenDialog}
             onNewFile={onNewFile}
             onShare={onShare}

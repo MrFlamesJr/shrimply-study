@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import { href } from '../../route'
+import { useModalHost } from '../../hooks/useModalHost'
 import { CrossIcon } from '../../components/Icons'
 import { IconButton } from '../../components/IconButton'
 import { ThemeSelect } from '../../components/ThemeSelect'
@@ -15,9 +16,6 @@ const layout = () =>
   [innerWidth >= 800 ? 'wide' : 'narrow', innerWidth < 400 && 'under 400', innerWidth < 320 && 'under 320']
     .filter(Boolean)
     .join(', ')
-
-/** The open modal dialog on top (the last in the page: a dialog opened from another sits after it), or the body. */
-const modalHost = () => [...document.querySelectorAll('dialog:modal')].at(-1) ?? document.body
 
 /** Runs `apply` while `on` is true; the function it returns undoes it when `on` turns false or on unmount. */
 function useWhile(on: boolean, apply: () => () => void) {
@@ -83,7 +81,7 @@ export function DebugBar({ onClose, theme, setTheme }: Props) {
   // after it (a dialog, a menu, the toasts) would cover it, so it moves back to the top each time something opens.
   // Outside an open modal dialog everything is inert (no clicks, no focus), so while one is open the bar lives
   // inside it. Moving there makes a new element (the portal's), shown again here; its state stays.
-  const [host, setHost] = useState(modalHost)
+  const host = useModalHost(document)
   const raise = () => {
     const bar = barRef.current
     if (!bar) return
@@ -92,17 +90,11 @@ export function DebugBar({ onClose, theme, setTheme }: Props) {
   }
   useLayoutEffect(raise, [host])
   useEffect(() => {
-    // A dialog opening or closing changes its `open` attribute; one taken away while open leaves the page.
-    const observer = new MutationObserver(() => setHost(modalHost()))
-    observer.observe(document.body, { subtree: true, childList: true, attributeFilter: ['open'] })
     const onToggle = (e: Event) => {
       if (e.target !== barRef.current && (e as ToggleEvent).newState === 'open') raise()
     }
     document.addEventListener('toggle', onToggle, true)
-    return () => {
-      observer.disconnect()
-      document.removeEventListener('toggle', onToggle, true)
-    }
+    return () => document.removeEventListener('toggle', onToggle, true)
   }, [])
 
   useEffect(() => {

@@ -629,7 +629,7 @@ textarea.drive-link::-webkit-scrollbar {
 }
 /* The libraries, one row each: the shrimp, name over its last save, then Open and the bin. Four whole rows show (no
    half row cut through its buttons), then the list scrolls on its own (the slim scrollbar of a scroll box inside a
-   box, base.css), never carrying the scroll on to the dialog at its ends (asked for). */
+   box, base.css), carrying the scroll on to the dialog at its ends (asked for). */
 .drive-files {
   --drive-row: 3rem;
   display: grid;
@@ -640,7 +640,6 @@ textarea.drive-link::-webkit-scrollbar {
   margin: 0;
   padding: 0;
   overflow-y: auto;
-  overscroll-behavior: contain;
   list-style: none;
 }
 .drive-files li {
@@ -697,4 +696,26 @@ textarea.drive-link::-webkit-scrollbar {
   gap: var(--space-2) var(--space-3);
   padding: var(--space-4) var(--dialog-pad);
   background: var(--bg);
+}
+/* Google's file picker, themed like our dialogs. !important because Google sets inline styles. */
+.picker-dialog-bg {
+  position: fixed !important;
+  inset: 0 !important;
+  width: auto !important;
+  height: auto !important;
+  background: var(--scrim) !important;
+  opacity: 1 !important;
+}
+.picker-dialog {
+  position: fixed !important;
+  top: 50% !important;
+  left: 50% !important;
+  translate: -50% -50%;
+  max-width: calc(100vw - 2 * var(--space-4));
+  max-height: calc(100dvh - 2 * var(--space-4));
+  background: var(--popup) !important;
+  border: var(--line) solid var(--border-strong) !important;
+  border-radius: var(--radius);
+  box-shadow: none !important;
+  overflow: hidden;
 }

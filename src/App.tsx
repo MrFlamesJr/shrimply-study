@@ -1,7 +1,8 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { flushSync } from 'react-dom'
-import { addressOf, followRename, href, parseAddress, parseHash, resolve, useRoute, type Found, type Nav, type Route } from './route'
-import { newId, type StudyOptions, type ThemeId } from './model'
+import { addressOf, followRename, href, parseAddress, parseHash, resolve, useRoute, type Found, type Place, type Nav, type Route } from './route'
+import { newId, type Library, type StudyOptions, type ThemeId } from './model'
+import { useDriveFiles } from './state/useDriveFiles'
 import { useWorkspace, type DocId, type WorkspaceApi } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, windowOf, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
@@ -57,6 +58,7 @@ export function App() {
   // Pane mode (the address asks for it): a page for one pane, as a popped-out window shows. Read once, at start.
   const [pane] = useState(() => parseAddress(location.hash).pane)
   const ws = useWorkspace(fileStorage, toasts.notify, askConfirm, askChoice, { pane })
+  const driveFiles = useDriveFiles(ws)
   useLayoutEffect(() => {
     document.documentElement.classList.toggle('is-pane', pane)
   }, [pane])
@@ -433,6 +435,13 @@ export function App() {
   // page names, followed by id through a rename (as the page is: the tab's route takes the new name only once the
   // typing pauses). A page that is gone shows the file alone while the pane moves on. None for a study session or
   // the Explorer (each has a head of its own, the same height); the app's own pages are under the app's name.
+  // The course and quiz a tab's route names, found again by id while a rename is still being followed.
+  const foundPlace = (tabId: string, library: Library, r: Route): Place => {
+    const named = resolve(library, r)
+    if (!named.missing) found.current.set(tabId, { key: href(r), place: named })
+    return named.missing ? (followRename(library, r, found.current.get(tabId))?.place ?? named) : named
+  }
+
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
     if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome' || tab.data.kind === 'studyTips') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
@@ -446,9 +455,7 @@ export function App() {
       const page = library.courses.length === 0 ? 'Start studying in three steps' : 'Your courses'
       return [{ label: name, icon: where }, { label: page }]
     }
-    const named = resolve(library, r)
-    if (!named.missing) found.current.set(tab.id, { key: href(r), place: named })
-    const { course, quiz } = named.missing ? (followRename(library, r, found.current.get(tab.id))?.place ?? named) : named
+    const { course, quiz } = foundPlace(tab.id, library, r)
     if (!course || (r.name !== 'course' && !quiz)) return [{ label: name, icon: where }]
     const file: Crumb = { label: name, route: HOME, icon: where }
     if (r.name === 'course') return [file, { label: course.name }]
@@ -474,6 +481,7 @@ export function App() {
     newCourse,
     upload: (doc) => setShareDialog({ docId: doc, mode: 'upload' }),
     share: (doc) => setShareDialog({ docId: doc, mode: 'share' }),
+    driveFiles,
     onStudyTips: (group, background) => {
       ws.showAppPage('studyTips', group ?? undefined, background)
       bringForward()
@@ -491,7 +499,7 @@ export function App() {
   const shownTab = [ws.layout.groups[ws.layout.activeGroup]?.active, ...ws.recent]
     .map((id) => (id ? ws.layout.tabs[id] : undefined))
     .find((t) => t?.data.kind === 'doc' && t.data.doc === ws.active)
-  const place = lib && shownTab?.data.kind === 'doc' ? resolve(lib.library, shownTab.data.route) : {}
+  const place = lib && shownTab?.data.kind === 'doc' ? foundPlace(shownTab.id, lib.library, shownTab.data.route) : {}
   const current = place.quiz?.id ?? place.course?.id
 
   // A study session alone in the main window keeps the full-screen look: the shell steps aside (CSS), and the
@@ -507,11 +515,11 @@ export function App() {
     Object.keys(popups).map((w) => [w, new URL(addressFor(ws, ws.addressIn(w), true), location.href).href]),
   )
   // Open full app: this page without pane mode.
-  // Only the hash changes, which loads nothing: reload so the app starts again, full, on that page (pane mode is read
-  // once, at start).
+  // The address is replaced without a navigation (no hashchange for anything to answer by writing `pane` back), then
+  // the app reloads and starts again, full, on that page (pane mode is read once, at start).
   const openFullApp = () => {
     leaving.current = true
-    location.replace(addressFor(ws, addr, false))
+    history.replaceState(null, '', addressFor(ws, addr, false))
     location.reload()
   }
   const appClass = ['app', sidebarOpen ? '' : 'is-side-closed', studyAlone ? 'is-session' : ''].filter(Boolean).join(' ')
@@ -526,6 +534,7 @@ export function App() {
         <Sidebar
           ws={ws}
           current={current}
+          driveFiles={driveFiles}
           open={sidebarOpen}
           setOpen={setSidebarOpen}
           theme={theme}
@@ -558,6 +567,7 @@ export function App() {
               openLibrary={(load, name) => ws.openLibrary(load, name)}
               newDoc={() => ws.newDoc()}
               signOut={ws.drive.signOut}
+              browserLibraries={ws.docs.filter((d) => d.where === 'browser').length + ws.closed.filter((c) => !c.drive).length}
               notify={toasts.notify}
               debugBar={debugBar}
               setDebugBar={setDebugBar}

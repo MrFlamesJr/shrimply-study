@@ -276,6 +276,8 @@ export async function pickDriveFiles(): Promise<{ id: string; name: string }[]> 
       .setOAuthToken(value)
       .setDeveloperKey(API_KEY)
       .setAppId(APP_ID)
+      // Google's own limits: 566x350 at least, 1051x650 at most (its default); a small window gets less.
+      .setSize(Math.max(566, Math.min(1051, innerWidth - 64)), Math.max(350, Math.min(650, innerHeight - 64)))
       .setCallback((data: unknown) => {
         const { action, docs } = data as { action: string; docs?: { id: string; name: string }[] }
         if (action === picker.Action.PICKED) resolve((docs ?? []).map(({ id, name }) => ({ id, name })))

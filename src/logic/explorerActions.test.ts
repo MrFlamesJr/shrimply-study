@@ -332,12 +332,12 @@ describe('Google Drive rows', () => {
   it('says whether a file is open, where it is and whether it has unsaved changes, with words for a screen reader', () => {
     const listing = { signedIn: true, loading: false, failed: false, files: [{ id: 'abc', name: 'x.shrimp', modified: '2026-11-01T10:00:00Z' }, { id: 'bro', name: 'y.shrimp', modified: '' }] }
     // The list does not say whose a library is, so it never says "Your".
-    expect(fileStatus({}, file, { listing, closed })).toEqual({ open: false, dirty: false, where: 'On Google Drive', words: 'Not open, On Google Drive' })
-    expect(fileStatus({}, 'g:f:bro', { listing, closed })).toEqual({ open: false, dirty: false, where: 'Only in this browser', words: 'Not open, Only in this browser' })
+    expect(fileStatus({}, file, { listing, closed })).toEqual({ open: false, dirty: false, where: 'On Google Drive', line: 'On Google Drive', words: 'Not open, On Google Drive' })
+    expect(fileStatus({}, 'g:f:bro', { listing, closed })).toEqual({ open: false, dirty: false, where: 'Only in this browser', line: 'Only in this browser', words: 'Not open, Only in this browser' })
     expect(fileStatus({}, 'g:f:other', { listing })).toBeNull()
-    const meta = { a: { where: 'Your Google Drive', dirty: false }, b: { where: 'Shared on Google Drive', dirty: true, readOnly: true } }
-    expect(fileStatus(meta, 'd:a')).toEqual({ open: true, dirty: false, where: 'Your Google Drive', words: 'Open, Your Google Drive' })
-    expect(fileStatus(meta, 'd:b')).toEqual({ open: true, dirty: true, where: 'Shared on Google Drive', words: 'Open, view only, needs attention, Shared on Google Drive' })
+    const meta = { a: { where: 'Your Google Drive', line: 'Your Google Drive · Saved', dirty: false }, b: { where: 'Shared on Google Drive', line: 'Shared on Google Drive · View only', dirty: true, readOnly: true } }
+    expect(fileStatus(meta, 'd:a')).toEqual({ open: true, dirty: false, where: 'Your Google Drive', line: 'Your Google Drive · Saved', words: 'Open, Your Google Drive' })
+    expect(fileStatus(meta, 'd:b')).toEqual({ open: true, dirty: true, where: 'Shared on Google Drive', line: 'Shared on Google Drive · View only', words: 'Open, view only, needs attention, Shared on Google Drive' })
     expect(fileStatus(meta, 'c:a:c1')).toBeNull()
   })
 })

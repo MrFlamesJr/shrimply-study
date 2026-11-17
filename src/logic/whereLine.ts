@@ -1,3 +1,5 @@
+import { statusText, type SaveStatus } from './autosave'
+
 /**
  * Where a library lives, in words: its Google Drive file (whose only as far as anyone can tell: "Your" needs a sign-in
  * and Google's word; signed out, nobody knows), or this browser alone.
@@ -18,4 +20,9 @@ export function closedNote(entry: { name: string; drive: unknown }, yours: boole
   return yours
     ? `${closed} It's in your Google Drive: open it again from the Explorer.`
     : `${closed} It's on Google Drive: open it again from the Explorer, or from its link.`
+}
+
+/** A library's place with its save status after it, when it has one. */
+export function whereWithStatus(where: string, status: SaveStatus): string {
+  return statusText(status) ? `${where} · ${statusText(status)}` : where
 }
