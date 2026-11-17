@@ -1,12 +1,19 @@
 // What the Workbench shows and lets the user do, decided as data: tab titles and paths, the tab and group menus with
 // their disabled reasons, which tabs stay mounted, and whether a group may split. All pure; the component carries
 // them out.
-import type { Group, Tab } from '../kit/layout'
+import { MAIN, groupsIn, type Group, type Layout, type Tab } from '../kit/layout'
 import { resolve, type Route } from './routes'
+import { plural } from './plural'
 import type { Library } from '../model'
 
-/** What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or every release's notes. */
-export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer' } | { kind: 'changelog' }
+/**
+ * What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or one of the app's own pages
+ * (`AppPage`: What's new, every release's notes; the welcome page), one tab at most each.
+ */
+export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer' } | { kind: AppPage }
+export type AppPage = 'changelog' | 'welcome'
+/** The app's own pages' tab titles. */
+export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome' }
 export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }
 export type Docs = Record<string, WorkbenchDoc>
 
@@ -32,9 +39,22 @@ function placeOf(data: TabData, docs: Docs): Place | null {
 export function tabTitle(tab: Tab<TabData>, docs: Docs): string {
   const d = tab.data
   if (d.kind === 'explorer') return 'Explorer'
-  if (d.kind === 'changelog') return 'All releases'
+  if (d.kind !== 'doc') return APP_PAGE_TITLE[d.kind]
   const place = placeOf(d, docs)
   return place ? (place.quiz ?? place.course ?? place.doc.name) : 'Missing file'
+}
+
+/** The popped-out windows that have their popup (`open`), oldest first, each with its tabs in reading order. */
+export function poppedOut<D>(l: Layout<D>, open: (win: string) => boolean): { win: string; tabs: string[] }[] {
+  return Object.keys(l.windows)
+    .filter((w) => w !== MAIN && open(w))
+    .map((win) => ({ win, tabs: groupsIn(l, win).flatMap((g) => l.groups[g]?.tabs ?? []) }))
+}
+
+/** "2 tabs in other windows" (`is`: "2 tabs are in other windows"). */
+export function elsewhereText(count: number, is = false): string {
+  const verb = is ? (count === 1 ? ' is' : ' are') : ''
+  return `${plural(count, 'tab')}${verb} in ${count === 1 ? 'another window' : 'other windows'}`
 }
 
 /** The muted text after a title: the file's name when the tab is not at its home. */

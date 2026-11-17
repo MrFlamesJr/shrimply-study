@@ -13,7 +13,7 @@ import {
   closeTabs,
   dockWindow,
   followHistory,
-  showChangelog,
+  showAppPage,
   moveTab,
   openPlace,
   popOutGroup,
@@ -574,15 +574,31 @@ describe('back and forward', () => {
 })
 
 describe("the app's own tabs", () => {
-  it("every release's notes open in one tab at most", () => {
-    let w = showChangelog(two(), 'g', 'tc')
+  it("What's new and the welcome page open in one tab at most each, and come back on reload", () => {
+    let w = showAppPage(two(), 'changelog', 'g', 'tc')
     expect(activeTab(w)?.data).toEqual({ kind: 'changelog' })
     w = activateTab(w, 'ta')
-    w = showChangelog(w, 'g', 'tc2')
+    w = showAppPage(w, 'changelog', 'g', 'tc2')
     expect(activeTab(w)?.id).toBe('tc')
     expect(Object.keys(w.layout.tabs)).not.toContain('tc2')
-    const l = readLayout(JSON.parse(JSON.stringify(w.layout)), ['a', 'b'], 'x', ids())
+    w = showAppPage(w, 'welcome', 'g', 'tw')
+    expect(activeTab(w)?.data).toEqual({ kind: 'welcome' })
+    w = activateTab(w, 'ta')
+    expect(activeTab(showAppPage(w, 'welcome', 'g', 'tw2'))?.id).toBe('tw')
+    const raw = JSON.parse(JSON.stringify(w.layout))
+    raw.tabs.tw3 = { id: 'tw3', data: { kind: 'welcome' } }
+    raw.groups.g.tabs.push('tw3')
+    const l = readLayout(raw, ['a', 'b'], 'x', ids())
     expect(l.tabs.tc?.data).toEqual({ kind: 'changelog' })
+    expect(l.tabs.tw?.data).toEqual({ kind: 'welcome' })
+    expect(l.tabs.tw3).toBeUndefined()
+  })
+
+  it('a Ctrl or middle click opens it in the background, and leaves an open one as it is', () => {
+    const w = showAppPage(two(), 'changelog', 'g', 'tc', true)
+    expect(w.layout.groups.g.tabs).toContain('tc')
+    expect(activeTab(w)?.id).toBe('tb')
+    expect(showAppPage(w, 'changelog', 'g', 'tc2', true)).toBe(w)
   })
 })
 

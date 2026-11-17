@@ -3,7 +3,9 @@ import { flushSync } from 'react-dom'
 import { href, parseHash, type Route } from '../route'
 import { comboLabel, isMac } from '../kit/shortcuts'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
-import { BrowserIcon, ChevronsLeftIcon, CloudIcon, CrossIcon, FileIcon, FolderIcon, PlusIcon, PullIcon, SaveIcon, ShrimpIcon, TumbleweedIcon } from '../components/Icons'
+import {
+  BrowserIcon, ChevronsLeftIcon, CloudIcon, CrossIcon, FileIcon, FolderIcon, OpenIcon, PlusIcon, PullIcon, SaveIcon, ShrimpIcon, TumbleweedIcon,
+} from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
 import { IconButton } from '../components/IconButton'
 import { whereLine } from '../logic/whereLine'
@@ -26,8 +28,10 @@ type Props = {
   onNewCourse: () => void
   /** Shows the Explorer (Ctrl+Shift+E). */
   onExplorer: () => void
-  /** The brand: the active file's home (its tab, else a new one); with no file open, the address's home (welcome). */
-  onHome: () => boolean
+  /** The brand: the Welcome tab (opened, or shown where it is). */
+  onHome: () => void
+  /** What's new: its tab (opened, or shown where it is). */
+  onWhatsNew: () => void
   /** A course or quiz of the tree, shown in the active group (`newTab`: in a new tab there). */
   onOpen: (route: Route, newTab: boolean) => void
 }
@@ -176,7 +180,7 @@ function OpenFiles({ ws, onDrive, closeIfNarrow }: { ws: WorkspaceApi; onDrive: 
   )
 }
 
-export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onHome, onOpen }: Props) {
+export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDrive, onNewCourse, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
   // On small screens the open sidebar covers the page, so close it after picking something.
   const closeIfNarrow = () => isNarrow() && setOpen(false)
 
@@ -214,9 +218,10 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
           className="brand"
           href="#/"
           aria-label="Shrimply Study"
-          title="Home of the open file"
+          title="Welcome page"
           onClick={(e) => {
-            if (onHome()) e.preventDefault()
+            e.preventDefault()
+            onHome()
             closeIfNarrow()
           }}
         >
@@ -248,6 +253,18 @@ export function Sidebar({ ws, lib, current, open, setOpen, theme, setTheme, onDr
             }}
           >
             <FolderIcon /> Explorer <Shortcut keys={comboLabel('Mod+Shift+E', isMac(navigator.platform))} />
+          </button>
+          {/* A small link (asked for), as home's What's new box has: every release's notes in a tab. */}
+          <button
+            type="button"
+            className="link open-link sidebar-news"
+            title="Every release's notes, in a tab of their own"
+            onClick={() => {
+              onWhatsNew()
+              closeIfNarrow()
+            }}
+          >
+            What's new <OpenIcon />
           </button>
           <OpenFiles ws={ws} onDrive={onDrive} closeIfNarrow={closeIfNarrow} />
           <p className="sidebar-label">Courses</p>

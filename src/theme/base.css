@@ -355,6 +355,36 @@ button.link:hover:not(:disabled) {
   color: var(--text);
   text-decoration-color: currentColor;
 }
+/* A link that opens a page in a tab of its own (What's new, in the sidebar and in home's What's new box; asked for):
+   a link button's small muted text, then the "opens elsewhere" mark, both in the text color on hover, the text
+   underlined. A touch target below 800px. */
+.open-link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: var(--underline-offset);
+  transition:
+    color var(--dur-fast) var(--ease),
+    text-decoration-color var(--dur-fast) var(--ease);
+}
+.open-link:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+.open-link svg {
+  flex: none;
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 799px) {
+  .open-link {
+    min-height: var(--tap);
+  }
+}
 /* Danger: bright red outline that fills solid red on hover. */
 button.danger {
   background: transparent;

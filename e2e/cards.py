@@ -25,10 +25,10 @@ def card_ids(page, selector=UNGROUPED):
 def find_grouped_quiz(page, base):
     """A quiz whose editor has a group and at least two ungrouped cards."""
     page.goto(base + '#/')
-    page.locator('h1').first.wait_for()
+    page.locator('h1:visible').first.wait_for()
     for course in hrefs(page, 1):
         page.goto(base + course)
-        page.locator('h1').first.wait_for()
+        page.locator('h1:visible').first.wait_for()
         for quiz in hrefs(page, 2):
             page.goto(base + quiz + '/edit')
             page.locator('.pairs').wait_for()

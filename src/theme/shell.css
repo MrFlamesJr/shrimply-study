@@ -332,6 +332,13 @@
 .sidebar-explorer .shortcut {
   margin-left: auto;
 }
+/* What's new, a small link under the Explorer (the shared .open-link), its text in line with the Explorer's icon. */
+.sidebar-news {
+  flex-shrink: 0;
+  align-self: flex-start;
+  margin: calc(-1 * var(--space-1)) var(--space-4) var(--space-2);
+  padding: var(--space-1);
+}
 .sidebar-label {
   padding: var(--space-2) var(--space-5) var(--space-1);
   color: var(--text-muted);
@@ -510,7 +517,7 @@
   }
 }
 
-/* Page: a centered column (a pane head repeats this math, so its crumbs line up with the content).
+/* Page: a centered column.
    A flex column, so .page-foot (the danger zone) sits at the bottom of the page. */
 .page {
   /* The page sizes its own content (container queries named page), not the window: a pane can be narrower. */

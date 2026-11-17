@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest'
-import type { Group, Tab } from '../kit/layout'
+import { MAIN, type Group, type Layout, type Tab } from '../kit/layout'
 import type { Library } from '../model'
 import {
-  canSplit, copyPathText, groupMenu, mountedTabs, tabDescription, tabMenu, tabTitle, tabTooltip,
+  canSplit, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabMenu, tabTitle, tabTooltip,
   type Docs, type GroupContext, type MenuEntry, type TabData,
 } from './workbenchActions'
 
@@ -22,6 +22,27 @@ const gone = tab({ kind: 'doc', doc: 'd', route: { name: 'quiz', course: 'Cell B
 const ctx: GroupContext = { tabCount: 3, size: { width: 900, height: 700 }, groupsInWindow: 2, inMain: true, next: true, canPopOut: true, anyDirty: true }
 const find = (m: MenuEntry[], action: string) => m.find((x) => x !== 'separator' && x.action === action) as Exclude<MenuEntry, 'separator'>
 
+describe('tabs in other windows', () => {
+  it('lists the popped-out windows that have a popup, with their tabs, and counts them in words', () => {
+    const g = (id: string, tabs: string[]): Group => ({ id, tabs, active: tabs[0], mru: tabs })
+    const l: Layout<TabData> = {
+      tabs: {},
+      groups: { a: g('a', ['t1']), b: g('b', ['t2', 't3']), c: g('c', ['t4']), d: g('d', ['t5']) },
+      windows: {
+        [MAIN]: { root: { kind: 'group', id: 'a' } },
+        w1: { root: { kind: 'split', dir: 'row', children: [{ kind: 'group', id: 'b' }, { kind: 'group', id: 'c' }], sizes: [0.5, 0.5] } },
+        w2: { root: { kind: 'group', id: 'd' } },
+      },
+      activeGroup: 'a',
+    }
+    expect(poppedOut(l, (w) => w !== 'w2')).toEqual([{ win: 'w1', tabs: ['t2', 't3', 't4'] }])
+    expect(elsewhereText(1)).toBe('1 tab in another window')
+    expect(elsewhereText(2)).toBe('2 tabs in other windows')
+    expect(elsewhereText(2, true)).toBe('2 tabs are in other windows')
+    expect(elsewhereText(1, true)).toBe('1 tab is in another window')
+  })
+})
+
 describe('titles', () => {
   it('names a document tab by its page', () => {
     expect(tabTitle(home, docs)).toBe('Biology.shrimp')
@@ -35,7 +56,8 @@ describe('titles', () => {
   })
   it('names the other kinds', () => {
     expect(tabTitle(tab({ kind: 'explorer' }), docs)).toBe('Explorer')
-    expect(tabTitle(tab({ kind: 'changelog' }), docs)).toBe('All releases')
+    expect(tabTitle(tab({ kind: 'changelog' }), docs)).toBe("What's new")
+    expect(tabTitle(tab({ kind: 'welcome' }), docs)).toBe('Welcome')
   })
   it('describes with the file name only away from its home', () => {
     expect(tabDescription(home, docs)).toBeUndefined()

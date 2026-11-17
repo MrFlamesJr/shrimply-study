@@ -2,7 +2,7 @@ import { useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from 
 import { createPortal } from 'react-dom'
 import { BackToTop } from '../components/BackToTop'
 import { IconButton } from '../components/IconButton'
-import { DockIcon, MoreIcon, SplitIcon } from '../components/Icons'
+import { DockIcon, MoreIcon, OpenIcon, SplitIcon } from '../components/Icons'
 import { ownWindow } from '../components/ownWindow'
 import { openMenu, type MenuItem } from '../kit/ContextMenu'
 import type { DragPayload } from '../kit/dnd'
@@ -13,7 +13,7 @@ import { DropZones, SplitView } from '../kit/SplitView'
 import { TabStrip } from '../kit/TabStrip'
 import type { Route } from '../route'
 import {
-  canSplit, copyPathText, groupMenu, mountedTabs, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
+  canSplit, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
   type GroupContext, type MenuAction, type MenuEntry, type TabData, type WorkbenchDoc,
 } from '../logic/workbenchActions'
 import { PaneHead, type Crumb } from './PaneHead'
@@ -102,10 +102,11 @@ export function Workbench(p: WorkbenchProps) {
   useEffect(() => {
     for (const key of [...nodes.current.keys()]) if (!live.has(key)) nodes.current.delete(key)
   })
+  const popped = poppedOut(layout, (w) => !!p.popups[w])
   return (
     <>
       <div className="workbench">
-        <WindowView p={p} win={MAIN} nodeFor={nodeFor} />
+        <WindowView p={p} win={MAIN} nodeFor={nodeFor} popped={popped} />
       </div>
       {Object.keys(layout.windows)
         .filter((w) => w !== MAIN && p.popups[w])
@@ -136,7 +137,9 @@ const cornerOf = (n: Node): string => (n.kind === 'group' ? n.id : cornerOf(n.ch
 // The group at its top-right corner: a row's last child, a column's first.
 const topRightOf = (n: Node): string => (n.kind === 'group' ? n.id : topRightOf(n.dir === 'row' ? n.children[n.children.length - 1] : n.children[0]))
 
-function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nodeFor: NodeFor }) {
+type Popped = ReturnType<typeof poppedOut>
+
+function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: WindowId; nodeFor: NodeFor; popped?: Popped }) {
   const { layout } = p
   const ids = groupsIn(layout, win)
   const shown = ids.includes(layout.activeGroup) ? layout.activeGroup : ids[0]
@@ -144,12 +147,23 @@ function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nod
   const corner = win === MAIN ? cornerOf(layout.windows[win].root) : null
   // A popped-out window's way back sits in its top-right group's strip, once per window.
   const dockAt = win === MAIN ? null : topRightOf(layout.windows[win].root)
+  // The main window's count of tabs in popped-out windows: in its top-right group's strip, while there are some.
+  const elsewhereAt = win === MAIN && popped.length > 0 ? topRightOf(layout.windows[win].root) : null
   return (
     <div className="wb-win">
       <SplitView
         root={layout.windows[win].root}
         renderGroup={(id) => (
-          <GroupView p={p} win={win} group={layout.groups[id]} shown={id === shown} corner={id === corner} dock={id === dockAt} nodeFor={nodeFor} />
+          <GroupView
+            p={p}
+            win={win}
+            group={layout.groups[id]}
+            shown={id === shown}
+            corner={id === corner}
+            dock={id === dockAt}
+            elsewhere={id === elsewhereAt ? popped : undefined}
+            nodeFor={nodeFor}
+          />
         )}
         onResize={(path, sizes) => p.on.resize(win, path, sizes)}
       />
@@ -159,9 +173,19 @@ function WindowView({ p, win, nodeFor }: { p: WorkbenchProps; win: WindowId; nod
 
 type Size = { width: number; height: number }
 
-type GroupProps = { p: WorkbenchProps; win: WindowId; group: Group; shown: boolean; corner: boolean; dock: boolean; nodeFor: NodeFor }
+type GroupProps = {
+  p: WorkbenchProps
+  win: WindowId
+  group: Group
+  shown: boolean
+  corner: boolean
+  dock: boolean
+  /** The popped-out windows, for the main window's count of their tabs (one group shows it). */
+  elsewhere?: Popped
+  nodeFor: NodeFor
+}
 
-function GroupView({ p, win, group: g, shown, corner, dock, nodeFor }: GroupProps) {
+function GroupView({ p, win, group: g, shown, corner, dock, elsewhere, nodeFor }: GroupProps) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
   const [size, setSize] = useState<Size | null>(null)
@@ -242,6 +266,17 @@ function GroupView({ p, win, group: g, shown, corner, dock, nodeFor }: GroupProp
     openMenu(items(groupMenu(context()), run), { anchor })
   }
 
+  // Each popped-out window by its tabs' titles (choosing one brings it to the front), then Dock all.
+  const elsewhereCount = elsewhere?.reduce((n, w) => n + w.tabs.length, 0) ?? 0
+  const openElsewhereMenu = (anchor: Element) => {
+    if (!elsewhere) return
+    const windows: MenuItem[] = elsewhere.map((w) => ({
+      label: w.tabs.flatMap((id) => (layout.tabs[id] ? [tabTitle(layout.tabs[id], docs)] : [])).join(', '),
+      onSelect: () => p.popups[w.win]?.focus(),
+    }))
+    openMenu([...windows, 'separator', { label: 'Dock all', onSelect: () => elsewhere.forEach((w) => on.dock(w.win)) }], { anchor })
+  }
+
   const dropTabs = (payload: DragPayload, index: number) => {
     if (payload.kind !== TAB_KIND) return
     payload.ids.filter((id) => layout.tabs[id]).forEach((id, i) => on.move(id, g.id, index + i))
@@ -297,6 +332,14 @@ function GroupView({ p, win, group: g, shown, corner, dock, nodeFor }: GroupProp
             {dock && (
               <IconButton label="Dock" title="Dock: move back to the main window" onClick={() => on.dock(win)}>
                 <DockIcon />
+              </IconButton>
+            )}
+            {elsewhereCount > 0 && (
+              <IconButton label={elsewhereText(elsewhereCount)} className="wb-elsewhere" onClick={(e) => openElsewhereMenu(e.currentTarget)}>
+                <span className="wb-elsewhere-mark">
+                  <OpenIcon />
+                </span>
+                <span className="wb-elsewhere-count">{elsewhereCount}</span>
               </IconButton>
             )}
             <IconButton

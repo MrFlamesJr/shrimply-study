@@ -99,7 +99,7 @@ def run(page, base):
     largest = page.evaluate('() => [...document.querySelectorAll(".debug-stats dt")].find(d => d.textContent === "Largest quiz").nextSibling.textContent')
     name = largest.split('“')[1].split('”')[0]
     page.evaluate('() => { location.hash = "#/" }')
-    page.locator('h1').first.wait_for()
+    page.locator('h1:visible').first.wait_for()
     found = None
     for course in page.eval_on_selector_all('a[href^="#/"]', 'els => [...new Set(els.map(e => e.getAttribute("href")))]'):
         if len([p for p in course[2:].split('/') if p]) != 1 or course.startswith('#/_'):
@@ -110,13 +110,13 @@ def run(page, base):
             if len([p for p in quiz[2:].split('/') if p]) == 2:
                 page.evaluate('h => { location.hash = h }', quiz)
                 page.wait_for_timeout(300)
-                if page.locator('h1').first.inner_text().strip() == name:
+                if page.locator('h1:visible').first.inner_text().strip() == name:
                     found = quiz
                     break
         if found:
             break
     if found:
-        add('bio page', nav(page, '#/', 'h1') and nav(page, found, '.quiz-rows > li', 2), largest)
+        add('bio page', nav(page, '#/', '.wb-tab:not([hidden]) h1') and nav(page, found, '.quiz-rows > li', 2), largest)
         add('bio editor', nav(page, found + '/edit', '.pair', 2), largest)
         pairs = page.locator('.pair').count()
         add('bio editor cards', pairs, 'count, not ms')
@@ -130,7 +130,7 @@ def run(page, base):
     page.get_by_role('button', name='Add stress course').click()
     page.get_by_text('Added the stress course.').first.wait_for()
     page.wait_for_timeout(800)
-    nav(page, '#/', 'h1')
+    nav(page, '#/', '.wb-tab:not([hidden]) h1')
     add('page 2000', nav(page, STRESS, '.quiz-rows > li', 2000))
     add('editor 2000', nav(page, STRESS + '/edit', '.pair', 1500), 'until 1500+ .pair in the DOM')
     add('editor cards', page.locator('.pair').count(), 'count, not ms')

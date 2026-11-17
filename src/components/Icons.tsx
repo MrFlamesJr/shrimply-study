@@ -15,6 +15,7 @@ import grip from '../icons/grip.svg?raw'
 import image from '../icons/image.svg?raw'
 import info from '../icons/info.svg?raw'
 import more from '../icons/more.svg?raw'
+import openMark from '../icons/open.svg?raw'
 import pencil from '../icons/pencil.svg?raw'
 import play from '../icons/play.svg?raw'
 import plus from '../icons/plus.svg?raw'
@@ -86,6 +87,9 @@ export const MoreIcon = icon(more)
 
 // An arrow coming back into a window: dock a popped-out window into the main one.
 export const DockIcon = icon(dock)
+
+// An arrow leaving a square's corner: a link that opens a page in a tab of its own (What's new).
+export const OpenIcon = icon(openMark)
 
 export const CrossIcon = icon(cross)
 

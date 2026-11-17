@@ -1,9 +1,10 @@
 """The workbench: two files in split panes that stay independent, a tab moved across groups, a tab closed (its file
 stays open), a reload that restores the split and the pages, the Explorer (sidebar button, Ctrl+Shift+E, Reveal in
 Explorer), a group popped out and docked, one tab popped out on its own, and study in a split pane and full screen when alone. Then: a study tab
-moved to another group goes on with its round, Back returns to the tab an entry belongs to, every release's notes
-open as a tab, and the breadcrumbs (every kind of page, each pane its own trail, a popped-out window, a narrow pane's
-"< parent" link, long names, lined up with the page, a crumb moving only its pane, renames, a page that is gone)."""
+moved to another group goes on with its round, Back returns to the tab an entry belongs to, What's new opens as a
+tab (from home and the sidebar, one at most, back after a reload), and the breadcrumbs (every kind of page, each pane
+its own trail, a popped-out window, a narrow pane's "< parent" link, long names, in line with the tab strip, a crumb
+moving only its pane, renames, a page that is gone). Last, the brand opens the Welcome tab."""
 import os
 import re
 import sys
@@ -74,6 +75,13 @@ def shown(g):
 
 
 def run(page, base):
+    # A first visit opens the Welcome tab; closed like any tab.
+    welcome = page.locator('[role=tab]', has_text='Welcome')
+    welcome.wait_for()
+    need(trail(group(page, 0)) == ['Shrimply Study', 'Welcome'], f'the Welcome tab under the app: {trail(group(page, 0))}')
+    welcome.hover()
+    welcome.locator('button').click()
+    wait_for(page, lambda: welcome.count() == 0, 'the Welcome tab closes')
     page.goto(base + '#/_debug')
     page.get_by_role('button', name='Load test library').click()
     page.get_by_text('Loaded the test library.').first.wait_for()
@@ -175,7 +183,7 @@ def run(page, base):
 
     study_moves(page)
     back_returns_to_its_tab(page)
-    changelog_tab(page)
+    whats_new_tab(page)
     breadcrumbs(page)
     new_quiz_in_popup(page)
     empty_group_and_brand(page)
@@ -195,9 +203,11 @@ def compact_popup(pop):
 
 def pop_out_one_tab(page):
     """A tab's Move to new window takes only that tab (the rest of its group stays); the main window's lone tab can go
-    too, leaving an empty group. Dock from the window's menu and from its strip brings them back."""
+    too, leaving an empty group. The main window counts the tabs in other windows (its strip, its empty page); Dock
+    from a window's menu and Dock all bring them back."""
     g = group(page, 0)
     need(len(tab_titles(g)) == 2 and groups(page).count() == 1, f'one group with two tabs: {tab_titles(g)}')
+    moved = tab_titles(g)[-1]
     with page.context.expect_page() as info:
         g.locator('[role=tab]').last.click(button='right')
         page.get_by_role('menuitem', name='Move to new window').click()
@@ -206,7 +216,7 @@ def pop_out_one_tab(page):
     need(pop.locator('[role=tab]').count() == 1, 'the popup holds only that tab')
     wait_for(page, lambda: len(tab_titles(group(page, 0))) == 1 and groups(page).count() == 1, 'the rest of its group stays')
     compact_popup(pop)
-    need(pop.title() == 'Test library', f"the browser's bar names the window: {pop.title()}")
+    need(pop.title() == moved, f"the browser's bar names the window: {pop.title()} != {moved}")
 
     with page.context.expect_page() as info:
         group(page, 0).locator('[role=tab]').first.click(button='right')
@@ -214,11 +224,32 @@ def pop_out_one_tab(page):
     pop2 = info.value
     pop2.wait_for_selector('.workbench.is-popup [role=tab]')
     group(page, 0).locator('.wb-empty').wait_for()
+    # The main window counts the tabs in other windows: in its strip and on its empty page.
+    need(elsewhere(page) == ('2', '2 tabs in other windows'), f'the strip counts 2 tabs elsewhere: {elsewhere(page)}')
+    line = group(page, 0).locator('.wb-empty-elsewhere')
+    need(line.inner_text().startswith('2 tabs are in other windows'), f'and so does the empty page: {line.inner_text()}')
     pop2.get_by_role('button', name='More').click()
     pop2.get_by_role('menuitem', name='Dock').click()
     wait_for(page, lambda: groups(page).count() == 1 and len(tab_titles(group(page, 0))) == 1, "the menu's Dock brings the tab back")
-    pop.locator('.kit-tabstrip').get_by_role('button', name='Dock').click()
-    wait_for(page, lambda: groups(page).count() == 2, "the strip's Dock brings the other back beside it")
+    wait_for(page, lambda: elsewhere(page) == ('1', '1 tab in another window'), 'the count follows')
+
+    # Again two elsewhere; Dock all (the strip's count's menu) brings both back and the count goes.
+    with page.context.expect_page() as info:
+        group(page, 0).locator('[role=tab]').first.click(button='right')
+        page.get_by_role('menuitem', name='Move to new window').click()
+    info.value.wait_for_selector('.workbench.is-popup [role=tab]')
+    wait_for(page, lambda: elsewhere(page) == ('2', '2 tabs in other windows'), 'two tabs elsewhere again')
+    page.locator('.wb-elsewhere').click()
+    need(page.get_by_role('menuitem').count() == 3, 'the menu lists each window, then Dock all')
+    page.get_by_role('menuitem', name='Dock all').click()
+    wait_for(page, lambda: groups(page).count() == 2 and page.locator('.wb-elsewhere').count() == 0, 'Dock all brings both back')
+    wait_for(page, lambda: pop.is_closed(), 'their windows close')
+
+
+def elsewhere(page):
+    """The main window's count of tabs in other windows: its number and its tooltip, or None."""
+    b = page.locator('.wb-cell .wb-elsewhere')
+    return (b.inner_text().strip(), b.get_attribute('title')) if b.count() == 1 else None
 
 
 def active_group(page):
@@ -279,25 +310,51 @@ def back_returns_to_its_tab(page):
     page.locator('.file-row', has_text='Test library').locator('.file-pick').click()
 
 
-def changelog_tab(page):
-    """Every release's notes open as a tab beside the files (the shell and any popped-out window stay)."""
+def news_tabs(page):
+    return page.locator('[role=tab]', has_text="What's new")
+
+
+def whats_new_tab(page):
+    """What's new (every release's notes) opens as a tab beside the files, from home's What's new box and from the
+    sidebar, one at most; a reload brings it back."""
     g = active_group(page)
     if crumbs(g) != ['Test library']:
         g.locator('.pane-crumbs a').first.click()
         wait_for(page, lambda: crumbs(active_group(page)) == ['Test library'], 'home again')
-    shown(active_group(page)).get_by_role('link', name='See all releases').click()
-    wait_for(page, lambda: page.locator('[role=tab]', has_text='All releases').count() == 1, 'the notes open as a tab')
+    link = shown(active_group(page)).get_by_role('link', name="Open What's new")
+    need(link.locator('svg').count() == 1, "the link ends with the opens-elsewhere mark")
+    link.click()
+    wait_for(page, lambda: news_tabs(page).count() == 1, "What's new opens as a tab")
     need(page.locator('.sidebar').is_visible(), 'the shell stays')
-    need(trail(active_group(page)) == ['Shrimply Study', 'All releases'], 'its pane head names it, under the app')
-    shown(active_group(page)).get_by_role('button', name='Back to the app').click()
-    wait_for(page, lambda: page.locator('[role=tab]', has_text='All releases').count() == 0, 'Back to the app closes the tab')
+    g = active_group(page)
+    need(trail(g) == ['Shrimply Study', "What's new"], f'its pane head names it, under the app: {trail(g)}')
+    need(shown(g).get_by_role('heading', name="What's new").count() == 1, 'its page is titled What\'s new')
+    need(shown(g).locator('.release-head').count() >= 1, "every release's notes")
+    # From the sidebar: the same tab, shown again.
+    g.locator('[role=tab]').first.click()
+    page.locator('.sidebar-news').click()
+    wait_for(page, lambda: news_tabs(page).first.get_attribute('aria-selected') == 'true', 'the sidebar shows it again')
+    need(news_tabs(page).count() == 1, 'never a second one')
+    # Back after a reload.
+    page.wait_for_timeout(700)
+    page.reload()
+    groups(page).first.wait_for()
+    wait_for(page, lambda: news_tabs(page).count() == 1, "What's new comes back after a reload")
+    news_tabs(page).first.hover()
+    news_tabs(page).first.locator('button').click()
+    wait_for(page, lambda: news_tabs(page).count() == 0, 'its tab closes like any other')
+    # The reload showed the address's tab; back on the test library's, as before.
+    active_group(page).locator('[role=tab]', has_text='Test library').first.click()
 
 
 def lined_up(g):
-    """The first crumb starts where the page's title does."""
-    crumb = g.locator('.pane-crumbs li').first.bounding_box()
-    title = shown(g).locator('.page-head h1').first.bounding_box()
-    return abs(crumb['x'] - title['x']) <= 2
+    """The crumb row starts at the pane's left, where the tab strip's first tab's text does (the strip unscrolled)."""
+    return g.evaluate('''g => {
+      const strip = g.querySelector('.kit-tabstrip'), tab = g.querySelector('[role=tab]')
+      const pad = (el) => parseFloat(getComputedStyle(el).paddingLeft)
+      const start = strip.getBoundingClientRect().left + pad(strip) + pad(tab)
+      return Math.abs(g.querySelector('.pane-crumbs li').getBoundingClientRect().left - start) <= 2
+    }''')
 
 
 def breadcrumbs(page):
@@ -330,7 +387,7 @@ def breadcrumbs(page):
     g1.locator('.pane-crumbs a', has_text=quiz).click()
     wait_for(page, lambda: crumbs(g1) == ['Test library', course, quiz], 'the quiz crumb goes to the quiz page')
     need(crumbs(g2) == ['Test library', course], 'the other pane does not move')
-    need(lined_up(g1) and lined_up(g2), 'the crumbs line up with each page')
+    need(lined_up(g1) and lined_up(g2), 'the crumbs start in line with each tab strip')
 
     # A rename shows in every trail at once (before the address follows), in both panes.
     field = shown(g2).get_by_label('Course name')
@@ -427,16 +484,20 @@ def empty_group_and_brand(page):
     empty.get_by_role('button', name=re.compile('^Test library')).click()
     wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], "a file's home opens in the empty group")
 
-    # The brand: no home tab of the active file left (it goes to a course), so a new one; then that one again.
+    # The brand: the Welcome tab (the welcome page), one at most; its Go to my courses shows the file's home here.
     shown(group(page, 0)).locator('.course-row a').first.click()
     wait_for(page, lambda: len(crumbs(group(page, 0))) == 2, 'the tab goes to a course')
     before = len(tab_titles(group(page, 0)))
     page.locator('a.brand').click()
-    wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], 'the brand shows the file home')
-    need(len(tab_titles(group(page, 0))) == before + 1, 'in a new tab, as no tab showed it')
+    wait_for(page, lambda: trail(group(page, 0)) == ['Shrimply Study', 'Welcome'], 'the brand opens the Welcome tab')
+    need(len(tab_titles(group(page, 0))) == before + 1, 'in a new tab')
+    need(shown(group(page, 0)).get_by_role('heading', name='Start studying in three steps').count() == 1, 'showing the welcome page')
     group(page, 0).locator('[role=tab]').first.click()
     wait_for(page, lambda: len(crumbs(group(page, 0))) == 2, 'back on the course tab')
     page.locator('a.brand').click()
-    wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], 'the brand shows the home tab again')
+    wait_for(page, lambda: trail(group(page, 0)) == ['Shrimply Study', 'Welcome'], 'the brand shows the Welcome tab again')
     need(len(tab_titles(group(page, 0))) == before + 1, 'without opening another tab')
+    shown(group(page, 0)).get_by_role('button', name='Go to my courses').click()
+    wait_for(page, lambda: crumbs(group(page, 0)) == ['Test library'], "Go to my courses shows the file's home")
+    need(len(tab_titles(group(page, 0))) == before + 1, "in the file's tab there")
 

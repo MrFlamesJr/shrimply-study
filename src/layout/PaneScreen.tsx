@@ -3,7 +3,7 @@ import type { StudyOptions } from '../model'
 import { parseHash, usePlaceFor, type Nav, type Route } from '../route'
 import type { Tab } from '../kit/layout'
 import type { DocId, ItemRef } from '../logic/contentOps'
-import type { TabData } from '../logic/workbenchActions'
+import type { AppPage, TabData } from '../logic/workbenchActions'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
 import type { askConfirm } from '../components/ConfirmDialog'
 import type { Notify } from '../components/Toasts'
@@ -28,14 +28,11 @@ export type PaneShared = {
   setCollapsed(collapsed: ReadonlySet<string>): void
   tipsOpen: boolean
   setTipsOpen(open: boolean): void
-  /** Home is the welcome page (a first visit, or once after a release). */
-  welcome: boolean
-  endWelcome(): void
   openDrive(): void
   openFile(): Promise<boolean>
   openGuide(): Promise<boolean>
-  /** "New course": into the active file (the pane's, once it is pointed at), or a new one. */
-  newCourse(): void
+  /** "New course": into the active file (the pane's, once it is pointed at), or a new one; shown in `group`. */
+  newCourse(group?: string): void
   /** The Explorer's: where it opens and edits things, and the node to reveal. */
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
@@ -57,17 +54,14 @@ type Props = {
   s: PaneShared
 }
 
-// Pages of a file a link may name; the app's own pages (changelog, debug) are left to the address bar.
+// Pages of a file a link may name; the app's own pages open as tabs of their own (debug is left to the address bar).
 const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
 
-/** One tab's screen: a file's page (its own route and navigation), the Explorer, or every release's notes. */
+/** One tab's screen: a file's page (its own route and navigation), the Explorer, What's new or the welcome page. */
 export function PaneScreen({ tab, group, shown, active, s }: Props) {
   const d = tab.data
-  if (d.kind === 'changelog') {
-    // Its way back closes the tab, showing what was beside it.
-    const close: Nav = { route: { name: 'changelog' }, go: () => s.ws.closeTabs([tab.id]), redirect: () => s.ws.closeTabs([tab.id]), goToNew: () => undefined, takeCreated: () => false }
-    return <ChangelogScreen nav={close} />
-  }
+  if (d.kind === 'changelog') return <ChangelogScreen />
+  if (d.kind === 'welcome') return <Welcome group={group} s={s} />
   if (d.kind === 'explorer') {
     return (
       <ExplorerPane
@@ -86,6 +80,43 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
   return <DocPane tab={tab as Tab<Extract<TabData, { kind: 'doc' }>>} group={group} shown={shown} active={active} s={s} />
 }
 
+// A link to one of the app's own pages (What's new) opens its tab in this group; Ctrl or the middle button opens it
+// without showing it, as other links open a new tab beside theirs.
+function openAppPage(e: MouseEvent<HTMLElement>, background: boolean, group: string | null, s: PaneShared): boolean {
+  const link = (e.target as Element).closest?.('a[href^="#/"]')
+  if (!link || e.defaultPrevented || e.shiftKey || e.altKey) return false
+  const to = parseHash(link.getAttribute('href') ?? '').name
+  if (!APP_PAGES.includes(to as AppPage)) return false
+  e.preventDefault()
+  s.ws.showAppPage(to as AppPage, group ?? undefined, background)
+  return true
+}
+const APP_PAGES: AppPage[] = ['changelog', 'welcome']
+
+// The Welcome tab: the welcome page, its buttons acting from here (a new course in this group; Go to my courses: the
+// active file's home here).
+function Welcome({ group, s }: { group: string | null; s: PaneShared }) {
+  const { ws } = s
+  const lib = ws.active ? ws.doc(ws.active) : null
+  return (
+    <div className="page" onClick={(e) => openAppPage(e, e.ctrlKey || e.metaKey, group, s)} onAuxClick={(e) => e.button === 1 && openAppPage(e, true, group, s)}>
+      <HomeScreen
+        lib={lib}
+        nav={null}
+        driveSetUp={ws.drive.setUp}
+        loadLabel={ws.loadLabel}
+        loadHint={ws.loadHint}
+        openFile={s.openFile}
+        openGuide={s.openGuide}
+        newCourse={() => s.newCourse(group ?? undefined)}
+        welcome
+        toCourses={() => ws.active && ws.openPlace(ws.active, { name: 'home' }, { group: group ?? undefined })}
+        openDrive={s.openDrive}
+      />
+    </div>
+  )
+}
+
 function Home({ lib, nav, s }: { lib: LibraryApi; nav: Nav; s: PaneShared }) {
   return (
     <HomeScreen
@@ -96,9 +127,8 @@ function Home({ lib, nav, s }: { lib: LibraryApi; nav: Nav; s: PaneShared }) {
       loadHint={s.ws.loadHint}
       openFile={s.openFile}
       openGuide={s.openGuide}
-      newCourse={s.newCourse}
-      welcome={s.welcome}
-      endWelcome={s.endWelcome}
+      newCourse={() => s.newCourse()}
+      welcome={false}
       openDrive={s.openDrive}
     />
   )
@@ -147,13 +177,10 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
   // Links to a page of this file go through the tab (the address bar follows only the main window's active tab);
   // Ctrl or the middle button opens it in a new tab beside this one.
   const follow = (e: MouseEvent<HTMLElement>, newTab: boolean) => {
+    if (openAppPage(e, newTab, group, s)) return
     const link = (e.target as Element).closest?.('a[href^="#/"]')
     if (!link || e.defaultPrevented || e.shiftKey || e.altKey) return
     const to = parseHash(link.getAttribute('href') ?? '')
-    if (to.name === 'changelog') {
-      e.preventDefault()
-      return ws.showChangelog(group ?? undefined)
-    }
     if (!FILE_PAGES.includes(to.name)) return
     e.preventDefault()
     if (newTab) ws.openPlace(tab.data.doc, to, { group: group ?? undefined, newTab: true, background: true })

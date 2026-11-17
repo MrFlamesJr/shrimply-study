@@ -6,7 +6,7 @@ import { useWorkspace, type DocId } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
 import { openPopup } from './kit/windows'
-import { canSplit, type TabData, type WorkbenchDoc } from './logic/workbenchActions'
+import { APP_PAGE_TITLE, canSplit, poppedOut, type TabData, type WorkbenchDoc } from './logic/workbenchActions'
 import { nodeOf } from './logic/explorerTree'
 import type { ItemRef } from './logic/contentOps'
 import { fileStorage, loadGuide } from './storage/fileStorage'
@@ -32,7 +32,7 @@ import { askChoice, askConfirm } from './components/ConfirmDialog'
 import { DriveDialog } from './components/DriveDialog'
 
 // The app's own pages shown instead of the workbench: debug in the page cell (the workbench kept, hidden), the kit
-// demo full screen. Every release's notes (#/_changelog) open as a tab instead.
+// demo full screen. What's new (#/_changelog) and the welcome page open as tabs instead.
 const OWN_PAGES: Route['name'][] = ['debug', 'workbench']
 const HOME: Route = { name: 'home' }
 // The window size a popped-out group asks for when its pane can't be measured.
@@ -53,7 +53,7 @@ export function App() {
   // (replacing the entry), going somewhere in it pushes one (makeTabNav). Each entry names its tab (history.state
   // `{ tab }`), so Back and Forward go to that tab, wherever it is now, on that page (workspace.followHistory); an
   // entry with no tab of its own (a typed address) goes to the main window's tab only when its file has that page.
-  // Pages of the app itself and Drive links are left alone; the changelog's address opens it as a tab.
+  // Pages of the app itself and Drive links are left alone; What's new's address opens its tab.
   const addr = ws.address
   const addrKey = addr ? `${addr.id} ${href(addr.data.route)}` : ''
   const entryTab = () => {
@@ -69,7 +69,7 @@ export function App() {
       const now = latest.current
       const to = parseHash(location.hash)
       if (!now.ready || OWN_PAGES.includes(to.name) || to.name === 'drive') return
-      if (to.name === 'changelog') flushSync(() => now.showChangelog())
+      if (to.name === 'changelog') flushSync(() => now.showAppPage('changelog'))
       else flushSync(() => now.followHistory(entryTab(), to))
     }
     addEventListener('popstate', onNav)
@@ -90,7 +90,7 @@ export function App() {
     const first = !started.current
     started.current = true
     const here = parseHash(location.hash)
-    if (first && here.name === 'changelog') return ws.showChangelog()
+    if (first && here.name === 'changelog') return ws.showAppPage('changelog')
     if (OWN_PAGES.includes(here.name) || here.name === 'drive' || here.name === 'changelog' || !addr) return
     if (first && ws.followHistory(entryTab(), here)) return
     const target = href(addr.data.route)
@@ -127,15 +127,17 @@ export function App() {
     saveTipsOpen(open)
     setTipsOpen(open)
   }
-  // Home is the welcome page whenever no file is open, and also on a first visit and once after each release
-  // (`RELEASES`; the last one shown is remembered in this browser). Shown counts as seen; it ends with its main
-  // button, a library it opened, or leaving home. Landing elsewhere keeps it for the next visit.
-  const [welcome, setWelcome] = useState(() => loadSeenRelease() !== RELEASES[0].name)
-  const welcoming = welcome && !own && (!addr || addr.data.route.name === 'home')
+  // The welcome page is a tab (the brand opens it). On a first visit and once after each release (`RELEASES`; the
+  // last one shown is remembered in this browser) it opens on start, when the visit starts on home; shown counts as
+  // seen. Landing elsewhere keeps it for the next visit.
+  const welcomed = useRef(false)
   useEffect(() => {
-    if (welcoming) saveSeenRelease(RELEASES[0].name)
-    else setWelcome(false)
-  }, [welcoming])
+    if (!ws.ready || welcomed.current) return
+    welcomed.current = true
+    if (loadSeenRelease() === RELEASES[0].name || parseHash(location.hash).name !== 'home') return
+    saveSeenRelease(RELEASES[0].name)
+    ws.showAppPage('welcome')
+  }, [ws.ready])
   const chooseTheme = (id: ThemeId) => {
     document.documentElement.dataset.theme = id
     saveTheme(id)
@@ -163,11 +165,12 @@ export function App() {
   }, [shownKey])
 
   // A new course goes into the active file (a new one when none is open) and shows in the active group.
-  const newCourse = () => {
+  // A new course in the active file (a new file when none is open), shown in `group` (default: where it opens).
+  const newCourse = (group?: string) => {
     const docId = ws.active ?? ws.newDoc()
     const made = ws.doc(docId).addCourse()
     const route = { name: 'course', course: made.name } as const
-    const tab = ws.openPlace(docId, route)
+    const tab = ws.openPlace(docId, route, group ? { group } : undefined)
     if (tab) tabNav(tab, route).goToNew(made.id, route)
   }
 
@@ -355,9 +358,9 @@ export function App() {
   // A pane's breadcrumbs: the file (its home, under the file's name as it is now), then the course and quiz the tab's
   // page names, followed by id through a rename (as the page is: the tab's route takes the new name only once the
   // typing pauses). A page that is gone shows the file alone while the pane moves on. None for a study session or
-  // the Explorer (each has a head of its own, the same height); every release's notes are named as such.
+  // the Explorer (each has a head of its own, the same height); the app's own pages are under the app's name.
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
-    if (tab.data.kind === 'changelog') return [{ label: 'Shrimply Study', icon: 'app' }, { label: 'All releases' }]
+    if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
     const r = tab.data.route
     if (r.name === 'study') return []
@@ -366,7 +369,7 @@ export function App() {
     const where = ws.docs.find((d) => d.id === (tab.data as { doc: string }).doc)?.where
     // The file starts every trail, marked by where it lives, so even a home reads as a trail: file › page.
     if (r.name === 'home') {
-      const page = welcome || library.courses.length === 0 ? 'Start studying in three steps' : 'Your courses'
+      const page = library.courses.length === 0 ? 'Start studying in three steps' : 'Your courses'
       return [{ label: name, icon: where }, { label: page }]
     }
     const named = resolve(library, r)
@@ -391,8 +394,6 @@ export function App() {
     setCollapsed,
     tipsOpen,
     setTipsOpen: toggleTips,
-    welcome,
-    endWelcome: () => setWelcome(false),
     openDrive: () => setDriveOpen(true),
     openFile: async () => (await ws.openFile()) !== null,
     openGuide: async () => (await ws.openLibrary(loadGuide, 'Guide')) !== null,
@@ -418,6 +419,8 @@ export function App() {
   // With no file open and no tab, the page is the welcome page.
   const welcomeOnly = !own && ws.docs.length === 0 && Object.keys(ws.layout.tabs).length === 0
   const fullPage = hashRoute.name === 'workbench'
+  // The popped-out windows, newest last: an empty group says how many tabs are in them.
+  const popped = poppedOut(ws.layout, (w) => !!popups[w])
   const appClass = ['app', sidebarOpen ? '' : 'is-side-closed', studyAlone ? 'is-session' : ''].filter(Boolean).join(' ')
 
   return (
@@ -436,21 +439,10 @@ export function App() {
           theme={theme}
           setTheme={chooseTheme}
           onDrive={() => setDriveOpen(true)}
-          onNewCourse={newCourse}
+          onNewCourse={() => newCourse()}
           onExplorer={() => showExplorer()}
-          onHome={() => {
-            // The active file's home: its tab in the main window, else a new tab in the active group. With no file
-            // open the link goes home as before (the welcome page).
-            if (!ws.active) return false
-            const doc = ws.active
-            const main = groupsIn(ws.layout, MAIN)
-            const home = Object.values(ws.layout.tabs).find(
-              (t) => t.data.kind === 'doc' && t.data.doc === doc && t.data.route.name === 'home' && main.includes(groupOf(ws.layout, t.id) ?? ''),
-            )
-            if (home) ws.activateTab(home.id)
-            else ws.openPlace(doc, HOME, { newTab: true })
-            return true
-          }}
+          onHome={() => ws.showAppPage('welcome')}
+          onWhatsNew={() => ws.showAppPage('changelog')}
           onOpen={(route, newTab) => {
             if (ws.active) ws.openPlace(ws.active, route, newTab ? { newTab: true, background: true } : undefined)
           }}
@@ -479,9 +471,8 @@ export function App() {
               loadHint={ws.loadHint}
               openFile={shared.openFile}
               openGuide={shared.openGuide}
-              newCourse={newCourse}
+              newCourse={() => newCourse()}
               welcome
-              endWelcome={() => setWelcome(false)}
               openDrive={() => setDriveOpen(true)}
             />
           </main>
@@ -529,6 +520,9 @@ export function App() {
                 onNewFile={() => void ws.newDoc()}
                 onOpenFile={() => void ws.openFile()}
                 onOpenDoc={(id) => void ws.openPlace(id, HOME, { group: groupId })}
+                elsewhere={popped.reduce((n, w) => n + w.tabs.length, 0)}
+                onShowElsewhere={() => popups[popped[popped.length - 1]?.win]?.focus()}
+                onDockAll={() => popped.forEach((w) => dock(w.win))}
               />
             )}
           />
@@ -539,7 +533,6 @@ export function App() {
             hasDoc={!!lib}
             hasChanges={!!lib?.hasChanges}
             onClose={() => setDriveOpen(false)}
-            onOpened={() => setWelcome(false)}
             onPick={() => void pickFromDrive()}
           />
         )}

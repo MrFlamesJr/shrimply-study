@@ -3,7 +3,7 @@
 // touches the DOM, storage or the clock: times and new ids come in as arguments.
 import { FORMATS, type Course, type Library } from '../model'
 import { href, resolve, sameIds, type Route } from '../logic/routes'
-import type { TabData } from '../logic/workbenchActions'
+import type { AppPage, TabData } from '../logic/workbenchActions'
 import type { DriveSource } from '../storage/googleDrive'
 import type { FileRef } from '../storage/StorageAdapter'
 import type { DocRecord, WorkspaceRecord } from '../storage/workspaceRecord'
@@ -14,7 +14,7 @@ import { exists, extract, insert, move, type DocId, type Docs, type Fragment, ty
 import { freeName } from '../logic/names'
 import { plural } from '../logic/plural'
 
-export type { DocId, TabData }
+export type { AppPage, DocId, TabData }
 
 export type Doc = {
   id: DocId
@@ -282,11 +282,16 @@ export function showExplorer(w: Workspace, beside: L.GroupId, o: { split: boolea
   return withLayout(w, tab ? L.activate(w.layout, tab.id) : L.openTab(w.layout, explorer, { group: target }))
 }
 
-/** Every release's notes, in a tab (one at most): where it is, it becomes active; else a new tab (`tabId`) in `group`. */
-export function showChangelog(w: Workspace, group: L.GroupId, tabId: L.TabId): Workspace {
-  const tab = Object.values(w.layout.tabs).find((t) => t.data.kind === 'changelog')
-  if (tab) return withLayout(w, L.activate(w.layout, tab.id))
-  return withLayout(w, L.openTab(w.layout, { id: tabId, data: { kind: 'changelog' } }, { group: w.layout.groups[group] ? group : undefined }))
+/**
+ * One of the app's own pages (What's new, the welcome page) in a tab, one at most each: where it is, it becomes
+ * active; else a new tab (`tabId`) in `group`. `background` (a Ctrl or middle click): a new tab is not shown, and one
+ * already open is left as it is.
+ */
+export function showAppPage(w: Workspace, kind: AppPage, group: L.GroupId, tabId: L.TabId, background = false): Workspace {
+  const tab = Object.values(w.layout.tabs).find((t) => t.data.kind === kind)
+  if (tab) return background ? w : withLayout(w, L.activate(w.layout, tab.id))
+  const at = { group: w.layout.groups[group] ? group : undefined, activate: !background }
+  return withLayout(w, L.openTab(w.layout, { id: tabId, data: { kind } }, at))
 }
 
 /**
@@ -650,9 +655,10 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
     if (data.kind === 'explorer' && !explorer) {
       explorer = true
       tabs[id] = { id, data: { kind: 'explorer' } }
-    } else if (data.kind === 'changelog') {
-      // One at most; a welcome tab kept by an earlier build is left out.
-      if (!Object.values(tabs).some((t) => t.data.kind === 'changelog')) tabs[id] = { id, data: { kind: 'changelog' } }
+    } else if (data.kind === 'changelog' || data.kind === 'welcome') {
+      // One at most each.
+      const kind = data.kind
+      if (!Object.values(tabs).some((t) => t.data.kind === kind)) tabs[id] = { id, data: { kind } }
     } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
       const route = readRoute(data.route)
       if (route) tabs[id] = { id, data: docTabData(data.doc, route) }

@@ -15,7 +15,7 @@ Everything described here runs: `App` mounts the Workbench (with the Explorer ta
   the Explorer adds an entry too. Back, Forward and a typed address are handled in the `popstate` and `hashchange` events
   (at once, `flushSync`): the entry's own tab, wherever it is now, becomes active on that page (`ws.followHistory`), and an
   entry with no tab (a typed address) goes to the main window's tab only when its file has that page. On start the address
-  wins. The debug page and Drive links are left alone; `#/_changelog` opens the notes as a tab (`ws.showChangelog`).
+  wins. The debug page and Drive links are left alone; `#/_changelog` opens the What's new tab (`ws.showAppPage('changelog')`).
 - **Keys** (`useKeydown`): Ctrl+S saves the active file; Ctrl+Alt+S saves every file with changes; undo and redo
   (`Mod+Z`, `Mod+Shift+Z`, `Ctrl+Y`) are app-wide through `ws.undo` and `ws.redo` and left to the browser inside text
   fields (`isEditable`); `Mod+Shift+E` shows the Explorer; `Mod+\` splits the active group; Ctrl+Alt+Shift+D toggles the debug bar.
@@ -63,11 +63,14 @@ Saving, Drive, the browser backup and restoring on start are done here, through
   follows links to pages of its file inside the tab (Ctrl or middle button: a new tab beside it). Screens get `lib:
   LibraryApi`, `nav: Nav`, and for study `active` (only the active pane's keys work).
 - **Empty groups and the brand.** A group with no tab shows `EmptyPane` (Show the Explorer, New file, Open file, and each open
-  file's home to open there). Clicking the Sidebar's brand opens the active file's home: the file's home tab in the main window
-  when it has one, else a new tab in the active group; with no file open it goes home (the welcome page).
+  file's home to open there). Clicking the Sidebar's brand opens the Welcome tab (`ws.showAppPage('welcome')`); the sidebar's What's
+  new link opens the What's new tab. Both are one at most and come back on reload. An empty group also says how many tabs
+  are in popped-out windows (`poppedOut`), with Show them and Dock all; the main window's top-right strip shows that
+  count with a menu of the windows and Dock all.
 - **Breadcrumbs.** Each pane's `PaneHead` (a compact plain row, no frosted glass) shows the trail built by `App.crumbs`: the file's name first (led by an icon of where it lives; on its home followed by
   the page's own name, "Your courses"), then the course and
-  quiz, followed by id through renames; none for a study session or the Explorer; the shrimp, "Shrimply Study" › "All releases" for a changelog tab. In a pane
+  quiz, followed by id through renames; none for a study session or the Explorer; the shrimp, "Shrimply Study" › "What's new" or "Welcome" for the app's own tabs. The row starts
+  at the pane's left, in line with the first tab's text. In a pane
   narrower than 480px the trail becomes one "‹ parent" link. A click goes through that pane's own tab.
 - **Sidebar** (`src/layout/Sidebar.tsx`): under the brand a "Files" heading with New file, Open file, Google Drive and Save
   all (the actions a top bar used to hold), then `ws.docs` as file rows (Save, Download, Close; `ws.activate`), the course tree of the active file (a click shows the page in the active group, Ctrl or middle in a new tab), and

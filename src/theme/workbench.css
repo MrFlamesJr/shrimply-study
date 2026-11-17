@@ -59,8 +59,25 @@
   height: 32px;
   min-height: 0;
 }
+/* The main window's count of tabs in popped-out windows (its top-right strip, beside Split and More): the pop-out
+   mark, in a fixed cell so its hover pop moves nothing, then the number, quiet like the strip's icon buttons. */
+.wb-group .kit-tabs-actions .icon-btn.wb-elsewhere {
+  width: auto;
+  gap: 0;
+  padding-inline: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+.wb-elsewhere-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+.wb-elsewhere-count {
+  font-variant-numeric: tabular-nums;
+}
 /* A pane: its breadcrumbs on top, then what scrolls. Its width is what the breadcrumbs and its page answer to
-   (@container pane, and the page pad in cqw), not the window's, so the crumbs line up with the page in any pane. */
+   (@container pane, and the page pad in cqw), not the window's. */
 .wb-pane {
   container: pane / inline-size;
   --page-pad: max(var(--space-7), calc((100cqw - var(--content-w)) / 2));
@@ -165,6 +182,20 @@
 .wb-empty .shortcut {
   margin-left: var(--space-1);
 }
+/* Tabs in popped-out windows: a muted line, then its two links (Show them, Dock all), underlined at rest
+   as they sit in a line of text. */
+.wb-empty-elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+.wb-empty-elsewhere button.link {
+  text-decoration-color: currentColor;
+}
 @container pane (max-width: 359px) {
   .wb-empty-mark svg {
     width: 80px;
@@ -173,13 +204,14 @@
 }
 
 /* The pane head: a compact, plain row of breadcrumbs on the pane's own ground, the top of the pane (nothing scrolls
-   under it, so it needs no glass), lined up with the page under it. */
+   under it, so it needs no glass). It starts at the pane's left (asked for), in line with the first tab's text above
+   it (the strip's inset plus the tab's own: kit tabs.css), in every pane, popup and width. */
 .pane-head {
   display: flex;
   flex: none;
   align-items: center;
   height: 32px;
-  padding-inline: var(--page-pad) var(--space-3);
+  padding-inline: calc(var(--space-2) + var(--kit-space-3)) var(--space-3);
   font-size: var(--text-sm);
   white-space: nowrap;
 }

@@ -2,6 +2,7 @@ import { comboLabel, isMac } from '../kit/shortcuts'
 import { BrowserIcon, CloudIcon, FileIcon, FolderIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
 import type { DocMeta } from '../state/useWorkspace'
+import { elsewhereText } from '../logic/workbenchActions'
 
 type Props = {
   /** The open files: each one's home can open here. */
@@ -11,6 +12,10 @@ type Props = {
   onOpenFile(): void
   /** Opens a file's home in this group. */
   onOpenDoc(id: string): void
+  /** How many tabs are in popped-out windows: Show them brings the newest window to the front; Dock all. */
+  elsewhere: number
+  onShowElsewhere(): void
+  onDockAll(): void
 }
 
 const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
@@ -18,9 +23,9 @@ const WHERE_ICON = { drive: CloudIcon, device: FileIcon, browser: BrowserIcon }
 /**
  * A group with no tab: a calm page in the style of the empty sidebar, a large faded shrimp (a watermark, not text to
  * read), "No tab open" as a quiet title, then what can go here: the Explorer, a new or opened file, and each open
- * file's home.
+ * file's home; and how many tabs are in popped-out windows, with ways to them.
  */
-export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc }: Props) {
+export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc, elsewhere, onShowElsewhere, onDockAll }: Props) {
   const mac = isMac(navigator.platform)
   return (
     <div className="wb-empty">
@@ -45,6 +50,17 @@ export function EmptyPane({ docs, onExplorer, onNewFile, onOpenFile, onOpenDoc }
           </button>
         </li>
       </ul>
+      {elsewhere > 0 && (
+        <p className="wb-empty-elsewhere">
+          {elsewhereText(elsewhere, true)}
+          <button type="button" className="link" onClick={onShowElsewhere}>
+            {elsewhere === 1 ? 'Show it' : 'Show them'}
+          </button>
+          <button type="button" className="link" onClick={onDockAll}>
+            Dock all
+          </button>
+        </p>
+      )}
       {docs.length > 0 && (
         <section className="wb-empty-files" aria-label="Open files">
           <p className="wb-empty-label">Open files</p>

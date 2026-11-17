@@ -9,11 +9,11 @@ from helpers import load_test_library, open_app  # noqa: E402
 def first_quiz(page, base):
     """First course > quiz link in the loaded library."""
     page.goto(base + '#/')
-    page.locator('h1').first.wait_for()
+    page.locator('h1:visible').first.wait_for()
     course = next(h for h in page.eval_on_selector_all('a[href^="#/"]', 'els => els.map(e => e.getAttribute("href"))')
                   if len([p for p in h[2:].split('/') if p]) == 1 and not h[2:].startswith('_'))
     page.goto(base + course)
-    page.locator('h1').first.wait_for()
+    page.locator('h1:visible').first.wait_for()
     return next(h for h in page.eval_on_selector_all('a[href^="#/"]', 'els => els.map(e => e.getAttribute("href"))')
                 if len([p for p in h[2:].split('/') if p]) == 2 and not h[2:].startswith('_'))
 

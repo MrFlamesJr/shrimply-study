@@ -1,22 +1,12 @@
-import type { Nav } from '../route'
 import { PageHead } from '../components/Page'
 import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
 import { RELEASES } from '../releaseNotes'
 
-/** Every release's notes, newest first: a page of its own, full screen outside the app shell, with the way back. */
-export function ChangelogScreen({ nav }: { nav: Nav }) {
-  const { go } = nav
+/** What's new: every release's notes, the newest first, in a tab of its own (closed like any tab). */
+export function ChangelogScreen() {
   return (
-    <main className="page changelog">
-      <PageHead
-        title="All releases"
-        sub="What's new in each release, newest first"
-        actions={
-          <button type="button" className="primary" onClick={() => go({ name: 'home' })}>
-            Back to the app
-          </button>
-        }
-      />
+    <main className="page">
+      <PageHead title="What's new" sub="Every release's notes, the newest first" />
       {RELEASES.map((release) => (
         <section key={release.name}>
           <div className="release-head">

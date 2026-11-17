@@ -36,7 +36,7 @@ function PanelHead({ icon, title, about, children }: { icon: ReactNode; title: s
  * file gets, Save, and its share link) and opening one of yours (search, the list, open, move to the bin); then a
  * footer for the Google account. The long explanations wait behind each panel's (i). Who can save to a file is
  * Google's answer, asked after signing in, never a guess. File names show exactly as they are in Drive.
- * `onOpened`: a library was opened from the list (App then leaves the welcome page for the course list).
+ * `onOpened`: a library was opened from the list.
  */
 /**
  * `onPick`: Google's file picker, for files the app can't see yet (App closes this dialog while it shows). `drive`:
@@ -54,7 +54,7 @@ export function DriveDialog({
   hasDoc: boolean
   hasChanges: boolean
   onClose: () => void
-  onOpened: () => void
+  onOpened?: () => void
   onPick: () => void
 }) {
   const missingId = useId()
@@ -223,7 +223,7 @@ export function DriveDialog({
     return run(async () => {
       if (!(await drive.open(f.id, true))) return
       // It shows in a tab of its own, on its home.
-      onOpened()
+      onOpened?.()
       dialog?.close()
     })
   }

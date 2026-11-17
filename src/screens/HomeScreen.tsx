@@ -5,13 +5,13 @@ import { QuizTiles } from '../components/QuizTiles'
 import { PageHead } from '../components/Page'
 import { InfoBox } from '../components/InfoBox'
 import { ReleaseNotes, releaseDate } from '../components/ReleaseNotes'
-import { PlusIcon, ShrimpIcon } from '../components/Icons'
+import { OpenIcon, PlusIcon, ShrimpIcon } from '../components/Icons'
 import { plural } from '../logic/plural'
 import { RELEASES } from '../releaseNotes'
 import { LearnMore } from './home/LearnMore'
 
 type Props = {
-  /** The active file; null when none is open (home is then the welcome page). */
+  /** The file (a file's home), or the active file (the Welcome tab); null when none is open. */
   lib: LibraryApi | null
   /** The tab's navigation (its quiz tiles open a new quiz in it); null with no file open. */
   nav: Nav | null
@@ -24,15 +24,15 @@ type Props = {
   openGuide: () => Promise<boolean>
   /** "New course": in the active file, or in a new one when none is open. */
   newCourse: () => void
-  /** Home is the welcome page even with courses: a first visit, or once after a release (App decides). */
+  /** The welcome page even with courses (the Welcome tab); a file's home shows it only while it has none. */
   welcome: boolean
-  /** Back to the course list: the welcome page's main button, or after it opened a library. */
-  endWelcome: () => void
+  /** The welcome page's Go to my courses (with courses): the active file's home. */
+  toCourses?: () => void
   /** Opens the Google Drive dialog, where the user's Drive libraries are listed to open. */
   openDrive: () => void
 }
 
-export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile, openGuide, newCourse, welcome, endWelcome, openDrive }: Props) {
+export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile, openGuide, newCourse, welcome, toCourses, openDrive }: Props) {
   // Beside every Open file: the other place a library can come from.
   const fromDrive = (className?: string) =>
     driveSetUp && (
@@ -43,11 +43,8 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
   const courses = lib?.library.courses ?? []
   const [notesOpen, setNotesOpen] = useState(true)
   const [learnMore, setLearnMore] = useState(false)
-  const open = async (from: () => Promise<boolean>) => {
-    if (!(await from())) return
-    // What opened shows in a tab of its own, on its home.
-    endWelcome()
-  }
+  // What opens shows in a tab of its own, on its home.
+  const open = (from: () => Promise<boolean>) => void from()
   // What's new is always on home, on the welcome page and the course list alike (asked for).
   const whatsNew = (
     <InfoBox
@@ -58,7 +55,9 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
     >
       <ReleaseNotes notes={RELEASES[0].notes} />
       <p className="all-changes">
-        <a href={href({ name: 'changelog' })}>See all releases</a>
+        <a className="open-link" href={href({ name: 'changelog' })} title="Every release's notes, in a tab of their own">
+          Open What's new <OpenIcon />
+        </a>
       </p>
     </InfoBox>
   )
@@ -100,22 +99,22 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
         )}
         <div className="actions">
           {returning ? (
-            <button type="button" className="primary" onClick={endWelcome}>
+            <button type="button" className="primary" onClick={toCourses}>
               Go to my courses
             </button>
           ) : (
-            <button type="button" className="primary" onClick={newCourse}>
+            <button type="button" className="primary" onClick={() => newCourse()}>
               Create your first course
             </button>
           )}
           <button
             type="button"
             title="Opens a short course about this app beside your files, to try it out"
-            onClick={() => void open(openGuide)}
+            onClick={() => open(openGuide)}
           >
             Try the guide
           </button>
-          <button type="button" title={loadHint} onClick={() => void open(openFile)}>
+          <button type="button" title={loadHint} onClick={() => open(openFile)}>
             {loadLabel}
           </button>
           {fromDrive()}
@@ -140,11 +139,11 @@ export function HomeScreen({ lib, nav, driveSetUp, loadLabel, loadHint, openFile
         sub={`${plural(courses.length, 'course')} · ${plural(quizCount, 'quiz', 'quizzes')}`}
         actions={
           <>
-            <button type="button" className="mobile-only" title={loadHint} onClick={() => void open(openFile)}>
+            <button type="button" className="mobile-only" title={loadHint} onClick={() => open(openFile)}>
               {loadLabel}
             </button>
             {fromDrive('mobile-only')}
-            <button type="button" className="add" onClick={newCourse}>
+            <button type="button" className="add" onClick={() => newCourse()}>
               <PlusIcon /> New course
             </button>
           </>

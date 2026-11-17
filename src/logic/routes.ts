@@ -10,7 +10,7 @@ import { slug } from './names'
 //   #/<course>/<quiz>/edit             edit the quiz's cards
 //   #/<course>/<quiz>/study/<format>   full-screen study session
 //   #/_debug                           test tools (not linked; _debug is never a slug)
-//   #/_changelog                       every release's notes, full screen (from What's new on home)
+//   #/_changelog                       What's new (every release's notes), opened as a tab
 //   #/_workbench                       a demo host of the reusable kit (src/kit/demo/, not linked)
 //   #/_drive/<file id>                 a library shared on Google Drive: opens it, then goes home
 // `course` and `quiz` hold names, or the slugs read from the address; `resolve` matches both.

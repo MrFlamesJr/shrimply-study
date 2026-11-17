@@ -423,7 +423,7 @@ one, and read no clock or random source (times and new ids are arguments; `useWo
   `dockWindow`, `splitGroup` (a new group beside one; a dragged tab moves into it, else a copy of a file's tab; the
   Explorer is never copied), `popOutGroup` (the main window's only group first gets an empty group beside it, so the main
   window never ends up with nothing), `popOutTab` (one tab into a new window in a group of its own, the rest of its group
-  staying; a lone tab takes its group, as `popOutGroup`), `explorerTab`, `isShown`, `showChangelog(w, group, tabId)` (every release's notes in a tab, one at most: activated where it is, else a new tab in the group), `followHistory`, `showExplorer` (one Explorer at most: activated where it
+  staying; a lone tab takes its group, as `popOutGroup`), `explorerTab`, `isShown`, `showAppPage(w, kind, group, tabId, background?)` (one of the app's own pages, What's new (`changelog`) or the welcome page (`welcome`), in a tab, one at most each: activated where it is, else a new tab in the group; `background` opens it without showing it and leaves an open one as it is), `followHistory`, `showExplorer` (one Explorer at most: activated where it
   shows, else split on the left of a group, else a tab), `recentGroup`.
 - Back and Forward: `followHistory(w, tabId, route)`. A history entry names its tab (`history.state.tab`); that tab, wherever it
   is now (any group or window), becomes active on the entry's page. With no such tab (a typed address) the main window's
@@ -475,7 +475,7 @@ export type WorkspaceApi = {
   split(groupId, dir, side, tabId?, move?): void; join(from, into): void; resize(win, path, sizes): void
   popOut(groupId, win): void; popOutTab(tabId, win): void; dock(win): void   // the caller opens the popup, in the click
   showExplorer(beside: GroupId, split: boolean): void
-  showChangelog(group?: GroupId): void             // every release's notes in a tab (one at most)
+  showAppPage(kind: AppPage, group?: GroupId, background?: boolean): void   // What's new or the welcome page in a tab (one at most each)
   followHistory(tabId: TabId | null, route: Route): boolean   // Back, forward or a typed address; true when something changed
   recentGroup(except: GroupId | null): GroupId | null
   apply(label: string, update: (docs: Docs) => Docs, key?: string): void   // the one content write path
@@ -553,7 +553,8 @@ one was started is dropped. An open from the list becomes an open file: expanded
   way to one "‹ <parent>" link, when the page has a parent. `App.crumbs(tab)` builds the trail: the file first (under its name
   as it is now, with its where-icon; on its home followed by the page's own name, so a home reads file › "Your courses"), then the course and quiz the tab's page names, followed by id through a rename (`followRename`); a page that
   is gone shows the file alone; none for a study session or the Explorer (each has a head of its own, the same height); a
-  changelog tab is the shrimp's "Shrimply Study" › "All releases".
+  tab of the app's own is the shrimp's "Shrimply Study" › "What's new" or "Welcome". The row starts at the pane's left, in line
+  with the first tab's text.
 - `PaneScreen(p: { tab; group; shown; active; s: PaneShared })`: one tab's screen. An Explorer tab renders `ExplorerPane`; a
   changelog tab renders `ChangelogScreen` (its way back closes the tab); a tab whose file is gone renders nothing; a file tab renders `DocPane`: its own `Nav`
   from `makeTabNav`, `usePlaceFor` for the course and quiz its route names (a deleted one leads to the nearest page with a

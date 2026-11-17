@@ -141,3 +141,20 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   each of its groups' ⋯ menus. A tab's menu now moves just that tab (Move to new window, `popOutTab`: a new group there);
   the ⋯ menu moves the group (Move group to new window). The main window's last group may now go too (the menu used to
   refuse it): the main window keeps an empty group, which shows the empty pane page. An empty group can not be moved.
+- Asked for, 2026-11-16: What's new is a tab (the changelog tab renamed, its data kind still `changelog` so stored
+  workspaces keep it), opened from a small link under the sidebar's Explorer and from home's What's new box, both the
+  shared `.open-link` with the new `OpenIcon`. Its page lost "Back to the app" (a tab closes with its ✕). A Ctrl or
+  middle click on its link opens it without showing it; when it is already open that leaves it as it is.
+- Asked for, 2026-11-16: the brand opens a Welcome tab (kind `welcome`, one at most, kept on reload) instead of the
+  active file's home. The welcome page's showing on a first visit and once after each release now opens that tab on
+  start (only when the visit starts on home, as before), and a file's home is the welcome page only while it has no
+  courses. In the tab, Create your first course uses the active file when it has no courses (no pile of empty files),
+  else a new file, and opens the course in the tab's group; Go to my courses shows the active file's home there. With
+  no file and no tab, the page cell still shows the welcome page (no tab to close).
+- Asked for, 2026-11-16: the crumbs start at the pane's left, in line with the first tab's text (the strip's inset
+  plus the tab's own), no longer with the page's padding. Where the strip makes room for the app's corner (sidebar
+  closed, or below 800px) the crumbs keep the base inset, under the corner.
+- Asked for, 2026-11-16: the main window counts the tabs in popped-out windows: a count (the `OpenIcon` and a number,
+  its icon in a fixed cell so the hover pop moves nothing) in its top-right group's strip, whose menu lists each window
+  by its tabs' titles and Dock all; an empty group's page says "2 tabs are in other windows" with Show them (the newest
+  window to the front; "Show it" for one) and Dock all, underlined at rest as they sit in a line of text.

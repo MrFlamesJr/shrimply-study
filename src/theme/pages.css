@@ -74,30 +74,9 @@
 .welcome > .info-box.is-min {
   margin-inline: auto;
 }
-/* What's new's way to every release's notes, under this release's: a link like Learn more (small, muted, and
-   underlined at rest since it stands alone), lighting up to the text color on hover. */
+/* What's new's way to its tab, under this release's notes: the shared .open-link (base.css), as in the sidebar. */
 .info-box-content > .all-changes {
   margin-top: var(--space-4);
-  font-size: var(--text-sm);
-}
-.all-changes a {
-  color: var(--text-muted);
-  text-decoration-color: currentColor;
-  transition: color var(--dur-fast) var(--ease);
-}
-.all-changes a:hover {
-  color: var(--text);
-}
-/* Every release's notes (ChangelogScreen.tsx): a page of its own, full screen outside the app shell, in the
-   same centered column as the app's pages (the shell sets --page-pad on .app, so it is set again here). */
-.changelog {
-  --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
-  min-height: 100dvh;
-}
-@media (max-width: 799px) {
-  .changelog {
-    --page-pad: var(--space-4);
-  }
 }
 .steps {
   display: grid;

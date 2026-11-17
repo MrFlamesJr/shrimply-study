@@ -28,7 +28,7 @@ type Props = { crumbs: Crumb[]; onCrumb(route: Route): void }
 
 /**
  * A pane's breadcrumbs, a plain row at the top of the pane: the file (with where it lives), then the page (on the
- * file's home its own name, "Your courses"), course and quiz, lined up with the page under them. Long ones truncate,
+ * file's home its own name, "Your courses"), course and quiz, from the pane's left in line with the tab strip. Long ones truncate,
  * never overlap. In a narrow pane (its own width, not the window's: workbench.css) the trail gives way to one
  * "‹ <parent>" link, when the page has a parent to go back to (on a file's home it stays the trail).
  */

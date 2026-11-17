@@ -16,7 +16,7 @@ import { comboLabel, isMac } from '../kit/shortcuts'
 import { redoLabel, undoLabel } from '../kit/history'
 import type { GroupId, Layout, TabId, WindowId } from '../kit/layout'
 import * as W from './workspace'
-import type { Clipboard, DocId, DocTab, Explorer, TabData } from './workspace'
+import type { AppPage, Clipboard, DocId, DocTab, Explorer, TabData } from './workspace'
 export type { DocId, DocTab, DriveFile, DriveSource, FileRef, TabData }
 
 /** Shows a question with a confirm button; resolves true when confirmed. */
@@ -194,8 +194,11 @@ export type WorkspaceApi = {
   dock(win: WindowId): void
   /** Shows the Explorer: activated where it shows, else split on the left of `beside` (`split`) or as a tab. */
   showExplorer(beside: GroupId, split: boolean): void
-  /** Every release's notes in a tab (one at most), in `group` (default: the active one). */
-  showChangelog(group?: GroupId): void
+  /**
+   * One of the app's own pages in a tab (one at most each: What's new, the welcome page), in `group` (default: the
+   * active one); `background` (a Ctrl or middle click) opens it without showing it.
+   */
+  showAppPage(kind: AppPage, group?: GroupId, background?: boolean): void
   /** Back, forward or a typed address: the entry's own tab (`tabId`, from history.state) takes its page (see workspace.followHistory); true when something changed. */
   followHistory(tabId: TabId | null, route: Route): boolean
   /** The group used most recently other than `except`. */
@@ -1226,9 +1229,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const made = ids()
       update((w) => W.showExplorer(w, beside, { split, tabId: made.tab, groupId: made.group }))
     },
-    showChangelog: (group) => {
+    showAppPage: (kind, group, background) => {
       const tab = newId()
-      update((w) => W.showChangelog(w, group ?? w.layout.activeGroup, tab))
+      update((w) => W.showAppPage(w, kind, group ?? w.layout.activeGroup, tab, background))
     },
     followHistory: (tabId, route) => {
       const before = ref.current
