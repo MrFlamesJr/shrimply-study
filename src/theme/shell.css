@@ -195,22 +195,28 @@
   flex-shrink: 0;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-2);
+  gap: var(--space-1);
   min-height: 28px;
-  padding: 0 var(--space-1) 0 var(--space-3);
+  padding: 0 var(--space-1) 0 var(--space-2);
   background: var(--bg);
 }
 .sidebar-bar .sidebar-news {
+  flex-shrink: 0;
   padding: 0 var(--space-1);
   font-size: var(--text-xs-plus);
+  white-space: nowrap;
 }
 /* The theme: one small control, so "Theme" reads as its label (asked for): a thin outline round the muted name and
    the theme in full text with its chevron; pointed at, the whole of it brightens, and a click anywhere on it opens
    the list. */
+/* Never wraps (asked for): the footer's spacing is tight enough for the longest theme name (Enchanted forest) in the
+   280px sidebar; anything longer is cut short with an ellipsis, the whole of it in the open list. */
 .theme-pick {
   display: flex;
   align-items: center;
+  min-width: 0;
   height: 22px;
+  white-space: nowrap;
   padding-left: var(--space-2);
   border: var(--line) solid var(--border);
   border-radius: var(--radius);
@@ -227,8 +233,11 @@
 }
 .theme-pick select,
 .theme-pick select:hover {
+  min-width: 0;
   height: 100%;
-  padding: 0 var(--space-2);
+  overflow: hidden;
+  padding: 0 var(--space-1);
+  text-overflow: ellipsis;
   background: transparent;
   color: var(--text);
   font-size: var(--text-xs-plus);

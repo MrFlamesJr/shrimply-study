@@ -6,6 +6,7 @@ React study app (flashcards, multiple choice, typing) hosted on GitHub Pages. Th
 - Build one step at a time, then stop. Don't start the next feature unasked.
 - FEATURES.md is the ranked backlog. Update it at the end of every step.
 - When the user asks for the "next step": suggest 1 to 3 `todo` items from FEATURES.md with a one-line reason each, then wait for their choice.
+- Done means checked at the edges, not only with what happens to be on screen (asked for, after a long theme name wrapped in the sidebar's footer): every text a change shows that can vary (theme names, file, course, quiz and card names, counts, Drive file names, messages) is tried at its longest real value and at its shortest, in every place it shows, at the narrowest width that place can take (the 280px sidebar, the drawer below 800px, a pane under 480px, a 320px window), and in every theme (display fonts draw at different widths). One-line rows and controls never wrap, spill out or clip without an ellipsis (the whole text then in a tooltip or the open list); measure it (an element's height and its `scrollWidth` against `clientWidth`), never judge by eye. A new control or row that holds varying text gets an e2e check that walks those values (as `e2e/sidebar_tree.py` does for every theme name), so the bug can not come back.
 
 ## Commands
 - `npm run dev`, `npm run build`, `npm run preview`

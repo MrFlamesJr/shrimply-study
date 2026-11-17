@@ -126,5 +126,16 @@ def run(page, base):
     fresh.locator('.file-row').hover()
     fresh.get_by_role('button', name='New course in New library', exact=True).click()
     wait_for(page, lambda: fresh.locator('.file-course').count() == 1, "the empty file's New course adds a course there")
+    # Every theme name fits the footer's theme control on one line, the longest too (asked for: Enchanted forest
+    # wrapped once), and nothing in the footer spills out of the sidebar.
+    fit = """() => { const pick = document.querySelector('.theme-pick'), sel = pick.querySelector('select'), bar = document.querySelector('.sidebar-bar')
+      return { h: pick.getBoundingClientRect().height, clipped: sel.scrollWidth > sel.clientWidth, spill: bar.scrollWidth > bar.clientWidth,
+               out: pick.getBoundingClientRect().right > document.querySelector('.sidebar').getBoundingClientRect().right } }"""
+    options = page.locator('.theme-pick select option').evaluate_all('os => os.map(o => o.value)')
+    for theme in options:
+        page.select_option('.theme-pick select', theme)
+        m = page.evaluate(fit)
+        assert m['h'] <= 24 and not m['clipped'] and not m['spill'] and not m['out'], f'the theme control fits with {theme}: {m}'
+    page.select_option('.theme-pick select', options[0])
     if page.errors:
         raise AssertionError('errors: ' + '; '.join(page.errors))
