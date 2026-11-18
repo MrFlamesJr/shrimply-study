@@ -1,15 +1,18 @@
-import { useEffect, useState, type MouseEvent } from 'react'
+import { useState } from 'react'
 import { isTermCard, type Card, type StudyOptions } from '../model'
 import { href, type Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { canChoose, usableCards } from '../logic/buildRound'
-import { missingPart } from '../logic/cardStatus'
+import { cardName, missingPart } from '../logic/cardStatus'
+import { cardRef, fromLine, isCut, trail, undoHint } from '../logic/toastText'
+import { isMac } from '../kit/shortcuts'
 import { plural } from '../logic/plural'
 import { CardDialog } from '../components/CardDialog'
 import type { Notify } from '../components/Toasts'
 import { PageHead } from '../components/Page'
 import { ViewOnlyNote } from '../components/ViewOnlyNote'
-import { OpenIcon, PencilIcon, PlayIcon } from '../components/Icons'
+import { PencilIcon, PlayIcon } from '../components/Icons'
+import { OpenLink } from '../components/OpenLink'
 import { QuizCardList } from './quiz/QuizCardList'
 import { StudyOptionsPanel } from './quiz/StudyOptionsPanel'
 
@@ -30,19 +33,11 @@ type Props = {
    * (the workspace's `undoLater`). Without it the toast names Ctrl+Z.
    */
   undoLater?: () => () => void
-  /** A card to open in the card dialog as the page shows (the Explorer's Edit); `onCardOpened` once it is. */
-  openCard?: string | null
-  onCardOpened?: () => void
 }
 
-export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, nav, onStudyTips, notify, undoLater, openCard, onCardOpened }: Props) {
+export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollapsed, nav, onStudyTips, notify, undoLater }: Props) {
   // The id of the card open in the edit dialog.
   const [editing, setEditing] = useState<string | null>(null)
-  useEffect(() => {
-    if (!openCard) return
-    setEditing(openCard)
-    onCardOpened?.()
-  }, [openCard])
   const found = lib.findQuiz(quizId)
   const { go, goToNew } = nav
   if (!found) return null
@@ -58,15 +53,21 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
   const editingCard = quiz.cards.find((c) => c.id === editing)
   const addCards = () => goToNew(`add:${quiz.id}`, { name: 'edit', course: course.name, quiz: quiz.name })
   const deleteCard = (id: string) => {
-    const number = quiz.cards.findIndex((c) => c.id === id) + 1
+    const gone = quiz.cards.find((c) => c.id === id)
     lib.setCards(quiz.id, quiz.cards.filter((c) => c.id !== id), quiz.groups)
     const undo = undoLater?.()
-    notify?.('info', undo ? `Deleted card #${number}.` : `Deleted card #${number}. Ctrl+Z puts it back.`, undefined, undo && { label: 'Undo', run: undo })
+    if (gone) {
+      const name = cardName(gone)
+      notify?.('info', `Deleted ${cardRef(gone)}.`, {
+        detail: [
+          isCut(name) && `The full name is "${name}".`,
+          fromLine(trail(lib.name, course.name, quiz.name), quiz.groups.find((g) => g.id === gone.group)?.name),
+          undoHint(isMac(navigator.platform)),
+        ],
+        action: undo ? { label: 'Undo', run: undo } : undefined,
+      })
+    }
     setEditing(null)
-  }
-  const openTips = (e: MouseEvent, background: boolean) => {
-    e.preventDefault()
-    onStudyTips(background)
   }
   const saveCard = (edited: Card) => lib.updateCard(quiz.id, edited)
 
@@ -122,15 +123,9 @@ export function QuizScreen({ lib, quizId, prefs, setPrefs, collapsed, setCollaps
         <>
           <StudyOptionsPanel prefs={prefs} setPrefs={setPrefs} format={format} choosable={choosable} hasGroups={quiz.groups.length > 0} kinds={kinds} />
           <p className="study-tips-link">
-            <a
-              className="open-link"
-              href={href({ name: 'studyTips' })}
-              title="What to know about each kind of card, in a tab of its own"
-              onClick={(e) => openTips(e, e.ctrlKey || e.metaKey)}
-              onAuxClick={(e) => e.button === 1 && openTips(e, true)}
-            >
-              How studying works <OpenIcon />
-            </a>
+            <OpenLink href={href({ name: 'studyTips' })} title="What to know about each study mode and kind of card" onOpen={onStudyTips}>
+              How studying works
+            </OpenLink>
           </p>
         </>
       )}

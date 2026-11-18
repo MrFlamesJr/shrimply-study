@@ -4,7 +4,7 @@ import { fileNameProblem } from '../logic/names'
 import type { LibraryApi } from '../state/useWorkspace'
 import { AutoText } from './AutoText'
 import { askChoice, askConfirm } from './ConfirmDialog'
-import { CheckIcon } from './Icons'
+import { CheckIcon, SpinnerIcon } from './Icons'
 import { Modal, closeModal } from './Modal'
 
 const shareUrl = (id: string) => `${location.origin}${location.pathname}${href({ name: 'drive', id })}`
@@ -42,6 +42,8 @@ export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { li
   const [copied, setCopied] = useState<{ id: string; ok: boolean }>()
   // An upload to share is done: the link is copied as soon as the library is its Drive file.
   const [wantLink, setWantLink] = useState(false)
+  // What Google is doing meanwhile, a few seconds each (asked for: the button says so, with a spinner).
+  const [working, setWorking] = useState<'upload' | 'share' | null>(null)
 
   useEffect(() => {
     drive.prepare()
@@ -71,11 +73,23 @@ export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { li
     if (!ok) shareRef.current?.querySelector('textarea')?.select()
     setCopied({ id, ok })
   }
-  // Turns link sharing on first when it isn't on. The link shows once it is, so copying it moves nothing.
+  // Turns link sharing on first when it isn't on. The link shows once it is, so copying it moves nothing. The link is
+  // the app's own, known before sharing is on, so it goes to the clipboard in the click (where every browser allows
+  // it), while Google takes its few seconds to turn sharing on.
   const copyLink = () =>
     run(async () => {
-      if (!file || (!file.shared && !(await drive.share()))) return
-      await copy(file.id)
+      if (!file) return
+      if (file.shared) return copy(file.id)
+      const early = navigator.clipboard.writeText(shareUrl(file.id)).then(
+        () => true,
+        () => false,
+      )
+      setWorking('share')
+      const ok = await drive.share()
+      setWorking(null)
+      if (!ok) return
+      if (await early) setCopied({ id: file.id, ok: true })
+      else await copy(file.id)
     })
   useEffect(() => {
     if (wantLink && file && !lib.readOnly) {
@@ -90,11 +104,13 @@ export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { li
       const text = base
       if (nameProblem) return
       if (!drive.signedIn() && !(await drive.signIn())) return
+      setWorking('upload')
       const taken = await drive.list()
-      if (taken === null) return
+      if (taken === null) return setWorking(null)
       const same = taken.find((f) => f.name === `${text}.shrimp`)
       let ok: boolean
       if (same) {
+        setWorking(null)
         const openHere = openDriveIds.includes(same.id)
         const choice = await askChoice(
           openHere
@@ -107,10 +123,12 @@ export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { li
           { title: 'That name is taken' },
         )
         if (choice === null) return
+        setWorking('upload')
         ok = choice === 'replace' ? await drive.saveOver(same) : await drive.saveNew(text)
       } else {
         ok = await drive.saveNew(text)
       }
+      setWorking(null)
       if (!ok) return
       if (mode === 'upload') dialog?.close()
       else setWantLink(true)
@@ -196,8 +214,16 @@ export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { li
       <>
         <p className="muted">Anyone with the link can view and study it. They can't change it, and they always see your latest version.</p>
         <div className="actions">
-          <button type="button" className="primary" onClick={() => void copyLink()}>
-            Copy link
+          <button type="button" className="primary" aria-busy={working === 'share'} onClick={() => void copyLink()}>
+            {working === 'share' ? (
+              <>
+                <span className="spinner">
+                  <SpinnerIcon />
+                </span> Turning on sharing…
+              </>
+            ) : (
+              'Copy link'
+            )}
           </button>
         </div>
       </>
@@ -238,9 +264,20 @@ export function ShareDialog({ lib, mode, onClose, onRename, openDriveIds }: { li
             type="button"
             className="primary"
             disabled={!!nameProblem}
+            aria-busy={working === 'upload'}
             onClick={(e) => go(e.currentTarget)}
           >
-            {mode === 'upload' ? 'Upload' : 'Upload and copy link'}
+            {working === 'upload' ? (
+              <>
+                <span className="spinner">
+                  <SpinnerIcon />
+                </span> Uploading…
+              </>
+            ) : mode === 'upload' ? (
+              'Upload'
+            ) : (
+              'Upload and copy link'
+            )}
           </button>
         </div>
       </>

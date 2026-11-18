@@ -2,7 +2,7 @@
 import type { Library } from '../model'
 import type { TreeSource } from '../kit/tree'
 import type { DocId } from './contentOps'
-import { explorerSource, type OpenDoc } from './explorerTree'
+import { explorerSource, nodeOf, type OpenDoc } from './explorerTree'
 import { plural } from './plural'
 
 /** The Explorer's source, without the cards: a quiz is a leaf. */
@@ -51,4 +51,18 @@ export function fileInfo(f: {
     f.counts,
     ...(f.problem ? [f.problem] : f.saved ? ['All changes saved'] : []),
   ]
+}
+
+/**
+ * The tree node of the page shown (the sidebar's selected row, the Explorer's dashed one): the course or quiz `current`
+ * names in the active file, else that file's home; null with no active file.
+ */
+export function pageNode(doc: DocId | null, lib: Library | null | undefined, current: string | null | undefined): string | null {
+  if (!doc || !lib) return null
+  const home = nodeOf({ kind: 'doc', doc })
+  if (!current) return home
+  const course = lib.courses.find((c) => c.id === current)
+  if (course) return nodeOf({ kind: 'course', doc, course: course.id })
+  const holder = lib.courses.find((c) => c.quizzes.some((q) => q.id === current))
+  return holder ? nodeOf({ kind: 'quiz', doc, course: holder.id, quiz: current }) : home
 }

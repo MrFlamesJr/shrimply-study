@@ -6,8 +6,9 @@
    shadow; the cards are a richer twilight indigo than Quizlet's grey slate (#272f59, asked for), and the sidebar
    stays a faint step above the ground, like Quizlet's own navigation (asked for). The scheme is a blue monochrome
    with one complement: the action is Quizlet blue (the filled buttons, white text, their key hints unfaded) and its
-   periwinkle (the chosen option, the focus ring, lines and the progress bar, as the blue is too dark to read on the
-   navy), both analogous to the ground; Quizlet's sunset yellow, the blue's complement (h 90), marks only the
+   periwinkle (the focus ring, lines and the progress bar, as the blue is too dark to read on the navy), both
+   analogous to the ground; a chosen or selected thing, its tints and lines, takes the brighter blue of the text
+   selection (--chosen, asked for: the periwinkle tint read grey); Quizlet's sunset yellow, the blue's complement (h 90), marks only the
    shrimp's head (its shell is Quizlet blue, like its logo). Mint and cherry only mean right and wrong, sherbert
    orange is the warning, sky blue is info. DM Sans, a geometric sans close to Quizlet's own Hurme Geometric Sans,
    for titles. No glow and no backdrop; the cards cast Quizlet's faint grey-blue night shadow, and a hovered
@@ -34,6 +35,7 @@
   --accent-fill: #4255ff;
   --accent-ink: #ffffff;
   --selection-color: #7583ff;
+  --chosen: var(--selection-color);
   --ok: #59e8b5;
   --bad: #ff8b85;
   --ok-fill: var(--ok);
@@ -100,6 +102,7 @@
   --tint: 14%;
   --tint-line: 70%;
   --tint-select: 45%;
+  --tint-chosen: 32%;
   --tint-danger: 14%;
   --tint-muted: 45%;
   --tint-rest: 0%;
@@ -127,10 +130,12 @@
   --glow-bad: none;
   --glow-text: none;
   --glow-info: none;
-  --glow-card: 0 4px 16px color-mix(in srgb, var(--text) 8%, transparent);
+  --glow-card:
+    inset 0 0 0 transparent,
+    0 4px 16px color-mix(in srgb, var(--text) 8%, transparent);
   --glow-card-hover:
-    inset 0 -4px 0 var(--accent),
-    0 8px 24px color-mix(in srgb, var(--text) 12%, transparent);
+    inset 0 -2px 0 color-mix(in srgb, var(--accent) 60%, transparent),
+    0 6px 20px color-mix(in srgb, var(--text) 10%, transparent);
 
   /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
      background-image layers over --bg, or none. Over them the moving layer, or none: images that animate

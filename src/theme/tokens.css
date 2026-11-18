@@ -36,6 +36,9 @@
   --surface: oklch(from var(--bg) calc(l + var(--lift-1)) calc(c + var(--lift-1) * var(--lift-chroma)) var(--lift-hue));
   --surface-2: oklch(from var(--bg) calc(l + var(--lift-2)) calc(c + var(--lift-2) * var(--lift-chroma)) var(--lift-hue));
   --surface-3: oklch(from var(--bg) calc(l + var(--lift-3)) calc(c + var(--lift-3) * var(--lift-chroma)) var(--lift-hue));
+  /* A quiet panel on the page, half a surface step above the ground (the info pages' sections): themed like the
+     surfaces, but low, so a page of them never glares. */
+  --surface-low: oklch(from var(--bg) calc(l + var(--lift-1) / 2) calc(c + var(--lift-1) / 2 * var(--lift-chroma)) var(--lift-hue));
   --border: oklch(from var(--bg) calc(l + var(--lift-border)) calc(c + var(--lift-border) * var(--lift-chroma)) var(--lift-hue));
   --border-strong: oklch(
     from var(--bg) calc(l + var(--lift-border-strong)) calc(c + var(--lift-border-strong) * var(--lift-chroma)) var(--lift-hue)
@@ -49,10 +52,14 @@
   /* The filled accent buttons: their text, and their fill while hovered. */
   --accent-text: var(--accent-ink);
   --accent-hover: oklch(from var(--accent-fill) calc(l + var(--hover-lift)) calc(c * var(--hover-chroma)) h);
-  --accent-soft: color-mix(in srgb, var(--accent) var(--tint), transparent);
-  --accent-line: color-mix(in srgb, var(--accent) var(--tint-line), transparent);
+  /* The accent's tints and lines (a selection, a chosen segment, a highlight) take --chosen: the accent itself, except
+     where its tint read grey (asked for): Kahoot's bright violet, Quizlet's brighter blue. */
+  --accent-soft: color-mix(in srgb, var(--chosen) var(--tint), transparent);
+  --accent-line: color-mix(in srgb, var(--chosen) var(--tint-line), transparent);
   /* The faint end of the pulse of a drop target's outline (it fades between --accent-line and this). */
-  --accent-faint: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-faint: color-mix(in srgb, var(--chosen) 20%, transparent);
+  /* A chosen segment and a picked option (asked for: clearer than --accent-soft), each theme's own strength. */
+  --accent-chosen: color-mix(in srgb, var(--chosen) var(--tint-chosen), transparent);
   /* A hovered add pill's edges: the accent fades in from all round, the middle stays clear. */
   --pill-fade: color-mix(in srgb, var(--accent) var(--tint-pill), transparent);
   /* Under a role's tint (danger, info, a group box): the ground with only --tint-keep of its own color and no hue of

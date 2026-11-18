@@ -180,6 +180,15 @@ async function downloadCopy(library: Library, suggested?: string): Promise<strin
   return name
 }
 
+/** A new file picked in the save dialog, written, and kept with its handle (Chrome, Edge); null when cancelled. */
+async function saveAs(library: Library, suggested?: string): Promise<FileRef | null> {
+  if (!window.showSaveFilePicker) return null
+  const handle = await pickAndWrite(encodeChecked(library), saveName(suggested))
+  if (!handle) return null
+  const file = await handle.getFile()
+  return { name: handle.name, handle, size: file.size, modified: file.lastModified }
+}
+
 export const fileStorage: StorageAdapter = {
   openLabel: 'Open file',
   openHint: 'Open .shrimp files. Each opens beside the files already open.',
@@ -192,5 +201,6 @@ export const fileStorage: StorageAdapter = {
   saveInPlace,
   look,
   download: downloadCopy,
+  saveAs,
   sameFile,
 }

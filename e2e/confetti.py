@@ -1,4 +1,4 @@
-"""Results confetti: a canvas for a few seconds (longer when every card was known), none under reduced motion."""
+"""Results confetti: a canvas for a few seconds when every card was known, none with a miss or under reduced motion."""
 import os
 import sys
 
@@ -55,13 +55,11 @@ def run(page, base):
     if page.locator('canvas').count():
         raise AssertionError('a confetti canvas is still there after leaving the results')
 
-    # A round with a miss: a canvas, gone after 2 s.
+    # A round with a miss: no confetti at all (asked for).
     play(page, base, quiz, lambda i: i != 0)
-    if page.locator('canvas').count() != 1:
-        raise AssertionError('round with a miss: no confetti canvas on the results')
-    page.wait_for_timeout(2500)
+    page.wait_for_timeout(500)
     if page.locator('canvas').count():
-        raise AssertionError('round with a miss: the confetti was still there after 2.5 s')
+        raise AssertionError('round with a miss: a confetti canvas appeared')
 
     # Reduced motion: no canvas at all.
     quiet = open_app(page.context.browser, base, reduced_motion=True)

@@ -3,7 +3,7 @@ import { driveIdFromLink } from '../logic/routes'
 import type { DriveFile, WorkspaceApi } from '../state/useWorkspace'
 import { AutoText } from './AutoText'
 import { IconButton } from './IconButton'
-import { CloudIcon, FileIcon, FolderIcon, LinkIcon, ShrimpIcon, TrashIcon } from './Icons'
+import { CloudIcon, FileIcon, FolderIcon, LinkIcon, OpenIcon, ShrimpIcon, TrashIcon } from './Icons'
 import { Modal } from './Modal'
 import { Segmented } from './Segmented'
 
@@ -27,6 +27,8 @@ export function OpenDialog({ ws, onClose, onPick }: { ws: WorkspaceApi; onClose:
   const [tab, setTab] = useState<'drive' | 'link' | 'device'>(drive.setUp && drive.signedIn() ? 'drive' : 'device')
   // The signed-in user's libraries: undefined while they load, null when that failed (the error is a toast).
   const [files, setFiles] = useState<DriveFile[] | null>()
+  // The "Shrimply Study" folder in Google Drive, once there is one (opened in a browser tab of its own).
+  const [folder, setFolder] = useState<string | null>(null)
   const [search, setSearch] = useState('')
   const [link, setLink] = useState('')
   const [linkProblem, setLinkProblem] = useState(false)
@@ -37,12 +39,18 @@ export function OpenDialog({ ws, onClose, onPick }: { ws: WorkspaceApi; onClose:
   useEffect(() => {
     if (drive.setUp) drive.prepare()
   }, [])
+  // The folder's link after the list, once that renewed the sign-in if it had to: never a second sign-in at once.
   const load = async () => {
-    setFiles(await drive.list())
+    const list = await drive.list()
+    setFiles(list)
+    setFolder(list && drive.canListQuietly() ? await drive.folderLink() : null)
   }
   useEffect(() => {
     if (signed) void load()
-    else setFiles(undefined)
+    else {
+      setFiles(undefined)
+      setFolder(null)
+    }
   }, [signed])
 
   const run = async (action: () => Promise<unknown>) => {
@@ -90,7 +98,7 @@ export function OpenDialog({ ws, onClose, onPick }: { ws: WorkspaceApi; onClose:
         </button>
       </div>
     )
-  } else if (files.length === 0) library = <p className="muted">Nothing saved yet. Libraries you upload appear here.</p>
+  } else if (files.length === 0) library = <p className="muted">No libraries in your Google Drive yet. New ones you make or upload show here.</p>
   else {
     library = (
       <>
@@ -158,6 +166,12 @@ export function OpenDialog({ ws, onClose, onPick }: { ws: WorkspaceApi; onClose:
             <>
               {library}
               <div className="open-panel-foot">
+                {signed && folder && (
+                  <a className="open-link" href={folder} target="_blank" rel="noreferrer" title="Your Shrimply Study folder in Google Drive">
+                    Your Shrimply Study folder
+                    <OpenIcon />
+                  </a>
+                )}
                 {signed && (
                   <>
                     <button type="button" className="link drive-missing-btn" popoverTarget={missingId}>
@@ -212,7 +226,7 @@ export function OpenDialog({ ws, onClose, onPick }: { ws: WorkspaceApi; onClose:
           <>
             <p className="muted">
               {ws.savesInPlace
-                ? 'Open a .shrimp file from this computer. It stays tied to that file and saves into it as you work.'
+                ? 'Open a .shrimp file from this computer. It stays tied to that file: Save on its row (or Ctrl+S) writes your changes into it.'
                 : 'Open a .shrimp file from this computer. This browser opens a copy, kept in this browser; upload it to Google Drive to keep it there.'}
             </p>
             <div className="actions">

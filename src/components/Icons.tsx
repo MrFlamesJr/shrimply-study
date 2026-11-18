@@ -31,6 +31,7 @@ import refresh from '../icons/refresh.svg?raw'
 import save from '../icons/save.svg?raw'
 import share from '../icons/share.svg?raw'
 import shrimp from '../icons/shrimp.svg?raw'
+import spinner from '../icons/spinner.svg?raw'
 import split from '../icons/split.svg?raw'
 import trash from '../icons/trash.svg?raw'
 import tumbleweed from '../icons/tumbleweed.svg?raw'
@@ -134,6 +135,10 @@ export const ImageIcon = icon(image)
 
 // An "i" in a circle: how something works.
 export const InfoIcon = icon(info)
+
+// Three quarters of a ring, one stroke with round ends: the loading spinner, turned by its `.spinner` box. A path, not a
+// border with one side see-through, whose joins Chromium draws as a thin tick that turns with the ring.
+export const SpinnerIcon = icon(spinner)
 
 // A tumbleweed spinning along in the wind: a ball with a swirl inside, two spin marks round it and gusts with curled ends
 // behind it. Nothing here. Not shown anywhere now; kept for later (asked for).

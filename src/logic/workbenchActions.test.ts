@@ -19,7 +19,7 @@ const home = tab({ kind: 'doc', doc: 'd', route: { name: 'home' } })
 const course = tab({ kind: 'doc', doc: 'd', route: { name: 'course', course: 'cell-biology' } })
 const quiz = tab({ kind: 'doc', doc: 'd', route: { name: 'quiz', course: 'Cell Biology', quiz: 'quiz-1' } })
 const gone = tab({ kind: 'doc', doc: 'd', route: { name: 'quiz', course: 'Cell Biology', quiz: 'nope' } })
-const ctx: GroupContext = { tabCount: 3, size: { width: 900, height: 700 }, groupsInWindow: 2, inMain: true, next: true, canPopOut: true }
+const ctx: GroupContext = { tabCount: 3, groupsInWindow: 2, inMain: true, next: true, canPopOut: true }
 const find = (m: MenuEntry[], action: string) => m.find((x) => x !== 'separator' && x.action === action) as Exclude<MenuEntry, 'separator'>
 
 describe('tabs in other windows', () => {
@@ -65,6 +65,7 @@ describe('titles', () => {
     expect(tabTitle(tab({ kind: 'changelog' }), docs)).toBe("What's new")
     expect(tabTitle(tab({ kind: 'welcome' }), docs)).toBe('Welcome')
     expect(tabTitle(tab({ kind: 'studyTips' }), docs)).toBe('How studying works')
+    expect(tabTitle(tab({ kind: 'learnMore' }), docs)).toBe('Saving and sharing')
   })
   it('describes with the file name only away from its home', () => {
     expect(tabDescription(home, docs)).toBeUndefined()
@@ -103,11 +104,16 @@ describe('menus', () => {
   it('splits a lone file tab (the new group shows a copy)', () => {
     expect(find(tabMenu(quiz, docs, { ...ctx, tabCount: 1 }, false), 'splitRight').disabled).toBeUndefined()
   })
-  it('refuses a split of a small pane and a window on touch', () => {
-    const m = tabMenu(quiz, docs, { ...ctx, size: { width: 500, height: 700 }, canPopOut: false }, false)
-    expect(find(m, 'splitRight').disabled).toBe(true)
+  it('refuses a window on touch, but never a split for size', () => {
+    const m = tabMenu(quiz, docs, { ...ctx, canPopOut: false }, false)
+    expect(find(m, 'splitRight').disabled).toBeUndefined()
     expect(find(m, 'splitDown').disabled).toBeUndefined()
     expect(find(m, 'popOutTab').reason).toMatch(/wider screen/)
+  })
+  it('closes a group from its menu, except the main window\'s only one', () => {
+    expect(find(groupMenu(ctx), 'closeGroup').disabled).toBeUndefined()
+    expect(find(groupMenu({ ...ctx, groupsInWindow: 1 }), 'closeGroup').reason).toBe('The main window keeps one group.')
+    expect(find(groupMenu({ ...ctx, groupsInWindow: 1, inMain: false }), 'closeGroup').disabled).toBeUndefined()
   })
   it('moves one tab to a new window from its menu, a group from the group menu, and shows the shortcut for the platform', () => {
     expect(find(tabMenu(quiz, docs, ctx, false), 'popOutTab').label).toBe('Move to new window')

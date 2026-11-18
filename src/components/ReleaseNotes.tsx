@@ -3,7 +3,7 @@
 export const releaseDate = (date: string) =>
   new Date(date).toLocaleDateString(undefined, { dateStyle: 'long', timeZone: 'UTC' })
 
-/** One release's notes (`RELEASES`) as a list of what's new, each name over its text. */
+/** One release's notes (`RELEASES`) as a list of what's new: each name beside its text, or over it where narrow. */
 export function ReleaseNotes({ notes }: { notes: [string, string][] }) {
   return (
     <dl className="tips-list">

@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import {
   MAIN, activate, activateGroup, allGroups, closeAll, closeOthers, closeTabs, dock, emptyLayout, groupOf, groupsIn,
-  join, mapTabs, minSize, moveTab, normalize, openTab, popOut, resize, split, updateTab, windowOf, type Layout, type Node,
+  join, mapTabs, minSize, moveTab, normalize, openTab, popOut, removeGroup, resize, split, updateTab, windowOf, type Layout, type Node,
 } from './layout'
 
 type L = Layout<string>
@@ -166,6 +166,27 @@ describe('layout', () => {
     expect(l.activeGroup).toBe('g1')
     expect(root(l)).toEqual(leaf('g1'))
     expect(join(l, 'g1', 'g1')).toBe(l)
+  })
+
+  it('removeGroup drops a group with its tabs, empty or not', () => {
+    const empty = split(openTab(base(), t('a')), 'g1', 'row', 'after', 'g2')
+    const r = removeGroup(empty, 'g2')
+    expect(r.groups.g2).toBeUndefined()
+    expect(root(r)).toEqual(leaf('g1'))
+    expect(r.activeGroup).toBe('g1')
+    let l = split(split(openTab(base(), t('a')), 'g1', 'row', 'after', 'g2', t('c')), 'g2', 'row', 'after', 'g3', t('b'))
+    const s = removeGroup(l, 'g3')
+    expect(s.tabs.b).toBeUndefined()
+    expect(groupsIn(s, MAIN)).toEqual(['g1', 'g2'])
+    expect(removeGroup(l, 'nope')).toBe(l)
+  })
+
+  it('removeGroup keeps the main window\'s only group and removes an alone popup window', () => {
+    const one = openTab(base(), t('a'))
+    expect(removeGroup(one, 'g1')).toBe(one)
+    let l = split(one, 'g1', 'row', 'after', 'g2', t('b'))
+    l = popOut(l, 'g2', 'w1')
+    expect(removeGroup(l, 'g2').windows.w1).toBeUndefined()
   })
 
   it('resize renormalizes sizes at a path', () => {

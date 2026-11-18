@@ -14,7 +14,7 @@ import { DropZones, SplitView } from '../kit/SplitView'
 import { TabStrip } from '../kit/TabStrip'
 import type { Route } from '../route'
 import {
-  MIN_PANE, SMALL, canSplit, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
+  PANE_FLOOR, copyPathText, elsewhereText, groupMenu, mountedTabs, poppedOut, tabDescription, tabDirty, tabMenu, tabTitle, tabTooltip,
   type FindPlace, type GroupContext, type MenuAction, type MenuEntry, type TabData, type WorkbenchDoc,
 } from '../logic/workbenchActions'
 import { PaneHead, type Crumb } from './PaneHead'
@@ -55,6 +55,8 @@ export type WorkbenchProps = {
      */
     split(groupId: string, dir: 'row' | 'column', side: 'before' | 'after', tabId?: string, move?: boolean): void
     join(from: string, into: string): void
+    /** Removes the group with its tabs (a file stays open). */
+    closeGroup(groupId: string): void
     /** A copy of the tab right after it. */
     duplicate(tabId: string): void
     resize(win: string, path: number[], sizes: number[]): void
@@ -179,7 +181,7 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
     if (!el) return
     const view = ownWindow(el)
     const measure = () => {
-      const need = minSize(root, MIN_PANE)
+      const need = minSize(root, PANE_FLOOR)
       const fits = el.clientWidth >= need.width && el.clientHeight >= need.height
       setCrowded(view.matchMedia('(max-width: 799px)').matches || !fits)
     }
@@ -200,6 +202,7 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
     <div ref={box} className={`wb-win${crowded ? ' is-crowded' : ''}`}>
       <SplitView
         root={layout.windows[win].root}
+        minSize={PANE_FLOOR}
         renderGroup={(id) => (
           <GroupView
             p={p}
@@ -220,8 +223,6 @@ function WindowView({ p, win, nodeFor, popped = [] }: { p: WorkbenchProps; win: 
   )
 }
 
-type Size = { width: number; height: number }
-
 type GroupProps = {
   p: WorkbenchProps
   win: WindowId
@@ -241,7 +242,6 @@ type GroupProps = {
 function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, hidden, nodeFor }: GroupProps) {
   const { layout, docs, on } = p
   const root = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState<Size | null>(null)
   // The pane's scroller, for its back-to-top button (outside it, so the button stays put while the page scrolls).
   const [body, setBody] = useState<HTMLDivElement | null>(null)
   const focused = layout.activeGroup === g.id
@@ -251,26 +251,11 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
   const order = groupsIn(layout, win)
   const next = order[order.indexOf(g.id) + 1] as string | undefined
 
-  useEffect(() => {
-    const el = root.current
-    if (!el) return
-    const watch = new (ownWindow(el).ResizeObserver)(() => {
-      const r = el.getBoundingClientRect()
-      setSize({ width: r.width, height: r.height })
-    })
-    watch.observe(el)
-    return () => watch.disconnect()
-  }, [])
-
   // The new group shows a copy of the active tab (the host decides what a copy is).
-  const splitHere = (dir: 'row' | 'column') => {
-    if (size && !canSplit(size, dir)) return
-    on.split(g.id, dir, 'after')
-  }
+  const splitHere = (dir: 'row' | 'column') => on.split(g.id, dir, 'after')
 
   const context = (): GroupContext => ({
     tabCount: tabs.length,
-    size,
     groupsInWindow: order.length,
     inMain: win === MAIN,
     next: next !== undefined,
@@ -315,6 +300,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
         if (g.active) on.duplicate(g.active)
       } else if (a === 'dock') on.dock(win)
       else if (a === 'closeAll') on.closeAll(g.id)
+      else if (a === 'closeGroup') on.closeGroup(g.id)
     }
     openMenu(items(groupMenu(context()), run), { anchor })
   }
@@ -343,7 +329,6 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
     if (payload.kind !== TAB_KIND || !layout.tabs[payload.ids[0]]) return
     if (zone === 'center') return dropTabs(payload, g.tabs.length)
     const dir = zone === 'left' || zone === 'right' ? 'row' : 'column'
-    if (size && !canSplit(size, dir)) return
     on.split(g.id, dir, zone === 'left' || zone === 'top' ? 'before' : 'after', payload.ids[0], true)
   }
 
@@ -420,8 +405,7 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
             )}
             <IconButton
               label="Split right"
-              title={size && !canSplit(size, 'row') ? SMALL : `Split right (${mac ? '⌘\\' : 'Ctrl+\\'})`}
-              disabled={!!size && !canSplit(size, 'row')}
+              title={`Split right (${mac ? '⌘\\' : 'Ctrl+\\'})`}
               onClick={() => splitHere('row')}
             >
               <SplitIcon />
@@ -461,7 +445,6 @@ function GroupView({ p, win, group: g, shown, corner, dock, fullApp, elsewhere, 
         {body && <BackToTop scroller={body} />}
         <DropZones
           accept={(payload) => payload.kind === TAB_KIND && !!layout.tabs[payload.ids[0]]}
-          acceptZone={(_, z) => z === 'center' || !size || canSplit(size, z === 'left' || z === 'right' ? 'row' : 'column')}
           onDrop={dropOnPane}
         />
       </div>

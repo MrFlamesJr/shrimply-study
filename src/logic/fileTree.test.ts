@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { emptyLibrary, type Library } from '../model'
-import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from './fileTree'
+import { countLine, fileInfo, fileTreeSource, libraryCounts, pageNode, unfoldFor } from './fileTree'
+import { nodeOf } from './explorerTree'
 
 const lib = (courses: number[][]): Library => ({
   ...emptyLibrary(),
@@ -74,5 +75,19 @@ describe('fileInfo', () => {
       'x',
       'Offline: not saved yet',
     ])
+  })
+})
+
+describe('pageNode', () => {
+  const l = lib([[1, 2], [3]])
+  it('is the quiz, the course, or the file home the page shows', () => {
+    expect(pageNode('d', l, 'q01')).toBe(nodeOf({ kind: 'quiz', doc: 'd', course: 'c0', quiz: 'q01' }))
+    expect(pageNode('d', l, 'c1')).toBe(nodeOf({ kind: 'course', doc: 'd', course: 'c1' }))
+    expect(pageNode('d', l, undefined)).toBe(nodeOf({ kind: 'doc', doc: 'd' }))
+    expect(pageNode('d', l, 'gone')).toBe(nodeOf({ kind: 'doc', doc: 'd' }))
+  })
+  it('is none with no active file', () => {
+    expect(pageNode(null, l, 'q01')).toBeNull()
+    expect(pageNode('d', null, 'q01')).toBeNull()
   })
 })

@@ -197,21 +197,15 @@
   white-space: nowrap;
   field-sizing: fixed;
 }
-/* The reason a name is refused hangs under the row, so the row keeps its height. */
-.file-rename .auto-text-error {
-  position: absolute;
-  top: 100%;
-  left: 0;
-  z-index: 2;
-  margin: 0;
-  padding: var(--space-1) var(--space-2);
-  background: var(--popup);
-  border: var(--line) solid var(--border-strong);
-  border-radius: var(--radius);
-  font-size: var(--text-xs-plus);
-  font-weight: var(--weight);
-  white-space: nowrap;
+/* Its ".shrimp" ending (asked for) at the field's very end, over the same underline as the name. */
+.file-rename .auto-text-wrap.has-suffix > textarea.auto-text {
+  padding-inline-end: calc(var(--space-1) + var(--suffix-ch) * 1ch);
 }
+.file-rename .auto-text-suffix {
+  inset-inline-end: 0;
+}
+/* The reason a name is refused is AutoText's popError popup (base.css), in the top layer, so the row keeps its height
+   and the sidebar's edge never cuts it. */
 .file-dot {
   flex-shrink: 0;
   width: 8px;
@@ -227,6 +221,10 @@
    eased toward the text for small text (--danger-ink). */
 .file-where.is-missing {
   color: var(--danger-ink);
+}
+/* A library kept only in this browser can be lost (asked for): its line says so in the warning color. */
+.file-where.is-warn {
+  color: var(--warn);
 }
 /* Under that row, Locate file: one link at the name's left edge, never wrapping. */
 .file-missing {

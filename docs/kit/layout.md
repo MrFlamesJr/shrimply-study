@@ -38,6 +38,7 @@ Functions (all return a `Layout<D>` unless noted):
   share the old group's size half and half. With `tab`, it goes into the new group, active; an open tab is moved, a new
   one is added.
 - `join(l, from, into)`: appends `from`'s tabs to `into` and removes `from`.
+- `removeGroup(l, groupId)`: removes a group with its tabs (an empty group too); the neighbor takes the room and a window left with no group goes. The input comes back for `MAIN`'s only group.
 - `resize(l, win, path: number[], sizes: number[])`: sets the sizes of the split at `path` (child indexes from the
   window's root). Sizes are renormalized to sum 1.
 - `popOut(l, groupId, win)`: the group becomes window `win`'s root, tabs and order kept.
@@ -92,7 +93,7 @@ node lays out its `children` in a row or column by `sizes` (fractions that sum t
 ## Limitations and edge cases
 
 - Operations on an unknown tab, group or window return the input unchanged (`activate`, `activateGroup`, `updateTab`,
-  `closeOthers`, `closeAll`, `moveTab`, `join`, `resize`, `split`, `popOut`). `closeTabs` ignores unknown ids and returns
+  `closeOthers`, `closeAll`, `moveTab`, `join`, `removeGroup`, `resize`, `split`, `popOut`). `closeTabs` ignores unknown ids and returns
   the input if none is open.
 - `split` also returns the input when `newGroupId` already exists. Without `tab` the new group is empty and stays until
   something normalizes the layout (an empty group is removed by the next `normalize`, which most other operations run).

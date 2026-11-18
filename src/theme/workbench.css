@@ -150,29 +150,9 @@
   border-radius: var(--radius);
   background: var(--sunken);
 }
-.wb-empty-label {
-  margin: 0;
-  font-size: var(--text-xs-plus);
-}
-.wb-empty-actions {
-  display: flex;
-  flex-direction: column;
+/* Its links are the shared .link-list (base.css), centered here. */
+.wb-empty .link-list {
   align-items: center;
-  gap: var(--space-1);
-  max-width: 100%;
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-.wb-empty-actions li {
-  max-width: 100%;
-}
-.wb-empty-actions button.link {
-  max-width: 100%;
-}
-.wb-empty-actions svg {
-  width: 16px;
-  height: 16px;
 }
 .wb-empty-name {
   min-width: 0;

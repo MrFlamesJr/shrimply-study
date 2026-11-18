@@ -10,15 +10,19 @@ import { CloudIcon } from '../components/Icons'
 export function AccountBox({ drive, bottom = false }: { drive: WorkspaceApi['drive']; bottom?: boolean }) {
   const signedIn = drive.signedIn()
   const signedAs = drive.signedAs()
-  const [email, setEmail] = useState<string | null>(null)
+  // The account is known with the sign-in (kept with it in this tab). Only an older sign-in that lost it asks Google,
+  // and only while that needs no popup: an hour-old sign-in renews on the next click, never on its own (a popup
+  // without a click is blocked, which said "Allow pop-ups" and hid the email).
+  const [asked, setAsked] = useState<string | null>(null)
   useEffect(() => {
-    if (!signedIn) return setEmail(null)
+    if (!bottom || !signedIn || signedAs || !drive.canListQuietly()) return setAsked(null)
     let live = true
-    void drive.account().then((a) => live && setEmail(a))
+    void drive.account().then((a) => live && setAsked(a))
     return () => {
       live = false
     }
   }, [signedIn, signedAs])
+  const email = signedAs ?? asked
 
   // Signed out it sits at the top of the sidebar, signed in at the bottom: each place renders only its own state.
   if (signedIn !== bottom) return null

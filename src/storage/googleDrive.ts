@@ -32,16 +32,25 @@ const UPLOAD = 'https://www.googleapis.com/upload/drive/v3/files'
 const SCOPE = 'https://www.googleapis.com/auth/drive.file'
 const TYPE = 'application/zip'
 
-/** An error to show as is. `status` is the HTTP status, 0 when Google was not reached; `reason` is Google's. */
+/**
+ * An error to show as is. `status` is the HTTP status, 0 when Google was not reached; `reason` is Google's; `original`
+ * is the raw error in Google's or the browser's own words; `help` says what to do next.
+ */
 export class DriveError extends Error {
-  constructor(
-    message: string,
-    readonly status = 0,
-    readonly reason = '',
-  ) {
+  readonly status: number
+  readonly reason: string
+  readonly original?: string
+  readonly help?: string
+  constructor(message: string, o: { status?: number; reason?: string; original?: string; help?: string } = {}) {
     super(message)
+    this.status = o.status ?? 0
+    this.reason = o.reason ?? ''
+    this.original = o.original
+    this.help = o.help
   }
 }
+
+const CONNECTION_HELP = "Your changes are kept here and save once you're back online."
 
 /** The sign-in popup was closed: nothing to report. */
 export class SignInClosed extends Error {}
@@ -55,7 +64,19 @@ export function problem(status: number, reason: string): string {
   if (status === 404) return "This file isn't shared with a link, or it was deleted."
   if (status === 401) return 'Your Google sign-in ran out. Try again.'
   if (status >= 500) return 'Google Drive is having trouble. Try again later.'
+  // A link to a file that is gone, private or made up: plain words, not a status number.
+  if (status === 403 || status === 400) return "This file isn't shared with you, or it doesn't exist."
   return `Google Drive refused this (${status}).`
+}
+
+/** What to do about a failed request, for a toast's More info; none when there is nothing to add. */
+export function problemHelp(status: number, reason: string): string | undefined {
+  if (busy(status, reason)) return 'Google limits how often an app can read or save. Your changes stay here and save on the next try.'
+  if (status === 404 || status === 403 || status === 400)
+    return 'Ask its owner to share it again with Anyone with the link. School accounts may not open files from outside the school.'
+  if (status === 401) return 'Google ends a sign-in after a while. Sign in again and it carries on.'
+  if (status >= 500) return "The problem is on Google's side, not in your library. Your changes are kept here."
+  return undefined
 }
 
 /** Not this user's to read or change (not a rate limit): the app can't see files it didn't create for them. */
@@ -66,13 +87,17 @@ async function call(url: string, init?: RequestInit): Promise<Response> {
   let response: Response
   try {
     response = await fetch(url, init)
-  } catch {
-    throw new DriveError("Couldn't reach Google Drive. Check your connection.")
+  } catch (err) {
+    const name = err instanceof Error ? err.name : 'Error'
+    const message = err instanceof Error ? err.message : String(err)
+    throw new DriveError("Couldn't reach Google Drive. Check your connection.", { original: `${name}: ${message}`, help: CONNECTION_HELP })
   }
   if (response.ok) return response
   const body = await response.json().catch(() => undefined)
   const reason = String(body?.error?.errors?.[0]?.reason ?? '')
-  throw new DriveError(problem(response.status, reason), response.status, reason)
+  const said = body?.error?.message
+  const original = `${response.status}${reason ? ' ' + reason : ''}${typeof said === 'string' && said ? ': ' + said : ''}`
+  throw new DriveError(problem(response.status, reason), { status: response.status, reason, original, help: problemHelp(response.status, reason) })
 }
 
 const withKey = (url: string) => call(`${url}${url.includes('?') ? '&' : '?'}key=${API_KEY}`)
@@ -122,7 +147,7 @@ export function prepareSignIn(): Promise<void> {
     tag.onerror = () => {
       script = undefined
       tag.remove()
-      reject(new DriveError("Couldn't reach Google. Check your connection."))
+      reject(new DriveError("Couldn't reach Google. Check your connection.", { help: CONNECTION_HELP }))
     }
     document.head.append(tag)
   })
@@ -202,6 +227,12 @@ export function signOut(): void {
 }
 
 let pending: { resolve(token: Token): void; reject(err: Error): void } | undefined
+// The sign-in asked for now, from its first step, and Google's popup once open: a second ask meanwhile (a second
+// click on a sign-in button, asked for, or two parts of the page asking at once) shares it and brings the popup to the
+// front instead of asking again, which would find no click left to open a popup with. Google hands back no window,
+// so its one window.open is caught.
+let popup: Window | null = null
+let waiting: Promise<Token> | undefined
 
 /** Signed in: its account is known, or it has a token (renewed on the next action once its hour is up). */
 export const signedIn = () => !!account || !!token
@@ -211,7 +242,23 @@ export const hasFreshToken = () => fresh(token)
 export const signedInAs = (): string | null => account ?? null
 
 // Asks Google for a token (a popup, or none when renewing the same account).
-async function requestToken(options: { prompt: string; login_hint?: string }): Promise<Token> {
+function requestToken(options: { prompt: string; login_hint?: string }): Promise<Token> {
+  // A popup closed before Google said so starts afresh.
+  if (waiting && !popup?.closed) {
+    popup?.focus()
+    return waiting
+  }
+  const asked = askToken(options)
+  waiting = asked
+  const done = () => {
+    if (waiting !== asked) return
+    waiting = undefined
+    popup = null
+  }
+  asked.then(done, done)
+  return asked
+}
+async function askToken(options: { prompt: string; login_hint?: string }): Promise<Token> {
   await prepareSignIn()
   client ??= window.google!.accounts.oauth2.initTokenClient({
     client_id: CLIENT_ID,
@@ -220,7 +267,9 @@ async function requestToken(options: { prompt: string; login_hint?: string }): P
       const done = pending
       pending = undefined
       if (!response.access_token || !window.google!.accounts.oauth2.hasGrantedAllScopes(response, SCOPE)) {
-        done?.reject(new DriveError('Shrimply Study needs to use your Google Drive. Sign in again and keep that box checked.'))
+        done?.reject(new DriveError('Shrimply Study needs to use your Google Drive. Sign in again and keep that box checked.', {
+          help: "Google's sign-in screen has a box that lets Shrimply Study see the files it made for you. It needs to stay checked.",
+        }))
         return
       }
       // A minute early, so a token never runs out halfway through an upload.
@@ -231,15 +280,23 @@ async function requestToken(options: { prompt: string; login_hint?: string }): P
       pending = undefined
       done?.reject(
         error.type === 'popup_failed_to_open'
-          ? new DriveError('Allow pop-ups for this site to sign in with Google.')
+          ? new DriveError('Allow pop-ups for this site to sign in with Google.', {
+              help: 'Look for the blocked pop-up icon at the end of the address bar, allow pop-ups for this site, then sign in again.',
+            })
           : new SignInClosed(),
       )
     },
   })
-  return new Promise((resolve, reject) => {
+  return new Promise<Token>((resolve, reject) => {
     pending?.reject(new SignInClosed())
     pending = { resolve, reject }
-    client!.requestAccessToken(options)
+    const open = window.open
+    window.open = (...args: Parameters<typeof window.open>) => (popup = open.apply(window, args))
+    try {
+      client!.requestAccessToken(options)
+    } finally {
+      window.open = open
+    }
   })
 }
 
@@ -285,7 +342,7 @@ function loadPicker(): Promise<void> {
     tag.onerror = () => {
       pickerScript = undefined
       tag.remove()
-      reject(new DriveError("Couldn't reach Google. Check your connection."))
+      reject(new DriveError("Couldn't reach Google. Check your connection.", { help: CONNECTION_HELP }))
     }
     document.head.append(tag)
   })
@@ -396,18 +453,33 @@ export async function ownFile(id: string): Promise<{ canEdit: boolean; md5?: str
   }
 }
 
-const notYours = () => new DriveError('This file belongs to someone else. Save a copy to your Drive instead.')
+const notYours = () => new DriveError('This file belongs to someone else. Save a copy to your Drive instead.', { help: 'Use Make a copy to save one of your own.' })
 
 const FOLDER = 'Shrimply Study'
 const FOLDER_TYPE = 'application/vnd.google-apps.folder'
 
-// The "Shrimply Study" folder new libraries go in, made the first time. Looked up on every save, not remembered, so a
-// folder moved to the bin or another account signing in never leaves a stale one. With `drive.file` the app only
-// finds a folder it made itself.
-async function appFolder(): Promise<string> {
+// The "Shrimply Study" folder, if there is one. With `drive.file` the app only finds a folder it made itself.
+async function findAppFolder(): Promise<string | null> {
   const q = encodeURIComponent(`mimeType = '${FOLDER_TYPE}' and name = '${FOLDER}' and trashed = false`)
   const { files } = await (await withToken(`${API}?q=${q}&fields=files(id)&pageSize=1`)).json()
-  if (typeof files?.[0]?.id === 'string') return files[0].id
+  return typeof files?.[0]?.id === 'string' ? files[0].id : null
+}
+
+/**
+ * The address of the "Shrimply Study" folder in Google Drive, for the signed-in account (`authuser`, so a browser
+ * signed in to several Google accounts opens the right one); null until a library was saved there.
+ */
+export async function appFolderLink(): Promise<string | null> {
+  const id = await findAppFolder()
+  if (!id) return null
+  return `https://drive.google.com/drive/folders/${encodeURIComponent(id)}${account ? `?authuser=${encodeURIComponent(account)}` : ''}`
+}
+
+// The "Shrimply Study" folder new libraries go in, made the first time. Looked up on every save, not remembered, so a
+// folder moved to the bin or another account signing in never leaves a stale one.
+async function appFolder(): Promise<string> {
+  const found = await findAppFolder()
+  if (found) return found
   const made = await withToken(`${API}?fields=id`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -478,7 +550,10 @@ export async function shareDriveFile(id: string): Promise<void> {
     })
   } catch (err) {
     if (refused(err) && (err as DriveError).status === 403) {
-      throw new DriveError("Your Google account doesn't allow sharing with a link (school accounts often don't). A personal Google account works.", 403)
+      throw new DriveError("Your Google account doesn't allow sharing with a link (school accounts often don't). A personal Google account works.", {
+      status: 403,
+      help: 'Make a copy into a personal Google account and share that one.',
+    })
     }
     throw err
   }

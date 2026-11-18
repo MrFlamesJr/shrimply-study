@@ -21,7 +21,7 @@ export const STEPS: Step[] = [
   },
   {
     to: 3,
-    changes: 'Choice cards have a "mode": "one" (pick one answer, any right answer counts) or "all" (select all that apply). Before, a card with several right answers was "all" and any other "one".',
+    changes: 'Choice cards have a "mode": "one" (pick one answer, any right answer counts) or "all" (select all that apply). Before, a card with several right answers was "all" and any other "one". Term cards may be "mixed": asked from either side at random.',
     up: (data) => {
       // Not shared with other code, so this step never changes with it. Malformed data is left for checkLibrary to report.
       const isObject = (v: unknown): v is Data => typeof v === 'object' && v !== null && !Array.isArray(v)

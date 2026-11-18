@@ -2,9 +2,9 @@ import { describe, expect, it } from 'vitest'
 import { FORMAT_VERSION, type Card, type Library } from '../model'
 import type { Docs, ItemRef } from './contentOps'
 import {
-  blankCard, insertCard, reorderTarget, ungroupPlan, addCard, addCourse, addQuiz, ancestorNodes, allowInside, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
+  blankCard, insertCard, reorderTarget, ungroupPlan, addCard, addCourse, addQuiz, ancestorNodes, allowInside, dragBase, cardDescription, deletePlan, describeNode, fileStatus, removeItems, dragKind, dragLabel, dropPlan, dropRule, itemRefs,
   dragEffect, keyDecision, menuFor, translateRef, moveDestinations, parseNode, pasteTarget, placeItems, renameItem, renameProblem, selectionKind, whereIcon,
-  readOnlyOf, type Clip, type ClosedKind, type Item, type MenuContext,
+  readOnlyOf, refusalHelp, type Clip, type ClosedKind, type Item, type MenuContext,
 } from './explorerActions'
 
 const card = (id: string): Card => ({ id, term: `T${id}`, definition: 'd' })
@@ -59,7 +59,7 @@ describe('nodes and selections', () => {
 describe('menus', () => {
   it('empty space', () => {
     const m = menuFor(ctx(), [], null)
-    expect(labels(m)).toEqual(['New file', 'Open a copy from this device', 'Paste'])
+    expect(labels(m)).toEqual(['New file', 'Open from this device', 'Paste'])
     expect(find(m, 'Paste')).toMatchObject({ disabled: true, reason: 'Nothing to paste.' })
   })
   it('empty space pastes courses into the last file, not cards', () => {
@@ -68,20 +68,20 @@ describe('menus', () => {
   })
   it('a Drive file: share, download a copy, close', () => {
     const m = menuFor(ctx(), ['d:a'], 'd:a')
-    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Share…', 'Download a copy', 'Close file'])
+    expect(labels(m)).toEqual(['Open in new view', 'New course', 'Rename', 'Paste', 'Share…', 'Download a copy', 'Close file'])
     expect(find(m, 'Close file').disabled).toBeUndefined()
     expect(find(menuFor(ctx(), ['d:a', 'd:b'], 'd:a'), 'New course')).toMatchObject({ disabled: true, reason: 'Pick one file.' })
   })
   it('a browser library: upload, share, download a copy, close', () => {
-    expect(labels(menuFor(ctx(), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Upload to Google Drive…', 'Share…', 'Download a copy', 'Close file'])
+    expect(labels(menuFor(ctx(), ['d:b'], 'd:b'))).toEqual(['Open in new view', 'New course', 'Rename', 'Paste', 'Upload to Google Drive…', 'Share…', 'Download a copy', 'Close file'])
   })
   it('without Google Drive set up there is nothing to upload or share to', () => {
-    expect(labels(menuFor(ctx(null, docs, files, false), ['d:b'], 'd:b'))).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Download a copy', 'Close file'])
+    expect(labels(menuFor(ctx(null, docs, files, false), ['d:b'], 'd:b'))).toEqual(['Open in new view', 'New course', 'Rename', 'Paste', 'Download a copy', 'Close file'])
   })
   it('a view-only library: make a copy, share, download a copy, close; nothing goes in', () => {
     const f = { ...files, a: { place: 'drive' as const, readOnly: true } }
     const m = menuFor(ctx({ mode: 'copy', refs: [course('c1')] }, docs, f), ['d:a'], 'd:a')
-    expect(labels(m)).toEqual(['Open in new tab', 'New course', 'Rename', 'Paste', 'Make a copy', 'Share…', 'Download a copy', 'Close file'])
+    expect(labels(m)).toEqual(['Open in new view', 'New course', 'Rename', 'Paste', 'Make a copy', 'Share…', 'Download a copy', 'Close file'])
     expect(find(m, 'New course')).toMatchObject({ disabled: true, reason: 'This library is view only. Make a copy to change it.' })
     expect(find(m, 'Paste')).toMatchObject({ disabled: true, reason: 'This library is view only. Make a copy to change it.' })
     expect(find(m, 'Rename')).toMatchObject({ disabled: true, reason: "You can't rename someone else's file. Make a copy to change it." })
@@ -92,7 +92,7 @@ describe('menus', () => {
   })
   it('a course', () => {
     const m = menuFor(ctx(), ['c:a:c1'], 'c:a:c1')
-    expect(labels(m)).toEqual(['Open', 'Open in new tab', 'New quiz', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
+    expect(labels(m)).toEqual(['Open', 'Open in new view', 'New quiz', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
     expect(find(m, 'Rename').shortcut).toBe('F2')
     expect(find(m, 'Copy').shortcut).toBe('Ctrl+C')
     expect(find(m, 'Cut').shortcut).toBe('Ctrl+X')
@@ -101,7 +101,7 @@ describe('menus', () => {
     expect(find(m, 'Move to…').disabled).toBeUndefined()
   })
   it('a quiz and a card', () => {
-    expect(labels(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1'))).toEqual(['Open', 'Open in new tab', 'Edit cards', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
+    expect(labels(menuFor(ctx(), ['q:a:c1:q1'], 'q:a:c1:q1'))).toEqual(['Open', 'Open in new view', 'Edit cards', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
     expect(labels(menuFor(ctx(), ['k:a:c1:q1:k1'], 'k:a:c1:q1:k1'))).toEqual(['Edit', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Delete'])
   })
   it('several of one kind: one-item entries are disabled with a reason, the rest work', () => {
@@ -218,11 +218,49 @@ describe('rename', () => {
 
 describe('delete', () => {
   it('cards go at once with a notice', () => {
-    const plan = deletePlan(docs, ['k:a:c1:q1:k1', 'k:a:c1:q1:k2', 'k:a:c1:q1:k3'], false)
+    const none = new Set<string>()
+    const plan = deletePlan(docs, ['k:a:c1:q1:k1', 'k:a:c1:q1:k2', 'k:a:c1:q1:k3'], false, none, names)
     expect(plan).toEqual({
-      refs: [k('k1'), k('k2'), k('k3')], label: 'Delete 3 cards', question: null, notice: 'Deleted 3 cards. Ctrl+Z puts them back.',
+      refs: [k('k1'), k('k2'), k('k3')],
+      label: 'Delete 3 cards',
+      question: null,
+      notice: {
+        text: 'Deleted 3 cards.',
+        detail: ['"Tk1", from one.shrimp › Bio › Cells.', '"Tk2", from one.shrimp › Bio › Cells.', '"Tk3", from one.shrimp › Bio › Cells.', 'Ctrl+Z puts them back.'],
+      },
     })
-    expect(deletePlan(docs, ['k:a:c1:q1:k1'], false)).toMatchObject({ label: 'Delete 1 card', notice: 'Deleted 1 card. Ctrl+Z puts it back.' })
+    expect(deletePlan(docs, ['k:a:c1:q1:k1'], false, none, names)).toMatchObject({
+      label: 'Delete 1 card',
+      notice: { text: 'Deleted the card "Tk1".', detail: ['From one.shrimp › Bio › Cells.', 'Ctrl+Z puts it back.'] },
+    })
+  })
+  it('names one course or quiz, where it was and what it held', () => {
+    const none = new Set<string>()
+    expect((deletePlan(docs, ['q:a:c1:q1'], false, none, names) as { notice: unknown }).notice).toEqual({
+      text: 'Deleted the quiz "Cells".',
+      detail: ['From one.shrimp › Bio.', 'It held 3 cards.', 'Ctrl+Z puts it back.'],
+    })
+    expect((deletePlan(docs, ['c:a:c2'], true, none, names) as { notice: unknown }).notice).toEqual({
+      text: 'Deleted the course "Chem".',
+      detail: ['From one.shrimp.', '⌘Z puts it back.'],
+    })
+  })
+  it('cuts a long name at 40 and gives the full one in the detail', () => {
+    const name = 'The mitochondria is the powerhouse of the cell and makes most of its ATP'
+    const long: Docs = { a: { ...docs.a, courses: [{ ...docs.a.courses[0], name }] } }
+    const notice = (deletePlan(long, ['c:a:c1'], false, new Set(), names) as { notice: { text: string; detail: string[] } }).notice
+    expect(notice.text).toBe('Deleted the course "The mitochondria is the powerhouse of…".')
+    expect(notice.detail[0]).toBe(`The full name is "${name}".`)
+  })
+  it('names an empty card as one, and lists at most ten when many go', () => {
+    const blank: Docs = { a: { ...docs.a, courses: [{ ...docs.a.courses[0], quizzes: [{ ...docs.a.courses[0].quizzes[0], cards: [{ id: 'e', term: '', definition: '' }] }] }] } }
+    expect((deletePlan(blank, ['k:a:c1:q1:e'], false, new Set(), names) as { notice: { text: string } }).notice.text).toBe('Deleted an empty card.')
+    const cards = Array.from({ length: 12 }, (_, i) => card(`m${i}`))
+    const many: Docs = { a: { ...docs.a, courses: [{ ...docs.a.courses[0], quizzes: [{ ...docs.a.courses[0].quizzes[0], cards }] }] } }
+    const notice = (deletePlan(many, cards.map((c) => `k:a:c1:q1:${c.id}`), false, new Set(), names) as { notice: { text: string; detail: string[] } }).notice
+    expect(notice.text).toBe('Deleted 12 cards.')
+    expect(notice.detail).toHaveLength(12)
+    expect(notice.detail.at(-2)).toBe('And 2 more.')
   })
   it('a course or quiz asks first and says what goes', () => {
     expect((deletePlan(docs, ['c:a:c1'], false) as { question: string }).question).toBe('Delete "Bio" and its 2 quizzes?\n\nCtrl+Z brings it back.')
@@ -234,7 +272,10 @@ describe('delete', () => {
     const plan = deletePlan(docs, ['c:a:c1', 'q:a:c1:q1', 'k:a:c1:q1:k1'], false) as { label: string; question: string }
     expect(plan.label).toBe('Delete 1 course')
     expect(plan.question).toContain('"Bio"')
-    expect((deletePlan(docs, ['c:a:c2', 'q:a:c1:q1'], true) as { label: string; notice: string }).notice).toBe('Deleted 2 items. ⌘Z puts them back.')
+    expect((deletePlan(docs, ['c:a:c2', 'q:a:c1:q1'], true, new Set(), names) as { notice: unknown }).notice).toEqual({
+      text: 'Deleted 2 items.',
+      detail: ['"Chem", from one.shrimp.', '"Cells", from one.shrimp › Bio.', '⌘Z puts them back.'],
+    })
   })
   it('never deletes files', () => {
     expect(deletePlan(docs, ['d:a'], false)).toEqual({ reason: 'Close a file instead of deleting it.' })
@@ -338,7 +379,7 @@ describe('Google Drive rows', () => {
     const listing = { signedIn: true, loading: false, failed: false, files: [{ id: 'abc', name: 'x.shrimp', modified: '2026-11-01T10:00:00Z' }, { id: 'bro', name: 'y.shrimp', modified: '' }] }
     // The list does not say whose a library is, so it never says "Your".
     expect(fileStatus({}, file, { listing, closed })).toEqual({ open: false, dirty: false, where: 'On Google Drive', line: 'On Google Drive', words: 'Not open, On Google Drive' })
-    expect(fileStatus({}, 'g:f:bro', { listing, closed })).toEqual({ open: false, dirty: false, where: 'Only in this browser', line: 'Only in this browser', words: 'Not open, Only in this browser' })
+    expect(fileStatus({}, 'g:f:bro', { listing, closed })).toEqual({ open: false, dirty: false, where: 'Only in this browser: can be lost', line: 'Only in this browser: can be lost', words: 'Not open, Only in this browser: can be lost' })
     expect(fileStatus({}, 'g:f:other', { listing })).toBeNull()
     const meta = { a: { where: 'Your Google Drive', line: 'Your Google Drive · Saved', dirty: false }, b: { where: 'Shared on Google Drive', line: 'Shared on Google Drive · View only', dirty: true, readOnly: true } }
     expect(fileStatus(meta, 'd:a')).toEqual({ open: true, dirty: false, where: 'Your Google Drive', line: 'Your Google Drive · Saved', words: 'Open, Your Google Drive' })
@@ -427,10 +468,10 @@ describe('groups in the Explorer', () => {
 
   it('a group has its own menu: copy, cut, paste, move, reorder, rename, ungroup, delete', () => {
     const m = menuFor(ctx(null, gd), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')
-    expect(labels(m)).toEqual(['Open', 'Open in new tab', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Ungroup', 'Delete'])
-    expect(find(m, 'Move up')).toMatchObject({ disabled: true, reason: 'It is already first.' })
+    expect(labels(m)).toEqual(['Open', 'Open in new view', 'New card', 'Rename', 'Copy', 'Cut', 'Paste', 'Move to…', 'Move up', 'Move down', 'Ungroup', 'Delete'])
+    expect(find(m, 'Move up')).toMatchObject({ disabled: true, reason: '"G1" is already first.' })
     expect(find(m, 'Move down').disabled).toBeUndefined()
-    expect(find(menuFor(ctx(null, gd), ['p:a:c1:q1:g2'], 'p:a:c1:q1:g2'), 'Move down')).toMatchObject({ disabled: true, reason: 'It is already last.' })
+    expect(find(menuFor(ctx(null, gd), ['p:a:c1:q1:g2'], 'p:a:c1:q1:g2'), 'Move down')).toMatchObject({ disabled: true, reason: '"G2" is already last.' })
   })
   it('keeps the one-kind rule', () => {
     const m = menuFor(ctx(null, gd), ['p:a:c1:q1:g1', 'k:a:c1:q1:k1'], 'p:a:c1:q1:g1')
@@ -443,8 +484,8 @@ describe('groups in the Explorer', () => {
     // k4 is the second card of g1: up goes before k3 (flat place 2); k3 down goes after k4 (flat place 4)
     const card4: ItemRef = { kind: 'card', doc: 'a', course: 'c1', quiz: 'q1', card: 'k4' }
     expect(reorderTarget(gd, card4, 'up')).toEqual({ target: { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 2, group: 'g1' } })
-    expect(reorderTarget(gd, card4, 'down')).toEqual({ reason: 'It is already last.' })
-    expect(reorderTarget(gd, { ...card4, card: 'k1' }, 'up')).toEqual({ reason: 'It is already first.' })
+    expect(reorderTarget(gd, card4, 'down')).toEqual({ reason: '"Tk4" is already last.' })
+    expect(reorderTarget(gd, { ...card4, card: 'k1' }, 'up')).toEqual({ reason: '"Tk1" is already first.' })
     expect(reorderTarget(gd, { ...card4, card: 'k1' }, 'down')).toEqual({ target: { kind: 'quiz', doc: 'a', course: 'c1', quiz: 'q1', index: 2, group: null } })
   })
   it('reordering moves one place, the groups keep their cards, and cards never leave their group', () => {
@@ -487,6 +528,47 @@ describe('groups in the Explorer', () => {
     expect(dropRule(gd, ['k:a:c1:q1:k1'], 'p:a:c1:q1:g2', 'before', 'move')).toEqual({ ok: false, reason: 'Drop a card onto the group to add it to it.' })
     expect(dropRule(gd, ['p:a:c1:q1:g1'], 'c:a:c1', 'inside', 'move')).toEqual({ ok: false, reason: 'A group can only go in a quiz.' })
   })
+  it('a drop on a row of the wrong kind is refused, never walked up to a parent', () => {
+    const quizReason = { ok: false, reason: 'A quiz can only go in a course.' }
+    for (const pos of ['before', 'after'] as const) {
+      expect(dropRule(gd, ['q:a:c1:q2'], 'k:a:c1:q1:k1', pos, 'move')).toEqual(quizReason)
+      expect(dropRule(gd, ['q:a:c1:q2'], 'p:a:c1:q1:g1', pos, 'move')).toEqual(quizReason)
+      expect(dropRule(gd, ['q:a:c1:q2'], 'c:a:c1', pos, 'move')).toEqual(quizReason)
+      expect(dropRule(gd, ['c:a:c1'], 'q:a:c1:q1', pos, 'move')).toMatchObject({ ok: false, reason: 'A course can only go in a file.' })
+      expect(dropRule(gd, ['c:a:c1'], 'k:a:c1:q1:k1', pos, 'move')).toMatchObject({ ok: false, reason: 'A course can only go in a file.' })
+      expect(dropRule(gd, ['c:a:c1'], 'p:a:c1:q1:g1', pos, 'move')).toMatchObject({ ok: false, reason: 'A course can only go in a file.' })
+    }
+    expect(dropRule(gd, ['q:a:c1:q2'], 'q:a:c1:q1', 'before', 'move')).toEqual({ ok: true })
+    expect(dropRule(gd, ['q:a:c1:q1'], 'q:a:c1:q2', 'after', 'move')).toEqual({ ok: true })
+    expect(dropRule(gd, ['q:a:c1:q2'], 'q:a:c1:q1', 'inside', 'move')).toEqual(quizReason)
+    expect(dropRule(gd, ['c:b:cb'], 'c:a:c1', 'inside', 'move')).toMatchObject({ ok: false, reason: 'A course can only go in a file.' })
+    expect(dropRule(gd, ['c:b:cb'], 'd:a', 'inside', 'move')).toEqual({ ok: true })
+    expect(dropRule(gd, ['q:a:c1:q2'], 'c:b:cb', 'inside', 'move')).toEqual({ ok: true })
+    expect(dropRule(gd, ['p:a:c1:q1:g1'], 'q:a:c1:q2', 'inside', 'move')).toEqual({ ok: true })
+    expect(dropRule(gd, ['k:a:c1:q1:k1'], 'q:a:c1:q2', 'inside', 'move')).toEqual({ ok: true })
+    expect(dropRule(gd, ['k:a:c1:q1:k1'], 'k:a:c1:q1:k2', 'after', 'move')).toEqual({ ok: true })
+  })
+  it('inside is offered only on the dragged kind’s parent row', () => {
+    expect(allowInside('d:a', 'course')).toBe(true)
+    expect(allowInside('c:a:c1', 'course')).toBe(false)
+    expect(allowInside('c:a:c1', 'quiz')).toBe(true)
+    expect(allowInside('q:a:c1:q1', 'quiz')).toBe(false)
+    expect(allowInside('q:a:c1:q1', 'group')).toBe(true)
+    expect(allowInside('q:a:c1:q1', 'card')).toBe(true)
+    expect(allowInside('p:a:c1:q1:g1', 'card')).toBe(true)
+    expect(allowInside('p:a:c1:q1:g1', 'quiz')).toBe(false)
+    expect(allowInside('k:a:c1:q1:k1', 'card')).toBe(false)
+    expect(allowInside('g:f:def', 'card')).toBe(false)
+    expect(allowInside('q:a:c1:q1')).toBe(true)
+  })
+  it('a drag copies into another file and moves within its own', () => {
+    expect(dragBase(['q:a:c1:q1'], 'c:a:c1', gd)).toBe('move')
+    expect(dragBase(['q:a:c1:q1'], 'c:b:cb', gd)).toBe('copy')
+    expect(dragBase(['q:a:c1:q1'], 'd:b', gd)).toBe('copy')
+    expect(dragBase(['q:a:c1:q1'], 'g:f:def', gd)).toBe('move')
+    expect(dragBase(['q:a:c1:q1'], null, gd)).toBe('copy')
+    expect(dragBase(['q:b:cb:qb'], null, gd)).toBe('move')
+  })
   it('deleting a group asks and says what goes; its cards are not counted twice', () => {
     expect((deletePlan(gd, ['p:a:c1:q1:g1'], false) as { question: string }).question).toBe('Delete the group "G1" and its 2 cards?\n\nCtrl+Z brings it back.')
     const both = deletePlan(gd, ['p:a:c1:q1:g1', 'k:a:c1:q1:k3', 'k:a:c1:q1:k1'], false) as { label: string }
@@ -508,7 +590,7 @@ describe('groups in the Explorer', () => {
   })
   it('keys: Alt+Shift+arrows move, refused at the ends', () => {
     expect(keyDecision(ctx(null, gd), key('ArrowDown', { altKey: true, shiftKey: true }), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')).toEqual({ action: 'moveDown' })
-    expect(keyDecision(ctx(null, gd), key('ArrowUp', { altKey: true, shiftKey: true }), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')).toEqual({ refuse: 'It is already first.' })
+    expect(keyDecision(ctx(null, gd), key('ArrowUp', { altKey: true, shiftKey: true }), ['p:a:c1:q1:g1'], 'p:a:c1:q1:g1')).toEqual({ refuse: '"G1" is already first.' })
   })
   it('pastes a group after a group, and cards into one', () => {
     expect(pasteTarget(gd, { mode: 'copy', refs: [gref('g1')] }, 'p:a:c1:q1:g2')).toMatchObject({ target: { kind: 'quiz', quiz: 'q1', index: 2 } })
@@ -586,5 +668,21 @@ describe('an open view-only library: copy out, never in', () => {
   })
   it('is no place to move things to', () => {
     expect(moveDestinations(both, names, [quiz('q1')], only).every((d) => d.target.doc !== 'b')).toBe(true)
+  })
+})
+
+describe('refusalHelp', () => {
+  it('explains the refusals that need it', () => {
+    expect(refusalHelp('This library is view only. Make a copy to change it.')).toMatch(/Make a copy to get one you can change/)
+    expect(refusalHelp('Open the library first.')).toMatch(/Open it first/)
+    expect(refusalHelp('Open the library to change it.')).toMatch(/Open it first/)
+    expect(refusalHelp('Close a file instead of deleting it.')).toMatch(/Delete from this browser or Move to bin/)
+    expect(refusalHelp('Move a Google Drive library to the bin from its own menu.')).toMatch(/own right-click menu/)
+    expect(refusalHelp('That quiz is no longer there.')).toMatch(/deleted or moved/)
+    expect(refusalHelp('That is no longer there.')).toMatch(/deleted or moved/)
+  })
+  it('says nothing for a reason that says it all', () => {
+    expect(refusalHelp('A card can only go in a quiz.')).toBeUndefined()
+    expect(refusalHelp('"Cells" is already first.')).toBeUndefined()
   })
 })

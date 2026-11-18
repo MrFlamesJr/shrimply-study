@@ -147,8 +147,8 @@ export function startDrag(dt: DataTransfer, payload: DragPayload, text: string):
 export function readDrag(dt: DataTransfer | null): DragPayload | null   // module copy, else DRAG_MIME when readable
 // Built: the DRAG_MIME copy is validated (`kind` a string, `ids` an array; ids converted to strings), else null.
 export function endDrag(): void
-export function effectFor(mods: { ctrlKey: boolean; altKey: boolean; metaKey: boolean }, mac: boolean): 'move' | 'copy'
-// copy with Ctrl (Alt/Option on Mac), else move
+export function effectFor(mods: { ctrlKey: boolean; altKey: boolean; metaKey: boolean; shiftKey?: boolean }, mac: boolean, base?: 'move' | 'copy'): 'move' | 'copy'
+// copy with Ctrl (Alt/Option on Mac), else move with Shift, else `base` (default move)
 export function dropPosition(top: number, height: number, y: number, inside: boolean): 'before' | 'inside' | 'after'
 // inside allowed: top quarter before, bottom quarter after, the middle inside; else halves
 export function edgeZone(rect: { left: number; top: number; width: number; height: number }, x: number, y: number):
@@ -230,7 +230,8 @@ export function TreeView(p: {
   drag?: {
     kind(ids: string[]): string | null                          // null: these can't be dragged
     rule(payload: DragPayload, target: string | null, pos: 'before' | 'inside' | 'after', effect: 'move' | 'copy'): DropRule
-    allowInside(target: string): boolean
+    effect?(payload, target): 'move' | 'copy'   // with no key held (default move)
+    allowInside(target: string, payload): boolean
     onDrop(payload: DragPayload, target: string | null, pos: 'before' | 'inside' | 'after', effect: 'move' | 'copy'): void
     label(payload: DragPayload, effect: 'move' | 'copy'): string  // "Move 3 cards", shown by the cursor
   }
@@ -341,7 +342,7 @@ export function renameProblem(docs, ref, name): string | undefined; export funct
 export type DeletePlan; export function deletePlan(docs, ids, mac): DeletePlan | { reason: string }
 export function removeItems(docs, refs): { ok: true; docs: Docs } | { ok: false; reason: string }
 export type Plan = { ok: true; docs: Docs; label: string; created: ItemRef[] } | { ok: false; reason: string }
-export const dragLabel, dragKind, allowInside; export function dropTarget, dropRule, placeItems, dropPlan
+export const dragLabel, dragKind; export function allowInside(node, kind?), dragBase(ids, node, docs) /* copy into another file, else move */, dropTarget, dropRule, placeItems, dropPlan
 export type Destination; export function moveDestinations, ancestorNodes
 ```
 

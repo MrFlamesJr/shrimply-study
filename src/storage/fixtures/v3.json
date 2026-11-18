@@ -10,7 +10,7 @@
           "cards": [
             { "term": "Mitochondria", "termImage": "1.png", "definition": "Powerhouse of the cell", "definitionImage": "2.png", "explanation": "Makes most of the cell's ATP" },
             { "sides": ["Organelle", "Job"], "term": "Ribosome", "definition": "Makes proteins" },
-            { "sides": ["Question", "Answer"], "term": "What holds the DNA?", "definition": "The nucleus" },
+            { "sides": ["Question", "Answer"], "mixed": true, "term": "What holds the DNA?", "definition": "The nucleus" },
             { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "image": "1.png", "explanation": ["Has its own DNA", "", "The smallest living unit"] },
             { "type": "cloze", "statement": "A {ribosome} makes \\{proteins\\}.", "explanation": "Free or on the ER" },
             { "type": "true-false", "statement": "Plant cells have a cell wall.", "image": "2.png", "answer": true, "explanation": "Made of cellulose" },

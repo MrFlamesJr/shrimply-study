@@ -11,6 +11,9 @@ import { fileKeys, parseAddress, type Route } from '../logic/routes'
 import { AUTOSAVE_DELAY, RENAME_VIEW_ONLY_TEXT, RETRY_DELAY, SYNC_EVERY, isViewOnly, needsAttention, saveStatus, type SaveProblem, type SaveStatus } from '../logic/autosave'
 import { keepIds } from '../logic/keepIds'
 import { closedNote } from '../logic/whereLine'
+import { countLine } from '../logic/fileTree'
+import { refusalHelp } from '../logic/explorerActions'
+import { quoteName as q } from '../logic/toastText'
 import * as backup from '../storage/browserBackup'
 import * as google from '../storage/googleDrive'
 import type { DriveFile, DriveSource } from '../storage/googleDrive'
@@ -86,6 +89,8 @@ export type DriveApi = {
   unshare(): Promise<boolean>
   /** The libraries this app saved to the signed-in user's Drive. */
   list(): Promise<DriveFile[] | null>
+  /** The address of the "Shrimply Study" folder in the user's Google Drive; null before anything was saved there, or on a failure (no toast). */
+  folderLink(): Promise<string | null>
   /** Asks, then moves one of them to the bin in the user's Drive (restorable there for 30 days). */
   remove(file: DriveFile): Promise<boolean>
   /**
@@ -119,6 +124,14 @@ export type LibraryApi = {
   where: 'drive' | 'device' | 'browser'
   /** The name of the .shrimp file on this device it is tied to (browsers never give the folder); null for any other. */
   fileName: string | null
+  /** When that file last changed, as last seen here (opened, saved, or taken after a change outside); null for any other. */
+  fileChanged: number | null
+  /**
+   * Looks at that file now, quietly (the browser is asked nothing): `ok` still there (a newer version is taken when
+   * nothing waits here), `missing` moved or deleted (the library pauses), `permission` the browser needs a click first,
+   * `skipped` paused or busy, so not looked at.
+   */
+  checkFile(): Promise<'ok' | 'missing' | 'permission' | 'error' | 'skipped'>
   /** How its saving stands (logic/autosave): saved, saving, paused and why, view only, or a browser library. */
   status: SaveStatus
   /**
@@ -152,8 +165,9 @@ export type LibraryApi = {
   /** Replaces the whole library (the debug page's text), as one step that can be undone. */
   replace(library: Library): void
   /**
-   * Save now (Ctrl+S, the save slot's button while a save is paused): the user's own Drive file, or the file on this
-   * device, saves at once, in the click, so a sign-in that ran out is renewed, the browser may ask to allow writing,
+   * Save now (Ctrl+S; the save slot's button: a file on this device's Save, or a paused Drive save's fix): the user's
+   * own Drive file, or the file on this device (the only way it saves, asked for), saves at once, in the click, so a
+   * sign-in that ran out is renewed, the first Save of a file on this device asks the browser to allow writing,
    * and a conflict is asked about again. Resolves true when nothing is left to save; false for a browser library (the
    * caller opens Upload to Google Drive) and a view-only one.
    */
@@ -174,6 +188,14 @@ export type LibraryApi = {
   makeCopy(): Promise<DocId | null>
   /** A copy as a .shrimp file. Never changes where the library lives. */
   download(): Promise<void>
+  /**
+   * A browser library's ways off this browser (asked for, as it can be lost): `upload` to Google Drive in one click
+   * (signing in on the way, asking Replace it or Keep both), and, where `canSaveToFile` (Chrome, Edge), `saveToFile`:
+   * a new .shrimp file picked in the save dialog, which the library is tied to and saves into from then on.
+   */
+  upload(): Promise<boolean>
+  canSaveToFile: boolean
+  saveToFile(): Promise<boolean>
   /**
    * Closes it (it stays in the Explorer, closed): a Drive file saves what waits first, and asks (Close anyway, Save
    * and close) when that fails. Then a toast says where it is, with Reopen. Resolves true when closed.
@@ -219,6 +241,8 @@ export type WorkspaceApi = {
   /** A new group beside `groupId`: a dragged tab (`move`) moves into it, else a copy of `tabId` (or the active tab). */
   split(groupId: GroupId, dir: 'row' | 'column', side: 'before' | 'after', tabId?: TabId, move?: boolean): void
   join(from: GroupId, into: GroupId): void
+  /** Removes a group with its tabs (never closes a file); the main window keeps its last group. */
+  closeGroup(groupId: GroupId): void
   resize(win: WindowId, path: number[], sizes: number[]): void
   /** The group into window `win` (its popup is opened by the caller, in the click). */
   popOut(groupId: GroupId, win: WindowId): void
@@ -269,14 +293,14 @@ export type WorkspaceApi = {
   newDoc(at?: Route, o?: { inDrive?: boolean }): DocId
   /**
    * The file picker: where the browser can keep the file (Chrome, Edge) each picked .shrimp file opens tied to it and
-   * saves into it by itself; a file already open just shows its library (taking the file's version when it changed
+   * saves into it by itself; a file already open just shows its library, with a toast (taking the file's version when it changed
    * outside, asking when both changed). Elsewhere it opens as a browser library named after the file ("Name (2)" when
    * taken), with a toast offering Upload to Google Drive. Resolves the last one opened, null for none.
    */
   openFile(at?: Route): Promise<DocId | null>
   /** A library a loader gives (the guide, the debug page's samples) as a new document named after `name`. */
   openLibrary(load: () => Promise<Library>, name: string, at?: Route): Promise<DocId | null>
-  /** A Google Drive file as a new document (or the one it is already open in). */
+  /** A Google Drive file as a new document (or the one it is already open in, with a toast saying so). */
   openDrive(id: string, own?: boolean): Promise<boolean>
   /**
    * Renames a library: a browser library's own name, or the user's Drive file (waiting for its create; a failure
@@ -305,6 +329,12 @@ export type WorkspaceApi = {
   openHint: string
   /** Whether Open file ties a file to its library (it then saves into the file); else it opens a copy in this browser. */
   savesInPlace: boolean
+  /**
+   * Reset to first visit (the debug page), once the user agreed to it: every save still waiting (to Google Drive and
+   * to files on this device) goes first; when one can't be saved it asks (Download a copy, or Reset anyway). Then this
+   * tab signs out, and leaving the page no longer warns. Resolves false when the user cancelled: nothing changed.
+   */
+  readyToReset(): Promise<boolean>
 }
 
 // The backup holds whole libraries, images included, so each waits for a pause in its edits.
@@ -315,7 +345,10 @@ const FOLLOW_DELAY = 300
 const HOME: Route = { name: 'home' }
 // The ids a transition needs, made before it runs (transitions stay pure).
 const ids = () => ({ tab: newId(), group: newId() })
-const SIGNED_OUT = 'Signed out in this tab. Your Google Drive libraries are closed here; other tabs keep theirs.'
+const BAD_FILE_HELP = "Writing your own file? The guide's last quiz, Write your own file, shows every field."
+const SIGNED_OUT = 'Signed out in this tab.'
+const SIGNED_OUT_MORE =
+  'Your Google Drive libraries closed here; nothing changes at Google. Other tabs keep their own sign-in, and browser libraries and files on this device stay open.'
 
 // What Google says about a Drive file for the signed-in user.
 type Owner = Awaited<ReturnType<typeof google.ownFile>>
@@ -345,11 +378,18 @@ export const binNote = (drive: DriveSource, yours: boolean) =>
   yours
     ? `"${drive.name}" is in the bin in your Google Drive. Restore it there to keep it: the bin deletes it for good after 30 days.`
     : `"${drive.name}" is in its owner's bin on Google Drive. It still works here, but within 30 days it may be deleted for good and its link will stop working.`
+// The toast for a library found in a bin (binNote's words, split): what it is, then under More info what to do.
+export const binToast = (drive: DriveSource, yours: boolean): { text: string; detail: string } =>
+  yours
+    ? { text: `${q(drive.name)} is in your Google Drive's bin.`, detail: 'Google deletes it for good after 30 days. Restore it from the bin in Google Drive to keep it.' }
+    : {
+        text: `${q(drive.name)} is in its owner's bin.`,
+        detail: 'It still opens, but may be deleted for good within 30 days and its link would stop working. Make a copy to keep it.',
+      }
 // Where a Drive library comes from, after its name.
 const driveFrom = (drive: DriveSource, yours = false) =>
   yours ? 'from your Google Drive' : drive.shared ? 'shared on Google Drive' : 'from Google Drive'
 
-const errorText = (err: unknown) => (err instanceof Error ? ` ${err.message}` : '')
 // The record as written already says this about the document: nothing to write.
 const sameFileNote = (a: backup.DocRecord['file'], b: FileRef | null) =>
   !a || !b ? !a && !b : a.name === b.name && a.size === b.size && a.modified === b.modified
@@ -419,7 +459,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     try {
       update(fn)
     } catch (err) {
-      say('warning', err instanceof Error ? err.message : String(err))
+      const reason = err instanceof Error ? err.message : String(err)
+      say('warning', reason, { detail: refusalHelp(reason) })
     }
   }
   const apply = (label: string, change: (docs: Docs) => Docs, key?: string) => {
@@ -436,7 +477,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const from = cur(k.from)
       const to = cur(k.to)
       if (!from || !to) continue
-      say('info', `"${W.docName(from)}" is view only, so the changes you made to it are kept in a library of their own in this browser, "${to.name}".`)
+      say('info', `Your changes to ${q(W.docName(from))} are kept in ${q(to.name)}.`, {
+        detail: `${q(W.docName(from))} is view only now, so what you changed was kept as a library of its own in this browser. Upload it to keep it in your Drive.`,
+      })
     }
   }
   const settle = (fn: (w: W.Workspace) => W.Workspace) => {
@@ -508,7 +551,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     } else if (rec.dirty && !backupFailed.current) {
       // Only when there are changes to lose, and once: not on every edit.
       backupFailed.current = true
-      say('warning', `This browser could not keep a copy of your changes to "${W.docName(d)}". Download a copy before you close the page.`)
+      say('warning', `Couldn't back up ${q(W.docName(d))} in this browser. Download a copy before you leave.`, {
+        detail: 'The browser refused to store it (storage full, or blocked in a private window). Your changes are still open here.',
+      })
     }
   }
   const recordOf = (w: W.Workspace): backup.WorkspaceRecord => {
@@ -523,17 +568,18 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (text !== wsWritten.current && (await backup.writeWorkspace(rec))) wsWritten.current = text
   }
 
-  // ---- Autosave (asked for): the user's own Drive file saves AUTOSAVE_DELAY after its last edit ----
+  // ---- Autosave (asked for): the user's own Drive file saves AUTOSAVE_DELAY after its last edit. A file on this device
+  // saves only when asked (asked for: Save, Ctrl+S, Save and close), so nothing is armed for it. ----
 
   const saveTimers = useRef(new Map<DocId, ReturnType<typeof setTimeout>>())
   const arm = (id: DocId, delay = AUTOSAVE_DELAY) => {
-    if (!autosaves(cur(id), ref.current)) return
+    if (!ownDrive(cur(id), ref.current)) return
     clearTimeout(saveTimers.current.get(id))
     saveTimers.current.set(
       id,
       setTimeout(() => {
         saveTimers.current.delete(id)
-        void (cur(id)?.file ? saveFile(id) : saveDrive(id))
+        void saveDrive(id)
       }, delay),
     )
   }
@@ -578,20 +624,26 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       setReady(true)
       tellKept(settled.kept)
       if (!read) {
-        say('warning', 'The courses kept in this browser could not be read, so no files are open. Open your .shrimp file or Google Drive library again.')
+        say('warning', "Couldn't read the libraries kept in this browser.", {
+          detail: 'So none were opened. Your Google Drive libraries and .shrimp files are safe: open them again with Open.',
+        })
         return
       }
       const broken = read.broken.length
       if (broken) {
-        say(
-          'warning',
-          broken === 1
-            ? 'A library kept in this browser could not be read, so it was set aside. Open its .shrimp file or Google Drive library again.'
-            : `${broken} libraries kept in this browser could not be read, so they were set aside. Open their .shrimp files or Google Drive libraries again.`,
-        )
+        say('warning', broken === 1 ? "A library kept in this browser couldn't be read." : `${broken} libraries kept in this browser couldn't be read.`, {
+          detail:
+            broken === 1
+              ? 'It was set aside. Open its .shrimp file or Google Drive library again.'
+              : 'They were set aside. Open their .shrimp files or Google Drive libraries again.',
+        })
       }
       // What the reading has to say (an old backup moved in, a copy set aside).
-      for (const note of read.notes) say('info', note)
+      for (const note of read.notes) {
+        say('info', note, {
+          detail: note === backup.OLDER_TAB_NOTE ? 'Another tab with an older version of the app changed your courses. Compare it with your other files and keep what you need.' : undefined,
+        })
+      }
       const docs = next.order.map((id) => next.docs[id])
       // Only real libraries are worth a message. It names the library as it was left, not the backup.
       if (docs.some((d) => d.library.courses.length > 0)) {
@@ -700,25 +752,50 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
 
   // A save to Drive or to a file still waiting, under way or paused: leaving would lose it (browser libraries are in the backup).
   const unsaved = W.unsavedDrive(ws).length > 0 || W.unsavedDevice(ws).length > 0 || busy.size > 0
+  // Reset to first visit: the user already agreed to lose what is left, so the reload asks nothing more.
+  const leaving = useRef(false)
   useEffect(() => {
     if (!unsaved) return
     // Browsers show their own text in this prompt and ignore ours. The timer only runs if the page is still
     // open, so the reminder comes as a toast once the user chooses to stay (or behind the prompt in some browsers).
     const warn = (e: BeforeUnloadEvent) => {
+      if (leaving.current) return
       e.preventDefault()
       e.returnValue = ''
-      setTimeout(() => say('warning', "Some changes aren't saved yet."))
+      const device = W.unsavedDevice(ref.current)
+      const waiting = [...W.unsavedDrive(ref.current), ...device].flatMap((id) => (cur(id) ? [q(W.docName(cur(id)!))] : []))
+      setTimeout(() =>
+        say('warning', waiting.length === 1 ? `${waiting[0]} isn't saved yet.` : `${plural(waiting.length, 'library', 'libraries')} aren't saved yet.`, {
+          detail: [
+            waiting.length > 1 && waiting.join(', '),
+            device.length > 0
+              ? `A file on this device saves when you press Save on its row or ${comboLabel('Mod+S', isMac(navigator.platform))}; its row in the sidebar says what waits.`
+              : 'They save by themselves once they can; their rows in the sidebar say why not yet.',
+          ],
+        }),
+      )
     }
     window.addEventListener('beforeunload', warn)
     return () => window.removeEventListener('beforeunload', warn)
   }, [unsaved])
 
+  // A library kept only in this browser can be lost (asked for): once one is open, the browser is asked to keep this
+  // site's data rather than clear it when the disk runs low (once per page).
+  const keptData = useRef(false)
+  useEffect(() => {
+    if (keptData.current || !ws.order.some((id) => !ws.docs[id]?.drive && !ws.docs[id]?.file)) return
+    keptData.current = true
+    void backup.keepData()
+  }, [ws])
+
   // ---- Google Drive, per document (one sign-in for every tab) ----
 
   // A closed sign-in popup is nothing to report. Google refusing the sign-in (a 401) is no sign-out (asked for): saves
   // pause until the user signs in again.
-  const report = (err: unknown, lead = '') => {
-    if (!(err instanceof google.SignInClosed)) say('error', `${lead}${err instanceof Error ? err.message : ''}`.trim())
+  const report = (err: unknown, lead = '', detail?: string) => {
+    if (err instanceof google.SignInClosed) return
+    const message = err instanceof Error ? err.message : ''
+    say('error', `${lead}${message}`.trim() || 'Something went wrong.', { detail: [detail, err instanceof google.DriveError && err.help], cause: err })
   }
   // What Google last said about a document's Drive file (renamed in Drive, it keeps its id); only what changed. The
   // user's own file found not to be theirs turns view only.
@@ -761,7 +838,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (!navigator.onLine) return pause(id, 'offline')
     pause(id, 'error')
     arm(id, RETRY_DELAY)
-    if (click) report(err, 'Not saved. ')
+    if (click) report(err, `${q(W.docName(cur(id)!))} not saved. `)
     return false
   }
 
@@ -846,7 +923,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
           if (!library) return false
           const made = await google.createDriveFile(library, W.bareName(drive.name))
           driveSaved(id, library, { ...made, owner: google.signedInAs() })
-          say('warning', `"${drive.name}" is no longer in your Google Drive (deleted there, or another account is signed in), so this library was saved as a new file, "${made.name}".`)
+          say('warning', `${q(drive.name)} was gone from your Drive, so it was saved as ${q(made.name)}.`, {
+            detail: `It was deleted in Google Drive, or this tab is signed in with another account. Your changes are all in ${q(made.name)}.`,
+          })
           return true
         }
         const name = now.name ?? drive.name
@@ -866,26 +945,36 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       }
     })
 
-  // ---- A file on this device: saved in place (the same autosave), through the adapter ----
+  // ---- A file on this device: saved in place when asked (Save, Ctrl+S, Save and close), through the adapter ----
 
   // A save or look that did not go through, as a pause: the browser needs a click to allow writing, the file was moved
-  // or deleted, or anything else (tried again after RETRY_DELAY; said as a toast when the user asked for the save).
+  // or deleted, or anything else (never tried again by itself: Save tries again; said as a toast when the user asked
+  // for the save).
   const stopped = (id: DocId, r: { status: 'denied' | 'permission' | 'missing' | 'error'; message?: string }, click: boolean): false => {
     if (r.status === 'denied' || r.status === 'permission') return pause(id, 'permission')
     if (r.status === 'missing') {
-      if (click) say('warning', 'Not saved: the file was moved or deleted. Locate it, or download a copy.')
+      if (click) {
+        const d = cur(id)
+        say('warning', `${q(W.docName(d!))} not saved: its file was moved or deleted.`, {
+          detail: `The browser can't find ${d?.file?.name ?? 'the file'} where it was. Locate file (under its row) ties it again, or Download a copy. Until then changes stay only in this browser.`,
+        })
+      }
       return pause(id, 'missing')
     }
     pause(id, 'error')
-    arm(id, RETRY_DELAY)
-    if (click) say('error', `Not saved. ${r.message ?? ''}`.trim())
+    if (click) {
+      const d = cur(id)
+      say('error', `${q(W.docName(d!))} not saved to ${d?.file?.name ?? 'its file'}.`, {
+        detail: `Check the disk isn't full and the file isn't open in another program, then press ${comboLabel('Mod+S', isMac(navigator.platform))}.`,
+        cause: r.message,
+      })
+    }
     return false
   }
-  // Saved into its file (`saving`: the library as it was when the save started, so an edit made meanwhile still waits).
+  // Saved into its file (`saving`: the library as it was when the save started, so an edit made meanwhile waits for
+  // the next Save).
   const fileSaved = (id: DocId, saving: Library, to: FileRef) => {
     update((w) => W.markSaved(w, id, saving, { file: to, problem: null }))
-    const d = cur(id)
-    if (d && W.hasChanges(d)) arm(id)
   }
   // The file changed on this device since it was last saved here: asks (Keep mine, Take the file's version); Cancel
   // leaves it paused, and its button (Save now) asks again.
@@ -915,8 +1004,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       markBusy(id, false)
     }
   }
-  // The one save of a file on this device: quiet (autosave), or in a click (`click`: Save now, Save and close), which
-  // may ask the browser to allow writing and asks about a conflict again. Resolves true when it saved.
+  // The one save of a file on this device: in a click (`click`: Save, Ctrl+S, Save and close), which may ask the
+  // browser to allow writing and asks about a conflict again; quiet only on the way out (Reset to first visit). Resolves
+  // true when it saved.
   const saveFile = (id: DocId, click = false): Promise<boolean> =>
     once(id, async () => {
       clearTimeout(saveTimers.current.get(id))
@@ -963,10 +1053,15 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const made = await google.createDriveFile(library, name)
       signedInNow()
       driveSaved(id, library, { ...made, owner: google.signedInAs() })
-      if (!o.quiet) say('info', `Saved "${made.name}" to your Google Drive.`)
+      if (!o.quiet) {
+        const account = google.signedInAs()
+        say('info', `Saved ${q(made.name)} to your Google Drive.`, {
+          detail: `In the Shrimply Study folder${account ? ` of ${account}` : ''}. It saves there by itself from now on.`,
+        })
+      }
       return true
     } catch (err) {
-      report(err, 'Not saved. ')
+      report(err, `Couldn't upload ${q(name)}. `)
       return false
     }
   }
@@ -979,10 +1074,12 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const md5 = await google.updateDriveFile(file.id, library)
       signedInNow()
       driveSaved(id, library, { id: file.id, name: file.name, md5, shared: false, mine: true, trashed: false, owner: google.signedInAs() })
-      say('info', `Saved "${file.name}" to your Google Drive, in place of the one there.`)
+      say('info', `Replaced ${q(file.name)} in your Google Drive.`, {
+        detail: 'The file there now holds this library and saves by itself. Google Drive keeps earlier versions for 30 days (Manage versions).',
+      })
       return true
     } catch (err) {
-      report(err, 'Not saved. ')
+      report(err, `Couldn't replace ${q(file.name)} in your Drive. `)
       return false
     }
   }
@@ -1033,14 +1130,19 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       }
       if (now === 'gone') {
         if (drive.shared) {
-          say('info', `"${drive.name}" is no longer shared on Google Drive, so it gets no more changes. Its courses here stay as they are.`)
+          say('info', `${q(drive.name)} is no longer shared with you.`, {
+            detail: 'Its owner stopped sharing it or deleted it. What you see here stays but no longer syncs. Make a copy to keep it.',
+          })
           learn(id, drive.id, { shared: false })
         }
         return
       }
       // Renamed, or moved to the bin or back, in Drive.
       if (now.name !== drive.name || now.trashed !== drive.trashed) learn(id, drive.id, { name: now.name, trashed: now.trashed })
-      if (now.trashed && !drive.trashed) say('warning', binNote({ ...drive, name: now.name }, own))
+      if (now.trashed && !drive.trashed) {
+        const bin = binToast({ ...drive, name: now.name }, own)
+        say('warning', bin.text, { detail: bin.detail })
+      }
       if (now.md5 === drive.md5) return
       const { library, source } = await google.readDriveFile(drive.id, own)
       const x = cur(id)
@@ -1056,22 +1158,25 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
   }
   // A file on this device with nothing to save looks at the file (quietly, asking the browser nothing): moved or
   // deleted pauses it; changed outside, its version is taken. With changes here, its save checks the file itself and asks.
-  const syncFile = async (id: DocId) => {
+  // Resolves what the look found (`skipped` when it did not look: paused, saving or already looking); the hover card
+  // shows it.
+  const syncFile = async (id: DocId): Promise<'ok' | 'missing' | 'permission' | 'error' | 'skipped'> => {
     const d = cur(id)
-    if (!onDevice(d) || d.problem || running.current.has(id) || syncing.current.has(id)) return
+    if (!onDevice(d) || d.problem || running.current.has(id) || syncing.current.has(id)) return 'skipped'
     const handle = d.file.handle
     syncing.current.add(id)
     try {
       const now = await adapter.look(handle)
       if (now.status === 'missing') {
         pause(id, 'missing')
-        return
+        return 'missing'
       }
-      if (now.status !== 'ok') return
+      if (now.status !== 'ok') return now.status
       const x = cur(id)
-      if (!x?.file || x.file.handle !== handle || x.library !== d.library || W.hasChanges(x) || x.dirtyElsewhere || running.current.has(id)) return
-      if (now.file.modified === x.file.modified && now.file.size === x.file.size) return
+      if (!x?.file || x.file.handle !== handle || x.library !== d.library || W.hasChanges(x) || x.dirtyElsewhere || running.current.has(id)) return 'ok'
+      if (now.file.modified === x.file.modified && now.file.size === x.file.size) return 'ok'
       update((w) => W.replaceDoc(w, id, keepIds(x.library, now.library), { file: now.file }))
+      return 'ok'
     } finally {
       syncing.current.delete(id)
     }
@@ -1146,7 +1251,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       learn(id, drive.id, learned(now))
       return now.canEdit
     } catch (err) {
-      report(err)
+      report(err, `Couldn't check ${q(W.docName(cur(id)!))} on Google Drive. `)
       return null
     }
   }
@@ -1158,7 +1263,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       learn(id, drive.id, { shared: on })
       return true
     } catch (err) {
-      report(err)
+      report(err, on ? `Couldn't turn on sharing for ${q(W.docName(cur(id)!))}. ` : `Couldn't stop sharing ${q(W.docName(cur(id)!))}. `)
       return false
     }
   }
@@ -1172,6 +1277,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (open) {
       const tab = newId()
       update((w) => W.activateDoc(w, open.id, tab))
+      say('info', `${q(W.docName(open))} is already open.`)
       void syncDoc(open.id)
       return true
     }
@@ -1183,23 +1289,28 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       update((w) => W.reopenClosed(w, W.makeDoc(id, library, source.name, { drive: ownedBy(source) }), HOME, tab))
       if (own) signedInNow()
       else checkOwner(id, driveId)
-      say('info', `Opened "${source.name}" ${driveFrom(source, own)}.`)
+      say('info', `Opened ${q(source.name)} ${driveFrom(source, own)}.`)
       // It opens (a link works until the file is deleted for good), but nobody should count on it.
-      if (source.trashed) say('warning', binNote(source, own))
+      if (source.trashed) {
+        const bin = binToast(source, own)
+        say('warning', bin.text, { detail: bin.detail })
+      }
       return true
     } catch (err) {
-      report(err, 'Could not open this Google Drive file. ')
+      report(err, "Couldn't open this Google Drive file. ")
       return false
     }
   }
 
-  // Waiting Drive saves go first; edits made while they saved get one more round, and what is left is checked right
-  // before leaving the account. Resolves false when the user cancelled or a copy could not be downloaded.
-  const flushAll = async (title: string, question: string, go: string) => {
-    let lost = W.unsavedDrive(ref.current)
+  // Waiting Drive saves go first (and saves into files on this device, with `device`); edits made while they saved get
+  // one more round, and what is left is checked right before leaving the account. Resolves false when the user
+  // cancelled or a copy could not be downloaded.
+  const flushAll = async (title: string, question: string, go: string, device = false) => {
+    const waiting = () => (device ? [...W.unsavedDrive(ref.current), ...W.unsavedDevice(ref.current)] : W.unsavedDrive(ref.current))
+    let lost = waiting()
     for (let round = 0; lost.length > 0 && round < 2; round++) {
       for (const id of lost) await flush(id)
-      lost = W.unsavedDrive(ref.current)
+      lost = waiting()
     }
     if (lost.length === 0) return true
     const names = lost.flatMap((id) => (cur(id) ? [`"${W.docName(cur(id)!)}"`] : [])).join(', ')
@@ -1221,7 +1332,14 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     if (!(await flushAll('Sign out', 'Sign out anyway?', 'Sign out anyway'))) return false
     google.signOut()
     forgetDrive()
-    say('info', SIGNED_OUT)
+    say('info', SIGNED_OUT, { detail: SIGNED_OUT_MORE })
+    return true
+  }
+  // Reset to first visit: the page reloads right after, so nothing closes here and nothing is said.
+  const readyToReset = async () => {
+    if (!(await flushAll('Reset to first visit', 'Reset anyway?', 'Reset anyway', true))) return false
+    google.signOut()
+    leaving.current = true
     return true
   }
   // Switching accounts (asked for) is for this tab alone: what waits is saved first, with the old account's token.
@@ -1236,15 +1354,12 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       forgetDrive()
       setSignedNow()
       signedInAgain()
-      say(
-        'info',
-        from
-          ? `Signed in as ${to} in this tab. The Google Drive libraries of ${from} are closed here; other tabs keep theirs.`
-          : `Signed in as ${to} in this tab. Other tabs keep their own account.`,
-      )
+      say('info', `Signed in as ${to} in this tab.`, {
+        detail: from ? `The Google Drive libraries of ${from} closed here. Other tabs keep their own account.` : 'Other tabs keep their own account.',
+      })
       return true
     } catch (err) {
-      report(err)
+      report(err, "Couldn't switch account. ")
       return false
     }
   }
@@ -1265,7 +1380,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       signedInAgain()
       return true
     } catch (err) {
-      report(err)
+      report(err, 'Not signed in. ')
       return false
     }
   }
@@ -1278,12 +1393,14 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const entry = ref.current.closed.find((c) => c.drive?.id === driveId)
     const own = ref.current.signedIn && (entry?.drive?.mine ?? true) && sameOwner(entry?.drive)
     try {
-      const { library } = await google.readDriveFile(driveId, own)
+      const { library, source } = await google.readDriveFile(driveId, own)
+      // Found in its owner's bin: no closed entry of it stays (the bin is no library, asked for).
+      if (source.trashed && entry) update((w) => W.forgetClosedDrive(w, driveId))
       for (const k of peeked.current.keys()) if (k.includes(`|${driveId}|`)) peeked.current.delete(k)
       peeked.current.set(key, library)
       return library
     } catch (err) {
-      report(err, 'Could not read this Google Drive file. ')
+      report(err, "Couldn't read this Google Drive file. ")
       return null
     }
   }
@@ -1293,7 +1410,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       signedInNow()
       return files
     } catch (err) {
-      report(err)
+      report(err, "Couldn't list your Google Drive libraries. ")
       return null
     }
   }
@@ -1304,10 +1421,10 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       const libraries = picked.filter((f) => google.isLibraryName(f.name))
       const others = picked.filter((f) => !google.isLibraryName(f.name))
       if (libraries.length) say('info', `Added ${plural(libraries.length, 'library', 'libraries')} to your list.`)
-      if (others.length) say('warning', `Not a .shrimp file, so not added: ${others.map((f) => `"${f.name}"`).join(', ')}.`)
+      if (others.length) say('warning', `Not a .shrimp file, so not added: ${others.map((f) => `${q(f.name)}`).join(', ')}.`)
       return libraries.length
     } catch (err) {
-      report(err, 'Could not open the file picker. ')
+      report(err, "Couldn't open Google's file picker. ")
       return null
     }
   }
@@ -1318,10 +1435,12 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       await google.trashDriveFile(file.id)
       // The libraries here stay, no longer tied to the file (browser libraries now); a closed entry of it goes.
       update((w) => W.forgetClosedDrive(w.order.reduce((x, id) => W.patchDoc(x, id, (d) => (d.drive?.id === file.id ? { drive: null, problem: null } : null)), w), file.id))
-      say('info', `Moved "${file.name}" to the bin in your Google Drive.`)
+      say('info', `Moved ${q(file.name)} to the bin in your Google Drive.`, {
+        detail: 'Google deletes it for good after 30 days; restore it from the bin in Google Drive to get it back.',
+      })
       return true
     } catch (err) {
-      report(err, 'Not deleted. ')
+      report(err, `${q(file.name)} wasn't moved to the bin. `)
       return false
     }
   }
@@ -1354,6 +1473,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       share: async () => (id ? setShared(id, true) : false),
       unshare: async () => (id ? setShared(id, false) : false),
       list,
+      folderLink: () => google.appFolderLink().catch(() => null),
       remove,
       pick,
       peek,
@@ -1369,16 +1489,43 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       // Named after its Drive file, else its own name.
       return (await adapter.download(d.library, W.docName(d))) !== null
     } catch (err) {
-      say('error', `Download stopped.${errorText(err)}`)
+      say('error', `${q(W.docName(d))} wasn't downloaded.`, { cause: err })
       return false
     }
+  }
+
+  // Save to a file (a browser library's way off this browser without Google, asked for; Chrome and Edge): a new .shrimp
+  // file picked in the save dialog, written, and the library tied to it, named after it, saving into it from then on.
+  const saveToFile = async (id: DocId) => {
+    const d = cur(id)
+    if (!d || d.drive || d.file || !adapter.savesInPlace) return false
+    const library = d.library
+    let file: FileRef | null
+    try {
+      file = await adapter.saveAs(library, W.docName(d))
+    } catch (err) {
+      say('error', `${q(W.docName(d))} wasn't saved to a file.`, { cause: err })
+      return false
+    }
+    if (!file) return false
+    const to = file
+    update((w) => {
+      const named = W.patchDoc(w, id, (x) => ({ name: W.bareName(to.name) === x.name ? x.name : W.freeDocName(w, W.bareName(to.name)) }))
+      return W.markSaved(named, id, library, { file: to, problem: null })
+    })
+    say('info', `${q(W.docName(cur(id) ?? d))} is saved to ${to.name}.`, {
+      detail: `It's now on this device, tied to that file: Save on its row or ${comboLabel('Mod+S', isMac(navigator.platform))} writes your changes into it.`,
+    })
+    return true
   }
 
   const closeDoc = async (id: DocId) => {
     const start = cur(id)
     if (!start) return false
     if (autosaves(start, ref.current)) {
-      await flush(id)
+      // A Drive file saves what waits first. A file on this device saves only when asked, so closing one with
+      // changes asks (Save and close, Download a copy, Close anyway).
+      if (!start.file) await flush(id)
       // Asked again when changes came in while it saved (typed in another pane meanwhile): those are not saved yet.
       // A file on this device can also be downloaded as a copy first.
       const ask = async (): Promise<'save' | 'discard' | null> => {
@@ -1425,8 +1572,36 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     // Its record is kept while another tab has changes in it that are not on Drive yet (reopening finds them).
     // A file on this device is on disk: its record and handle go, and it opens again with Open file.
     if (d.file || (d.drive && !d.dirtyElsewhere)) void backup.deleteDoc(id).catch(() => undefined)
-    say('info', closedNote({ name: W.docName(d), drive: d.drive, file: d.file }, yours), undefined, d.file ? undefined : { label: 'Reopen', run: () => void reopenClosed(id) })
+    const closed = closedNote({ name: W.docName(d), drive: d.drive, file: d.file }, yours)
+    // Every closed file can be reopened from its toast (asked for): a file on this device through the handle it had,
+    // reading the file as it is now.
+    const handle = d.file?.handle
+    const reopen = d.file ? (handle ? () => void reopenFile(handle, W.docName(d)) : null) : () => void reopenClosed(id)
+    say('info', closed.text, { detail: closed.detail, action: reopen ? { label: 'Reopen', run: reopen } : undefined })
     return true
+  }
+
+  // A closed file on this device opens again from the handle it had (the browser still lets this page read it), as
+  // it is now on disk; a file already open again just shows.
+  const reopenFile = async (handle: FileSystemFileHandle, name: string) => {
+    const now = await adapter.look(handle)
+    if (now.status !== 'ok') {
+      say('warning', `Couldn't reopen ${q(name)}.`, {
+        detail: now.status === 'missing' ? `${handle.name} was moved or deleted. Open it again with Open file.` : 'Open it again with Open file.',
+        cause: now.status === 'error' ? now.message : undefined,
+      })
+      return
+    }
+    const tab = newId()
+    for (const d of Object.values(ref.current.docs)) {
+      if (d.file && (await adapter.sameFile(d.file, now.file).catch(() => false))) {
+        const sameId = d.id
+        update((w) => W.openPlace(w, sameId, HOME, tab).workspace)
+        return
+      }
+    }
+    const id = newId()
+    update((w) => W.addDoc(w, W.makeDoc(id, now.library, W.freeDocName(w, W.bareName(now.file.name)), { file: now.file }), HOME, tab))
   }
 
   const reopenClosed = async (id: DocId): Promise<DocId | null> => {
@@ -1438,7 +1613,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const entry = ref.current.closed.find((c) => c.id === id)
     // Gone since it closed (deleted from this browser, moved to the bin, removed from the list): a stale Reopen says so.
     if (!entry) {
-      say('warning', 'That library is no longer in this browser.')
+      say('warning', 'That library is no longer in this browser.', { detail: 'It was deleted from this browser, maybe in another tab.' })
       return null
     }
     let doc: W.Doc
@@ -1452,13 +1627,13 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         const { library, source } = await google.readDriveFile(entry.drive.id, own)
         doc = W.makeDoc(id, library, entry.name, { drive: ownedBy({ ...source, shared: own ? entry.drive.shared : true, mine: own ? source.mine : entry.drive.mine }) })
       } catch (err) {
-        report(err, `Could not open "${entry.name}". `)
+        report(err, `Couldn't open ${q(entry.name)}. `)
         return null
       }
     } else {
       const rec = await backup.readDoc(id).catch(() => null)
       if (!rec) {
-        say('error', `"${entry.name}" is no longer in this browser.`)
+        say('error', `${q(entry.name)} is no longer in this browser.`, { detail: 'It was deleted from this browser, maybe in another tab.' })
         update((w) => W.forgetClosed(w, id))
         return null
       }
@@ -1504,7 +1679,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     const next = W.bareName(name.trim())
     const problem = !next ? 'A library needs a name.' : fileNameProblem(next)
     if (problem) {
-      say('error', problem)
+      say('error', problem, { detail: next ? 'A library is also a file, so its name must work on Windows, macOS and Linux.' : undefined })
       return false
     }
     const d = cur(id)
@@ -1514,6 +1689,21 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       return false
     }
     if (W.bareName(W.docName(d)) === next) return true
+    // Two open libraries never share a name (they would read the same in the sidebar, the Explorer and the address).
+    const taken = ref.current.order.some((o) => o !== id && W.bareName(W.docName(ref.current.docs[o])).toLowerCase() === next.toLowerCase())
+    if (taken) {
+      say('error', `Another library open here is already named ${q(next)}.`)
+      return false
+    }
+    // A failed rename keeps what was typed: Try again renames to it once more. A save that came due meanwhile (it
+    // waited for the rename) is armed again.
+    const failed = (cause: unknown) =>
+      say('error', `${q(W.docName(d))} wasn't renamed to ${q(next)}.`, { cause, action: { label: 'Try again', run: () => void renameDoc(id, next) } })
+    const after = (ok: boolean) => {
+      const now = cur(id)
+      if (now && W.hasChanges(now)) arm(id)
+      return ok
+    }
     if (d.file) {
       // A library tied to a file on this device is renamed by renaming the file, where the browser can.
       const handle = d.file.handle as (FileSystemFileHandle & { move?: (name: string) => Promise<void> }) | null
@@ -1527,12 +1717,12 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         try {
           await handle.move!(`${next}.shrimp`)
         } catch (err) {
-          say('error', `Not renamed. ${err instanceof Error ? err.message : String(err)}`)
+          failed(err)
           return false
         }
         update((w) => W.renameFile(w, id, next, `${next}.shrimp`))
         return true
-      })
+      }).then(after)
     }
     if (!d.drive && !running.current.has(id)) {
       update((w) => W.renameDoc(w, id, next))
@@ -1552,10 +1742,10 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         learn(id, drive.id, { name: named })
         return true
       } catch (err) {
-        report(err, 'Not renamed. ')
+        if (!(err instanceof google.SignInClosed)) failed(err)
         return false
       }
-    })
+    }).then(after)
   }
 
   // One copy at a time per library: pressed again while one is made (a double click), it is that same copy.
@@ -1579,11 +1769,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         const now = await google.ownFile(driveId)
         learn(id, driveId, learned(now))
         if (now.canEdit) {
-          say('info', `"${W.docName(cur(id) ?? shown)}" is your own file, so you can change it here.`)
+          say('info', `${q(W.docName(cur(id) ?? shown))} is your own file, so you can change it here.`)
           return id
         }
       } catch (err) {
-        report(err)
+        report(err, `Couldn't make a copy of ${q(W.docName(cur(id) ?? shown))}. `)
         return null
       }
     }
@@ -1608,13 +1798,13 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       update((w) => W.addDoc(w, W.makeDoc(id, library, W.freeDocName(w, name)), at, tab))
       return id
     } catch (err) {
-      say('error', `This file could not be opened.${errorText(err)}`)
+      say('error', `${q(name)} couldn't be opened.`, { cause: err })
       return null
     }
   }
 
   // Opening a file the browser can keep (Chrome, Edge) ties the library to it: it saves into the file by itself. Opened
-  // again it shows the library it is open in, with no word about it. The file changed outside: with nothing unsaved
+  // again it shows the library it is open in, with a toast saying so. The file changed outside: with nothing unsaved
   // here its version is taken; with both changed it asks. Elsewhere (no handle) a copy opens in this browser, never tied
   // to the file; saving it to Drive is a click away.
   const reconcileFile = async (id: DocId, o: Extract<Opened, { ok: true }>) => {
@@ -1635,44 +1825,53 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     try {
       opened = await adapter.openFiles()
     } catch (err) {
-      say('error', `This file could not be opened.${errorText(err)}`)
+      say('error', "Couldn't open the file picker.", { cause: err })
       return null
     }
     if (!opened) return null
     let last: DocId | null = null
-    for (const o of opened) {
-      if (!o.ok) {
-        say('error', `"${o.name}" could not be opened. ${o.error}`)
-        continue
-      }
-      const id = newId()
-      const tab = newId()
-      if (o.file.handle) {
-        let same: W.Doc | undefined
-        for (const d of Object.values(ref.current.docs)) {
-          if (d.file && (await adapter.sameFile(d.file, o.file).catch(() => false))) {
-            same = d
-            break
-          }
-        }
-        if (same) {
-          const sameId = same.id
-          update((w) => W.openPlace(w, sameId, HOME, tab).workspace)
-          await reconcileFile(sameId, o)
-          last = sameId
+    // Anything that goes wrong past the picker says so (asked for: never nothing at all).
+    try {
+      for (const o of opened) {
+        if (!o.ok) {
+          say('error', `${q(o.name)} couldn't be opened.`, { detail: [o.error, BAD_FILE_HELP] })
           continue
         }
-        update((w) => W.addDoc(w, W.makeDoc(id, o.library, W.freeDocName(w, W.bareName(o.file.name)), { file: o.file }), at, tab))
+        const id = newId()
+        const tab = newId()
+        if (o.file.handle) {
+          let same: W.Doc | undefined
+          for (const d of Object.values(ref.current.docs)) {
+            if (d.file && (await adapter.sameFile(d.file, o.file).catch(() => false))) {
+              same = d
+              break
+            }
+          }
+          if (same) {
+            const sameId = same.id
+            update((w) => W.openPlace(w, sameId, HOME, tab).workspace)
+            say('info', `${q(W.docName(same))} is already open.`)
+            await reconcileFile(sameId, o)
+            last = sameId
+            continue
+          }
+          update((w) => W.addDoc(w, W.makeDoc(id, o.library, W.freeDocName(w, W.bareName(o.file.name)), { file: o.file }), at, tab))
+          last = id
+          continue
+        }
+        let name = ''
+        update((w) => {
+          name = copyName(W.bareName(o.file.name), W.docNames(w))
+          return W.addDoc(w, W.makeDoc(id, o.library, name), at, tab)
+        })
+        say('info', `Opened ${q(name)} in this browser.`, {
+          detail: `This browser can't save into files on your device, so this is a copy. Changes don't reach ${o.file.name}: upload it to Google Drive or use Download a copy.`,
+          action: google.driveSetUp ? { label: 'Upload to Google Drive', run: () => void upload(id) } : undefined,
+        })
         last = id
-        continue
       }
-      let name = ''
-      update((w) => {
-        name = copyName(W.bareName(o.file.name), W.docNames(w))
-        return W.addDoc(w, W.makeDoc(id, o.library, name), at, tab)
-      })
-      say('info', `Opened "${name}" in this browser.`, undefined, google.driveSetUp ? { label: 'Upload to Google Drive', run: () => void upload(id) } : undefined)
-      last = id
+    } catch (err) {
+      say('error', "Couldn't open the file.", { cause: err })
     }
     return last
   }
@@ -1686,13 +1885,13 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     try {
       opened = await adapter.openFiles({ multiple: false })
     } catch (err) {
-      say('error', `This file could not be opened.${errorText(err)}`)
+      say('error', "Couldn't open the file picker.", { cause: err })
       return false
     }
     const o = opened?.[0]
     if (!o) return false
     if (!o.ok) {
-      say('error', `"${o.name}" could not be opened. ${o.error}`)
+      say('error', `${q(o.name)} couldn't be opened.`, { detail: [o.error, BAD_FILE_HELP] })
       return false
     }
     if (!o.file.handle) {
@@ -1701,12 +1900,17 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     }
     for (const other of Object.values(ref.current.docs)) {
       if (other.id !== id && other.file && (await adapter.sameFile(other.file, o.file).catch(() => false))) {
-        say('warning', `"${W.docName(other)}" is already open from that file.`)
+        say('warning', `${q(W.docName(other))} is already open from that file.`)
         return false
       }
     }
     const same = !!d.saved && sameLibrary(d.saved, o.library)
-    if (!same && !(await confirm('This file has other content. Replace it with your library?', 'Replace', { title: 'Locate file', danger: true }))) return false
+    // Other content: the question names the file picked and what each holds, so a wrong pick is plain (asked for).
+    const changed = new Date(o.file.modified).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
+    const question =
+      `"${o.file.name}" holds a different library (${countLine(o.library)}), last changed ${changed}.\n\n` +
+      `Replace it with "${W.docName(d)}" (${countLine(d.library)})? What the file holds now is lost.`
+    if (!same && !(await confirm(question, 'Replace', { title: 'Locate file', danger: true }))) return false
     const file = o.file
     update((w) =>
       W.patchDoc(w, id, (x) => ({
@@ -1717,7 +1921,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         ...(same ? {} : { saved: null }),
       })),
     )
-    say('info', `"${W.docName(cur(id) ?? d)}" saves into ${file.name} again.`)
+    say('info', `${q(W.docName(cur(id) ?? d))} saves into ${file.name} again.`)
     return flush(id, true)
   }
 
@@ -1760,7 +1964,11 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
         return done?.workspace ?? w
       })
       if (entry) tell('Undid', entry)
-      else say('info', `Other changes came after this. ${comboLabel('Mod+Z', isMac(navigator.platform))} steps back through them.`)
+      else {
+        say('info', 'Not undone: other changes came after it.', {
+          detail: `Undo on a toast only takes back its own change while it is the last one. ${comboLabel('Mod+Z', isMac(navigator.platform))} steps back through the later ones first.`,
+        })
+      }
     }
   }
 
@@ -1782,6 +1990,8 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       replaced: d.replaced,
       where: W.where(d),
       fileName: d.file?.name ?? null,
+      fileChanged: d.file?.modified || null,
+      checkFile: () => syncFile(id),
       status,
       readOnly: status === 'viewOnly',
       hasChanges: needsAttention(status),
@@ -1865,6 +2075,9 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       locate: () => locate(id),
       makeCopy: () => makeCopy(id),
       download: async () => void (await download(id)),
+      upload: () => upload(id),
+      canSaveToFile: adapter.savesInPlace,
+      saveToFile: () => saveToFile(id),
       close: () => closeDoc(id),
       drive: driveFor(d, ws.signedIn, ws.account),
     }
@@ -1923,6 +2136,7 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
       update((w) => W.splitGroup(w, groupId, dir, side, made.group, move ? { tabId: made.tab, move: tabId } : { tabId: made.tab, copy: tabId }))
     },
     join: (from, into) => update((w) => W.joinGroups(w, from, into)),
+    closeGroup: (groupId) => update((w) => W.closeGroup(w, groupId)),
     resize: (win, path, sizes) => update((w) => W.resizeSplit(w, win, path, sizes)),
     popOut: (groupId, win) => {
       const spare = newId()
@@ -1988,5 +2202,6 @@ export function useWorkspace(adapter: StorageAdapter, notify: Notify, ask: Ask, 
     openLabel: adapter.openLabel,
     openHint: adapter.openHint,
     savesInPlace: adapter.savesInPlace,
+    readyToReset,
   }
 }

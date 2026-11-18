@@ -27,6 +27,8 @@
 }
 .kit-row:hover { background: var(--kit-accent-soft); }
 .kit-row[aria-selected="true"] { background: var(--kit-accent-soft); border-color: var(--kit-accent-line); }
+/* The row of what is shown now: a dashed outline (selected or not), apart from the focus ring. */
+.kit-row.is-current { border-style: dashed; border-color: var(--kit-accent-line); }
 .kit-row:focus-visible { outline: var(--kit-line-thick) solid var(--kit-focus); outline-offset: -2px; }
 .kit-row.is-dimmed .kit-row-label, .kit-row.is-dimmed .kit-row-glyph { opacity: var(--kit-dim); }
 /* A row's icon and its fold chevron share one 16px cell (fixed tracks, so both stay centered on it): the icon at rest;
@@ -94,18 +96,23 @@
   box-sizing: border-box;
 }
 .kit-row-input:focus { outline: var(--kit-line-thick) solid var(--kit-focus); outline-offset: -2px; }
+/* A refused name's reason: a popover in the top layer under the field (placed by float.ts), so the tree's scroll box
+   never cuts it off; it wraps inside the window. */
 .kit-row-error {
-  position: absolute;
-  left: var(--kit-space-3);
-  top: 100%;
-  z-index: 2;
+  position: fixed;
+  inset: auto;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 2 * var(--kit-space-3)));
+  margin: 0;
   padding: var(--kit-space-1) var(--kit-space-2);
+  overflow: visible;
   background: var(--kit-popup);
   color: var(--kit-invalid);
   border: var(--kit-line) solid var(--kit-border-strong);
   border-radius: var(--kit-radius);
+  font: inherit;
   font-size: var(--kit-text-xs);
-  white-space: nowrap;
+  white-space: normal;
 }
 .kit-row.is-drop-before::before,
 .kit-row.is-drop-after::after {

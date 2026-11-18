@@ -3,9 +3,9 @@ import { createPortal } from 'react-dom'
 import { activeWindow, subscribeWindows } from '../kit/windows'
 import { useModalHost } from '../hooks/useModalHost'
 import { newId } from '../model'
-import { pushToast, type Notify, type Toast, type ToastKind } from '../logic/pushToast'
+import { pushToast, toastDetail, type Notify, type Toast, type ToastKind } from '../logic/pushToast'
 import { coversControl, toastLift } from '../logic/toastLift'
-import { CrossIcon } from './Icons'
+import { ChevronDownIcon, CrossIcon } from './Icons'
 import { IconButton } from './IconButton'
 
 export type { Notify }
@@ -23,12 +23,21 @@ const GLYPH: Record<ToastKind, string> = { info: 'i', warning: '!', error: '!' }
 
 export function useToasts() {
   const [toasts, setToasts] = useState<Toast[]>([])
-  const notify: Notify = (kind, text, ms, action) =>
+  const notify: Notify = (kind, text, more = {}) =>
     setToasts((list) =>
-      pushToast(list, { id: newId(), kind, text, ms: ms ?? (action ? Math.max(LIFETIME[kind], ACTION_LIFETIME) : LIFETIME[kind]), action }),
+      pushToast(list, {
+        id: newId(),
+        kind,
+        text,
+        detail: toastDetail(text, more),
+        ms: more.ms ?? (more.action ? Math.max(LIFETIME[kind], ACTION_LIFETIME) : LIFETIME[kind]),
+        action: more.action,
+      }),
     )
   const dismiss = (id: string) => setToasts((list) => list.filter((t) => t.id !== id))
-  return { toasts, notify, dismiss }
+  // More info opens or closes; it lives here because the stack re-mounts its toasts when it moves into or out of a dialog.
+  const expand = (id: string) => setToasts((list) => list.map((t) => (t.id === id ? { ...t, open: !t.open } : t)))
+  return { toasts, notify, dismiss, expand }
 }
 
 // Bottom-right stack. The kind badge overhangs the top-left corner. The bar on top is a CSS animation; when it ends the toast closes.
@@ -36,7 +45,7 @@ export function useToasts() {
 // The stack is a popover, so it sits in the top layer where nothing on the page covers it. Whatever opens
 // there after it (a dialog, the color palette) would sit above it, so it moves back to the top each time
 // something opens and each time a toast comes. It renders into the active window (a popped-out pane's popup, or the main one). The debug bar stays above it (it raises itself over the stack in turn).
-export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: string): void }) {
+export function Toasts({ toasts, dismiss, expand }: { toasts: Toast[]; dismiss(id: string): void; expand(id: string): void }) {
   const ref = useRef<HTMLElement>(null)
   const win = useSyncExternalStore(subscribeWindows, activeWindow)
   // Where each countdown had got to (ms) when the stack moved into or out of a modal dialog: a new container makes new
@@ -135,26 +144,48 @@ export function Toasts({ toasts, dismiss }: { toasts: Toast[]; dismiss(id: strin
       }}
     >
       {[...toasts].reverse().map((t) => (
-        <div key={t.id} className={`toast is-${t.kind}`} role={t.kind === 'error' ? 'alert' : undefined}>
+        <div key={t.id} className={`toast is-${t.kind}${t.open ? ' is-open' : ''}`} role={t.kind === 'error' ? 'alert' : undefined}>
           <span className="toast-kind" role="img" aria-label={LABEL[t.kind]}>
             {GLYPH[t.kind]}
           </span>
           <p>{t.text}</p>
-          {t.action && (
-            <button
-              type="button"
-              className="toast-action"
-              onClick={() => {
-                t.action!.run()
-                dismiss(t.id)
-              }}
-            >
-              {t.action.label}
-            </button>
-          )}
           <IconButton label="Dismiss" onClick={() => dismiss(t.id)}>
             <CrossIcon />
           </IconButton>
+          {(t.detail.length > 0 || t.action) && (
+            <div className="toast-foot">
+              {t.detail.length > 0 && (
+                <button
+                  type="button"
+                  className="link toast-more"
+                  aria-expanded={!!t.open}
+                  aria-controls={`toast-detail-${t.id}`}
+                  onClick={() => expand(t.id)}
+                >
+                  More info <ChevronDownIcon />
+                </button>
+              )}
+              {t.action && (
+                <button
+                  type="button"
+                  className="toast-action"
+                  onClick={() => {
+                    t.action!.run()
+                    dismiss(t.id)
+                  }}
+                >
+                  {t.action.label}
+                </button>
+              )}
+            </div>
+          )}
+          {t.open && (
+            <div className="toast-detail" id={`toast-detail-${t.id}`}>
+              {t.detail.map((line, i) => (
+                <p key={i}>{line}</p>
+              ))}
+            </div>
+          )}
           <div className="toast-track">
             <div
               className="toast-life"

@@ -96,32 +96,69 @@
   align-items: center;
   flex-wrap: wrap;
   justify-content: space-between;
+  column-gap: var(--space-2);
   padding: var(--space-1) var(--space-1) 0 var(--space-5);
   color: var(--text-muted);
   font-size: var(--text-sm);
   font-weight: var(--weight-bold);
 }
+/* The head's left part on one line: the grip, "#n", the sides and the side asked. A long side name ends in an ellipsis
+   (the sides menu shows it whole), so the tools stay beside it until the card is too narrow, then go under it at the
+   right (asked for: a long name broke the head, the tools taking a line of their own). */
+.pair-head > span:first-child {
+  display: flex;
+  align-items: center;
+  flex: 1 1 16rem;
+  min-width: 0;
+}
+/* The grip and the number never shrink (body text may break anywhere, which would stack "#" over "1"). */
+.pair-head .pair-grip,
+.pair-num {
+  flex: none;
+}
 /* Delete card (trash): the icon turns red on hover. */
 .pair-head .pair-delete:hover:not(:disabled) {
   color: var(--bad);
 }
-/* The drag grip, hung into the head's left room so the number stays near the fields' edge. Only the grip starts a
-   drag (the card holds text fields); while dragged the card lifts onto the popup surface with an accent outline. */
+/* The drag grip, first in the head near the card's left edge, plain to see and to grab (asked for); the whole head drags
+   the card too (a grab cursor where it holds no control), never its fields. While dragged the card lifts onto the
+   popup surface with an accent outline. */
 .pair-grip {
-  margin: 0 calc(-1 * var(--space-3)) 0 calc(var(--space-1) - var(--space-5));
-  vertical-align: middle;
+  margin-left: calc(var(--space-1) - var(--space-5));
   cursor: grab;
   touch-action: none;
 }
+.pair-head.is-movable {
+  cursor: grab;
+}
+.pair:hover .pair-grip {
+  color: var(--text);
+}
+/* A dragged card lifts over the page (a still copy of it, `.is-lifted`, on the popup surface with an accent outline)
+   while its place in the list is an empty dashed slot that moves where it would land: its own section's cards make
+   way, and over another section it is in there at once (asked for: smooth, the cards really moving). A collapsed
+   group's head it would join is tinted, at once. */
 .pair.is-dragging {
-  position: relative;
-  z-index: 1;
+  background: transparent;
+  border: var(--line) dashed var(--accent-line);
+}
+.pair.is-dragging > * {
+  visibility: hidden;
+}
+.pair.is-lifted {
   background: var(--popup);
   border-color: var(--accent);
 }
-.pair.is-dragging .pair-grip {
-  color: var(--text);
+.pair-lift,
+.pair.is-lifted .pair-head {
   cursor: grabbing;
+}
+.pair.is-lifted .pair-grip {
+  color: var(--text);
+}
+.group-head[data-drop] {
+  background: var(--accent-soft);
+  outline: var(--line-thick) solid var(--accent);
 }
 .pair-fields {
   display: grid;
@@ -143,14 +180,20 @@
 }
 .pair-tools {
   display: flex;
+  flex: 0 1 auto;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: var(--space-1);
+  min-width: 0;
   margin-left: auto;
 }
-/* The sides button looks like the quiet select: muted text and a chevron, filled only on hover. Long side names:
-   the tools wrap to the next line, and the names wrap inside the button instead of overflowing. */
+/* The sides button looks like the quiet select: muted text and a chevron, filled only on hover. Long side names end in
+   an ellipsis on its one line (the menu shows them whole). */
 .sides-button {
   display: inline-flex;
+  flex: 0 1 auto;
+  min-width: 0;
   align-items: center;
   gap: var(--space-2);
   min-height: 32px;
@@ -173,6 +216,25 @@
 }
 .sides-button svg {
   flex: none;
+}
+.sides-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* A term card's side asked, a compact bar right after its sides (asked for), with a small gap; it shrinks with them,
+   never below what keeps "Random" whole. */
+.pair-head .segmented-field.is-compact {
+  flex: 0 1 auto;
+  min-width: 9rem;
+  margin-left: var(--space-2);
+}
+/* The side asked is a quiet setting: its chosen segment a neutral step up, never the accent (asked for). */
+.pair-head .is-compact .segmented::before {
+  background: var(--surface-3);
+  backdrop-filter: none;
+  border-color: var(--border);
 }
 /* The menu looks like the select's popup: on the side of the button with more room (below when equal), capped
    to that room and scrolling inside when even that is too small (a phone), so it is never cut off. */
@@ -320,13 +382,19 @@
   align-items: center;
   justify-content: center;
 }
+/* The arc (SpinnerIcon, one stroke) turns with its box. Never a border with one side see-through: Chromium draws its
+   joins as a thin tick that turns with the ring. */
 .spinner {
+  display: block;
   width: 18px;
   height: 18px;
-  border: var(--line-thick) solid var(--border);
-  border-top-color: var(--text-muted);
-  border-radius: 50%;
+  color: var(--text-muted);
   animation: spin var(--dur-spin) linear infinite;
+}
+.spinner > svg {
+  display: block;
+  width: 100%;
+  height: 100%;
 }
 @keyframes spin {
   to {

@@ -45,10 +45,11 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
   const missed = questions.filter((_, i) => !results[i]?.ok)
   const right = total - missed.length
   const perfect = total > 0 && missed.length === 0
-  // Read once, when the results first show, so filtering the list never replays it.
+  // Only for a perfect round (asked for: none with a miss). Read once, when the results first show, so filtering
+  // the list never replays it.
   const [confetti, setConfetti] = useState<string[]>()
   useEffect(() => {
-    if (body && !confetti) setConfetti(themeColors(body, perfect ? [...CONFETTI_COLORS, '--accent'] : CONFETTI_COLORS))
+    if (body && perfect && !confetti) setConfetti(themeColors(body, [...CONFETTI_COLORS, '--accent']))
   }, [body])
   const markedCount = results.filter((r) => r?.marked).length
   const missedCards = usable.filter((c) => missed.some((m) => m.cardId === c.id))
@@ -67,7 +68,7 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
     ...(missed.length > 0 && right > 0
       ? [
           { value: 'missed' as const, label: `Missed (${missed.length})` },
-          { value: 'right' as const, label: `Right (${right})` },
+          { value: 'right' as const, label: `Correct (${right})` },
         ]
       : []),
     // One word like the others, so four still fit side by side on a phone.
@@ -77,7 +78,7 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
   ]
   return (
     <div className="session-main">
-      {confetti && <Confetti level={perfect ? 'perfect' : 'done'} colors={confetti} />}
+      {confetti && <Confetti level="perfect" colors={confetti} />}
       <div ref={setBody} className="session-body results">
         <section className="results-summary" aria-label="Score">
           <div>
@@ -122,8 +123,8 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
                       <span
                         className={result?.ok ? 'row-mark' : 'row-mark is-missed'}
                         role="img"
-                        aria-label={result?.ok ? 'Right' : 'Missed'}
-                        title={result?.ok ? 'Right' : 'Missed'}
+                        aria-label={result?.ok ? 'Correct' : 'Missed'}
+                        title={result?.ok ? 'Correct' : 'Missed'}
                       >
                         {result?.ok ? <CheckIcon /> : <CrossIcon />}
                       </span>

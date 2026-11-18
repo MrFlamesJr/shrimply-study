@@ -8,7 +8,7 @@ export function ChangelogScreen() {
     <main className="page">
       <PageHead title="What's new" sub="Every release's notes, the newest first" />
       {RELEASES.map((release) => (
-        <section key={release.name}>
+        <section key={release.name} className="tips-section">
           <div className="release-head">
             <h2>{release.name}</h2>
             <time className="muted" dateTime={release.date}>

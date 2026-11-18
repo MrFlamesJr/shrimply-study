@@ -1,8 +1,9 @@
-"""Toasts in every theme: the three kinds show and their text keeps 4.5:1. No debug toast carries an action yet, so an
-Undo button is added to each toast's DOM here only to measure the action's look (rest and hover), screenshots in the
-scratch folder when E2E_SHOTS is set. Then the layout (shortest and longest texts, with and without an action, at 320
-and 1280 wide) and the toasts while a modal dialog is open (hover pauses the countdown, the ✕ works, and the countdown
-carries on from where it was when the dialog closes)."""
+"""Toasts in every theme: the three kinds show and their text keeps 4.5:1. An Undo button is added to the plain debug
+toasts' DOM here only to measure the action's look (rest and hover), screenshots in the scratch folder when E2E_SHOTS
+is set. Then the layout (shortest and longest texts, with and without an action, at 320 and 1280 wide), More info (the
+debug page's With details and Error with cause toasts, in every theme at 320 and 1280: the cut name, one-line buttons,
+the detail and the original error, 4.5:1, and an opened toast that stays) and the toasts while a modal dialog is open
+(hover pauses the countdown, the ✕ works, and the countdown carries on from where it was when the dialog closes)."""
 import os
 import sys
 
@@ -30,10 +31,12 @@ BUILD = """cases => {
     t.className = `toast is-${kind}`
     t.querySelector('p').textContent = text
     t.querySelector('.toast-life').remove()
-    t.querySelector('.toast-action')?.remove()
+    t.querySelector('.toast-foot')?.remove()
+    t.querySelector('.toast-detail')?.remove()
     if (action) {
+      const foot = document.createElement('div'); foot.className = 'toast-foot'
       const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-action'; b.textContent = action
-      t.querySelector('p').after(b)
+      foot.append(b); t.querySelector('.icon-btn').after(foot)
     }
     stack.append(t)
   }
@@ -83,6 +86,86 @@ def layout(page, shot_dir):
     page.set_viewport_size({'width': 1280, 'height': 800})
 
 
+# Each toast's More info and action: their height, how many lines their words take, and whether they spill.
+FOOT = """() => [...document.querySelectorAll('.toasts .toast')].map(t => {
+  const box = t.getBoundingClientRect()
+  const buttons = [...t.querySelectorAll('.toast-foot button')].map(b => {
+    // Its words only: More info's chevron sits centered beside them, so its own box has another top.
+    const words = [...b.childNodes].find(n => n.nodeType === 3 && n.textContent.trim())
+    const r = document.createRange(); r.selectNodeContents(words)
+    return { text: b.textContent.trim(), h: b.getBoundingClientRect().height, spill: b.scrollWidth - b.clientWidth,
+             lines: new Set([...r.getClientRects()].map(q => Math.round(q.top))).size,
+             out: b.getBoundingClientRect().right - box.right }
+  })
+  return { text: t.querySelector(':scope > p').textContent, over: t.scrollWidth - t.clientWidth, buttons }
+})"""
+LIFE = """t => { const a = t.querySelector('.toast-life').getAnimations()[0]
+  return { state: a && a.playState, track: getComputedStyle(t.querySelector('.toast-track')).visibility } }"""
+
+
+def details(page, shot_dir):
+    """More info on the debug page's two toasts with details: walked at 320 and 1280 in every theme."""
+    page.reload()
+    section = page.locator('.debug-section', has_text='Toasts').first
+    section.get_by_role('button', name='With details', exact=True).click()
+    section.get_by_role('button', name='Error with cause', exact=True).click()
+    info = page.locator('.toast.is-info')
+    error = page.locator('.toast.is-error')
+    error.wait_for()
+    text = info.locator(':scope > p').inner_text()
+    assert text.endswith('…".'), f'a name past 40 characters is cut with an ellipsis: {text}'
+    assert len(text) < 70, f'the cut name keeps the main text short: {text}'
+    for width in (320, 1280):
+        page.set_viewport_size({'width': width, 'height': 900})
+        page.locator('.toasts').hover()
+        for theme in THEMES:
+            set_theme(page, theme)
+            page.wait_for_timeout(120)
+            for t in (info, error):
+                more = t.get_by_role('button', name='More info')
+                if more.get_attribute('aria-expanded') == 'true':
+                    more.click()
+            for m in page.evaluate(FOOT):
+                where = f'{theme} {width}px "{m["text"][:30]}"'
+                assert m['over'] <= 0, f'{where} toast overflows by {m["over"]}'
+                for b in m['buttons']:
+                    assert b['lines'] == 1 and b['spill'] <= 0 and b['out'] <= 0, f'{where} {b["text"]} wraps or spills ({b})'
+                    assert b['h'] >= (44 if width < 800 else 32), f'{where} {b["text"]} only {b["h"]}px tall'
+            for r in contrast(page, '.toast-more'):
+                assert r['ratio'] >= 4.5, f'{theme} {width}px More info {r}'
+            info.get_by_role('button', name='More info').hover()
+            page.wait_for_timeout(150)
+            for r in contrast(page, '.toast.is-info .toast-more'):
+                assert r['ratio'] >= 4.5, f'{theme} {width}px More info hovered {r}'
+            for t in (info, error):
+                t.get_by_role('button', name='More info').click()
+                assert t.get_by_role('button', name='More info').get_attribute('aria-expanded') == 'true', f'{theme} More info opens'
+            page.wait_for_timeout(300)  # the detail fades in and the chevron turns: measure and shoot it settled
+            lines = info.locator('.toast-detail p').all_inner_texts()
+            assert any('›' in line for line in lines), f'{theme} the detail says where: {lines}'
+            last = error.locator('.toast-detail p').all_inner_texts()[-1]
+            assert last.startswith('Original error: 503 backendError'), f'{theme} the original error comes last: {last}'
+            for r in contrast(page, '.toast-detail p'):
+                assert r['ratio'] >= 4.5, f'{theme} {width}px detail {r}'
+            for m in page.evaluate(FOOT):
+                assert m['over'] <= 0, f'{theme} {width}px open toast overflows by {m["over"]}'
+            if shot_dir:
+                os.makedirs(shot_dir, exist_ok=True)
+                page.screenshot(path=os.path.join(shot_dir, f'toasts-details-{width}-{theme}.png'))
+    # Opened, it stays: its bar stops and hides, also once the pointer leaves the stack and More info is shut again.
+    page.mouse.move(5, 5)
+    page.wait_for_timeout(300)
+    life = info.evaluate(LIFE)
+    assert life == {'state': 'paused', 'track': 'hidden'}, f'an opened toast keeps counting down: {life}'
+    info.get_by_role('button', name='More info').click()
+    page.mouse.move(5, 5)
+    page.wait_for_timeout(300)
+    assert info.locator('.toast-detail').count() == 0, 'More info shuts again'
+    assert info.evaluate(LIFE)['state'] == 'paused', 'shutting More info again does not restart the countdown'
+    set_theme(page, 'calm')
+    page.set_viewport_size({'width': 1280, 'height': 800})
+
+
 def in_modal(page):
     page.reload()
     section = page.locator('.debug-section', has_text='Toasts').first
@@ -126,13 +209,14 @@ def run(page, base):
     for name in ('Info', 'Warning', 'Error'):
         section.get_by_role('button', name=name, exact=True).click()
     page.locator('.toast').nth(2).wait_for()
-    page.evaluate("""() => document.querySelectorAll('.toast p').forEach(p => {
+    page.evaluate("""() => document.querySelectorAll('.toast').forEach(t => {
+        const foot = document.createElement('div'); foot.className = 'toast-foot'
         const b = document.createElement('button'); b.type = 'button'; b.className = 'toast-action'; b.textContent = 'Undo'
-        p.after(b) })""")
+        foot.append(b); t.querySelector('.icon-btn').after(foot) })""")
     for theme in THEMES:
         set_theme(page, theme)
         page.wait_for_timeout(100)
-        for sel in ('.toast p', '.toast-action'):
+        for sel in ('.toast > p', '.toast-action'):
             for r in contrast(page, sel):
                 assert r['ratio'] >= 4.5, f'{theme} {sel} {r}'
         page.locator('.toast-action').first.hover()
@@ -144,5 +228,6 @@ def run(page, base):
         page.locator('.toasts').hover()
         shots(page, 'toasts', os.environ['E2E_SHOTS'])
     layout(page, os.environ.get('E2E_SHOTS'))
+    details(page, os.environ.get('E2E_SHOTS'))
     in_modal(page)
     assert not page.errors, page.errors

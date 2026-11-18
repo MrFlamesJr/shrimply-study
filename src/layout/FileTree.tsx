@@ -1,11 +1,12 @@
 import { useEffect, useId, useLayoutEffect, useRef, useState, type KeyboardEvent, type MouseEvent, type ReactNode } from 'react'
 import { href, parseHash, type Route } from '../route'
 import { flatten, keyNav, typeahead } from '../kit/tree'
+import { comboLabel, isMac } from '../kit/shortcuts'
 import type { LibraryApi, WorkspaceApi } from '../state/useWorkspace'
 import type { DriveFiles } from '../state/useDriveFiles'
 import type { DocId } from '../logic/contentOps'
 import { closedEntries, libraryTotal, nodeOf, refOf } from '../logic/explorerTree'
-import { countLine, fileInfo, fileTreeSource, libraryCounts, unfoldFor } from '../logic/fileTree'
+import { countLine, fileInfo, fileTreeSource, libraryCounts, pageNode, unfoldFor } from '../logic/fileTree'
 import { needsAttention, statusText, type SaveProblem } from '../logic/autosave'
 import { fileNameProblem } from '../logic/names'
 import { plural } from '../logic/plural'
@@ -42,8 +43,10 @@ type Props = {
   onNewQuiz: (doc: DocId, course: string) => void
 }
 
-// The card opens as soon as the pointer is on a file (asked for: snappy, never a wait).
+// The card opens as soon as the pointer is on a file (asked for: snappy, never a wait), and waits this long before it
+// goes, so the pointer can move onto it.
 const HOVER_MS = 0
+const HIDE_MS = 200
 const CARD_GAP = 8
 
 /**
@@ -58,10 +61,11 @@ function whereOf(doc: LibraryApi): [typeof CloudIcon, string] {
   return [icon, whereWithStatus(where, doc.status, doc.where)]
 }
 
-// The save slot: a browser library uploads, a view-only one makes its own copy. A library that saves itself has none
-// while it saves as it should (asked for: a button greyed out nearly always was noise); only a paused save shows one,
-// in the same place, that fixes it in one click (Ctrl+S saves at any time). A file that was moved or deleted has
-// Locate file under its row instead.
+// The save slot: a browser library uploads, a view-only one makes its own copy. A file on this device saves only when
+// asked (asked for), so it always has Save, greyed out while there is nothing to save. A Drive file saves itself, so
+// it has none while it saves as it should (asked for: a button greyed out nearly always was noise); only a paused save
+// shows one, in the same place, that fixes it in one click (Ctrl+S saves at any time). A file that was moved or deleted
+// has Locate file under its row instead.
 const FIX_TITLE: Record<SaveProblem, string> = {
   signIn: 'Sign in again and save',
   offline: 'Save now',
@@ -70,10 +74,16 @@ const FIX_TITLE: Record<SaveProblem, string> = {
   permission: 'Allow access and save',
   missing: 'Locate file',
 }
-function saveSlot(doc: LibraryApi): { label: string; title: string } | null {
+const SAVE_KEY = comboLabel('Mod+S', isMac(navigator.platform))
+function saveSlot(doc: LibraryApi): { label: string; title: string; disabled?: boolean } | null {
   if (doc.readOnly) return { label: `Make a copy of ${doc.name}`, title: 'Make a copy you can change' }
   if (doc.where === 'browser') return { label: `Upload ${doc.name}`, title: 'Upload to Google Drive' }
-  if (!needsAttention(doc.status) || doc.status === 'missing') return null
+  if (doc.status === 'missing') return null
+  if (doc.where === 'device' && !needsAttention(doc.status)) {
+    const idle = doc.status === 'saved' || doc.status === 'saving'
+    return { label: `Save ${doc.name}`, title: idle ? `No changes to save to ${doc.fileName}` : `Save to ${doc.fileName} (${SAVE_KEY})`, disabled: idle }
+  }
+  if (!needsAttention(doc.status)) return null
   const title = doc.status === 'conflict' ? `Changed on ${doc.where === 'device' ? 'this device' : 'Google Drive'}: choose which to keep` : FIX_TITLE[doc.status]
   return { label: `Save ${doc.name}`, title }
 }
@@ -83,7 +93,7 @@ const infoOf = (doc: LibraryApi): string[] =>
     where: whereOf(doc)[1],
     driveName: doc.drive.file?.name ?? doc.fileName,
     shared: !!doc.drive.file?.shared,
-    problem: doc.hasChanges ? statusText(doc.status, doc.where) : null,
+    problem: doc.hasChanges || (doc.where === 'device' && doc.status === 'pending') ? statusText(doc.status, doc.where) : null,
     saved: doc.where !== 'browser' && doc.status === 'saved',
     counts: countLine(doc.library),
   })
@@ -104,8 +114,9 @@ const glyph = (icon: ReactNode, expandable: boolean) => (
 const nameProblem = (name: string) => (name.trim() ? fileNameProblem(name.trim()) : 'A library needs a name.')
 
 /**
- * A library's name as a one-line field (rename, or naming a new one): Enter or leaving keeps the text, Esc keeps the
- * old name. Text that can not be a name shows why under the field and is not kept.
+ * A library's name as a one-line field (rename, or naming a new one), ending in its file's ".shrimp" (asked for): Enter
+ * or leaving keeps the text, Esc keeps the old name. Text that can not be a name is not kept; why shows in a small
+ * popup under the field, which the sidebar's edge never cuts (asked for).
  */
 function RenameField({ start, onCommit, onCancel }: { start: string; onCommit: (name: string, focusRow: boolean) => void; onCancel: (focusRow: boolean) => void }) {
   const [text, setText] = useState(start)
@@ -123,9 +134,11 @@ function RenameField({ start, onCommit, onCancel }: { start: string; onCommit: (
         aria-label="Library name"
         value={text}
         onChange={setText}
+        suffix=".shrimp"
         selectOnMount
         required
         check={nameProblem}
+        popError
         onEnter={(box) => {
           if (!nameProblem(box.value)) finish(box.value, true)
         }}
@@ -171,15 +184,7 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
   const rows = flatten(source, expanded)
 
   // The id of the row for the page shown: the course or quiz, else the active file's home.
-  const pageId = (() => {
-    if (!ws.active || !activeLib) return null
-    const home = nodeOf({ kind: 'doc', doc: ws.active })
-    if (!current) return home
-    const course = activeLib.courses.find((c) => c.id === current)
-    if (course) return nodeOf({ kind: 'course', doc: ws.active, course: course.id })
-    const holder = activeLib.courses.find((c) => c.quizzes.some((q) => q.id === current))
-    return holder ? nodeOf({ kind: 'quiz', doc: ws.active, course: holder.id, quiz: current }) : home
-  })()
+  const pageId = pageNode(ws.active, activeLib, current)
   const visible = (id: string | null) => id !== null && rows.some((r) => r.id === id)
   const tabId = visible(focusId) ? focusId : visible(pageId) ? pageId : (rows[0]?.id ?? null)
 
@@ -217,6 +222,17 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
   const hideCard = () => {
     if (root.current) ownWindow(root.current).clearTimeout(timer.current)
     setHover(null)
+  }
+  // Leaving the row hides the card a moment later, so the pointer can cross the gap onto it and it stays while pointed
+  // at (asked for); leaving the card hides it the same way.
+  const leaveCard = () => {
+    if (!root.current) return
+    const win = ownWindow(root.current)
+    win.clearTimeout(timer.current)
+    timer.current = win.setTimeout(() => setHover(null), HIDE_MS)
+  }
+  const keepCard = () => {
+    if (root.current) ownWindow(root.current).clearTimeout(timer.current)
   }
   useLayoutEffect(() => {
     const el = card.current
@@ -324,20 +340,22 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
     }, HOVER_MS)
   }
 
-  // Open of all the libraries there are: the open ones, the user's Drive libraries and the closed ones.
+  // Open of all the libraries there are: the open ones, the user's Drive libraries and the closed ones. A library in
+  // its owner's Google Drive bin counts in neither (asked for), though an open one still shows, with its warning.
+  const counted = ws.docs.filter((d) => !ws.doc(d.id).drive.file?.trashed)
   const total = libraryTotal(
-    ws.docs.map((d) => ({ id: d.id, name: d.name, library: ws.doc(d.id).library, driveId: ws.doc(d.id).drive.file?.id ?? null })),
+    counted.map((d) => ({ id: d.id, name: d.name, library: ws.doc(d.id).library, driveId: ws.doc(d.id).drive.file?.id ?? null })),
     ws.drive.setUp && ws.drive.signedIn() ? driveFiles.files : null,
     closedEntries(ws.closed),
   )
-  const countTitle = `${ws.docs.length} open of ${plural(total, 'library', 'libraries')}`
+  const countTitle = `${counted.length} open of ${plural(total, 'library', 'libraries')}`
 
   return (
     <section className="files" aria-label="Open files" ref={root}>
       <div className="files-head">
         <h2 className="files-title">Files</h2>
         <span className="files-count" title={countTitle} aria-label={countTitle}>
-          {ws.docs.length}/{total}
+          {counted.length}/{total}
         </span>
         <span className="files-gap" />
         <IconButton
@@ -401,7 +419,7 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                   className={active ? 'file-row is-active' : 'file-row'}
                   role="none"
                   onPointerEnter={(e) => e.pointerType === 'mouse' && showCard(docId, e.currentTarget)}
-                  onPointerLeave={hideCard}
+                  onPointerLeave={leaveCard}
                 >
                   <div
                     className="file-pick"
@@ -429,13 +447,13 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                           }}
                         />
                       ) : (
-                        <span className="file-name-text" title={`${doc.name}. Double-click to rename`} onDoubleClick={() => startRename(docId)}>
+                        <span className="file-name-text" onDoubleClick={() => startRename(docId)}>
                           {doc.name}
                         </span>
                       )}
                       {doc.hasChanges && <span className="file-dot" role="img" aria-label={statusText(doc.status, doc.where)} title={statusText(doc.status, doc.where)} />}
                     </span>
-                    <span className={doc.status === 'missing' ? 'file-where is-missing' : 'file-where'}>{where}</span>
+                    <span className={doc.status === 'missing' ? 'file-where is-missing' : doc.where === 'browser' ? 'file-where is-warn' : 'file-where'}>{where}</span>
                   </div>
                   {/* A small toolbar that slides in over the end of the name line while the row is pointed at (or holds the
                       keyboard focus), the same for every library: the save slot, Share, New course, Download a copy
@@ -445,6 +463,7 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
                       <IconButton
                         label={slot.label}
                         title={slot.title}
+                        disabled={slot.disabled}
                         tabIndex={rowTab}
                         onClick={() => {
                           if (doc.readOnly) void doc.makeCopy()
@@ -568,7 +587,7 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
           </p>
         </div>
       )}
-      <div className="file-info" popover="manual" ref={card}>
+      <div className="file-info" popover="manual" ref={card} onPointerEnter={keepCard} onPointerLeave={leaveCard}>
         {hover && ws.docs.some((d) => d.id === hover.doc) && <FileCard doc={ws.doc(hover.doc)} />}
       </div>
     </section>
@@ -576,39 +595,74 @@ export function FileTree({ ws, current, driveFiles, onOpenDialog, onNewFile, onS
 }
 
 /**
- * A file's hover card: its icon and name over where it lives, its figures (courses, quizzes, cards) side by side, then
- * a few notes, each with its own mark: its Drive file, saved or what needs attention, shared.
+ * A file's hover card: its icon and name over where it lives (the place alone), its figures (courses, quizzes, cards)
+ * side by side, then a few notes, each with its own mark: its Drive file, a look at its file on this device, its save
+ * status (saved, unsaved, saving or what needs attention), shared. It stays while the pointer is on it.
  */
 function FileCard({ doc }: { doc: LibraryApi }) {
-  const [Icon, where] = whereOf(doc)
+  const [Icon] = whereOf(doc)
+  // The place alone: its save status is a note below (asked for: never said twice).
+  const where = doc.readOnly ? 'View only' : whereLine({ drive: doc.drive.file, yours: doc.drive.yours, signedIn: doc.drive.signedIn(), file: doc.fileName })
   const counts = libraryCounts(doc.library)
   const drive = doc.drive.file
   const home = drive?.name ?? doc.fileName
+  const device = doc.where === 'device'
+  // A file on this device is looked at as the card opens (asked for: is it still where it was?), asking the browser nothing.
+  const [found, setFound] = useState<Awaited<ReturnType<LibraryApi['checkFile']>> | 'looking'>('looking')
+  useEffect(() => {
+    if (!device) return
+    let live = true
+    setFound('looking')
+    void doc.checkFile().then((r) => live && setFound(r), () => live && setFound('error'))
+    return () => {
+      live = false
+    }
+  }, [doc.id, device])
+  const changed = doc.fileChanged ? new Date(doc.fileChanged).toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }) : null
+  const FOUND: Record<typeof found, [ReactNode, string] | null> = {
+    looking: [<FileIcon key="i" />, 'Looking for it…'],
+    ok: [<CheckIcon key="i" />, changed ? `Still there. Last changed ${changed}` : 'Still there'],
+    skipped: changed ? [<FileIcon key="i" />, `Last changed ${changed}`] : null,
+    missing: [<CrossIcon key="i" />, 'Not found where it was'],
+    permission: [<FileIcon key="i" />, "Can't look at it until you allow access (Save asks)"],
+    error: [<CrossIcon key="i" />, "Couldn't look at it just now"],
+  }
+  // A file found gone already says so in its status note.
+  const look = device && doc.status !== 'missing' ? FOUND[found] : null
   const figures = [
     [counts.courses, counts.courses === 1 ? 'course' : 'courses'],
     [counts.quizzes, counts.quizzes === 1 ? 'quiz' : 'quizzes'],
     [counts.cards, counts.cards === 1 ? 'card' : 'cards'],
   ] as const
   const notes = [
-    home && (
+    // A file on this device is named on the where line already.
+    home && !device && (
       <li key="home">
-        {doc.where === 'device' ? <FileIcon /> : <CloudIcon />}
+        <CloudIcon />
         <span className="file-info-home">{home}</span>
       </li>
     ),
-    doc.hasChanges ? (
+    look && (
+      <li key="look">
+        {look[0]}
+        {look[1]}
+      </li>
+    ),
+    doc.where === 'browser' || doc.readOnly ? null : doc.status === 'saved' ? (
+      <li key="saved">
+        <CheckIcon />
+        All changes saved
+      </li>
+    ) : doc.hasChanges || (device && doc.status === 'pending') ? (
       <li key="saved" className="is-unsaved">
         <span className="file-info-dot" />
         {statusText(doc.status, doc.where)}
       </li>
     ) : (
-      doc.where !== 'browser' &&
-      doc.status === 'saved' && (
-        <li key="saved">
-          <CheckIcon />
-          All changes saved
-        </li>
-      )
+      <li key="saved">
+        <Icon />
+        {statusText(doc.status, doc.where)}
+      </li>
     ),
     drive?.shared && (
       <li key="shared">

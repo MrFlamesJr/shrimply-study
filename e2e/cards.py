@@ -162,7 +162,7 @@ def run(page, base):
     before = len(card_ids(page))
     page.locator(UNGROUPED).first.get_by_role('button', name='Delete card 1').click()
     page.wait_for_function('n => document.querySelectorAll(".pairs > .pair").length === n', arg=before - 1, timeout=3000)
-    toast = page.locator('.toast', has_text='Deleted card #1.').first
+    toast = page.locator('.toast', has_text='Deleted the card').first
     toast.wait_for(timeout=3000)
     if toast.get_by_role('button', name='Undo').count() != 1:
         raise AssertionError('the deleted-card toast has no Undo button')

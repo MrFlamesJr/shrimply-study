@@ -5,13 +5,17 @@ type Option<T> = { value: T; label: string; icon?: ReactNode; disabled?: boolean
 
 /**
  * Pick exactly one: equal segments of radio buttons with an indicator that slides to the chosen one.
- * An option's `hint` shows under the bar while it is chosen (describe that value there).
+ * An option's `hint` shows under the bar while it is chosen (describe that value there). `compact`: a small bar on one
+ * line among other controls (a card's head), its label for screen readers only, a segment's text cut short with an
+ * ellipsis (the whole text its tooltip).
  */
 export function Segmented<T extends string | boolean>(props: {
   label: string
   options: Option<T>[]
   value: T
   onChange: (value: T) => void
+  compact?: boolean
+  title?: string
 }) {
   const name = useId()
   const index = Math.max(0, props.options.findIndex((o) => o.value === props.value))
@@ -22,7 +26,8 @@ export function Segmented<T extends string | boolean>(props: {
     // A div, not a fieldset, so a parent grid can line up the label, bar and hint (subgrid).
     <div
       role="radiogroup"
-      className="segmented-field"
+      className={props.compact ? 'segmented-field is-compact' : 'segmented-field'}
+      title={props.title}
       aria-labelledby={`${name}-label`}
       aria-describedby={props.options[index]?.hint ? `${name}-hint-${index}` : undefined}
     >
@@ -31,7 +36,7 @@ export function Segmented<T extends string | boolean>(props: {
       </span>
       <div className="segmented" style={place}>
         {props.options.map((o) => (
-          <label key={String(o.value)} title={o.title}>
+          <label key={String(o.value)} title={o.title ?? (props.compact ? o.label : undefined)}>
             <input
               type="radio"
               name={name}
@@ -40,7 +45,7 @@ export function Segmented<T extends string | boolean>(props: {
               onChange={() => props.onChange(o.value)}
             />
             {o.icon}
-            {o.label}
+            {props.compact ? <span className="segmented-text">{o.label}</span> : o.label}
           </label>
         ))}
       </div>

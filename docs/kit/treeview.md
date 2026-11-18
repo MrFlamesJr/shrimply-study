@@ -22,24 +22,28 @@ type DropRule = { ok: true } | { ok: false; reason: string }
 - `filter?: string`: passed to `flatten`; matches are highlighted with `<mark>`.
 - `icon?(id): ReactNode`, `description?(id): ReactNode` (text, or small badges), `dimmed?(id): boolean`: optional per-row extras (`dimmed`
   adds the class `is-dimmed`, for example for cut items).
+- `current?: string | null`: the row of what is shown now (the page on screen): `aria-current="page"` and the class
+  `is-current`, a dashed outline in `--kit-accent-line`, apart from the selection and the focus ring.
 - `onActivate(id)`: Enter or double click.
 - `onContextMenu(target: string | null, at: { x; y })`: right click, the ContextMenu key or Shift+F10. `null` target:
   empty space. If the row is not selected it is selected first.
 - `onKeyDown?(e: KeyboardEvent, focus: string | null): boolean`: the host's own keys, run first; return true to say the key
   is handled. `e` is the native event.
-- `drag?`: `{ kind(ids): string | null; accepts?(payload): boolean; rule(payload, target, pos, effect): DropRule; allowInside(target): boolean; onDrop(payload, target, pos, effect): void; label(payload, effect): string }`.
+- `drag?`: `{ kind(ids): string | null; accepts?(payload): boolean; rule(payload, target, pos, effect): DropRule; effect?(payload, target): 'move' | 'copy'; allowInside(target, payload): boolean; onDrop(payload, target, pos, effect): void; label(payload, effect): string }`.
   `kind` returns the payload kind (null: these cannot be dragged). `target` is a row id or null (empty space below the
   rows), `pos` is `'before' | 'inside' | 'after'`, `effect` is `'move' | 'copy'`. `label` is the text shown by the drop
   point ("Move 3 cards"). `accepts` (default: every payload) says whether a drag is the tree's business at all; when it
   returns false the tree ignores that drag entirely: no `preventDefault`, no drop effect, no highlight, no label (a tab
   over the Explorer). A drag over the rename field is ignored too.
 - `rename?`: `{ id: string | null; commit(id, name): void; cancel(): void; check?(id, name): string | null }`. The row with
-  `id` shows a text field.
+  `id` shows a text field. When `check` refuses the text, its reason shows in a popup under the field (`.kit-row-error`).
+  The popup is in the top layer and placed by `float.ts`, so the tree's scroll box never cuts it off. It wraps inside the
+  window.
 - `empty?: ReactNode`: shown when there are no rows.
 
 ## Dependencies
 
-`react`, `./dnd`, `./selection`, `./shortcuts` (`isMac`), `./tree`, and `./tree.css`. The css uses: `--kit-accent
+`react`, `./dnd`, `./float` (`useFloatBelow`), `./selection`, `./shortcuts` (`isMac`), `./tree`, and `./tree.css`. The css uses: `--kit-accent
 --kit-accent-line --kit-accent-soft --kit-border-strong --kit-dim --kit-dur --kit-ease --kit-focus
 --kit-font --kit-invalid --kit-line --kit-line-thick --kit-muted --kit-popup --kit-radius --kit-space-1 --kit-space-2 --kit-space-3
 --kit-surface-2 --kit-text --kit-text-sm --kit-text-xs`.
@@ -152,7 +156,7 @@ export function Files() {
 - Drag: a payload `accepts` allows but `rule` refuses is shown as refused. The tree calls
   `preventDefault` on every dragover whose payload `accepts` allows, so the refusal is shown by the cursor (`none`) and the label.
   Drop on empty space gives target `null` and pos `'after'`.
-- Copy is Ctrl (Option on a Mac), read from the event's window's `navigator.platform`.
+- Copy is Ctrl (Option on a Mac), read from the event's window's `navigator.platform`; Shift moves; with neither, the effect is `drag.effect(payload, target)` (default move).
 - Rename: Enter commits, Esc cancels, leaving the field commits. While `check` returns a message, Enter does nothing, the
   message shows under the field, and leaving the field cancels instead of committing. Name trimming and conflicts are the
   host's job.

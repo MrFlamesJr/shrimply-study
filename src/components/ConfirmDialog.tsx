@@ -9,7 +9,7 @@ export type { Choice }
  * Asks a question with several answers in a modal: Cancel, then the choices, the primary one last (where the confirm
  * button of `askConfirm` sits). Resolves the chosen value; Cancel, the ✕, Esc or a click outside resolve null, and so
  * does the window it shows in going away (a popped-out pane's popup closed meanwhile).
- * A blank line in `question` starts a new paragraph.
+ * A blank line in `question` starts a new paragraph; a paragraph whose lines each start with "- " is a list.
  */
 export function askChoice<V>(question: string, choices: Choice<V>[], options?: { title?: string }): Promise<V | null> {
   return new Promise((resolve) => {
@@ -41,9 +41,18 @@ export function askChoice<V>(question: string, choices: Choice<V>[], options?: {
     const ordered = [...choices.filter((c) => !c.primary), ...choices.filter((c) => c.primary)]
     root.render(
       <Modal title={options?.title ?? 'Are you sure?'} narrow onClose={onClose}>
-        {question.split('\n\n').map((part, i) => (
-          <p key={i}>{part}</p>
-        ))}
+        {question.split('\n\n').map((part, i) => {
+          const lines = part.split('\n')
+          return lines.every((line) => line.startsWith('- ')) ? (
+            <ul key={i} className="confirm-list">
+              {lines.map((line, j) => (
+                <li key={j}>{line.slice(2)}</li>
+              ))}
+            </ul>
+          ) : (
+            <p key={i}>{part}</p>
+          )
+        })}
         <div className="actions">
           <button type="button" onClick={(e) => closeModal(e.currentTarget)}>
             Cancel
@@ -69,7 +78,8 @@ export function askChoice<V>(question: string, choices: Choice<V>[], options?: {
 
 /**
  * Asks a yes/no question in a modal (instead of the browser's confirm). Resolves true only for the confirm button.
- * `title` replaces "Are you sure?" where it would read wrong. A blank line in `question` starts a new paragraph.
+ * `title` replaces "Are you sure?" where it would read wrong. A blank line in `question` starts a new paragraph; a
+ * paragraph whose lines each start with "- " is a list.
  */
 export async function askConfirm(question: string, confirmLabel: string, options?: { danger?: boolean; title?: string }): Promise<boolean> {
   const confirm = { label: confirmLabel, value: true, primary: !options?.danger, danger: options?.danger }

@@ -403,7 +403,7 @@ export function StudyQuestion({ question, card, format: asked, usable, result, p
                     <span className="choice-key">{i + 1}</span>
                     <Thumb src={choiceImage(choice)} alt={choice || `${names[answerSide]} image`} hover />
                     {choice}
-                    {state === 'is-correct' && <Mark ok label="Right answer" />}
+                    {state === 'is-correct' && <Mark ok label="Correct answer" />}
                     {state === 'is-wrong' && <Mark ok={false} label="Your answer, wrong" />}
                   </button>
                 )

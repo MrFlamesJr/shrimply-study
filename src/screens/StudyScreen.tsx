@@ -3,6 +3,7 @@ import type { Card, Format, Question, StudyOptions } from '../model'
 import type { Nav } from '../route'
 import type { LibraryApi } from '../state/useWorkspace'
 import { useKeydown } from '../hooks/useKeydown'
+import { quoteName } from '../logic/toastText'
 import { buildRound, canChoose, refreshQuestions, usableCards } from '../logic/buildRound'
 import { CrossIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
@@ -47,7 +48,9 @@ export function StudyScreen({ lib, notify, quizId, format, prefs, nav, active = 
   useEffect(() => {
     if (!empty) return
     exit()
-    notify('info', 'Nothing to study in this round.')
+    notify('info', 'Nothing to study in this round.', {
+      detail: `None of the cards in ${quoteName(found!.quiz.name)} can be asked with these options. Try another mode, or finish them in Edit quiz.`,
+    })
   }, [empty])
 
   // `only` keeps just those questions of the round (a cloze card is asked once per blank).

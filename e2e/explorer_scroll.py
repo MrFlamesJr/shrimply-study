@@ -72,7 +72,7 @@ def run(page, base):
     # In a split: the Explorer's tab copied into a second group.
     page.locator('[role=tab]', has_text='Explorer').first.click()
     page.keyboard.press('Control+Backslash')
-    page.wait_for_function("document.querySelectorAll('.wb-cell .wb-group').length === 2")
+    page.wait_for_function("document.querySelectorAll('.wb-cell .wb-group').length >= 2")
     count = page.locator('.explorer').count()
     for i in range(count):
         if page.locator('.explorer').nth(i).is_visible():

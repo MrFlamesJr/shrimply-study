@@ -40,6 +40,9 @@ def stub_google(page, state):
             token = req.headers.get('authorization', '').partition('stub-token:')[2]
             return route.fulfill(headers=CORS, json={'user': {'emailAddress': token or 'stub@example.com'}})
         m = re.search(r'/drive/v3/files/([^?]+)', url)
+        # As Google: downloaded with the site's key alone (no sign-in), only a file shared with a link opens.
+        if m and 'alt=media' in url and 'authorization' not in req.headers and not any(f['id'] == m.group(1) and f.get('shared') for f in state['files']):
+            return route.fulfill(status=404, headers=CORS, json={'error': {'code': 404, 'errors': [{'reason': 'notFound'}]}})
         if m and req.method == 'PATCH':
             state['trashed'].append(m.group(1))
             state['files'] = [f for f in state['files'] if f['id'] != m.group(1)]
@@ -205,14 +208,26 @@ def drive_tests(page, state):
     need(link.count() == 1 and 'Choose files in Google Drive' in link.inner_text(), 'a link chooses more files')
     need(page.get_by_role('button', name='Refresh Google Drive').count() == 1, 'Refresh shows once signed in')
 
+    # The Open dialog links to the real Shrimply Study folder in Google Drive, in a browser tab of its own (asked for).
+    page.locator('.files-head').get_by_role('button', name='Open', exact=True).click()
+    folder = page.locator('dialog[open]').get_by_role('link', name='Your Shrimply Study folder')
+    folder.wait_for()
+    href = folder.get_attribute('href') or ''
+    need(href.startswith('https://drive.google.com/drive/folders/') and folder.get_attribute('target') == '_blank', f'the folder link opens Drive in a new tab: {href}')
+    page.keyboard.press('Escape')
+    page.locator('dialog[open]').wait_for(state='detached')
+
     # One list sorted by name; each file says whether it is open and where it is.
     files = top_level(page)
     sorted_names = ['alpha.shrimp', 'beta.shrimp', 'gamma.shrimp', 'Guide', 'Test library']
     need([f[0] for f in files] == sorted_names, f'open and not open files are sorted together: {files}')
     need(files[0][1].startswith('Not open') and files[0][2] == 'On Google Drive', f'a library not open says so in words, and where: {files[0]}')
     need(drive_row(page, 'alpha').locator('.explorer-chip').count() == 0, 'but shows no chip')
-    need('Open, ' in files[3][1] and files[3][2] == 'Only in this browser', f'an open file says so, and where: {files[3]}')
-    need(row(page, 'doc', 'Guide').locator('.explorer-chip').inner_text() == 'Open', 'an open file has an Open chip')
+    need('Open, ' in files[3][1] and files[3][2] == 'Only in this browser: can be lost', f'an open file says so, and where: {files[3]}')
+    chip = row(page, 'doc', 'Guide').locator('.explorer-chip')
+    need(chip.inner_text() == 'Opened', 'an open file has an Opened chip')
+    chip_box, row_box = chip.bounding_box(), row(page, 'doc', 'Guide').bounding_box()
+    need(row_box['x'] + row_box['width'] - (chip_box['x'] + chip_box['width']) < 24, f"at the row's right end: {chip_box} in {row_box}")
 
     # Search covers them.
     search = page.locator('.explorer-search textarea')
@@ -282,6 +297,7 @@ def drive_tests(page, state):
     quizzes.first.click()
     page.keyboard.press('Enter')
     wait_for(page, lambda: 'beta.shrimp' in labels(page, 'doc'), 'Enter on a quiz inside opens the library')
+    need(page.locator('.toast', has_text="isn't shared with a link").count() == 0, 'one of your own opens signed in, not through the link')
     back_to_explorer(page)
     wait_for(page, lambda: page.locator('.pane-crumbs', has_text=target_quiz).count() >= 1, 'and shows that quiz\'s page')
     need(drive_rows(page) == ['alpha.shrimp', 'gamma.shrimp'], f'it leaves the "not open" ones: {drive_rows(page)}')
@@ -363,7 +379,7 @@ def group_tests(page):
     page.evaluate("document.querySelector('.kit-tree').scrollTop = 9999")
     page.wait_for_timeout(200)
     drag_row(page, row(page, 'quiz', 'Ten groups'), row(page, 'group', 'Number words'), release=False)
-    need(drop_label(page) == "A quiz can't go inside a group.", f'a quiz dropped on a group is refused: {drop_label(page)}')
+    need(drop_label(page) == 'A quiz can only go in a course.', f'a quiz dropped on a group is refused: {drop_label(page)}')
     page.mouse.up()
     page.wait_for_timeout(150)
 
@@ -471,7 +487,7 @@ def run(page, base):
     wait_for(page, lambda: empty.count() == 1, 'no files: the Explorer shows its empty state')
     need('No files here yet' in empty.inner_text(), 'with a short title')
     buttons = [b.strip() for b in empty.locator('button').all_inner_texts()]
-    need(buttons == ['Sign in with Google', 'New file', 'Open a copy from this device'], f'and one set of buttons: {buttons}')
+    need(buttons == ['Sign in with Google', 'New file', 'Open from this device'], f'and one set of buttons: {buttons}')
     need(page.locator('.explorer-tip').count() == 0, 'no tip while there is nothing to right-click')
     page.goto(base + '#/_debug')
     page.get_by_role('button', name='Load test library').click()
@@ -568,8 +584,8 @@ def run(page, base):
     guide_courses = children(page, 'doc', 'Guide')
     test_courses = children(page, 'doc', 'Test library')
     mover = guide_courses[-1]
-    drag_row(page, row(page, 'course', mover), row(page, 'doc', 'Test library'))
-    wait_for(page, lambda: mover in children(page, 'doc', 'Test library'), 'the course moved into the other file')
+    drag_row(page, row(page, 'course', mover), row(page, 'doc', 'Test library'), modifiers=['Shift'])
+    wait_for(page, lambda: mover in children(page, 'doc', 'Test library'), 'Shift+drag moves the course into the other file')
     need(children(page, 'doc', 'Guide') == guide_courses[:-1], 'the course left its file')
     page.keyboard.press('Control+z')
     wait_for(page, lambda: children(page, 'doc', 'Guide') == guide_courses, 'Ctrl+Z puts the course back')
@@ -619,6 +635,40 @@ def run(page, base):
     wait_for(page, lambda: other in children(page, 'course', target), 'Ctrl+drag copies the quiz into the other file')
     need(len(children(page, 'course', '1. Start here')) == count, 'a copy leaves the original')
 
+    # Into another file a drag copies (the label says so); inside a quiz row it is a reorder line, never "inside"; a quiz
+    # over a card row is refused; Shift moves into the other file and Ctrl+Z puts it back.
+    expand(page, 'doc', 'Test library')
+    expand(page, 'course', target)
+    fold(page, 'course', '2. Term cards') if row(page, 'course', '2. Term cards').count() else None
+    mine = f'{quiz} (2)'
+    drag_row(page, row(page, 'quiz', mine), row(page, 'course', '1. Start here'), release=False)
+    need(drop_label(page) == 'Copy 1 quiz', f'a plain drag into the other file says Copy: {drop_label(page)}')
+    page.mouse.up()
+    page.wait_for_timeout(150)
+    wait_for(page, lambda: mine in children(page, 'course', '1. Start here'), 'a plain drag copies the quiz into the other file')
+    need(mine in children(page, 'course', target), 'the original stays')
+    drag_row(page, row(page, 'quiz', mine, 1), row(page, 'quiz', quiz, 1), release=False, dy=0.9)
+    over = row(page, 'quiz', quiz, 1)
+    need(over.evaluate("e => e.classList.contains('is-drop-after') && !e.classList.contains('is-drop-inside')"),
+         'a quiz over the middle of another quiz shows a line after it, not inside')
+    page.keyboard.press('Escape')
+    page.mouse.up()
+    page.wait_for_timeout(150)
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: mine not in children(page, 'course', '1. Start here'), 'Ctrl+Z takes the copy back out')
+    count = len(children(page, 'course', '1. Start here'))
+    drag_row(page, row(page, 'quiz', mine), row(page, 'course', '1. Start here'), modifiers=['Shift'])
+    wait_for(page, lambda: mine not in children(page, 'course', target), 'Shift+drag moves the quiz: the original is gone')
+    need(len(children(page, 'course', '1. Start here')) == count + 1, 'and it arrived in the other file')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: mine in children(page, 'course', target), 'Ctrl+Z puts it back')
+    expand(page, 'quiz', quiz, 1)
+    drag_row(page, row(page, 'quiz', mine), row(page, 'card', children(page, 'quiz', quiz, 1)[0]), release=False)
+    need(drop_label(page) == 'A quiz can only go in a course.', f'a quiz over a card row is refused: {drop_label(page)}')
+    page.mouse.up()
+    page.wait_for_timeout(150)
+    fold(page, 'quiz', quiz, 1)
+
     # Move to… lists the other files' courses; choosing one moves the quiz there.
     collapse_all(page)
     expand(page, 'doc', 'Guide')
@@ -641,6 +691,10 @@ def run(page, base):
     need(field.input_value() == 'New course', 'the new course starts as "New course"')
     field.fill('2. Term cards')
     need('already named' in page.locator('.kit-row-error').inner_text(), 'a taken name is refused with a message')
+    err = page.evaluate("""() => { const e = document.querySelector('.kit-row-error'); const r = e.getBoundingClientRect()
+      return { open: e.matches(':popover-open'), inside: r.left >= 0 && r.right <= innerWidth && r.top >= 0 && r.bottom <= innerHeight,
+               over: e.scrollWidth - e.clientWidth } }""")
+    need(err['open'] and err['inside'] and err['over'] <= 0, f'the reason is a popup in the top layer, whole and inside the window: {err}')
     field.press('Enter')
     need(page.locator('.kit-row-input').count() == 1, 'Enter does nothing while the name is taken')
     field.fill('Zed course')
@@ -655,9 +709,30 @@ def run(page, base):
     row(page, 'card', victim).click()
     page.keyboard.press('Delete')
     wait_for(page, lambda: len(children(page, 'quiz', 'Paste import samples')) == n - 1, 'a card is deleted at once')
-    need(page.get_by_text('Deleted 1 card.').count() >= 1 and undo_toast(page).count() >= 1, 'the toast says so and offers Undo')
+    need(page.locator('.toast', has_text='Deleted the card').count() >= 1 and undo_toast(page).count() >= 1, 'the toast says so and offers Undo')
     undo_toast(page).first.click()
     wait_for(page, lambda: children(page, 'quiz', 'Paste import samples')[0] == victim, 'Undo brings the card back in its place')
+    # Edit on a card (its menu, and F2) opens the Edit card dialog over the Explorer, no tab; Save changes the card in the tree.
+    tabs_now = page.locator('[role=tab]').count()
+    for how in ('menu', 'F2'):
+        card = row(page, 'card', victim if how == 'menu' else f'{victim}!')
+        if how == 'menu':
+            menu(page, card, 'Edit')
+        else:
+            card.click()
+            page.keyboard.press('F2')
+        dialog = page.locator('dialog[open]')
+        dialog.wait_for()
+        need('Edit card' in dialog.inner_text(), f'Edit opens the Edit card dialog: {dialog.inner_text()[:40]}')
+        need(page.locator('[role=tab]').count() == tabs_now, 'no tab is opened')
+        field = dialog.locator('textarea').first
+        field.fill(f'{victim}!' if how == 'menu' else f'{victim}!!')
+        dialog.get_by_role('button', name='Save').click()
+        page.locator('dialog[open]').wait_for(state='detached')
+        new = f'{victim}!' if how == 'menu' else f'{victim}!!'
+        wait_for(page, lambda: children(page, 'quiz', 'Paste import samples')[0] == new, f'Save changes the card in the tree: {children(page, "quiz", "Paste import samples")}')
+        need(page.locator('[role=tab]').count() == tabs_now, 'still no tab')
+    victim = f'{victim}!!'
     copies = rows_of(page, 'quiz', 'Paste import samples').count()
     row(page, 'quiz', 'Paste import samples').click()
     page.keyboard.press('Delete')
@@ -693,15 +768,33 @@ def run(page, base):
     page.get_by_role('menuitem', name='Reveal in Explorer').click()
     wait_for(page, lambda: selected(page) == ['Opposites'], f'Reveal selects the tab\'s quiz: {selected(page)}')
 
-    # Opening from the Explorer reuses the tab its file already has (asked for: no new tab each time); Open in new tab,
-    # in its menu, makes one of its own.
+    # Opening from the Explorer reuses the tab its file already has (asked for: no new tab each time); Open in new view,
+    # in its menu, makes a tab of its own in the other view, and with no other view splits the Explorer's (asked for).
     tabs_before = page.locator('[role=tab]').count()
     expand(page, 'doc', 'Test library')
     row(page, 'course', '1. Start here').dblclick()
     wait_for(page, lambda: page.locator('.pane-crumbs', has_text='1. Start here').count() >= 1, 'a course opens from the Explorer')
     need(page.locator('[role=tab]').count() == tabs_before, 'in the tab its file already has, not a new one')
-    menu(page, row(page, 'course', '2. Term cards'), 'Open in new tab')
-    wait_for(page, lambda: page.locator('[role=tab]').count() == tabs_before + 1, 'Open in new tab makes a tab of its own')
+    # The page shown (the sidebar's selected row) has a dashed outline in the Explorer (asked for).
+    shown = row(page, 'course', '1. Start here')
+    wait_for(page, lambda: shown.get_attribute('aria-current') == 'page', "the course shown is the Explorer's current row")
+    need(shown.evaluate('e => getComputedStyle(e).borderTopStyle') == 'dashed', 'with a dashed outline')
+    need(page.locator('.kit-tree .kit-row[aria-current]').count() == 1, 'and only it')
+    groups_before = page.locator('.wb-group').count()
+    menu(page, row(page, 'course', '2. Term cards'), 'Open in new view')
+    wait_for(page, lambda: page.locator('[role=tab]').count() == tabs_before + 1, 'Open in new view makes a tab of its own')
+    need(page.locator('.wb-group').count() == groups_before, 'in the view already beside the Explorer, no new split')
+    need(page.locator('.wb-group:not(:has(.kit-tree)) [role=tab][aria-selected=true]', has_text='2. Term cards').count() >= 1, "not in the Explorer's own view")
+    # With the Explorer's view alone (the other one closed from its own menu), it splits.
+    other = page.locator('.wb-group:not(:has(.kit-tree))')
+    while other.count():
+        other.first.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close group').click()
+        page.wait_for_timeout(150)
+    need(page.locator('.wb-group').count() == 1, "only the Explorer's view is left")
+    menu(page, row(page, 'course', '2. Term cards'), 'Open in new view')
+    wait_for(page, lambda: page.locator('.wb-group').count() == 2, 'with no other view, Open in new view splits')
+    need(page.locator('.wb-group:not(:has(.kit-tree)) .pane-crumbs', has_text='2. Term cards').count() == 1, 'and shows the page in the new view')
     row(page, 'quiz', 'Opposites').click()  # the selection the reload below keeps
     wait_for(page, lambda: selected(page) == ['Opposites'], 'Opposites selected again')
 

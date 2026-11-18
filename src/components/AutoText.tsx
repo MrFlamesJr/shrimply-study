@@ -3,6 +3,7 @@ import { FloatField } from './FloatField'
 import { IconButton } from './IconButton'
 import { ownWindow } from './ownWindow'
 import { EraserIcon } from './Icons'
+import { useFloatBelow } from '../kit/float'
 
 /**
  * Enter is the same in every text box: it goes on to the next box, and Shift+Enter starts a new line.
@@ -39,6 +40,11 @@ type Props = Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, 'value' | 'onChan
   suffix?: string
   /** Says why the text can not be saved (a name that is taken), or undefined when it can. */
   check?: (value: string) => string | undefined
+  /**
+   * Shows `check`'s reason in a small popup under the box, in the top layer, instead of a line under it: for a box in
+   * a narrow scrolling column (a library's name in the sidebar), which would cut a line off at its edge.
+   */
+  popError?: boolean
   /** The field's name as a floating label (FloatField): in the empty box, above it once it has focus or text. Use it instead of a placeholder. */
   label?: ReactNode
   /**
@@ -77,12 +83,14 @@ function queueFit(el: HTMLTextAreaElement) {
  * spaces-only text stays in the box and is not passed on; leaving the box shows the saved value again.
  * So does text `check` objects to, with its message under the box.
  */
-export function AutoText({ value, onChange, onEnter, selectOnMount, counter, suffix, check, label, erase, onKeyDown, onBlur, className, ...rest }: Props) {
+export function AutoText({ value, onChange, onEnter, selectOnMount, counter, suffix, check, popError, label, erase, onKeyDown, onBlur, className, ...rest }: Props) {
   const ref = useRef<HTMLTextAreaElement>(null)
+  const errorRef = useRef<HTMLSpanElement>(null)
   // Text that is not passed on (blank or checked out), shown until it is fixed or the box is left.
   const [held, setHeld] = useState<string | null>(null)
   const text = held ?? value
   const problem = held === null ? undefined : check?.(held)
+  useFloatBelow(errorRef, ref, !!(popError && problem))
   const fit = () => {
     const el = ref.current
     if (!el) return
@@ -195,11 +203,16 @@ export function AutoText({ value, onChange, onEnter, selectOnMount, counter, suf
       ) : (
         named
       )}
-      {problem && (
-        <span className="auto-text-error" role="alert">
-          {problem}
-        </span>
-      )}
+      {problem &&
+        (popError ? (
+          <span ref={errorRef} popover="manual" className="auto-text-error is-popped" role="alert">
+            {problem}
+          </span>
+        ) : (
+          <span className="auto-text-error" role="alert">
+            {problem}
+          </span>
+        ))}
     </>
   )
 }

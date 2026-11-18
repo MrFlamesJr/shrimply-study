@@ -44,6 +44,28 @@ def one_line(page, what):
     return m['pick']
 
 
+def error_fits(page, what):
+    """A refused name's reason is a popup in the top layer: open, whole (nothing cut, no ellipsis) and inside the window,
+    so the sidebar's edge never cuts it (asked for)."""
+    m = page.evaluate("""() => {
+      const e = document.querySelector('.file-rename .auto-text-error'); const r = e.getBoundingClientRect()
+      return { open: e.matches(':popover-open'), left: r.left, right: r.right, top: r.top, bottom: r.bottom, w: innerWidth, h: innerHeight,
+               over: e.scrollWidth - e.clientWidth, text: e.innerText }
+    }""")
+    need(m['open'] and m['left'] >= 0 and m['right'] <= m['w'] and m['top'] >= 0 and m['bottom'] <= m['h'] and m['over'] <= 0,
+         f'{what}: the reason shows whole, inside the window: {m}')
+
+
+def suffix_fits(page, what):
+    """The field ends in ".shrimp", inside the row, over nothing it covers."""
+    m = page.evaluate("""() => {
+      const s = document.querySelector('.file-rename .auto-text-suffix'); const r = s.closest('.file-row').getBoundingClientRect()
+      const b = s.getBoundingClientRect()
+      return { text: s.innerText, shown: b.width > 0 && b.height > 0, over: b.right - r.right }
+    }""")
+    need(m['text'] == '.shrimp' and m['shown'] and m['over'] <= 1, f'{what}: the field ends in .shrimp: {m}')
+
+
 def f2_on(page, name):
     row_of(page, name).locator('.file-pick').focus()
     page.keyboard.press('F2')
@@ -80,9 +102,10 @@ def run(page, base):
 
     # Double click renames; the first click still opens the home; the tooltip says so.
     name = row_of(page, 'Chemistry').locator('.file-name-text')
-    need('Double-click to rename' in name.get_attribute('title'), 'the tooltip says how to rename')
+    need(name.get_attribute('title') is None, 'the name has no tooltip (asked for: the hover card shows it whole)')
     name.dblclick()
     field(page).wait_for()
+    suffix_fits(page, 'double click')
     need(page.locator('.file-row .file-actions.is-hidden').count() == 1 and not page.locator('.file-row .file-actions.is-hidden').is_visible(), 'the row toolbar is hidden while the field is open')
     page.keyboard.press('Control+a')
     page.keyboard.type('Physics')
@@ -102,6 +125,7 @@ def run(page, base):
     page.keyboard.type('a/b')
     page.locator('.file-rename .auto-text-error').wait_for()
     need("can't contain" in page.locator('.file-rename .auto-text-error').inner_text(), 'a/b says why')
+    error_fits(page, 'a/b')
     page.keyboard.press('Enter')
     need(field(page).count() == 1, 'Enter keeps the field open on a refused name')
     page.keyboard.press('Control+a')
@@ -158,6 +182,17 @@ def run(page, base):
                 page.keyboard.type('Algebra')
                 page.keyboard.press('Enter')
                 wait_for(page, lambda: 'Algebra' in names(page), 'back to Algebra')
+            # The longest reason (a name kept for devices on Windows) and the ".shrimp" ending, with the longest name.
+            f2_on(page, 'Algebra')
+            page.keyboard.type(LONG)
+            suffix_fits(page, f'{theme} {width}px')
+            page.keyboard.press('Control+a')
+            page.keyboard.type('COM1')
+            page.locator('.file-rename .auto-text-error').wait_for()
+            need('kept for devices' in page.locator('.file-rename .auto-text-error').inner_text(), 'COM1 says why')
+            error_fits(page, f'{theme} {width}px COM1')
+            page.keyboard.press('Escape')
+            wait_for(page, lambda: field(page).count() == 0, 'Esc closes the field')
     set_theme(page, 'calm')
     page.set_viewport_size({'width': 1280, 'height': 800})
 

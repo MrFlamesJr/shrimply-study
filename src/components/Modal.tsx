@@ -89,7 +89,10 @@ export function Modal({
       ref={ref}
       className={compact ? 'dialog is-compact' : narrow ? 'dialog is-narrow' : 'dialog'}
       aria-labelledby={titleId}
-      onClose={() => {
+      onClose={(e) => {
+        // React passes a dialog's close on to the dialogs around it in its tree (a sides type's naming dialog inside
+        // the card dialog): only this one's own close closes it, so Esc or a click outside closes the top one alone.
+        if (e.target !== e.currentTarget) return
         uncount()
         onClose()
       }}

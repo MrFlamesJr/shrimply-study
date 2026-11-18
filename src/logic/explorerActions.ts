@@ -9,6 +9,8 @@ import { isPeekDoc, nodeOf, parseDriveNode, refOf, targetFor, type DriveListing,
 import { inGroupOrder } from './groups'
 import { freeName, nameTaken } from './names'
 import { plural } from './plural'
+import { cardName } from './cardStatus'
+import { fromLine, isCut, quoteName, trail, undoHint } from './toastText'
 import { lastSides, sideNames } from './sides'
 
 export type ItemKind = ItemRef['kind']
@@ -37,6 +39,21 @@ const lockReason = (doc: DocId, readOnly: ReadonlySet<DocId>): string | undefine
 const NOT_OPEN_WHERE = whereLine({ drive: { shared: false, trashed: false }, yours: false, signedIn: false })
 const BROWSER_WHERE = whereLine({ drive: null, yours: false, signedIn: false })
 const BIN_FROM_MENU = 'Move a Google Drive library to the bin from its own menu.'
+const CLOSE_INSTEAD = 'Close a file instead of deleting it.'
+const GONE = 'That is no longer there.'
+
+/** More info for a refusal toast (the reason itself is the toast's text), or undefined when it says it all. */
+export function refusalHelp(reason: string): string | undefined {
+  if (reason === VIEW_ONLY || reason === RENAME_VIEW_ONLY_TEXT)
+    return "It's on someone else's Google Drive, or you're signed out, so it stays in sync and can't change here. Make a copy to get one you can change."
+  if (reason === OPEN_FIRST || reason === READ_ONLY) return "It's only shown here to look at. Open it first, then change it."
+  if (reason === CLOSE_INSTEAD)
+    return 'Closing keeps it. To delete a closed library for good, right-click it under closed files: Delete from this browser or Move to bin.'
+  if (reason === BIN_FROM_MENU) return "A Google Drive library goes to the bin from its own right-click menu, so it can't be deleted by accident with other items."
+  if (reason === GONE || /^That (file|course|quiz|group|card|library) is no longer there\.$/.test(reason))
+    return 'It was deleted or moved, maybe in another tab or by a change from Google Drive.'
+  return undefined
+}
 
 /**
  * A library that is closed but still listed: `browser` (kept in this browser), `mine` (in the signed-in user's Drive
@@ -194,7 +211,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
     return item('paste', 'Paste', { shortcut: sc('Mod+V'), ...('reason' in r && { disabled: true, reason: r.reason }) })
   }
 
-  if (kind === null) return [item('newFile', 'New file'), item('openFile', 'Open a copy from this device'), 'separator', paste()]
+  if (kind === null) return [item('newFile', 'New file'), item('openFile', 'Open from this device'), 'separator', paste()]
   if (kind === 'drivefile') {
     const kinds = new Set(ids.map((id) => ctx.closed[parseDriveNode(id)!.id]))
     return [
@@ -212,7 +229,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
     const file = ctx.files[docIds(ids)[0]]
     const locked = file?.readOnly ? { disabled: true, reason: VIEW_ONLY } : {}
     return [
-      item('openNew', 'Open in new tab', only('file')),
+      item('openNew', 'Open in new view', only('file')),
       item('newCourse', 'New course', ids.length > 1 ? only('file') : locked),
       item('rename', 'Rename', { shortcut: sc('F2'), ...(ids.length > 1 ? only('file') : file?.readOnly ? { disabled: true, reason: RENAME_VIEW_ONLY_TEXT } : {}) }),
       paste(),
@@ -247,7 +264,7 @@ export function menuFor(ctx: MenuContext, ids: string[], at: string | null): Ent
   const ro: Partial<Item> = locked ? { disabled: true, reason: locked } : {}
   // Its own tab, beside the one that file's pages reuse (asked for: Open reuses the file's tab).
   const openNew = (what: string): Item =>
-    item('openNew', 'Open in new tab', refs.some(isPeekRef) ? { disabled: true, reason: OPEN_FIRST } : only(what))
+    item('openNew', 'Open in new view', refs.some(isPeekRef) ? { disabled: true, reason: OPEN_FIRST } : only(what))
   const oneKind: Partial<Item> = mixed ? { disabled: true, reason: MIXED } : {}
   const destinations = mixed ? [] : moveDestinations(ctx.docs, ctx.names, refs, readOnly)
   const moveTo = item('moveTo', 'Move to…', ro.disabled ? ro : mixed ? oneKind : destinations.length === 0 ? { disabled: true, reason: 'There is nowhere else to move it.' } : {})
@@ -444,8 +461,49 @@ export type DeletePlan = {
   label: string
   /** The question to ask first; null for cards, which go at once. */
   question: string | null
-  /** The toast afterwards. */
-  notice: string
+  /** The toast afterwards: what went, and under More info where it was and how to undo it. */
+  notice: { text: string; detail: string[] }
+}
+
+const NOUN: Record<ItemRef['kind'], string> = { course: 'course', quiz: 'quiz', group: 'group', card: 'card' }
+const NOTICE_LINES = 10
+
+// Where an item was, as a trail of names (the file, its course, its quiz), and the group of a card.
+function whereWas(docs: Docs, names: Record<DocId, string>, r: ItemRef): { path: string; group?: string } {
+  const course = docs[r.doc]?.courses.find((c) => c.id === r.course)
+  const quiz = r.kind === 'course' ? undefined : course?.quizzes.find((q) => q.id === r.quiz)
+  const group = r.kind === 'card' ? quiz?.groups.find((g) => g.id === quiz.cards.find((k) => k.id === r.card)?.group)?.name : undefined
+  const parents = r.kind === 'course' ? [names[r.doc]] : r.kind === 'quiz' ? [names[r.doc], course?.name] : [names[r.doc], course?.name, quiz?.name]
+  return { path: trail(...parents), group }
+}
+
+// The toast after a delete (docs from before it). One item is named, with where it was and what it held; several are
+// counted, one line each (at most NOTICE_LINES).
+function deleteNotice(docs: Docs, names: Record<DocId, string>, top: ItemRef[], what: string, mac: boolean): { text: string; detail: string[] } {
+  const undo = undoHint(mac, top.length)
+  if (top.length > 1) {
+    const lines = top.slice(0, NOTICE_LINES).map((r) => {
+      const where = whereWas(docs, names, r)
+      return `${quoteName(itemName(docs, r))}, ${fromLine(where.path, where.group).replace(/^F/, 'f')}`
+    })
+    const more = top.length > NOTICE_LINES ? [`And ${top.length - NOTICE_LINES} more.`] : []
+    return { text: `Deleted ${what}.`, detail: [...lines, ...more, undo] }
+  }
+  const r = top[0]
+  const name = itemName(docs, r)
+  const course = docs[r.doc].courses.find((c) => c.id === r.course)!
+  const quiz = r.kind === 'course' ? undefined : course.quizzes.find((q) => q.id === r.quiz)!
+  const card = r.kind === 'card' ? quiz!.cards.find((k) => k.id === r.card) : undefined
+  const named = card && !cardName(card) ? 'an empty card' : `the ${NOUN[r.kind]} ${quoteName(name)}`
+  const held =
+    r.kind === 'course' ? plural(course.quizzes.length, 'quiz', 'quizzes') : r.kind === 'group' ? plural(quiz!.cards.filter((k) => k.group === r.group).length, 'card') : r.kind === 'quiz' ? plural(quiz!.cards.length, 'card') : ''
+  const where = whereWas(docs, names, r)
+  return {
+    text: `Deleted ${named}.`,
+    detail: [isCut(name) && `The full name is "${name}".`, fromLine(where.path, where.group), held && !held.startsWith('0 ') && `It held ${held}.`, undo].filter(
+      (line): line is string => !!line,
+    ),
+  }
 }
 
 // Items inside another selected item go with it, so they are not counted twice.
@@ -463,9 +521,9 @@ function topmost(docs: Docs, refs: ItemRef[]): ItemRef[] {
   })
 }
 
-export function deletePlan(docs: Docs, ids: string[], mac: boolean, readOnly: ReadonlySet<DocId> = NONE): DeletePlan | { reason: string } {
+export function deletePlan(docs: Docs, ids: string[], mac: boolean, readOnly: ReadonlySet<DocId> = NONE, names: Record<DocId, string> = {}): DeletePlan | { reason: string } {
   if (ids.some((id) => parseDriveNode(id))) return { reason: BIN_FROM_MENU }
-  if (docIds(ids).length > 0) return { reason: 'Close a file instead of deleting it.' }
+  if (docIds(ids).length > 0) return { reason: CLOSE_INSTEAD }
   const refs = itemRefs(ids)
   const lock = refs.map((r) => lockReason(r.doc, readOnly)).find((reason) => reason !== undefined)
   if (lock) return { reason: lock }
@@ -473,7 +531,7 @@ export function deletePlan(docs: Docs, ids: string[], mac: boolean, readOnly: Re
   const top = topmost(docs, refs)
   const what = top.every((r) => r.kind === top[0].kind) ? kindCount(top[0].kind, top.length) : plural(top.length, 'item')
   const undo = comboLabel('Mod+Z', mac)
-  const notice = `Deleted ${what}. ${undo} puts ${top.length === 1 ? 'it' : 'them'} back.`
+  const notice = deleteNotice(docs, names, top, what, mac)
   const label = `Delete ${what}`
   if (top.every((r) => r.kind === 'card')) return { refs, label, question: null, notice }
 
@@ -517,8 +575,23 @@ export function dragKind(ids: string[]): ItemKind | null {
   return kind === 'course' || kind === 'quiz' || kind === 'card' || kind === 'group' ? kind : null
 }
 
-/** Whether a drop can go inside this node (a card holds nothing). */
-export const allowInside = (node: string): boolean => parseNode(node)?.kind !== 'card' && !parseDriveNode(node)
+/** The rows a drop of a kind can go inside: its parent's. */
+const PARENT_ROWS: Record<ItemKind, readonly string[]> = { course: ['doc'], quiz: ['course'], group: ['quiz'], card: ['quiz', 'group'] }
+
+/** Whether a drop can go inside this node (a card holds nothing); with the dragged `kind`, only on that kind's parent row. */
+export function allowInside(node: string, kind?: ItemKind): boolean {
+  const at = parseNode(node)
+  if (parseDriveNode(node) || !at || at.kind === 'card') return false
+  return kind === undefined || PARENT_ROWS[kind].includes(at.kind)
+}
+
+/** What a drag does with no key held: into another file than a dragged item's it copies, else it moves. */
+export function dragBase(ids: string[], node: string | null, docs: Docs): Effect {
+  if (node !== null && parseDriveNode(node)) return 'move'
+  const at = node === null ? targetFor(docs, null, 'after', 'course')?.doc : parseNode(node)?.doc
+  if (at === undefined) return 'move'
+  return itemRefs(ids).some((r) => r.doc !== at) ? 'copy' : 'move'
+}
 
 /** Where `ids` dropped at `node` land, or why they can not. */
 export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: Pos, readOnly: ReadonlySet<DocId> = NONE): { target: Target } | { reason: string } {
@@ -534,6 +607,8 @@ export function dropTarget(docs: Docs, ids: string[], node: string | null, pos: 
     if (kind !== 'card' && pos === 'inside') return { reason: `A ${kind} can't go inside a group.` }
   }
   if (at?.kind === 'card' && kind === 'group') return { reason: "A group can't go inside a card." }
+  const fits = !at || (at.kind === 'doc' ? kind === 'course' : pos === 'inside' ? PARENT_ROWS[kind].includes(at.kind) : at.kind === kind)
+  if (!fits) return { reason: `A ${kind} can only go in ${PLACE[kind]}.` }
   const target = targetFor(docs, node, pos, kind)
   const lock = target && lockReason(target.doc, readOnly)
   if (lock) return { reason: lock }
@@ -641,24 +716,26 @@ export function reorderTarget(docs: Docs, ref: ItemRef, dir: 'up' | 'down'): { t
   const lib = docs[ref.doc]
   const course = lib?.courses.find((c) => c.id === ref.course)
   const quiz = course?.quizzes.find((q) => q.id === (ref.kind === 'course' ? '' : ref.quiz))
+  const gone = `That ${ref.kind} is no longer there.`
+  const named = () => quoteName(itemName(docs, ref))
   const step = (list: { id: string }[], id: string, make: (index: number) => Target) => {
     const at = list.findIndex((x) => x.id === id)
-    if (at < 0) return { reason: 'That is no longer there.' }
-    if (dir === 'up') return at === 0 ? { reason: 'It is already first.' } : { target: make(at - 1) }
-    return at === list.length - 1 ? { reason: 'It is already last.' } : { target: make(at + 2) }
+    if (at < 0) return { reason: gone }
+    if (dir === 'up') return at === 0 ? { reason: `${named()} is already first.` } : { target: make(at - 1) }
+    return at === list.length - 1 ? { reason: `${named()} is already last.` } : { target: make(at + 2) }
   }
-  if (!lib) return { reason: 'That is no longer there.' }
+  if (!lib) return { reason: gone }
   if (ref.kind === 'course') return step(lib.courses, ref.course, (index) => ({ kind: 'doc', doc: ref.doc, index }))
-  if (!course) return { reason: 'That is no longer there.' }
+  if (!course) return { reason: gone }
   if (ref.kind === 'quiz') return step(course.quizzes, ref.quiz, (index) => ({ kind: 'course', doc: ref.doc, course: ref.course, index }))
-  if (!quiz) return { reason: 'That is no longer there.' }
+  if (!quiz) return { reason: gone }
   if (ref.kind === 'group') return step(quiz.groups, ref.group, (index) => ({ kind: 'quiz', doc: ref.doc, course: ref.course, quiz: ref.quiz, index }))
   const card = quiz.cards.find((k) => k.id === ref.card)
-  if (!card) return { reason: 'That is no longer there.' }
+  if (!card) return { reason: gone }
   const group = card.group && quiz.groups.some((g) => g.id === card.group) ? card.group : null
   const section = quiz.cards.filter((k) => (group === null ? !(k.group && quiz.groups.some((g) => g.id === k.group)) : k.group === group))
   const at = section.findIndex((k) => k.id === ref.card)
-  if (dir === 'up' ? at === 0 : at === section.length - 1) return { reason: dir === 'up' ? 'It is already first.' : 'It is already last.' }
+  if (dir === 'up' ? at === 0 : at === section.length - 1) return { reason: `${named()} is already ${dir === 'up' ? 'first' : 'last'}.` }
   // The place is counted among all the quiz's cards, before the move.
   const flat = (k: { id: string }) => quiz.cards.findIndex((x) => x.id === k.id)
   const index = dir === 'up' ? flat(section[at - 1]) : flat(section[at + 1]) + 1

@@ -1,7 +1,7 @@
 // Copying, moving and deleting courses, quizzes and cards across open files. All pure: the inputs are never changed,
 // and a refused operation throws before anything is built (all or nothing).
 import { isTermCard, newId, type Card, type Course, type Group, type Library, type Quiz, type Sides } from '../model'
-import { parseCloze } from './cloze'
+import { cardName } from './cardStatus'
 import { inGroupOrder } from './groups'
 import { copyName } from './names'
 import { addSideType, isPreset } from './sides'
@@ -331,15 +331,7 @@ export function exists(docs: Docs, ref: ItemRef): boolean {
   return locate(docs, ref) !== null
 }
 
-const firstText = (card: Card): string => {
-  if (isTermCard(card)) return card.term
-  if (card.type === 'cloze') return parseCloze(card.statement).text
-  if (card.type === 'true-false') return card.statement
-  if (card.type === 'choice') return card.question
-  return card.title
-}
-
-/** A course or quiz name, or a card's first text (trimmed); "Empty card" when it has none. */
+/** A course or quiz name, or a card's name (`cardName`); "Empty card" when it has none. */
 export function itemName(docs: Docs, ref: ItemRef): string {
   const l = locate(docs, ref) ?? fail(GONE)
   const course = docs[ref.doc].courses[l.c]
@@ -347,7 +339,7 @@ export function itemName(docs: Docs, ref: ItemRef): string {
   const quiz = course.quizzes[l.q]
   if (ref.kind === 'quiz') return quiz.name
   if (ref.kind === 'group') return quiz.groups[l.g].name
-  return firstText(quiz.cards[l.k]).trim() || 'Empty card'
+  return cardName(quiz.cards[l.k]) || 'Empty card'
 }
 
 /** Takes a group apart: its cards stay in the quiz, ungrouped (after the cards that were). Throws when it is gone. */

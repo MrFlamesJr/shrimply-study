@@ -296,6 +296,7 @@ describe('remove, exists, itemName', () => {
     const cards: Card[] = [
       term('a1', '  Hello '),
       term('a2', '   '),
+      term('a7', '', { definition: '  ' } as Partial<Card>),
       { id: 'a3', type: 'cloze', statement: 'The {mito} is \\{x\\}', explanation: [null] },
       { id: 'a4', type: 'true-false', statement: 'Sky is blue', answer: true },
       { id: 'a5', type: 'choice', mode: 'one', question: 'Pick', right: ['a'], wrong: ['b'] },
@@ -303,7 +304,8 @@ describe('remove, exists, itemName', () => {
     ]
     docs.a.courses[0].quizzes[0].cards = cards
     const name = (id: string) => itemName(docs, kref('a', 'c1', 'q1', id))
-    expect(['a1', 'a2', 'a3', 'a4', 'a5', 'a6'].map(name)).toEqual(['Hello', 'Empty card', 'The mito is {x}', 'Sky is blue', 'Pick', 'Phases'])
+    // A term card with no front goes by its back; with neither it is an empty card.
+    expect(['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'].map(name)).toEqual(['Hello', 'd', 'The mito is {x}', 'Sky is blue', 'Pick', 'Phases', 'Empty card'])
     expect(itemName(docs, cref('a', 'c1'))).toBe('C1')
     expect(itemName(docs, qref('a', 'c1', 'q2'))).toBe('Q2')
   })

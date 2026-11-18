@@ -14,10 +14,12 @@ import { EditScreen } from '../screens/EditScreen'
 import { StudyScreen } from '../screens/StudyScreen'
 import { ChangelogScreen } from '../screens/ChangelogScreen'
 import { StudyTipsScreen } from '../screens/StudyTipsScreen'
+import { LearnMoreScreen } from '../screens/LearnMoreScreen'
 import type { DriveFiles } from '../state/useDriveFiles'
 import { ExplorerPane } from './ExplorerPane'
 import { fileStorage } from '../storage/fileStorage'
 import { makeTabNav, type TabNavOps } from './tabNav'
+import { quoteName } from '../logic/toastText'
 
 /** What every tab's screen shares, from App. */
 export type PaneShared = {
@@ -42,18 +44,21 @@ export type PaneShared = {
   driveFiles: DriveFiles
   /** The quiz page's "How studying works" link: that page as a tab in `group` (behind the current one when `background`). */
   onStudyTips(group: string | null, background: boolean): void
+  /** The welcome page's Learn more: the Saving and sharing tab in `group` (behind the current one when `background`). */
+  onLearnMore(group: string | null, background: boolean): void
+  /** The welcome page's What's new: that tab in `group` (behind the current one when `background`). */
+  onWhatsNew(group: string | null, background: boolean): void
   /** "New course": into the active file (the pane's, once it is pointed at), or a new one; shown in `group`. */
   newCourse(group?: string): void
   /** The Explorer's: where it opens and edits things, and the node to reveal (in that Explorer tab only). */
   openNode(node: ItemRef | { kind: 'doc'; doc: DocId }): void
-  /** The Explorer's Open in new tab. */
+  /** The Explorer's Open in new view. */
   openNodeNew(node: ItemRef | { kind: 'doc'; doc: DocId }): void
   editNode(ref: ItemRef): void
   reveal: { tab: string; node: string } | null
   onRevealed(): void
-  /** A card to open in its quiz page's card dialog (from the Explorer's Edit), for one tab. */
-  openCard: { tab: string; card: string } | null
-  onCardOpened(): void
+  /** The Explorer's node of the page shown (the sidebar's selected row). */
+  currentNode: string | null
 }
 
 type Props = {
@@ -75,6 +80,7 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
   const d = tab.data
   if (d.kind === 'changelog') return <ChangelogScreen />
   if (d.kind === 'studyTips') return <StudyTipsScreen />
+  if (d.kind === 'learnMore') return <LearnMoreScreen drive={s.ws.drive} />
   if (d.kind === 'welcome') return <Welcome group={group} s={s} />
   if (d.kind === 'explorer') {
     return (
@@ -88,6 +94,7 @@ export function PaneScreen({ tab, group, shown, active, s }: Props) {
         editNode={s.editNode}
         reveal={s.reveal?.tab === tab.id ? s.reveal.node : null}
         onRevealed={s.onRevealed}
+        current={s.currentNode}
         tipSeen={s.explorerTipSeen}
         onTipSeen={s.onExplorerTipSeen}
         upload={s.upload}
@@ -121,12 +128,15 @@ function Welcome({ group, s }: { group: string | null; s: PaneShared }) {
         welcome
         toCourses={() => ws.active && ws.openPlace(ws.active, { name: 'home' }, { group: group ?? undefined })}
         openDrive={s.openDrive}
+        onStudyTips={(background) => s.onStudyTips(group, background)}
+        onLearnMore={(background) => s.onLearnMore(group, background)}
+        onWhatsNew={(background) => s.onWhatsNew(group, background)}
       />
     </div>
   )
 }
 
-function Home({ lib, nav, s }: { lib: LibraryApi; nav: Nav; s: PaneShared }) {
+function Home({ lib, nav, group, s }: { lib: LibraryApi; nav: Nav; group: string | null; s: PaneShared }) {
   return (
     <HomeScreen
       lib={lib}
@@ -139,6 +149,9 @@ function Home({ lib, nav, s }: { lib: LibraryApi; nav: Nav; s: PaneShared }) {
       newCourse={() => s.newCourse()}
       welcome={false}
       openDrive={s.openDrive}
+      onStudyTips={(background) => s.onStudyTips(group, background)}
+      onLearnMore={(background) => s.onLearnMore(group, background)}
+      onWhatsNew={(background) => s.onWhatsNew(group, background)}
     />
   )
 }
@@ -159,7 +172,9 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
     seenReplaced.current = lib.replaced
     if (!missing || !('course' in route)) return
     const name = missing === 'quiz' && 'quiz' in route ? route.quiz : route.course
-    if (!replacedSince) s.notify('info', `Couldn't find the ${missing} "${name}"`)
+    if (!replacedSince) s.notify('info', `Couldn't find the ${missing} ${quoteName(name)}.`, {
+        detail: `It was renamed, moved or deleted, maybe in another tab or on Google Drive. This tab shows ${quoteName(course?.name ?? lib.name)} instead.`,
+      })
     nav.redirect(course ? { name: 'course', course: course.name } : { name: 'home' })
   }, [missing, lib.replaced])
 
@@ -203,7 +218,6 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
   let screen: ReactNode = null
   if (route.name === 'course' && course) screen = <CourseScreen key={course.id} lib={lib} courseId={course.id} nav={nav} />
   else if (route.name === 'quiz' && quiz) {
-    const card = s.openCard?.tab === tab.id ? s.openCard.card : null
     screen = (
       <QuizScreen
         lib={lib}
@@ -216,8 +230,6 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
         onStudyTips={(background) => s.onStudyTips(group, background)}
         notify={s.notify}
         undoLater={ws.undoLater}
-        openCard={card}
-        onCardOpened={s.onCardOpened}
       />
     )
   } else if (route.name === 'edit' && quiz) {
@@ -230,7 +242,7 @@ function DocPane({ tab, group, shown, active, s }: Omit<Props, 'tab'> & { tab: T
         <StudyScreen key={quiz.id + route.format} lib={lib} notify={s.notify} quizId={quiz.id} format={route.format} prefs={s.prefs} nav={nav} active={active} />
       </div>
     )
-  } else if (!('course' in route)) screen = <Home lib={lib} nav={nav} s={s} />
+  } else if (!('course' in route)) screen = <Home lib={lib} nav={nav} group={group} s={s} />
 
   return (
     <div ref={box} className="page" onClick={(e) => follow(e, e.ctrlKey || e.metaKey)} onAuxClick={(e) => e.button === 1 && follow(e, true)}>

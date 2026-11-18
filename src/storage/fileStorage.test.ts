@@ -45,7 +45,7 @@ describe('openFiles', () => {
 describe('fileStorage', () => {
   it('has the labels and the file operations', () => {
     expect(Object.keys(fileStorage).sort()).toEqual(
-      ['download', 'downloadHint', 'downloadLabel', 'look', 'openFiles', 'openHint', 'openLabel', 'sameFile', 'saveInPlace', 'savesInPlace'],
+      ['download', 'downloadHint', 'downloadLabel', 'look', 'openFiles', 'openHint', 'openLabel', 'sameFile', 'saveAs', 'saveInPlace', 'savesInPlace'],
     )
   })
 })

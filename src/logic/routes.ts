@@ -13,6 +13,7 @@ import { slug } from './names'
 //   #/_changelog                       What's new (every release's notes), opened as a tab
 //   #/_explorer, #/_welcome            the Explorer and the welcome page, as tabs
 //   #/_how-to-study                    How studying works (the tips for every card kind), opened as a tab
+//   #/_learn-more                      Saving and sharing (what Google Drive adds), opened as a tab
 //   #/_empty                           no page: the focused group is empty (or shows a hidden file)
 //   #/_workbench                       a demo host of the reusable kit (src/kit/demo/, not linked)
 //   #/_drive/<file id>                 a library shared on Google Drive: opens it, then goes home
@@ -26,6 +27,7 @@ export type Route =
   | { name: 'explorer' }
   | { name: 'welcome' }
   | { name: 'studyTips' }
+  | { name: 'learnMore' }
   | { name: 'empty' }
   | { name: 'workbench' }
   | { name: 'drive'; id: string }
@@ -47,6 +49,7 @@ export function parseHash(hash: string): Route {
   if (course === '_explorer') return { name: 'explorer' }
   if (course === '_welcome') return { name: 'welcome' }
   if (course === '_how-to-study') return { name: 'studyTips' }
+  if (course === '_learn-more') return { name: 'learnMore' }
   if (course === '_empty') return { name: 'empty' }
   if (course === '_workbench') return { name: 'workbench' }
   if (course === '_drive') return quiz ? { name: 'drive', id: quiz } : { name: 'home' }
@@ -73,6 +76,8 @@ export function href(route: Route): string {
       return '#/_welcome'
     case 'studyTips':
       return '#/_how-to-study'
+    case 'learnMore':
+      return '#/_learn-more'
     case 'empty':
       return '#/_empty'
     case 'workbench':

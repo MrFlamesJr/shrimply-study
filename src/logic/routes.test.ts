@@ -15,10 +15,12 @@ const library: Library = {
 
 describe('addresses', () => {
   it('names the app\'s own tabs and an empty group', () => {
-    for (const name of ['explorer', 'welcome', 'empty', 'changelog', 'studyTips'] as const) expect(parseHash(href({ name }))).toEqual({ name })
+    for (const name of ['explorer', 'welcome', 'empty', 'changelog', 'studyTips', 'learnMore'] as const) expect(parseHash(href({ name }))).toEqual({ name })
     expect(href({ name: 'explorer' })).toBe('#/_explorer')
     expect(href({ name: 'studyTips' })).toBe('#/_how-to-study')
     expect(parseHash('#/_how-to-study')).toEqual({ name: 'studyTips' })
+    expect(href({ name: 'learnMore' })).toBe('#/_learn-more')
+    expect(parseHash('#/_learn-more')).toEqual({ name: 'learnMore' })
   })
 
   it('names the file with several open, and reads it back; one without it still works', () => {

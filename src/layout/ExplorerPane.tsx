@@ -7,6 +7,7 @@ import type { WorkspaceApi } from '../state/useWorkspace'
 import type { DriveFiles } from '../state/useDriveFiles'
 import type { Library } from '../model'
 import { translateRef } from '../logic/explorerActions'
+import { quoteName } from '../logic/toastText'
 import { closedEntries, nodeOf, type Peek } from '../logic/explorerTree'
 import { Explorer, type ExplorerDoc, type ExplorerDrive } from './Explorer'
 
@@ -23,6 +24,8 @@ export function ExplorerPane(p: {
   editNode(ref: ItemRef): void
   reveal: string | null
   onRevealed(): void
+  /** The node of the page shown, marked in the tree. */
+  current: string | null
   /** The right-click tip: shown until the user has right-clicked once (remembered by the host). */
   tipSeen?: boolean
   onTipSeen?(): void
@@ -126,7 +129,10 @@ export function ExplorerPane(p: {
     const peeked = peeks[id]
     const library =
       typeof peeked === 'object' ? peeked : entry?.kind === 'browser' ? await ws.readClosed(entry.closedId) : await driveApi.current.peek(id, files?.find((f) => f.id === id)?.modified)
-    if (!library || !name) return p.notify('error', "Couldn't read that library.")
+    // A Drive library that couldn't be read has already said why (`peek`'s own toast): no second one.
+    const fromDrive = typeof peeked !== 'object' && entry?.kind !== 'browser'
+    if (!library && fromDrive) return
+    if (!library || !name) return p.notify('error', name ? `Couldn't read ${quoteName(name)} to download it.` : "Couldn't read that library.")
     await p.downloadLibrary(library, name)
   }
 
@@ -153,7 +159,9 @@ export function ExplorerPane(p: {
         return
       }
       opening.current = { id, then }
-      void driveApi.current.open(id).then((ok) => {
+      // One of the user's own (listed) is read as theirs, signed in, as the Explorer's look inside it was: through the
+      // link only a file shared with a link opens.
+      void driveApi.current.open(id, !!files?.some((f) => f.id === id)).then((ok) => {
         if (!ok) opening.current = null
       })
     },
@@ -194,6 +202,7 @@ export function ExplorerPane(p: {
       downloadDoc={(id) => void ws.doc(id).download()}
       closeDoc={(id) => void ws.closeDoc(id)}
       reveal={p.reveal}
+      current={p.current}
       onRevealed={p.onRevealed}
       drive={drive}
       tipSeen={p.tipSeen}

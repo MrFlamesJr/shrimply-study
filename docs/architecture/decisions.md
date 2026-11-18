@@ -6,7 +6,7 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
    kept in IndexedDB, permission asked once per visit, an external change asks before overwriting); a Drive file saves
    to Drive; a library with no file gets Save as. Firefox and Safari download under the file's name. Download is
    always a separate copy and never changes which file a library is tied to. The browser backup is automatic.
-2. Drag and drop moves; Ctrl (Option on Mac) copies; the label says which; a refused drop says why; Esc cancels.
+2. Drag and drop moves within a file and copies into another file (Shift moves there); Ctrl (Option on Mac) copies; the label says which; a refused drop says why; Esc cancels.
 3. Multi-selection spans courses, quizzes and files; copy, cut, move and drag need one kind of item; delete takes any mix.
 4. Undo: one app-wide history of content changes (all files, all windows), 100 steps per session; typing merges per
    field over 1.5 s; layout is not undoable; inside a text field Ctrl+Z is the browser's own; a file replaced from
@@ -297,3 +297,12 @@ Taken while planning the workspace (approved with the plan on 2026-11-16). Later
   the debug page's First visit text (a Workflow rule in CLAUDE.md). The Files heading counts open of total libraries
   ("2/5"): the total is what the Explorer lists (the open ones, the Drive list and the closed ones, via
   `libraryTotal`), so the Drive list is lifted into `useDriveFiles`, called once in App.
+- Asked for, 2026-11-18: Reset to first visit does nothing before its question's Reset is clicked (it signed out
+  first), and the question lists every step. Then `readyToReset` (useWorkspace) saves what waits, to Drive and to
+  files on this device, asking once when one can't be saved, and signs out. `clearAll` tells the other tabs first
+  (BroadcastChannel) and from then on refuses every backup write in the page, since another tab's next edit, or this
+  page's pagehide flush, would otherwise write the forgotten libraries back; each other tab saves what waits, signs
+  out and reloads (App's `onBackupReset`).
+- Asked for, 2026-11-18: an empty library's home is no longer the welcome page. A library's home is always its course
+  list ("Your courses", its crumb too), an empty one with nothing in it; the welcome page shows only in the Welcome tab
+  and in the page cell with no library open (`HomeScreen`'s `welcome`).

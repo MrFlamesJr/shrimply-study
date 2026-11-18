@@ -11,6 +11,7 @@ import { ExplanationField } from './ExplanationField'
 import { IconButton } from './IconButton'
 import { GripIcon, PlusIcon, TrashIcon } from './Icons'
 import { ImageSlot } from './ImageSlot'
+import { Segmented } from './Segmented'
 import { SequenceField } from './SequenceField'
 import { SidesSelect } from './SidesSelect'
 import { TrueFalseField } from './TrueFalseField'
@@ -33,6 +34,9 @@ function FieldHint({ bad, nudge, text, badText }: { bad: boolean; nudge: number;
     </span>
   )
 }
+
+// What in a card's head is a control of its own, never the start of a drag.
+const CONTROLS = 'button, select, input, textarea, label, a, [popover]'
 
 export type CardSortable = {
   setNodeRef: (element: HTMLElement | null) => void
@@ -114,7 +118,12 @@ export function EditCard({ card, index, lib, onPatch, onDelete, editor }: Props)
         else editor.onAdvance()
       }}
     >
-      <div className="pair-head">
+      <div
+        className={editor ? 'pair-head is-movable' : 'pair-head'}
+        // In the editor the whole head drags the card (asked for), not only its grip; a press on one of its controls
+        // stays theirs. The drag starts once the pointer moves a little (see SortableCard), so clicks still click.
+        onPointerDown={editor && ((e) => !(e.target as Element).closest(CONTROLS) && editor.sortable.listeners?.onPointerDown?.(e))}
+      >
         <span>
           {editor && (
             <IconButton
@@ -128,9 +137,22 @@ export function EditCard({ card, index, lib, onPatch, onDelete, editor }: Props)
               <GripIcon />
             </IconButton>
           )}
-          #{n}
+          <span className="pair-num">#{n}</span>
           {isTermCard(card) ? (
-            <SidesSelect value={card.sides} lib={lib} label={`Sides of card ${n}`} onChange={(sides) => onPatch({ sides })} />
+            <>
+              <SidesSelect value={card.sides} lib={lib} label={`Sides of card ${n}`} onChange={(sides) => onPatch({ sides })} />
+              <Segmented
+                compact
+                label={`Side asked of card ${n}`}
+                title="Which side studying asks: the front every time, or the front or the back at random"
+                options={[
+                  { value: 'front', label: `${names.term} first` },
+                  { value: 'mixed', label: 'Random' },
+                ]}
+                value={card.mixed ? 'mixed' : 'front'}
+                onChange={(v) => onPatch({ mixed: v === 'mixed' ? true : undefined })}
+              />
+            </>
           ) : (
             <span className="pair-kind muted small">{KIND_NAME[card.type]}</span>
           )}

@@ -87,6 +87,24 @@ describe('library format', () => {
     expect((card as TermCard).sides).toBeUndefined()
   })
 
+  it('writes a mixed card after its sides and reads it back; the default is not written', () => {
+    const lib = structuredClone(library)
+    expect(libraryToJson(lib)).not.toContain('mixed')
+    const card = lib.courses[0].quizzes[0].cards[0] as TermCard
+    card.sides = ['Question', 'Answer']
+    card.mixed = true
+    const json = libraryToJson(lib)
+    expect(json).toContain('{ "sides": ["Question", "Answer"], "mixed": true, "term": "cat"')
+    expect((libraryFromJson(json).courses[0].quizzes[0].cards[0] as TermCard).mixed).toBe(true)
+  })
+
+  it('rejects a "mixed" that is not true', () => {
+    const message = 'courses[0].quizzes[0].cards[0]: "mixed" must be true (leave it out to ask the front first).'
+    for (const mixed of [false, 'true', 1, null]) {
+      expect(() => fromData(withCard({ mixed, term: 'a', definition: 'b' }))).toThrow(message)
+    }
+  })
+
   it('trims side names', () => {
     const card = fromData(withCard({ sides: [' Question ', 'Answer  '], term: 'a', definition: 'b' })).courses[0].quizzes[0].cards[0]
     expect((card as TermCard).sides).toEqual(['Question', 'Answer'])

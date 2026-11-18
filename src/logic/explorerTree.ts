@@ -83,9 +83,11 @@ export function closedDriveFiles(listing: DriveListing | undefined, open: OpenDo
  */
 export type ExplorerClosed = { id: string; name: string; kind: 'browser' | 'link'; closedId: string }
 
-/** The workspace's closed files as the tree lists them. */
-export function closedEntries(closed: { id: string; name: string; drive: { id: string } | null }[]): ExplorerClosed[] {
-  return closed.map((c) => (c.drive ? { id: c.drive.id, name: c.name, kind: 'link', closedId: c.id } : { id: `b-${c.id}`, name: c.name, kind: 'browser', closedId: c.id }))
+/** The workspace's closed files as the tree lists them; a Drive file known to be in its owner's bin is none (asked for). */
+export function closedEntries(closed: { id: string; name: string; drive: { id: string; trashed?: boolean } | null }[]): ExplorerClosed[] {
+  return closed
+    .filter((c) => !c.drive?.trashed)
+    .map((c) => (c.drive ? { id: c.drive.id, name: c.name, kind: 'link', closedId: c.id } : { id: `b-${c.id}`, name: c.name, kind: 'browser', closedId: c.id }))
 }
 
 /**

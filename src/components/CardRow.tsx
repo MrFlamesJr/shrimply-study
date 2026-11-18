@@ -37,7 +37,7 @@ export function CardRow({ card, lead, blank, note, kind, onEdit, onDelete }: Pro
   const extra = note && <div className="row-extra">{note}</div>
   // With `kind`, a head like the editor's card head: the number, then the card's name (a term card's sides, any other
   // card's kind), the pencil at its right end; the text starts under it.
-  const name = isTermCard(card) ? `${sideNames(card).term} / ${sideNames(card).definition}` : KIND_NAME[card.type]
+  const name = isTermCard(card) ? `${sideNames(card).term} / ${sideNames(card).definition}${card.mixed ? ' · Random' : ''}` : KIND_NAME[card.type]
   const start = kind ? (
     <div className="row-head">
       {lead}

@@ -1,9 +1,27 @@
 import { describe, expect, it } from 'vitest'
 import type { Card, TrueFalseCard } from '../model'
-import { isBlank, missingPart, sameCard, tidyCard, tidyCards, unfinishedMessage } from './cardStatus'
+import { cardName, isBlank, missingPart, sameCard, tidyCard, tidyCards, unfinishedMessage } from './cardStatus'
 
 const card = (term: string, definition: string) => ({ id: 'x', term, definition })
 const cloze = (statement: string) => ({ id: 'x', type: 'cloze' as const, statement, explanation: [] })
+
+describe('cardName', () => {
+  it('names a term card by its term, else its definition', () => {
+    expect(cardName(card('Mitochondria', 'Powerhouse'))).toBe('Mitochondria')
+    expect(cardName(card('  ', 'Powerhouse'))).toBe('Powerhouse')
+  })
+  it('collapses whitespace runs and trims', () => expect(cardName(card('  A\n\n  b\t c ', ''))).toBe('A b c'))
+  it('names the other kinds by their first text', () => {
+    expect(cardName(cloze('The {sun} is a {star}'))).toBe('The sun is a star')
+    expect(cardName({ id: 'x', type: 'true-false', statement: 'Water is wet', answer: true } as Card)).toBe('Water is wet')
+    expect(cardName({ id: 'x', type: 'choice', question: 'Which?', mode: 'one', right: ['a'], wrong: ['b'] } as Card)).toBe('Which?')
+    expect(cardName({ id: 'x', type: 'sequence', title: 'Steps', steps: ['a', 'b'] } as Card)).toBe('Steps')
+  })
+  it('is empty when there is no text', () => {
+    expect(cardName(card('', ''))).toBe('')
+    expect(cardName(cloze(''))).toBe('')
+  })
+})
 
 describe('isBlank', () => {
   it('is true only when both sides are empty or whitespace', () => {
@@ -44,20 +62,45 @@ describe('unfinishedMessage', () => {
   })
 
   it('names one card and its missing side', () => {
-    expect(unfinishedMessage([ok, card('a', '')])).toBe('Card #2 needs a back.')
-    expect(unfinishedMessage([card('', 'b')])).toBe('Card #1 needs a front.')
+    expect(unfinishedMessage([ok, card('a', '')])?.text).toBe('"a" needs a back.')
+    expect(unfinishedMessage([card('', 'b')])?.text).toBe('"b" needs a front.')
   })
 
   it('lists several cards', () => {
-    expect(unfinishedMessage([card('a', ''), ok, card('', 'b')])).toBe('Cards #1 and #3 need a front or back.')
-    expect(unfinishedMessage([card('a', ''), card('a', ''), card('a', '')])).toBe(
-      'Cards #1, #2 and #3 need a front or back.',
-    )
+    expect(unfinishedMessage([card('a', ''), ok, card('', 'b')])?.text).toBe('2 cards need a front or back.')
+    expect(unfinishedMessage([card('a', ''), card('a', ''), card('a', '')])?.text).toBe('3 cards need a front or back.')
+  })
+
+  it('says under More info which cards, by name and number', () => {
+    const found = unfinishedMessage([card('a', ''), ok, card('', 'b'), { ...card('', ''), termImage: 'data:image/png;base64,AAAA' }])!
+    expect(found.detail).toEqual([
+      'Each is marked in red; the first has the focus.',
+      '"a" (#1) needs a back.',
+      '"b" (#3) needs a front.',
+      'Card #4 needs a front.',
+    ])
+  })
+
+  it('cuts a long name at 40 and gives the full one in the detail', () => {
+    const name = 'The mitochondria is the powerhouse of the cell and makes most of its ATP'
+    const found = unfinishedMessage([card(name, '')])!
+    expect(found.text).toBe('"The mitochondria is the powerhouse of…" needs a back.')
+    expect(found.detail).toEqual([`The full name is "${name}".`])
+    expect(unfinishedMessage([card('short', '')])!.detail).toEqual([])
+  })
+
+  it('has no name for a card with no text, only its number', () => {
+    expect(unfinishedMessage([ok, { ...card('', ''), termImage: 'data:image/png;base64,AAAA' }])?.text).toBe('Card #2 needs a front.')
   })
 
   it('shortens a long list', () => {
     const half = Array.from({ length: 8 }, () => card('a', ''))
-    expect(unfinishedMessage(half)).toBe('Cards #1, #2, #3, #4, #5 and 3 more need a front or back.')
+    const found = unfinishedMessage(half)!
+    expect(found.text).toBe('8 cards need a front or back.')
+    expect(found.detail).toHaveLength(9)
+    const many = unfinishedMessage(Array.from({ length: 12 }, () => card('a', '')))!
+    expect(many.detail).toHaveLength(12)
+    expect(many.detail.at(-1)).toBe('And 2 more.')
   })
 })
 
@@ -77,7 +120,7 @@ describe('cards with images', () => {
     expect(missingPart({ ...card('a', 'b'), termImage: png })).toBeNull()
     expect(missingPart({ ...cloze(''), image: png })).toBe('blank')
     expect(missingPart({ ...cloze('Water {boils}'), image: png })).toBeNull()
-    expect(unfinishedMessage([{ ...card('', ''), termImage: png }])).toBe('Card #1 needs a front.')
+    expect(unfinishedMessage([{ ...card('', ''), termImage: png }])?.text).toBe('Card #1 needs a front.')
   })
 })
 
@@ -91,8 +134,8 @@ describe('fill-in-the-blank cards', () => {
     expect(missingPart(cloze('Water boils'))).toBe('blank')
     expect(missingPart(cloze('Water {boils}'))).toBeNull()
     expect(missingPart(cloze(''))).toBeNull()
-    expect(unfinishedMessage([cloze('Water boils')])).toBe('Card #1 needs a blank.')
-    expect(unfinishedMessage([cloze('a'), card('a', '')])).toBe('Cards #1 and #2 need a front, back or blank.')
+    expect(unfinishedMessage([cloze('Water boils')])?.text).toBe('"Water boils" needs a blank.')
+    expect(unfinishedMessage([cloze('a'), card('a', '')])?.text).toBe('2 cards need a front, back or blank.')
   })
 })
 
@@ -184,9 +227,9 @@ describe('true-or-false cards', () => {
 
   it('names only the missing parts', () => {
     const bad = tf('', { explanation: 'why' })
-    expect(unfinishedMessage([bad])).toBe('Card #1 needs a statement.')
-    expect(unfinishedMessage([bad, bad])).toBe('Cards #1 and #2 need a statement.')
-    expect(unfinishedMessage([card('a', ''), bad])).toBe('Cards #1 and #2 need a front, back or statement.')
-    expect(unfinishedMessage([card('a', ''), card('', 'b'), bad])).toBe('Cards #1, #2 and #3 need a front, back or statement.')
+    expect(unfinishedMessage([bad])?.text).toBe('Card #1 needs a statement.')
+    expect(unfinishedMessage([bad, bad])?.text).toBe('2 cards need a statement.')
+    expect(unfinishedMessage([card('a', ''), bad])?.text).toBe('2 cards need a front, back or statement.')
+    expect(unfinishedMessage([card('a', ''), card('', 'b'), bad])?.text).toBe('3 cards need a front, back or statement.')
   })
 })

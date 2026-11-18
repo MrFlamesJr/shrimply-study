@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 import { GROUP_COLORS } from '../model'
 import type { Card, Group } from '../model'
-import { inGroupOrder, moveWithinSection, nextColor, sections, withCollapsed } from './groups'
+import { inGroupOrder, moveToSection, moveWithinSection, nextColor, sections, withCollapsed } from './groups'
 
 const card = (id: string, group?: string): Card => ({ id, term: id, definition: id, group })
 const groups: Group[] = [
@@ -78,5 +78,32 @@ describe('moveWithinSection', () => {
     expect(moveWithinSection(cards, groups, 'a', 'c')).toBe(cards)
     expect(moveWithinSection(cards, groups, 'x', 'a')).toBe(cards)
     expect(moveWithinSection(cards, groups, 'a', 'a')).toBe(cards)
+  })
+})
+
+describe('moveToSection', () => {
+  const cards = [card('a'), card('b'), card('c', 'g1'), card('d', 'g1'), card('e', 'g2')]
+  const ids = (list: Card[]) => list.map((c) => c.id)
+  const groupOf = (list: Card[], id: string) => list.find((c) => c.id === id)!.group
+
+  it('moves a card into a group, before or after a card there', () => {
+    const before = moveToSection(cards, groups, 'a', { group: 'g1', near: 'd' })
+    expect(ids(before)).toEqual(['b', 'c', 'a', 'd', 'e'])
+    expect(groupOf(before, 'a')).toBe('g1')
+    expect(ids(moveToSection(cards, groups, 'a', { group: 'g1', near: 'd', after: true }))).toEqual(['b', 'c', 'd', 'a', 'e'])
+  })
+
+  it("moves a card out of its group, or to another group's end", () => {
+    const out = moveToSection(cards, groups, 'd', { group: null, near: 'a' })
+    expect(ids(out)).toEqual(['d', 'a', 'b', 'c', 'e'])
+    expect('group' in out[0]).toBe(false)
+    const end = moveToSection(cards, groups, 'c', { group: 'g2' })
+    expect(ids(end)).toEqual(['a', 'b', 'd', 'e', 'c'])
+    expect(groupOf(end, 'c')).toBe('g2')
+  })
+
+  it('does nothing for an unknown card or group', () => {
+    expect(moveToSection(cards, groups, 'x', { group: 'g1' })).toBe(cards)
+    expect(moveToSection(cards, groups, 'a', { group: 'nope' })).toBe(cards)
   })
 })

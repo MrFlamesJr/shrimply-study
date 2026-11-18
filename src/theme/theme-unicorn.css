@@ -33,6 +33,7 @@
   --accent-fill: var(--accent);
   --accent-ink: var(--bg);
   --selection-color: #bd9ff2;
+  --chosen: var(--accent);
   --ok: #7ceec5;
   --bad: #fb836d;
   --ok-fill: var(--ok);
@@ -99,6 +100,7 @@
   --tint: 16%;
   --tint-line: 55%;
   --tint-select: 40%;
+  --tint-chosen: 28%;
   --tint-danger: 8%;
   --tint-muted: 30%;
   --tint-rest: 8%;

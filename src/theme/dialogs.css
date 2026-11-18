@@ -15,20 +15,11 @@
   padding: 0;
   background: var(--surface);
   color: var(--text);
-  /* A dialog opened from a centered page (the welcome page's Learn more) still reads left-aligned. */
+  /* A dialog opened from a centered page (a dialog over the welcome page) still reads left-aligned. */
   text-align: start;
   border: 0;
   border-radius: var(--radius);
   animation: appear var(--dur) var(--ease);
-}
-/* The welcome page's Learn more (LearnMore.tsx): the tips box's notes, one under another at full size, then a
-   link on its own line, underlined at rest too so it reads as one. */
-.dialog .tips-list {
-  columns: auto;
-  font-size: inherit;
-}
-.dialog .tips-list + p a {
-  text-decoration-color: currentColor;
 }
 /* Only while open: a display value on a closed dialog would show it. */
 .dialog[open] {
@@ -56,6 +47,16 @@
 }
 .dialog-body > * + * {
   margin-top: var(--space-4);
+}
+/* A confirm question's list (askConfirm, lines starting with "- "): everything Reset to first visit does, one step a
+   line, the bullets muted so the text leads. */
+.confirm-list {
+  display: grid;
+  gap: var(--space-2);
+  padding-inline-start: var(--space-5);
+}
+.confirm-list li::marker {
+  color: var(--text-muted);
 }
 /* The page behind stays still while a dialog is open (Modal counts the open ones on its document's <html>: a
    :has() rule here would be rechecked on every change on the page). The app's window never scrolls (its panes do),
@@ -489,7 +490,8 @@ th {
   max-height: none;
   align-content: start;
 }
-/* Under the list: Don't see your file? and the privacy link, small and muted. */
+/* Under the list: the Shrimply Study folder in Google Drive (a browser tab of its own), Don't see your file? and the
+   privacy link, small and muted. */
 .open-panel-foot {
   display: flex;
   flex: none;
@@ -598,6 +600,14 @@ textarea.drive-link::-webkit-scrollbar {
 }
 /* Copy link, Copied and Press Ctrl+C share one cell, so the button keeps its width whichever shows; Copied pops in
    with its check (a short, functional animation: it says the copy happened). */
+/* A button waiting on Google (Turning on sharing…, Uploading…; asked for): a small spinner in its own text color, so
+   it reads on the accent fill in every theme. */
+button .spinner {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  color: inherit;
+}
 .drive-copy {
   display: grid;
 }

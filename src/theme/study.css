@@ -488,10 +488,10 @@
   gap: var(--space-4);
 }
 .choice.is-picked {
-  background: var(--accent-soft);
+  background: var(--accent-chosen);
   /* See .segmented::before: the ground under the see-through tint loses its color, so the pick reads in the accent's hue. */
   backdrop-filter: saturate(var(--tint-keep));
-  border-color: var(--accent);
+  border-color: var(--chosen);
 }
 /* The check box before an option's text when all that apply are selected (PickAll): an empty outline, the accent filled
    with a check once picked. Checked, it keeps the pick in the option's own color (the mark at the end says right or wrong). */
@@ -511,8 +511,10 @@
   height: 14px;
 }
 .choice.is-picked .choice-box {
-  background: var(--accent-fill);
-  border-color: var(--accent);
+  background: var(--chosen);
+  border-color: var(--chosen);
+  /* --chosen is light enough in every theme for the ground's dark to carry the check. */
+  color: var(--bg);
 }
 .choice.is-correct .choice-box,
 .choice.is-wrong .choice-box,

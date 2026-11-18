@@ -57,6 +57,12 @@ export interface StorageAdapter {
    * or null when the user cancelled. Never ties the library to the file.
    */
   download(library: Library, name?: string): Promise<string | null>
+  /**
+   * Save to a file (only where `savesInPlace`: Chrome, Edge): a new .shrimp file picked in the save dialog (suggesting
+   * `name`), written, and kept, so the library can be tied to it and save into it from then on. Null when the user
+   * cancelled.
+   */
+  saveAs(library: Library, name?: string): Promise<FileRef | null>
   /** True when both are the same file. */
   sameFile(a: FileRef, b: FileRef): Promise<boolean>
 }

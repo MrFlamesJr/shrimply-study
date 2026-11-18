@@ -46,9 +46,12 @@ export function endDrag(): void {
   current = null
 }
 
-/** Copy with Ctrl (Alt/Option on a Mac), else move. */
-export function effectFor(mods: { ctrlKey: boolean; altKey: boolean; metaKey: boolean }, mac: boolean): 'move' | 'copy' {
-  return (mac ? mods.altKey : mods.ctrlKey) ? 'copy' : 'move'
+/** Copy with Ctrl (Alt/Option on a Mac); else Shift moves; else `base` (move unless the host says otherwise). */
+export function effectFor(
+  mods: { ctrlKey: boolean; altKey: boolean; metaKey: boolean; shiftKey?: boolean }, mac: boolean, base: 'move' | 'copy' = 'move',
+): 'move' | 'copy' {
+  if (mac ? mods.altKey : mods.ctrlKey) return 'copy'
+  return mods.shiftKey ? 'move' : base
 }
 
 /** Where on a row `y` falls: with `inside`, the top quarter is before, the bottom quarter after, the middle inside; else halves. */

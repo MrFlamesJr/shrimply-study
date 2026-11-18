@@ -102,38 +102,89 @@ def pick_up(page, name, dy=0):
     return x, y + 12
 
 
+def lift_gap(page):
+    """The lifted card's distance in from the cards' box, at its top and at its bottom (0 at the edge, below 0 out)."""
+    return page.evaluate("() => { const l = document.querySelector('.pair-lift').getBoundingClientRect(), b = document.querySelector('.pairs').getBoundingClientRect();"
+                         " return { top: l.top - b.top, bottom: b.bottom - l.bottom } }")
+
+
+def group_of(page, name):
+    """The name of the group box a card is in, or None."""
+    return page.locator('.pairs .pair').evaluate_all(
+        "(els, n) => { const e = els.find(e => e.querySelector('textarea').value === n); const g = e && e.closest('.group-box');"
+        " return g ? g.querySelector('[aria-label=\"Group name\"]').value : null }", name)
+
+
 def editor_cards(page, base):
-    # G6: a card stays in its own section, stops at the first and last card there, and the page stops scrolling.
+    # G6: a card goes past its section's ends into another section (asked for: in and out of groups), and the page stops
+    # scrolling at the end of the list.
     open_editor(page, base)
     need(order(page) == ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'A1', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4'],
          f'the test library loads in order: {order(page)}')
     x, y = pick_up(page, 'A1')
     page.mouse.move(x, y + 1500, steps=30)
-    page.wait_for_timeout(300)
-    moving, _ = card_box(page, 'A1')
-    group_box = page.locator('.group-box').first.bounding_box()
-    need(moving['y'] + moving['height'] <= group_box['y'] + group_box['height'],
-         f'a dragged card stops inside its group: card bottom {moving["y"] + moving["height"]:.0f}, group bottom {group_box["y"] + group_box["height"]:.0f}')
     page.wait_for_timeout(1500)
     top_a = scroll_top(page)
     page.wait_for_timeout(500)
     need(abs(scroll_top(page) - top_a) < 2, f'the page stops scrolling at the end of the list: {top_a} then {scroll_top(page)}')
+    need(abs(lift_gap(page)['bottom']) <= 1, f'the lifted card stops exactly at the end of the cards: {lift_gap(page)}')
     page.mouse.up()
     page.wait_for_timeout(300)
     got = order(page)
-    need(got[6:10] == ['A2', 'A3', 'A4', 'A1'] and got[:6] == ['U1', 'U2', 'U3', 'U4', 'U5', 'U6'] and got[10:] == ['B1', 'B2', 'B3', 'B4'],
-         f'a card dropped far below its group goes last in that group: {got}')
+    need(got == ['U1', 'U2', 'U3', 'U4', 'U5', 'U6', 'A2', 'A3', 'A4', 'B1', 'B2', 'B3', 'B4', 'A1'] and group_of(page, 'A1') == 'Gb',
+         f'a card dropped far below the list goes last in the last group: {got}, in {group_of(page, "A1")}')
 
     open_editor(page, base)
-    first, _ = card_box(page, 'U1')
     x, y = pick_up(page, 'U6')
     page.mouse.move(x, y - 1500, steps=30)
     page.wait_for_timeout(300)
-    moving, _ = card_box(page, 'U6')
-    need(moving['y'] >= first['y'] - 2, f'a dragged card stops at its section\'s first card: {moving["y"]:.0f} vs {first["y"]:.0f}')
+    need(abs(lift_gap(page)['top']) <= 1, f'the lifted card stops exactly at the top of the cards: {lift_gap(page)}')
     page.mouse.up()
     page.wait_for_timeout(300)
     need(order(page)[:6] == ['U6', 'U1', 'U2', 'U3', 'U4', 'U5'], f'dropped above the first card: {order(page)}')
+
+    # Out of a group: A2 held with its middle in the top half of U4 moves before U4 at once, in no group, and stays there.
+    open_editor(page, base)
+    x, y = pick_up(page, 'A2')
+    dbox, _ = card_box(page, 'U4')
+    sbox, _ = card_box(page, 'A2')
+    ty = y + (dbox['y'] + dbox['height'] * 0.3) - (sbox['y'] + sbox['height'] / 2)
+    page.mouse.move(x, ty, steps=20)
+    page.wait_for_timeout(300)
+    slot = page.locator('.pairs .pair.is-dragging')
+    need(slot.evaluate("e => !e.closest('.group-box')"), 'while held, its place is already out of the group')
+    u4, _ = card_box(page, 'U4')
+    need(slot.bounding_box()['y'] < u4['y'], f'and the cards made way: its place is above U4 ({slot.bounding_box()["y"]:.0f} vs {u4["y"]:.0f})')
+    need(page.locator('.pair.is-lifted').count() == 1, 'the card itself is lifted over the page')
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    got = order(page)
+    need(got[:7] == ['U1', 'U2', 'U3', 'A2', 'U4', 'U5', 'U6'] and group_of(page, 'A2') is None, f'a card dragged out of its group: {got}, in {group_of(page, "A2")}')
+    need(page.locator('[data-drop]').count() == 0, 'no mark is left after the drop')
+    page.keyboard.press('Control+z')
+    wait_for(page, lambda: order(page)[6:10] == ['A1', 'A2', 'A3', 'A4'], 'Ctrl+Z puts it back in its group in one step')
+
+    # By the head, not only the grip (asked for): grabbed on its number, U5 goes into group Ga, after A1.
+    open_editor(page, base)
+    scroll_to_card(page, 'U5')
+    num = page.locator('.pairs .pair').nth(card(page, 'U5')).locator('.pair-num').bounding_box()
+    x, y = center(num)
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x, y + 12, steps=4)
+    dbox, _ = card_box(page, 'A1')
+    sbox, _ = card_box(page, 'U5')
+    ty = y + 12 + (dbox['y'] + dbox['height'] * 0.3) - (sbox['y'] + sbox['height'] / 2)
+    page.mouse.move(x, ty, steps=20)
+    page.wait_for_timeout(300)
+    # In the group now (its place before A1, which made way): the pointer on down into the lower part of A1.
+    dbox, _ = card_box(page, 'A1')
+    page.mouse.move(x, dbox['y'] + dbox['height'] * 0.75, steps=10)
+    page.wait_for_timeout(300)
+    page.mouse.up()
+    page.wait_for_timeout(300)
+    got = order(page)
+    need(got[:9] == ['U1', 'U2', 'U3', 'U4', 'U6', 'A1', 'U5', 'A2', 'A3'] and group_of(page, 'U5') == 'Ga', f'dragged by its head into a group: {got}, in {group_of(page, "U5")}')
 
     # G7: the card lands where the gap showed: dropped with its middle over a card (tall one included), it takes that place.
     for src, dst, want in (
@@ -154,30 +205,37 @@ def editor_cards(page, base):
         page.wait_for_timeout(300)
         need(order(page)[:6] == want, f'{src} dropped over {dst}: wanted {want}, got {order(page)[:6]}')
 
-    # A collapsed group below: a card of the ungrouped section dragged to the very end stays in it.
+    # A collapsed group: a card dropped on its head joins it at its end, and the group opens to show it.
     open_editor(page, base)
     page.locator('.group-box').first.locator('.group-head button[aria-expanded]').first.click()
     page.wait_for_timeout(400)
     x, y = pick_up(page, 'U2')
-    page.mouse.move(x, y + 1200, steps=25)
+    head = page.locator('.group-box').first.locator('.group-head').bounding_box()
+    sbox, _ = card_box(page, 'U2')
+    page.mouse.move(x + 200, head['y'] + head['height'] / 2, steps=25)
     page.wait_for_timeout(300)
+    need(page.locator('.group-box').first.locator('.group-head').get_attribute('data-drop') == 'inside', 'the collapsed group\'s head is marked')
     page.mouse.up()
     page.wait_for_timeout(300)
-    need(order(page)[:6] == ['U1', 'U3', 'U4', 'U5', 'U6', 'U2'], f'dragged past a collapsed group: {order(page)[:6]}')
+    got = order(page)
+    need(got[:5] == ['U1', 'U3', 'U4', 'U5', 'U6'] and got[5:10] == ['A1', 'A2', 'A3', 'A4', 'U2'], f'dropped on a collapsed group: {got}')
+    need(page.locator('.group-box').first.locator('.group-head button[aria-expanded]').first.get_attribute('aria-expanded') == 'true', 'the group opens')
 
     # G8: grabbing a card near the pane's top or bottom never scrolls; autoscroll starts once it moved and nears the edge.
     open_editor(page, base, 800)
     pane = scroller(page).bounding_box()
-    # Scrolled so a card's grip sits within the bottom 90px of the pane.
-    scroller(page).evaluate('''el => {
-      const r = el.getBoundingClientRect()
-      const grips = [...el.querySelectorAll('.pair-grip')]
-      const want = grips[grips.length - 3]
-      el.scrollTop += want.getBoundingClientRect().top - (r.bottom - 50)
-    }''')
-    page.wait_for_timeout(200)
+    # Scrolled so a card's grip sits within the bottom 90px of the pane (twice: what scrolls into view may settle).
+    for _ in range(2):
+        scroller(page).evaluate('''el => {
+          const r = el.getBoundingClientRect()
+          // Only shown grips: a collapsed group's cards have no place on the page.
+          const grips = [...el.querySelectorAll('.pair-grip')].filter((g) => g.getClientRects().length > 0)
+          const want = grips[grips.length - 3]
+          el.scrollTop += want.getBoundingClientRect().top - (r.bottom - 50)
+        }''')
+        page.wait_for_timeout(300)
     before = scroll_top(page)
-    grip_box = page.locator('.pairs .pair-grip').evaluate_all(
+    grip_box = scroller(page).locator('.pair-grip').evaluate_all(
         '(els, bottom) => els.map(e => e.getBoundingClientRect()).filter(r => r.top < bottom && r.top > bottom - 90).map(r => ({x: r.x, y: r.y, width: r.width, height: r.height}))',
         pane['y'] + pane['height'])
     need(grip_box, 'a grip near the pane\'s bottom')
@@ -346,7 +404,7 @@ def workbench_tabs(page, base):
     wait_for(page, lambda: 'Test library' in ' '.join(group_with(page, 'Explorer').locator('[role=tab]').all_inner_texts()),
              'a tab dropped on another strip moves there')
 
-    # Where a pane can not split, its edge shows no zone: a narrow window has no side split, a bottom one.
+    # Every edge shows its zone, even in a narrow window (the window then shows one pane at a time).
     for _ in range(3):  # every tab into the first group: one pane the width of the window
         if wb_groups(page).count() == 1:
             break
@@ -360,7 +418,7 @@ def workbench_tabs(page, base):
     pane = group.locator('.wb-pane').bounding_box()
     src = center(group.locator('[role=tab]').first.bounding_box())
     drag(page, src, (pane['x'] + 15, pane['y'] + pane['height'] / 2), hold=200, release=False)
-    need(page.locator('.kit-dropzone').count() == 0, f'a pane too narrow to split shows no zone on its side ({pane["width"]:.0f}px wide)')
+    need(page.locator('.kit-dropzone.is-left').count() == 1, f'a narrow pane still shows the zone on its side ({pane["width"]:.0f}px wide): splits are never refused')
     page.mouse.move(pane['x'] + pane['width'] / 2, pane['y'] + pane['height'] - 15, steps=8)
     page.wait_for_timeout(100)
     need(page.locator('.kit-dropzone.is-bottom').count() == 1, 'a pane tall enough shows the zone at its bottom')

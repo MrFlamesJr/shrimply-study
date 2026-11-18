@@ -56,7 +56,7 @@ export function TypedAnswer({ typed, ok, marked, answers, answerImage }: TypedPr
           <p key={i} className="choice is-correct">
             <Thumb src={answerImage} alt={answer || 'Image for the answer'} />
             {answer}
-            <Mark ok label="Right answer" />
+            <Mark ok label="Correct answer" />
           </p>
         ))}
     </div>

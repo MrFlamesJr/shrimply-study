@@ -42,6 +42,12 @@ describe('effectFor', () => {
     expect(effectFor({ ...none, altKey: true }, true)).toBe('copy')
     expect(effectFor({ ...none, ctrlKey: true }, true)).toBe('move')
   })
+  it('takes the host base with no key; Shift moves; the copy key copies', () => {
+    expect(effectFor(none, false, 'copy')).toBe('copy')
+    expect(effectFor({ ...none, shiftKey: true }, false, 'copy')).toBe('move')
+    expect(effectFor({ ...none, ctrlKey: true, shiftKey: true }, false, 'move')).toBe('copy')
+    expect(effectFor({ ...none, altKey: true, shiftKey: true }, true, 'move')).toBe('copy')
+  })
 })
 
 describe('dropPosition', () => {

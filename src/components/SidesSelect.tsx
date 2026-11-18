@@ -83,7 +83,7 @@ export function SidesSelect({
         aria-label={`${label}: ${name(current)}`}
         title="Name this card's sides"
       >
-        {name(current)}
+        <span className="sides-name">{name(current)}</span>
         <ChevronDownIcon />
       </button>
       <div

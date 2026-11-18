@@ -31,8 +31,14 @@ function openDb(): Promise<IDBDatabase> {
   return opened
 }
 
-// Runs one request in its own transaction and resolves with its result once the transaction is done.
-function run<T>(mode: IDBTransactionMode, request: (store: IDBObjectStore) => IDBRequest<T>): Promise<T> {
+// Reset to first visit (here or in another tab): from then on this page writes nothing, so a write on its way out (the
+// pagehide flush, a timer) or another tab's next edit can't put back what was just forgotten. A new page starts writing.
+let forgotten = false
+
+// Runs one request in its own transaction and resolves with its result once the transaction is done. After a reset a
+// write is refused (`always`: the reset's own clear).
+function run<T>(mode: IDBTransactionMode, request: (store: IDBObjectStore) => IDBRequest<T>, always = false): Promise<T> {
+  if (forgotten && mode === 'readwrite' && !always) return Promise.reject(new Error('This browser was reset to a first visit.'))
   return openDb().then(
     (db) =>
       new Promise<T>((resolve, reject) => {
@@ -66,9 +72,25 @@ export async function clearBackup(): Promise<void> {
   for (const key of await workspaceKeys()) await run('readwrite', (store) => store.delete(key))
 }
 
-/** For the debug page's reset to first visit: every record the backup holds (the workspace, every document, the closed files, the notes), not just the live ones. */
+/**
+ * For the debug page's reset to first visit: every record the backup holds (the workspace, every document, the file
+ * handles, the closed files, the notes), not just the live ones. From then on this page writes nothing (see
+ * `forgotten`), and every other tab of the site is told first, so it stops writing too and starts afresh
+ * (`onBackupReset`); otherwise its next edit would write its libraries back.
+ */
 export async function clearAll(): Promise<void> {
-  await run('readwrite', (store) => store.clear())
+  forgotten = true
+  workspaceTabs?.postMessage({ tab, reset: true })
+  await run('readwrite', (store) => store.clear(), true)
+}
+
+/** Calls the function when another tab reset this browser to a first visit (`clearAll`); this page already writes nothing. Returns the function that stops it. */
+export function onBackupReset(then: () => void): () => void {
+  const listener = (event: MessageEvent) => {
+    if ((event.data as { reset?: true }).reset) then()
+  }
+  workspaceTabs?.addEventListener('message', listener)
+  return () => workspaceTabs?.removeEventListener('message', listener)
 }
 
 /** For the debug page: stores text that is not a backup (the single one and every document's), to test the startup warning. */
@@ -115,14 +137,18 @@ async function workspaceKeys(): Promise<string[]> {
 
 const tab = Math.random().toString(36).slice(2)
 const workspaceTabs = typeof BroadcastChannel === 'undefined' ? undefined : new BroadcastChannel('shrimply-workspace')
+// Another tab reset this browser: this page stops writing at once, before anything else hears of it.
+workspaceTabs?.addEventListener('message', (event: MessageEvent) => {
+  if ((event.data as { reset?: true }).reset) forgotten = true
+})
 
 type Written = { doc?: string; workspace?: true }
 
 /** Calls the function each time another tab wrote a document or the workspace. Returns the function that stops it. */
 export function onWorkspaceWritten(taken: (msg: Written) => void): () => void {
   const listener = (event: MessageEvent) => {
-    const { tab: from, ...msg } = event.data as Written & { tab: string }
-    if (from !== tab) taken(msg)
+    const { tab: from, reset, ...msg } = event.data as Written & { tab: string; reset?: true }
+    if (from !== tab && !reset) taken(msg)
   }
   workspaceTabs?.addEventListener('message', listener)
   return () => workspaceTabs?.removeEventListener('message', listener)
@@ -275,4 +301,18 @@ async function migrate(
   else read.unstored.push(id)
   // Not the first start of this version: an older one changed library.v1 since (a retry is not news).
   if (marker !== undefined || (hadWorkspace && !(read.workspace?.docs ?? []).includes(id))) read.notes.push(OLDER_TAB_NOTE)
+}
+
+/**
+ * Asks the browser to keep this site's data (asked for: a library kept only in this browser can be lost). Without it
+ * the backup is best effort: the browser may clear it when the disk runs low. Chrome answers by itself, Firefox may
+ * ask the user; a refusal or a browser without it changes nothing. Resolves whether it is kept.
+ */
+export async function keepData(): Promise<boolean> {
+  try {
+    if (!navigator.storage?.persist) return false
+    return (await navigator.storage.persisted?.()) || (await navigator.storage.persist())
+  } catch {
+    return false
+  }
 }

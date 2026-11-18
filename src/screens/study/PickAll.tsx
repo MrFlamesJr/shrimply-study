@@ -66,7 +66,7 @@ export function PickAll({ question, result, paused, onRecord }: Props) {
                 ? 'is-missed'
                 : 'is-dim'
           // The mark and its word carry the meaning, the colors only agree.
-          const mark = checked && (picked ? isRight ? 'Picked, right' : 'Picked, wrong' : isRight ? 'Missed' : undefined)
+          const mark = checked && (picked ? isRight ? 'Picked, correct' : 'Picked, wrong' : isRight ? 'Missed' : undefined)
           return (
             <button
               key={i}

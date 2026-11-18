@@ -1,4 +1,4 @@
-import type { Format, Side, StudyOptions } from '../../model'
+import type { Format, StudyOptions } from '../../model'
 import { Segmented } from '../../components/Segmented'
 
 // [value, label, hint shown under the bar while it is chosen]
@@ -6,11 +6,6 @@ const MODES: [Format, string, string][] = [
   ['flashcards', 'Flashcards', 'Flip each card and rate yourself.'],
   ['choice', 'Multiple choice', 'Select the correct answer from four options.'],
   ['typing', 'Typing', 'Type the answer from memory.'],
-]
-const SIDES: [Side, string, string][] = [
-  ['term', 'Front', 'You see the front and answer with the back.'],
-  ['definition', 'Back', 'You see the back and answer with the front.'],
-  ['mixed', 'Mixed', 'Each card shows its front or its back at random.'],
 ]
 const ORDERS: [boolean, string, string][] = [
   [true, 'Shuffled', 'A new random order every round.'],
@@ -33,18 +28,8 @@ type Props = {
 }
 
 export function StudyOptionsPanel({ prefs, setPrefs, format, choosable, hasGroups, kinds }: Props) {
-  // Fill-in-the-blank, true or false, choice and sequence cards have no sides: they always show their statement, question or title.
-  const noSides = [kinds.cloze && 'fill-in-the-blank', kinds.trueFalse && 'true or false', kinds.choice && 'choice question', kinds.sequence && 'sequence']
-    .filter(Boolean)
-    .join(' and ')
-  const sideNote =
-    noSides !== '' &&
-    (kinds.term
-      ? `${noSides[0].toUpperCase()}${noSides.slice(1)} cards ignore this: they always show their own text.`
-      : `This quiz has only ${noSides} cards, so this changes nothing.`)
-
   return (
-  <section className="study-options" aria-labelledby="options-title">
+    <section className="study-options" aria-labelledby="options-title">
       <h2 id="options-title">Study options</h2>
       <div className="options">
         <Segmented
@@ -66,12 +51,6 @@ export function StudyOptionsPanel({ prefs, setPrefs, format, choosable, hasGroup
           }))}
           value={format}
           onChange={(format) => setPrefs({ ...prefs, format })}
-        />
-        <Segmented
-          label="Question side"
-          options={SIDES.map(([value, label, text]) => ({ value, label, hint: hint(text, sideNote) }))}
-          value={prefs.side}
-          onChange={(side) => setPrefs({ ...prefs, side })}
         />
         <Segmented
           label="Card order"

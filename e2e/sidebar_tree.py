@@ -126,6 +126,13 @@ def run(page, base):
     page.keyboard.press('Enter')  # it asks for its name first; Enter keeps New library
     fresh = page.locator('.file-block').filter(has=page.locator('.file-name-text', has_text='New library'))
     assert fresh.locator('.file-course').count() == 0 and fresh.locator('.file-empty').count() == 0, 'nothing under an empty file'
+    # Its home is its course list with nothing in it, never the welcome page (asked for), and its crumb says so.
+    shown = page.locator('.wb-tab:not([hidden])')
+    wait_for(page, lambda: shown.get_by_role('heading', name='Your courses New library').count() == 1, "an empty file's home is its course list")
+    assert shown.locator('.welcome').count() == 0, "an empty file's home is not the welcome page"
+    assert shown.locator('.course-block').count() == 0, 'with no courses in it'
+    crumbs = [c.strip() for c in page.locator('.pane-crumbs li > :not(.pane-sep)').all_inner_texts()]
+    assert crumbs == ['New library', 'Your courses'], f"its crumb is Your courses: {crumbs}"
     fresh.locator('.file-row').hover()
     fresh.get_by_role('button', name='New course in New library', exact=True).click()
     wait_for(page, lambda: fresh.locator('.file-course').count() == 1, "the empty file's New course adds a course there")

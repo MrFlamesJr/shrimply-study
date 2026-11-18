@@ -124,7 +124,7 @@ def explorer_part(page):
     expand(page, 'doc', shared)
     tree_row(page, 'course', 'Teacher course').click()
     page.keyboard.press('Control+v')
-    page.locator('.toast', has_text=VIEW_ONLY).first.wait_for()
+    page.locator('.toast', has_text='is view only. Make a copy to change it.').first.wait_for()
     tree_row(page, 'course', 'Teacher course').click(button='right')
     paste = page.get_by_role('menuitem', name=re.compile('^Paste'))
     need(paste.get_attribute('aria-disabled') == 'true', 'Paste is greyed out in its menu')

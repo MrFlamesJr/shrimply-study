@@ -1,6 +1,7 @@
-// Forgets every browser preference (the theme, the study options, the tips box) and this tab's Google sign-in, as on
-// a first visit. Each is one localStorage or sessionStorage key starting with this prefix. The browser backup is not
-// touched (`clearAll` is the debug page's).
+// Forgets every browser preference (the theme, the study options, the sidebar, the welcome page and Explorer tip
+// seen) and the Google sign-in (this tab's, and the account chosen last), as on a first visit. Each is one
+// localStorage or sessionStorage key starting with this prefix. The browser backup is not touched (`clearAll` is the
+// debug page's).
 const PREFIX = 'shrimply-'
 
 export function resetPrefs() {

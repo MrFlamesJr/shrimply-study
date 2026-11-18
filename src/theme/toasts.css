@@ -100,11 +100,59 @@
   grid-area: 1 / 2;
   align-self: start;
 }
+/* Row 2: More info at the start, the action (Undo) at the end; whole buttons wrap, never their words. */
+.toast-foot {
+  grid-area: 2 / 1 / 3 / 3;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+}
+.toast-foot button {
+  white-space: nowrap;
+}
+.toast-foot .toast-action {
+  margin-inline-start: auto;
+}
+/* More info is a link button (base.css) with the fold chevron after its words; its label never changes. */
+.toast-more {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 32px;
+  /* Its words start in line with the text above (the link button's padding hangs out to the left). */
+  margin-inline-start: calc(-1 * var(--space-1));
+}
+.toast-more svg {
+  width: 14px;
+  height: 14px;
+}
+@media (max-width: 799px) {
+  .toast-more {
+    min-height: var(--tap);
+  }
+}
+/* Row 3, only while More info is open: below the buttons, so the one just pressed never moves. */
+.toast-detail {
+  grid-area: 3 / 1 / 4 / 3;
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding-inline-end: var(--space-3);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+  animation: appear var(--dur) var(--ease);
+}
+.toast .toast-detail p {
+  grid-area: auto;
+  align-self: auto;
+  margin: 0;
+  overflow-wrap: anywhere;
+}
 /* A quiet link-style button under the text (Undo), at the end of its row: the accent is the action, underlined so it
    never reads as plain text. A hit area of its own, not just its words. */
 .toast .toast-action {
-  grid-area: 2 / 1 / 3 / 3;
-  justify-self: end;
   height: auto;
   min-height: 32px;
   padding: var(--space-1) var(--space-2);
@@ -132,6 +180,13 @@
   height: var(--space-1);
   overflow: hidden;
   border-radius: var(--radius) var(--radius) 0 0;
+}
+/* An opened toast stays until its ✕: its bar is hidden and stops. */
+.toast.is-open .toast-track {
+  visibility: hidden;
+}
+.toast.is-open .toast-life {
+  animation-play-state: paused;
 }
 .toast-life {
   height: 100%;

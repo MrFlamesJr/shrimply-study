@@ -22,8 +22,9 @@ pointer is. It does not attach any listeners.
   accepted (no `preventDefault` on `dragover`) is refused, so the browser never opens it in place of the app. Installed
   for the main document when the module loads; call it for each popup window and keep the returned function to take it
   off.
-- `effectFor(mods: { ctrlKey; altKey; metaKey }, mac: boolean): 'move' | 'copy'`: `'copy'` when Ctrl is held (Alt, called
-  Option, on a Mac), else `'move'`.
+- `effectFor(mods: { ctrlKey; altKey; metaKey; shiftKey? }, mac: boolean, base: 'move' | 'copy' = 'move'): 'move' | 'copy'`:
+  `'copy'` when Ctrl is held (Alt, called Option, on a Mac), else `'move'` when Shift is held, else `base` (what the host
+  does with no key held).
 - `dropPosition(top, height, y, inside: boolean): 'before' | 'inside' | 'after'`: where `y` falls on a row that starts
   at `top` and is `height` tall. With `inside` true: the top quarter is `'before'`, the bottom quarter `'after'`, the
   middle half `'inside'`. With `inside` false: the top half is `'before'`, the rest `'after'`.

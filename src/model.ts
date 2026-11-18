@@ -7,6 +7,8 @@ export type TermCard = {
   type?: never
   // The names of the two sides; absent means the default pair (SIDE_PRESETS[0]), which is never stored.
   sides?: Sides
+  // Asked from a random side each time it comes up; absent means its front side first.
+  mixed?: true
   term: string
   termImage?: string
   definition: string
@@ -102,11 +104,10 @@ export type Library = { version: number; courses: Course[]; sideTypes?: Sides[] 
 export const newId = (): string => crypto.randomUUID()
 export const emptyLibrary = (): Library => ({ version: FORMAT_VERSION, courses: [] })
 
-// Study options. `side` is the side shown as the prompt.
-export type Side = 'term' | 'definition' | 'mixed'
+// Study options.
 export const FORMATS = ['flashcards', 'choice', 'typing'] as const
 export type Format = (typeof FORMATS)[number]
-export type StudyOptions = { side: Side; format: Format; shuffle: boolean }
+export type StudyOptions = { format: Format; shuffle: boolean }
 
 // One question in a round. `choices` is only set for the 'choice' format and always contains `answer`.
 // `side` is the side of a term card shown as the prompt (unset for blanks).

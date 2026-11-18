@@ -50,8 +50,8 @@ def group(page, i):
     return groups(page).nth(i)
 
 
-# A file's home names itself after the file: "<file> › Your courses" (or the welcome page's title).
-HOME_PAGES = ('Your courses', 'Start studying in three steps')
+# A file's home names itself after the file: "<file> › Your courses" (an empty file's too).
+HOME_PAGES = ('Your courses',)
 
 
 def trail(g):
@@ -192,6 +192,8 @@ def run(page, base):
     open_focuses_and_duplicates(page)
     popout_address(page, base)
     crowded_window(page)
+    pane_floor(page)
+    close_group(page)
     popup_title_follows_focus(page)
     pane_without_page(page)
     if page.errors:
@@ -645,7 +647,7 @@ def empty_group_and_brand(page):
     page.locator('a.brand').click()
     wait_for(page, lambda: trail(group(page, 0)) == ['Shrimply Study', 'Welcome'], 'the brand opens the Welcome tab')
     need(len(tab_titles(group(page, 0))) == before + 1, 'in a new tab')
-    need(shown(group(page, 0)).get_by_role('heading', name='Start studying in three steps').count() == 1, 'showing the welcome page')
+    need(shown(group(page, 0)).get_by_role('heading', name='Shrimply Study').count() == 1, 'showing the welcome page')
     group(page, 0).locator('[role=tab]').first.click()
     wait_for(page, lambda: len(crumbs(group(page, 0))) == 2, 'back on the course tab')
     page.locator('a.brand').click()
@@ -716,8 +718,8 @@ def visible_groups(page):
 
 
 def crowded_window(page):
-    """Panes never go under their least width: when the groups do not fit (or under 800px) only the shown group shows,
-    with a "+N panes" button in its strip listing the others; choosing one shows it; widening brings every group back."""
+    """Under 800px the window shows only the shown group, with a "+N panes" button in its strip listing the others;
+    choosing one shows it; widening brings every group back. (Panes keep up to 200px before that: see pane_floor.)"""
     page.set_viewport_size({'width': 1600, 'height': 900})
     while groups(page).count() > 1:
         groups(page).last.get_by_role('button', name='More').click()
@@ -730,13 +732,13 @@ def crowded_window(page):
     need(groups(page).count() == 3, 'three groups')
     page.wait_for_timeout(300)
     need(len(visible_groups(page)) == 3 and page.locator('.wb-panes').count() == 0, 'three panes fit at 1600px, no list button')
-    for width in (1100, 800, 390):
+    for width in (390,):
         page.set_viewport_size({'width': width, 'height': 800})
         page.wait_for_timeout(400)
         vis = visible_groups(page)
         need(len(vis) == 1, f'at {width}px only the shown group shows ({len(vis)})')
         box = vis[0].bounding_box()
-        need(box['width'] >= min(320, width) - 1, f'the pane is never squeezed: {box["width"]} at {width}px')
+        need(box['width'] >= min(200, width) - 1, f'the pane is never squeezed: {box["width"]} at {width}px')
         btn = vis[0].locator('.wb-panes')
         need(btn.count() == 1 and btn.inner_text().strip() == '+2 panes', f'a +2 panes button at {width}px')
         need(bool(btn.get_attribute('title')), 'with a tooltip')
@@ -753,6 +755,72 @@ def crowded_window(page):
         need('is-focused' in now[0].get_attribute('class'), f'and focuses it (listed {names})')
     page.set_viewport_size({'width': 1600, 'height': 900})
     wait_for(page, lambda: len(visible_groups(page)) == 3 and page.locator('.wb-panes').count() == 0, 'widening brings every group back')
+
+
+def close_extra_groups(page):
+    """Closes every group but the first, whatever it holds (an empty group too)."""
+    page.set_viewport_size({'width': 1600, 'height': 900})
+    while groups(page).count() > 1:
+        groups(page).last.get_by_role('button', name='More').click()
+        page.get_by_role('menuitem', name='Close group').click()
+        page.wait_for_timeout(150)
+
+
+def pane_floor(page):
+    """A split is never refused: panes share the window down to 200px each (the splits equalized with a double click on
+    a sash, as halving the last pane alone would go under it); one more split that would go under 200px makes the window
+    show one pane at a time."""
+    close_extra_groups(page)
+    page.set_viewport_size({'width': 1200, 'height': 800})
+    page.wait_for_timeout(300)
+    room = page.locator('.workbench:not(.is-popup) .wb-win').evaluate('el => el.clientWidth')
+    fit = int((room + 4) // 204)
+    need(fit >= 3, f'the test window has room for at least 3 panes ({room}px)')
+    for _ in range(fit - 1):
+        visible_groups(page)[-1].get_by_role('button', name='Split right').click()
+        page.wait_for_timeout(250)
+    page.locator('.workbench:not(.is-popup) .kit-sash').first.dblclick()
+    page.wait_for_timeout(300)
+    vis = visible_groups(page)
+    need(len(vis) == fit and page.locator('.wb-panes').count() == 0, f'{fit} panes fit in {room}px, no list button ({len(vis)})')
+    widths = [g.bounding_box()['width'] for g in vis]
+    need(all(w >= 199 for w in widths), f'every pane keeps 200px: {widths}')
+    visible_groups(page)[-1].get_by_role('button', name='Split right').click()
+    wait_for(page, lambda: page.locator('.wb-win.is-crowded').count() == 1 and page.locator('.wb-panes').count() == 1,
+             'one split too many shows one pane at a time with a +N panes button')
+    close_extra_groups(page)
+    wait_for(page, lambda: page.locator('.wb-win.is-crowded').count() == 0, 'one group is never crowded')
+
+
+def close_group(page):
+    """An empty group (the Explorer split beside itself) closes from its own menu; the main window's last group stays."""
+    close_extra_groups(page)
+    g = group(page, 0)
+    g.get_by_role('button', name='More').click()
+    page.get_by_role('menuitem', name='Close all').click()
+    page.wait_for_timeout(200)
+    page.keyboard.press('Control+Shift+E')
+    explorer = page.locator('[role=tab]', has_text='Explorer')
+    wait_for(page, lambda: explorer.count() == 1, 'the Explorer opens')
+    need(groups(page).count() == 1, 'the Explorer is alone in its group')
+    group(page, 0).get_by_role('button', name='More').click()
+    page.get_by_role('menuitem', name='Split right').click()
+    wait_for(page, lambda: groups(page).count() == 2, 'splitting the Explorer makes a second group')
+    need('No tab open' in group(page, 1).inner_text(), 'the new group is empty')
+    group(page, 1).get_by_role('button', name='More').click()
+    item = page.get_by_role('menuitem', name='Close group')
+    need(item.get_attribute('aria-disabled') != 'true' and not item.is_disabled(), 'Close group is available')
+    item.click()
+    wait_for(page, lambda: groups(page).count() == 1, 'Close group removes the empty group')
+    need(explorer.count() == 1, 'the Explorer stays in the other group')
+    group(page, 0).get_by_role('button', name='More').click()
+    item = page.get_by_role('menuitem', name='Close group')
+    need(item.is_disabled() or item.get_attribute('aria-disabled') == 'true', 'Close group is greyed out for the only group')
+    need(item.get_attribute('title') == 'The main window keeps one group.', 'with its reason')
+    page.keyboard.press('Escape')
+    group(page, 0).get_by_role('button', name='More').click()
+    page.get_by_role('menuitem', name='Close all').click()
+    wait_for(page, lambda: explorer.count() == 0, 'the Explorer closes')
 
 
 def popup_title_follows_focus(page):

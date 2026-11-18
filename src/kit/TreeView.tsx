@@ -7,6 +7,7 @@ import type { Selection } from './selection'
 import { isEditable, isMac } from './shortcuts'
 import { createLongPress } from './longPress'
 import { flatten, keyNav, typeahead } from './tree'
+import { useFloatBelow } from './float'
 import type { Row, TreeSource } from './tree'
 import './tree.css'
 
@@ -24,7 +25,9 @@ type Drag = {
   /** Whether a drag of this payload is the tree's business at all (default: all). When not, the tree ignores it entirely: no `preventDefault`, no drop effect, no highlight, no label. */
   accepts?(payload: DragPayload): boolean
   rule(payload: DragPayload, target: string | null, pos: Pos, effect: Effect): DropRule
-  allowInside(target: string): boolean
+  /** What a drop does with no key held (default: move). Ctrl copies, Shift moves. */
+  effect?(payload: DragPayload, target: string | null): Effect
+  allowInside(target: string, payload: DragPayload): boolean
   onDrop(payload: DragPayload, target: string | null, pos: Pos, effect: Effect): void
   label(payload: DragPayload, effect: Effect): string
 }
@@ -38,6 +41,8 @@ export function TreeView(p: {
   selection: Selection; onSelection(next: Selection): void
   filter?: string
   icon?(id: string): ReactNode; description?(id: string): ReactNode; dimmed?(id: string): boolean
+  /** The row of what is shown now (the page on screen): a dashed outline and `aria-current`. */
+  current?: string | null
   onActivate(id: string): void
   onContextMenu(target: string | null, at: { x: number; y: number }): void
   onKeyDown?(e: KeyboardEvent, focus: string | null): boolean
@@ -214,8 +219,8 @@ export function TreeView(p: {
 
   const target = (e: ReactDragEvent, payload: DragPayload) => {
     const { row, top } = rowAt(e.clientY)
-    const pos: Pos = row ? dropPosition(top, h, e.clientY, drag!.allowInside(row.id)) : 'after'
-    const effect = effectFor(e, isMac(view().navigator.platform))
+    const pos: Pos = row ? dropPosition(top, h, e.clientY, drag!.allowInside(row.id, payload)) : 'after'
+    const effect = effectFor(e, isMac(view().navigator.platform), drag!.effect?.(payload, row ? row.id : null))
     const rule = drag!.rule(payload, row ? row.id : null, pos, effect)
     return { row, pos, effect, rule }
   }
@@ -311,10 +316,11 @@ export function TreeView(p: {
               aria-posinset={row.posInSet}
               aria-expanded={row.expandable ? row.expanded : undefined}
               aria-selected={selected.has(row.id)}
+              aria-current={p.current === row.id ? 'page' : undefined}
               tabIndex={row.id === focusId ? 0 : -1}
               draggable={!!drag && !renaming}
               className={
-                'kit-row' + (p.dimmed?.(row.id) ? ' is-dimmed' : '') +
+                'kit-row' + (p.dimmed?.(row.id) ? ' is-dimmed' : '') + (p.current === row.id ? ' is-current' : '') +
                 (mine && over.ok ? ` is-drop-${over.pos}` : '')
               }
               style={{ top: i * h, height: h, paddingLeft: row.depth * INDENT + 4 }}
@@ -373,6 +379,9 @@ function RenameInput({ id, start, rename, onKey }: { id: string; start: string; 
   const done = useRef(false)
   const [text, setText] = useState(start)
   const error = rename.check?.(id, text) ?? null
+  // The reason hangs under the field in the top layer, so the tree's scroll box never cuts it off.
+  const errorEl = useRef<HTMLDivElement>(null)
+  useFloatBelow(errorEl, input, !!error)
 
   useEffect(() => {
     input.current!.focus()
@@ -410,7 +419,7 @@ function RenameInput({ id, start, rename, onKey }: { id: string; start: string; 
         }}
         onBlur={() => finish(true)}
       />
-      {error && <div className="kit-row-error" role="alert">{error}</div>}
+      {error && <div ref={errorEl} popover="manual" className="kit-row-error" role="alert">{error}</div>}
     </>
   )
 }

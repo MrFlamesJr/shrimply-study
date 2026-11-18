@@ -131,3 +131,11 @@ sel => {
 def contrast(page, selector):
     """WCAG contrast of each matching element's color against its effective background (approximate for glass)."""
     return page.evaluate(CONTRAST_JS, selector)
+
+
+def toast_detail(toast):
+    """What a toast says under More info: opens it when it is shut, then reads its detail lines."""
+    more = toast.get_by_role('button', name='More info')
+    if more.get_attribute('aria-expanded') != 'true':
+        more.click()
+    return toast.locator('.toast-detail').inner_text()

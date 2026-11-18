@@ -59,6 +59,13 @@ describe('statusText and needsAttention', () => {
     expect(statusText('conflict', 'drive')).toBe('Changed on Google Drive')
     expect(statusText('conflict', 'device')).toBe('Changed on this device')
   })
+  it('a file on this device waits for Save and is not retried by itself', () => {
+    expect(statusText('pending', 'device')).toBe('Unsaved changes')
+    expect(statusText('error', 'device')).toBe('Not saved')
+    expect(statusText('saving', 'device')).toBe('Saving…')
+    expect(statusText('saved', 'device')).toBe('Saved')
+    expect(statusText('permission', 'device')).toBe('Not saved: allow access')
+  })
   it('only the problems need the user', () => {
     expect(all.filter(needsAttention)).toEqual(['signIn', 'offline', 'conflict', 'error', 'permission', 'missing'])
   })

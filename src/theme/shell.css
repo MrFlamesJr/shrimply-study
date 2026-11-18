@@ -148,7 +148,9 @@ html.is-pane .app .wb-cell .wb-group.is-shown > .kit-tabstrip {
   width: 18px;
   height: 18px;
 }
-/* The account box (D11), right under the corner: where the Google account lives. */
+/* The account box (D11), right under the corner: where the Google account lives. A block of the sidebar's own: a step
+   above it in its tone, as a file's block is (never --surface, which is the sidebar's own tone in most themes), with a
+   faint line round it, so it reads as a box in every theme. */
 .account-box {
   display: flex;
   flex-direction: column;
@@ -156,7 +158,8 @@ html.is-pane .app .wb-cell .wb-group.is-shown > .kit-tabstrip {
   flex-shrink: 0;
   margin: 0 var(--space-2) var(--space-3);
   padding: var(--space-3);
-  background: var(--surface);
+  background: var(--side-block);
+  border: var(--line) solid var(--border);
   border-radius: var(--radius);
   font-size: var(--text-sm);
 }
@@ -176,8 +179,11 @@ html.is-pane .app .wb-cell .wb-group.is-shown > .kit-tabstrip {
   color: var(--text-muted);
   font-size: var(--text-xs-plus);
 }
+/* No box in a box: the button in it takes a thin line and no fill at rest (hovered, it fills as any button). */
 .account-sign-in {
   width: 100%;
+  background: transparent;
+  border-color: var(--border-strong);
 }
 /* Signed in: one slim row on the footer's ground, just above the footer strip (no box, no line between, set apart by
    tone): a small cloud, the email cut short with an ellipsis, then a quiet Sign out. */
@@ -189,6 +195,7 @@ html.is-pane .app .wb-cell .wb-group.is-shown > .kit-tabstrip {
   margin: 0;
   padding: 0 var(--space-2);
   background: var(--bg);
+  border: 0;
   border-radius: 0;
   color: var(--text-muted);
   font-size: var(--text-xs-plus);
@@ -511,7 +518,18 @@ html.is-pane .app .wb-cell .wb-group.is-shown > .kit-tabstrip {
 }
 .page-head > div:first-child {
   flex: 1 1 20rem;
+}
+.page-head > * {
   min-width: 0;
+  max-width: 100%;
+}
+/* The actions keep one line (Edit quiz beside Start, asked for): they never shrink beside the title, so with too
+   little room they go under it whole, and they only wrap in a pane narrower than they are. */
+.page-head > .actions {
+  flex: none;
+}
+.page-head h1 {
+  overflow-wrap: anywhere;
 }
 .page-head > div:first-child > p {
   margin-top: var(--space-2);

@@ -6,8 +6,10 @@ import { useDriveFiles } from './state/useDriveFiles'
 import { useWorkspace, type DocId, type WorkspaceApi } from './state/useWorkspace'
 import { MAIN, groupOf, groupsIn, windowOf, type Tab } from './kit/layout'
 import { isEditable, isMac, matches } from './kit/shortcuts'
+import { quoteName } from './logic/toastText'
 import { openPopup, POPUP_PREFIX } from './kit/windows'
 import { APP_PAGE_TITLE, canSplit, poppedOut, type TabData, type WorkbenchDoc } from './logic/workbenchActions'
+import { pageNode } from './logic/fileTree'
 import { nodeOf } from './logic/explorerTree'
 import type { ItemRef } from './logic/contentOps'
 import { fileStorage, loadGuide } from './storage/fileStorage'
@@ -15,6 +17,7 @@ import { loadTheme, saveTheme } from './storage/themePref'
 import { loadExplorerTipSeen, saveExplorerTipSeen } from './storage/explorerTipPref'
 import { loadStudyOptions, saveStudyOptions } from './storage/studyPref'
 import { loadSeenRelease, saveSeenRelease } from './storage/welcomePref'
+import { onBackupReset } from './storage/browserBackup'
 import { RELEASES } from './releaseNotes'
 import { Sidebar, useSidebarOpen } from './layout/Sidebar'
 import { Workbench } from './layout/Workbench'
@@ -40,6 +43,7 @@ const HOME: Route = { name: 'home' }
 // The window size a popped-out group asks for when its pane can't be measured.
 const POPUP = { width: 960, height: 720 }
 const BLOCKED = 'Your browser blocked the new window. Allow pop-ups for this site to move panes into their own window.'
+const BLOCKED_HELP = 'Look for the blocked pop-up icon at the end of the address bar, allow pop-ups for this site, then try again.'
 
 type DocNode = ItemRef | { kind: 'doc'; doc: DocId }
 
@@ -172,6 +176,21 @@ export function App() {
     saveSeenRelease(RELEASES[0].name)
     ws.showAppPage('welcome')
   }, [ws.ready])
+  // Reset to first visit in another tab (the debug page): this tab, which keeps nothing in the browser from then on,
+  // starts afresh too, on home: its waiting saves go first (asking when one can't be saved), then it signs out (its own
+  // sign-in; that tab forgot the preferences) and reloads. Otherwise it would keep showing the libraries just
+  // forgotten, and its next edit would write them back.
+  useEffect(
+    () =>
+      onBackupReset(() => {
+        void latest.current.readyToReset().then((ok) => {
+          if (!ok) return
+          history.replaceState(null, '', href(HOME))
+          location.reload()
+        })
+      }),
+    [],
+  )
   const chooseTheme = (id: ThemeId) => {
     document.documentElement.dataset.theme = id
     saveTheme(id)
@@ -267,10 +286,8 @@ export function App() {
 
   // ---- The Explorer ----
 
-  // A node the Explorer is asked to show (from a tab's Reveal in Explorer), and a card to open in its quiz page's
-  // card dialog (the Explorer's Edit on a card).
+  // A node the Explorer is asked to show (from a tab's Reveal in Explorer).
   const [reveal, setReveal] = useState<{ tab: string; node: string } | null>(null)
-  const [openCard, setOpenCard] = useState<{ tab: string; card: string } | null>(null)
   // The Explorer acted in: the active tab when it is one, else the one used last (there may be several).
   const explorerTabOf = () => {
     const active = ws.layout.groups[ws.layout.activeGroup]?.active
@@ -305,9 +322,8 @@ export function App() {
   }
   // What the Explorer opens reuses a tab of that file (asked for: no new tab each time): the page itself where a tab
   // shows it, else the file's tab in the group used last besides the Explorer's, else in the Explorer's own group,
-  // else in any other; only with none (or `newTab`, its Open in new tab) a new tab, in the group used last besides
-  // its own, or beside it.
-  const openFromExplorer = (node: DocNode, edit = false, newTab = false) => {
+  // else in any other; only with none a new tab, in the group used last besides its own, or beside it.
+  const openFromExplorer = (node: DocNode, edit = false) => {
     const route = placeOf(node, edit)
     if (!route) return
     const tab = explorerTabOf()
@@ -316,9 +332,23 @@ export function App() {
     const groups = Object.values(ws.layout.tabs)
       .filter((t) => t.data.kind === 'doc' && t.data.doc === node.doc)
       .map((t) => groupOf(ws.layout, t.id))
-    const reuse = newTab ? null : [into, home].find((g) => g && groups.includes(g)) ?? groups.find(Boolean) ?? null
-    const shown = ws.openPlace(node.doc, route, { group: reuse ?? into ?? home ?? undefined, newTab: newTab || (!reuse && !into) })
-    if (shown && edit && node.kind === 'card') setOpenCard({ tab: shown, card: node.card })
+    const reuse = [into, home].find((g) => g && groups.includes(g)) ?? groups.find(Boolean) ?? null
+    ws.openPlace(node.doc, route, { group: reuse ?? into ?? home ?? undefined, newTab: !reuse && !into })
+    bringForward()
+  }
+  // Open in new view (asked for): a tab of its own in another view than the Explorer's (the one used last); with no
+  // other view, the Explorer's splits and it opens in the new half.
+  const openInNewView = (node: DocNode) => {
+    const route = placeOf(node, false)
+    if (!route) return
+    const tab = explorerTabOf()
+    const home = tab ? groupOf(ws.layout, tab.id) : null
+    const into = ws.recentGroup(home)
+    if (into || !home) ws.openPlace(node.doc, route, { group: into ?? undefined, newTab: true })
+    else {
+      const made = ws.openPlace(node.doc, route, { group: home, newTab: true })
+      if (made) ws.split(home, 'row', 'after', made, true)
+    }
     bringForward()
   }
   // The Explorer's node for the place a tab shows.
@@ -351,7 +381,7 @@ export function App() {
     const box = document.querySelector(`.wb-group[data-group="${groupId}"]`)?.getBoundingClientRect()
     const size = box ? { width: Math.round(box.width), height: Math.round(box.height) + 48 } : POPUP
     const opened = openPopup(win, new URL('popout.html', document.baseURI).href, { ...size, left: screenX + 48, top: screenY + 48 })
-    if (!opened) return toasts.notify('warning', BLOCKED)
+    if (!opened) return toasts.notify('warning', BLOCKED, { detail: BLOCKED_HELP })
     setPopups((p) => ({ ...p, [win]: opened }))
     if (tabId) ws.popOutTab(tabId, win)
     else ws.popOut(groupId, win)
@@ -378,11 +408,7 @@ export function App() {
   // ---- Keys ----
 
   // Split the active group (Ctrl+\ when the focus is in no group, which handles its own).
-  const splitActive = () => {
-    const g = ws.layout.activeGroup
-    const box = document.querySelector(`.wb-group[data-group="${g}"]`)?.getBoundingClientRect()
-    if (!box || canSplit(box, 'row')) ws.split(g, 'row', 'after')
-  }
+  const splitActive = () => ws.split(ws.layout.activeGroup, 'row', 'after')
   useKeydown((e) => {
     const mac = isMac(navigator.platform)
     // Ctrl+S saves now: a Drive file at once; a browser library is offered Upload to Google Drive; a view-only
@@ -393,9 +419,11 @@ export function App() {
       if (e.repeat) return
       if (!lib) return
       if (lib.readOnly) {
-        toasts.notify('info', 'This library is view only. Make a copy to change it.', undefined, {
-          label: 'Make a copy',
-          run: () => void lib.makeCopy(),
+        toasts.notify('info', `${quoteName(lib.name)} is view only. Make a copy to change it.`, {
+          detail: lib.drive.signedIn()
+            ? "It's shared from someone else's Google Drive, so only its owner can change it. Make a copy gives you your own on this page."
+            : 'Signed out, a Google Drive library can only be viewed. Sign in, or make a copy.',
+          action: { label: 'Make a copy', run: () => void lib.makeCopy() },
         })
       } else if (lib.where === 'browser') setShareDialog({ docId: lib.id, mode: 'upload' })
       else void lib.saveNow()
@@ -446,7 +474,7 @@ export function App() {
   }
 
   const crumbs = (tab: Tab<TabData>): Crumb[] => {
-    if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome' || tab.data.kind === 'studyTips') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
+    if (tab.data.kind === 'changelog' || tab.data.kind === 'welcome' || tab.data.kind === 'studyTips' || tab.data.kind === 'learnMore') return [{ label: 'Shrimply Study', icon: 'app' }, { label: APP_PAGE_TITLE[tab.data.kind] }]
     if (tab.data.kind !== 'doc' || !wbDocs[tab.data.doc]) return []
     const r = tab.data.route
     if (r.name === 'study') return []
@@ -454,10 +482,7 @@ export function App() {
     const library = wbDocs[tab.data.doc].library
     const where = ws.docs.find((d) => d.id === (tab.data as { doc: string }).doc)?.where
     // The file starts every trail, marked by where it lives, so even a home reads as a trail: file › page.
-    if (r.name === 'home') {
-      const page = library.courses.length === 0 ? 'Start studying in three steps' : 'Your courses'
-      return [{ label: name, icon: where }, { label: page }]
-    }
+    if (r.name === 'home') return [{ label: name, icon: where }, { label: 'Your courses' }]
     const { course, quiz } = foundPlace(tab.id, library, r)
     if (!course || (r.name !== 'course' && !quiz)) return [{ label: name, icon: where }]
     const file: Crumb = { label: name, route: HOME, icon: where }
@@ -466,6 +491,13 @@ export function App() {
     if (r.name === 'quiz') return [file, up, { label: quiz!.name }]
     return [file, up, { label: quiz!.name, route: { name: 'quiz', course: course.name, quiz: quiz!.name } }, { label: 'Edit' }]
   }
+
+  // The tree in the sidebar marks the page the active file's tab shows, and the Explorer outlines it (dashed).
+  const shownTab = [ws.layout.groups[ws.layout.activeGroup]?.active, ...ws.recent]
+    .map((id) => (id ? ws.layout.tabs[id] : undefined))
+    .find((t) => t?.data.kind === 'doc' && t.data.doc === ws.active)
+  const place = lib && shownTab?.data.kind === 'doc' ? foundPlace(shownTab.id, lib.library, shownTab.data.route) : {}
+  const current = place.quiz?.id ?? place.course?.id
 
   const shared: PaneShared = {
     ws,
@@ -489,21 +521,22 @@ export function App() {
       ws.showAppPage('studyTips', group ?? undefined, background)
       bringForward()
     },
+    onLearnMore: (group, background) => {
+      ws.showAppPage('learnMore', group ?? undefined, background)
+      bringForward()
+    },
+    onWhatsNew: (group, background) => {
+      ws.showAppPage('changelog', group ?? undefined, background)
+      bringForward()
+    },
     openNode: (node) => openFromExplorer(node),
-    openNodeNew: (node) => openFromExplorer(node, false, true),
+    openNodeNew: openInNewView,
     editNode: (ref) => openFromExplorer(ref, true),
     reveal,
     onRevealed: () => setReveal(null),
-    openCard,
-    onCardOpened: () => setOpenCard(null),
+    currentNode: pageNode(ws.active, lib?.library, current),
   }
 
-  // The tree in the sidebar marks the page the active file's tab shows.
-  const shownTab = [ws.layout.groups[ws.layout.activeGroup]?.active, ...ws.recent]
-    .map((id) => (id ? ws.layout.tabs[id] : undefined))
-    .find((t) => t?.data.kind === 'doc' && t.data.doc === ws.active)
-  const place = lib && shownTab?.data.kind === 'doc' ? foundPlace(shownTab.id, lib.library, shownTab.data.route) : {}
-  const current = place.quiz?.id ?? place.course?.id
 
   // A study session alone in the main window keeps the full-screen look: the shell steps aside (CSS), and the
   // workbench stays mounted, so nothing else is lost (popped-out windows neither).
@@ -569,7 +602,7 @@ export function App() {
               ensureDoc={() => lib ?? ws.doc(ws.newDoc())}
               openLibrary={(load, name) => ws.openLibrary(load, name)}
               newDoc={() => ws.newDoc()}
-              signOut={ws.drive.signOut}
+              readyToReset={ws.readyToReset}
               browserLibraries={ws.docs.filter((d) => d.where === 'browser').length + ws.closed.filter((c) => !c.drive).length}
               notify={toasts.notify}
               debugBar={debugBar}
@@ -590,6 +623,9 @@ export function App() {
               newCourse={() => newCourse()}
               welcome
               openDrive={() => setOpenDialog(true)}
+              onStudyTips={(background) => shared.onStudyTips(null, background)}
+              onLearnMore={(background) => shared.onLearnMore(null, background)}
+              onWhatsNew={(background) => shared.onWhatsNew(null, background)}
             />
           </main>
         )}
@@ -625,14 +661,19 @@ export function App() {
               split: ws.split,
               duplicate: ws.duplicateTab,
               join: ws.join,
+              closeGroup: ws.closeGroup,
               resize: ws.resize,
               popOut,
               dock,
               revealInExplorer: (tab) => showExplorer(nodeOfTab(tab) ?? undefined),
               copyText: (text) =>
                 void navigator.clipboard.writeText(text).then(
-                  () => toasts.notify('info', 'Copied the path.'),
-                  () => toasts.notify('error', 'Could not copy.'),
+                  () => toasts.notify('info', `Copied the path to ${quoteName(text.slice(text.lastIndexOf('/') + 1))}.`, { detail: text }),
+                  (err) =>
+                    toasts.notify('error', "The path couldn't be copied.", {
+                      detail: `The browser refused the clipboard. Here it is to copy by hand: ${text}`,
+                      cause: err,
+                    }),
                 ),
             }}
             canPopOut={canPopOut}
@@ -670,7 +711,7 @@ export function App() {
       </div>
       )}
       {/* Outside the shell so running timers survive the app's own pages. */}
-      <Toasts toasts={toasts.toasts} dismiss={toasts.dismiss} />
+      <Toasts toasts={toasts.toasts} dismiss={toasts.dismiss} expand={toasts.expand} />
       {debugBar && <DebugBar onClose={() => setDebugBar(false)} theme={theme} setTheme={chooseTheme} />}
     </>
   )

@@ -11,6 +11,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 from explorer import back_to_explorer, menu  # noqa: E402
+from helpers import toast_detail  # noqa: E402
 from signout import (EXPECTED, add_file, change, edit_quiz, library_of, need, new_state, open_dialog,  # noqa: E402
                      open_from_drive, open_tab, row, row_button, shrimp, stub_google, wait_for, where)
 
@@ -44,7 +45,7 @@ def run(page, base):
     page.get_by_text('Loaded the test library.').first.wait_for()
     page.goto(base + '#/')
     wait_for(page, lambda: row(page, 'Test library').count() == 1, 'the test library is a file')
-    need(where(page, 'Test library') == 'Only in this browser', f'a browser library says so: {where(page, "Test library")}')
+    need(where(page, 'Test library') == 'Only in this browser: can be lost', f'a browser library says so: {where(page, "Test library")}')
 
     # Ctrl+S on a browser library opens Upload to Google Drive, the name prefilled.
     page.locator('body').click(position={'x': 5, 'y': 790})
@@ -58,7 +59,7 @@ def run(page, base):
     row_button(page, 'Test library', 'Close Test library').click()
     toast = page.locator('.toast', has_text='Closed "Test library"')
     toast.wait_for()
-    need("It's still in this browser: open it again from the Explorer." in toast.inner_text(), f'the close toast: {toast.inner_text()}')
+    need("It's still in this browser: open it again from the Explorer." in toast_detail(toast), f'the close toast: {toast.inner_text()}')
     need(page.locator('dialog[open]').count() == 0, 'no question')
     wait_for(page, lambda: row(page, 'Test library').count() == 0, 'the file closes')
     toast.get_by_role('button', name='Reopen').click()
@@ -112,7 +113,7 @@ def run(page, base):
     row_button(page, drive_name, f'Close {drive_name}').click()
     toast = page.locator('.toast', has_text=f'Closed "{drive_name}"')
     toast.wait_for()
-    need("It's in your Google Drive: open it again from the Explorer." in toast.inner_text(), f'the Drive close toast: {toast.inner_text()}')
+    need("It's in your Google Drive: open it again from the Explorer." in toast_detail(toast), f'the Drive close toast: {toast.inner_text()}')
     wait_for(page, lambda: row(page, drive_name).count() == 0, 'the Drive file closes')
 
     # Delete from this browser asks first.

@@ -194,6 +194,20 @@ export function join<D>(l: Layout<D>, from: GroupId, into: GroupId): Layout<D> {
   return normalize({ ...l, groups, activeGroup: l.activeGroup === from ? into : l.activeGroup })
 }
 
+/**
+ * Removes a group with its tabs (an empty one too); its neighbor takes the room, and a popup window left with no group
+ * goes. The main window's only group stays (the layout is unchanged).
+ */
+export function removeGroup<D>(l: Layout<D>, groupId: GroupId): Layout<D> {
+  const win = windowOf(l, groupId)
+  if (win === null || (win === MAIN && groupsIn(l, MAIN).length === 1)) return l
+  const groups = { ...l.groups }
+  delete groups[groupId]
+  const tabs = { ...l.tabs }
+  for (const id of l.groups[groupId].tabs) delete tabs[id]
+  return normalize({ ...l, tabs, groups })
+}
+
 /** Sets the sizes of the split at `path` (child indexes from the window's root), renormalized to sum 1. */
 export function resize<D>(l: Layout<D>, win: WindowId, path: number[], sizes: number[]): Layout<D> {
   const root = l.windows[win]?.root

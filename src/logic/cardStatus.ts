@@ -1,5 +1,19 @@
-import type { Card, Group } from '../model'
+import { isTermCard, type Card, type Group } from '../model'
 import { parseCloze } from './cloze'
+import { isCut, quoteName } from './toastText'
+
+/**
+ * The text a card is named by, in the Explorer and in toasts: a term card's term (its definition when the term is
+ * empty), a blank statement's text, a statement, a question or a title, with whitespace runs made one space; '' when none.
+ */
+export function cardName(card: Card): string {
+  const first = (text: string) => text.replace(/\s+/g, ' ').trim()
+  if (isTermCard(card)) return first(card.term) || first(card.definition)
+  if (card.type === 'cloze') return first(parseCloze(card.statement).text)
+  if (card.type === 'true-false') return first(card.statement)
+  if (card.type === 'choice') return first(card.question)
+  return first(card.title)
+}
 
 /** True when the card has nothing in it: no text (sides, explanation, or statement) and no image. */
 export function isBlank(card: Card): boolean {
@@ -100,7 +114,7 @@ export function tidyCards(cards: Card[], groups: Group[]): { cards: Card[]; grou
   return { cards: kept, groups: keptGroups, changed }
 }
 
-const MAX_LISTED = 5
+const MAX_LISTED = 10
 
 // How a missing part reads after "needs a"; the others read as they are.
 const PHRASES: Record<string, string> = {
@@ -112,27 +126,30 @@ const PHRASES: Record<string, string> = {
 }
 
 /**
- * Names the half-filled cards by their number in the list, or null when there are none:
- * "Card #2 needs a back.", "Cards #2 and #5 need a front, back or blank."
+ * What to say about the half-filled cards, or null when there are none. The text names one card by its name (a
+ * card with no text yet by its number, as it has nothing else to go by): `"Mitochondria" needs a back.`,
+ * `Card #2 needs a front.`; several are counted: `3 cards need a front or back.` The detail has the rest: the full
+ * name when it was cut, and for several, where to look and one line per card (at most MAX_LISTED).
  */
-export function unfinishedMessage(cards: Card[]): string | null {
+export function unfinishedMessage(cards: Card[]): { text: string; detail: string[] } | null {
   const bad = cards.flatMap((card, i) => {
     const part = missingPart(card)
-    return part ? [{ num: `#${i + 1}`, part: PHRASES[part] ?? part }] : []
+    return part ? [{ num: i + 1, name: cardName(card), part: PHRASES[part] ?? part }] : []
   })
   if (bad.length === 0) return null
   // "two steps" takes no "a"; it is the last part named, so it only starts the sentence when it is the only one.
   const needs = (named: string) => (named === 'two steps' ? named : `a ${named}`)
-  if (bad.length === 1) return `Card ${bad[0].num} needs ${needs(bad[0].part)}.`
-  const nums = bad.map((b) => b.num)
-  const list =
-    nums.length > MAX_LISTED
-      ? `${nums.slice(0, MAX_LISTED).join(', ')} and ${nums.length - MAX_LISTED} more`
-      : `${nums.slice(0, -1).join(', ')} and ${nums[nums.length - 1]}`
+  if (bad.length === 1) {
+    const [only] = bad
+    if (!only.name) return { text: `Card #${only.num} needs ${needs(only.part)}.`, detail: [] }
+    return { text: `${quoteName(only.name)} needs ${needs(only.part)}.`, detail: isCut(only.name) ? [`The full name is "${only.name}".`] : [] }
+  }
   // A half-filled term card makes both its sides the ones to fill; a blank and a statement are named only when missing.
   const sides = bad.some((b) => b.part === 'front' || b.part === 'back')
   const others = ['blank', 'statement', 'question', 'correct answer', 'wrong answer', 'title', 'two steps']
   const parts = [...(sides ? ['front', 'back'] : []), ...others.filter((part) => bad.some((b) => b.part === part))]
   const named = parts.length === 1 ? parts[0] : `${parts.slice(0, -1).join(', ')} or ${parts.at(-1)}`
-  return `Cards ${list} need ${needs(named)}.`
+  const lines = bad.slice(0, MAX_LISTED).map((b) => `${b.name ? `${quoteName(b.name)} (#${b.num})` : `Card #${b.num}`} needs ${needs(b.part)}.`)
+  const more = bad.length > MAX_LISTED ? [`And ${bad.length - MAX_LISTED} more.`] : []
+  return { text: `${bad.length} cards need ${needs(named)}.`, detail: ['Each is marked in red; the first has the focus.', ...lines, ...more] }
 }

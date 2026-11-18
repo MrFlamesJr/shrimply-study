@@ -168,7 +168,7 @@ export function buildRound(cards: Card[], options: StudyOptions, pool: Card[] = 
       const steps = filled(card.steps)
       return steps.map((_, i) => stepQuestion(card, steps, i))
     }
-    const side = options.side === 'mixed' ? (Math.random() < 0.5 ? 'term' : 'definition') : options.side
+    const side = card.mixed ? (Math.random() < 0.5 ? 'term' : 'definition') : 'term'
     const [promptSide, answerSide] =
       side === 'term' ? (['term', 'definition'] as const) : (['definition', 'term'] as const)
     const question: Question = { cardId: card.id, prompt: card[promptSide].trim(), answer: card[answerSide].trim(), side: promptSide }

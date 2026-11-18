@@ -29,6 +29,7 @@ import {
   setTabRoute,
   showExplorer,
   splitGroup,
+  closeGroup,
   applyEdit,
   closeDoc,
   forgetClosed,
@@ -811,6 +812,15 @@ describe('tabs, groups and windows', () => {
     expect(Object.keys(w.layout.tabs)).toEqual(['ta'])
     expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
   })
+
+  it('closing a group closes its tabs but never a file, and the last group of the main window stays', () => {
+    let w = splitGroup(two(), 'g', 'row', 'after', 'g2', { tabId: 'tb2' })
+    w = closeGroup(w, 'g2')
+    expect(groupsIn(w.layout, MAIN)).toEqual(['g'])
+    expect(Object.keys(w.layout.tabs)).toEqual(['ta', 'tb'])
+    expect(Object.keys(w.docs)).toEqual(['a', 'b'])
+    expect(closeGroup(w, 'g')).toBe(w)
+  })
 })
 
 describe('what is already open, and duplicates', () => {
@@ -879,6 +889,7 @@ describe('pane mode and popped-out windows', () => {
     expect(paneLayout(w, HOME, null, o).layout.tabs.pt.data).toEqual({ kind: 'doc', doc: 'b', route: HOME })
     expect(paneLayout(w, { name: 'explorer' }, null, o).layout.tabs.pt.data).toEqual({ kind: 'explorer' })
     expect(paneLayout(w, { name: 'studyTips' }, null, o).layout.tabs.pt.data).toEqual({ kind: 'studyTips' })
+    expect(paneLayout(w, { name: 'learnMore' }, null, o).layout.tabs.pt.data).toEqual({ kind: 'learnMore' })
     // A file not open here, or no page: an empty group.
     const none = paneLayout(w, HOME, 'zed', o)
     expect(none.layout.tabs).toEqual({})
@@ -967,6 +978,15 @@ describe("the app's own tabs", () => {
     expect(l.tabs.tc?.data).toEqual({ kind: 'changelog' })
     expect(l.tabs.tw?.data).toEqual({ kind: 'welcome' })
     expect(l.tabs.tw3?.data).toEqual({ kind: 'welcome' })
+  })
+
+  it('Saving and sharing is one tab at most, and comes back on reload', () => {
+    let w = showAppPage(two(), 'learnMore', 'g', 'tl')
+    expect(activeTab(w)?.data).toEqual({ kind: 'learnMore' })
+    w = activateTab(w, 'ta')
+    expect(activeTab(showAppPage(w, 'learnMore', 'g', 'tl2'))?.id).toBe('tl')
+    const l = readLayout(JSON.parse(JSON.stringify(w.layout)), ['a', 'b'], 'x', ids())
+    expect(l.tabs.tl?.data).toEqual({ kind: 'learnMore' })
   })
 
   it('a Ctrl or middle click opens it in the background, and leaves an open one as it is', () => {

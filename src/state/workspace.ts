@@ -333,7 +333,9 @@ export const closeAll = (w: Workspace, group: L.GroupId): Workspace => withLayou
 export const moveTab = (w: Workspace, tabId: L.TabId, toGroup: L.GroupId, index: number): Workspace =>
   withLayout(w, L.moveTab(w.layout, tabId, toGroup, index))
 export const joinGroups = (w: Workspace, from: L.GroupId, into: L.GroupId): Workspace => withLayout(w, L.join(w.layout, from, into))
-export const resizeSplit = (w: Workspace, win: L.WindowId, path: number[], sizes: number[]): Workspace =>
+/** Removes a group with its tabs; a file stays open. The main window keeps its last group. */
+export const closeGroup = (w: Workspace, group: L.GroupId): Workspace => withLayout(w, L.removeGroup(w.layout, group))
+export const resizeSplit =(w: Workspace, win: L.WindowId, path: number[], sizes: number[]): Workspace =>
   withLayout(w, L.resize(w.layout, win, path, sizes))
 export const dockWindow = (w: Workspace, win: L.WindowId): Workspace => withLayout(w, L.dock(w.layout, win))
 
@@ -445,7 +447,7 @@ export function showAppPage(w: Workspace, kind: AppPage, group: L.GroupId, tabId
 
 const FILE_PAGES: Route['name'][] = ['home', 'course', 'quiz', 'edit', 'study']
 // The app's own pages that are tabs, by route name (the same as their tab's kind).
-const APP_TABS = ['explorer', 'changelog', 'welcome', 'studyTips'] as const
+const APP_TABS = ['explorer', 'changelog', 'welcome', 'studyTips', 'learnMore'] as const
 const appTab = (name: Route['name']): name is (typeof APP_TABS)[number] => (APP_TABS as readonly string[]).includes(name)
 
 /**
@@ -690,14 +692,15 @@ const withoutClosed = (w: Workspace, match: (c: ClosedFile) => boolean): Workspa
 
 /**
  * Closes a document, which never removes its file (asked for): it heads the closed files, in place of an older entry
- * for it or for its Drive file, to be opened again from the Explorer (a file on this device just closes).
+ * for it or for its Drive file, to be opened again from the Explorer (a file on this device just closes, and so does
+ * a Drive file in its owner's bin: the bin is no library, asked for).
  */
 export function closeDoc(w: Workspace, id: DocId): Workspace {
   const d = w.docs[id]
   if (!d) return w
   const rest = withoutClosed(dropDoc(w, id), (c) => c.id === id || (!!d.drive && c.drive?.id === d.drive.id))
   // A file on this device is not kept: it is on disk, and opens again with Open file.
-  if (d.file) return rest
+  if (d.file || d.drive?.trashed) return rest
   const entry: ClosedFile = { id, name: docName(d), drive: d.drive }
   return { ...rest, closed: [entry, ...rest.closed] }
 }
@@ -840,7 +843,7 @@ const isString = (x: unknown): x is string => typeof x === 'string'
 const strings = (x: unknown): x is string[] => Array.isArray(x) && x.every(isString)
 
 // Pages of the app itself, not of a file: a tab that held one (before tabs had their own pages) shows its file's home.
-const OWN = ['home', 'debug', 'changelog', 'explorer', 'welcome', 'studyTips', 'empty', 'workbench']
+const OWN = ['home', 'debug', 'changelog', 'explorer', 'welcome', 'studyTips', 'learnMore', 'empty', 'workbench']
 /** A route as a tab keeps it, or null (a Drive link is never kept: it would open again). */
 export function readRoute(r: unknown): Route | null {
   const x = r as Record<string, unknown> | null
@@ -903,7 +906,7 @@ export function readLayout(raw: unknown, docIds: DocId[], groupId: string, newId
     if (data.kind === 'explorer') {
       // Each keeps its own view (a duplicate); the first one may share the workspace's.
       tabs[id] = { id, data: 'view' in data && data.view ? { kind: 'explorer', view: readExplorer(data.view) } : { kind: 'explorer' } }
-    } else if (data.kind === 'changelog' || data.kind === 'welcome' || data.kind === 'studyTips') {
+    } else if (data.kind === 'changelog' || data.kind === 'welcome' || data.kind === 'studyTips' || data.kind === 'learnMore') {
       tabs[id] = { id, data: { kind: data.kind } }
     } else if (data.kind === 'doc' && 'doc' in data && isString(data.doc) && docIds.includes(data.doc)) {
       const route = readRoute(data.route)

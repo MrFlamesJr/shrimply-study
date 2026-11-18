@@ -8,7 +8,7 @@ import type { Library } from '../model'
 
 /**
  * What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or one of the app's own pages
- * (`AppPage`: What's new, every release's notes; the welcome page; How studying works), one tab at most each.
+ * (`AppPage`: What's new, every release's notes; the welcome page; How studying works; Saving and sharing), one tab at most each.
  */
 export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer'; view?: ExplorerView } | { kind: AppPage }
 /**
@@ -22,14 +22,16 @@ export type ExplorerView = {
   search?: string
   scroll?: number
 }
-export type AppPage = 'changelog' | 'welcome' | 'studyTips'
+export type AppPage = 'changelog' | 'welcome' | 'studyTips' | 'learnMore'
 /** The app's own pages' tab titles. */
-export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome', studyTips: 'How studying works' }
+export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome', studyTips: 'How studying works', learnMore: 'Saving and sharing' }
 export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }
 export type Docs = Record<string, WorkbenchDoc>
 
-/** The least size a pane may have after a split. */
+/** The size a pane keeps for the Explorer to open beside it on its own. */
 export const MIN_PANE = { width: 320, height: 240 }
+/** The least a pane keeps before its window shows one pane at a time. */
+export const PANE_FLOOR = { width: 200, height: 160 }
 /** The sash between two panes (kit/split.css). */
 const SASH = 4
 /** Hidden tabs kept alive in a group besides the shown one. */
@@ -112,7 +114,7 @@ export function mountedTabs(g: Group): Set<string> {
   return keep
 }
 
-/** Whether a pane of this size may split in `dir`: both halves must stay at least MIN_PANE. */
+/** Whether a pane of this size splits into two of at least MIN_PANE (the Explorer then opens beside it on its own). */
 export function canSplit(size: { width: number; height: number }, dir: 'row' | 'column'): boolean {
   const half = (n: number) => (n - SASH) / 2
   return dir === 'row'
@@ -122,14 +124,12 @@ export function canSplit(size: { width: number; height: number }, dir: 'row' | '
 
 export type MenuAction =
   | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'duplicate' | 'reveal' | 'copyPath'
-  | 'join'
+  | 'join' | 'closeGroup'
 export type MenuEntry = 'separator' | { action: MenuAction; label: string; shortcut?: string; disabled?: boolean; reason?: string }
 
 /** What a menu needs to know about the group it belongs to. */
 export type GroupContext = {
   tabCount: number
-  /** The pane's size in px, or null when not measured. */
-  size: { width: number; height: number } | null
   /** Groups in this group's window, and whether it is the main window. */
   groupsInWindow: number
   inMain: boolean
@@ -140,12 +140,6 @@ export type GroupContext = {
 
 const entry = (action: MenuAction, label: string, why?: string | false | null, shortcut?: string): MenuEntry =>
   why ? { action, label, shortcut, disabled: true, reason: why } : { action, label, shortcut }
-
-export const SMALL = 'The pane is too small to split.'
-
-function splitWhy(g: GroupContext, dir: 'row' | 'column'): string | null {
-  return g.size && !canSplit(g.size, dir) ? SMALL : null
-}
 
 const NARROW = 'Needs a wider screen with a mouse.'
 
@@ -169,15 +163,14 @@ function popOutTabWhy(g: GroupContext): string | null {
 export function tabMenu(tab: Tab<TabData>, _docs: Docs, g: GroupContext, mac: boolean): MenuEntry[] {
   const doc = tab.data.kind === 'doc'
   const lone = !doc && g.tabCount < 2 && 'It is the only tab in its group.'
-  const why = (dir: 'row' | 'column') => lone || splitWhy(g, dir)
   return [
     entry('close', 'Close'),
     entry('closeOthers', 'Close others', g.tabCount < 2 && 'No other tabs in this group.'),
     entry('closeAll', 'Close all'),
     'separator',
     entry('duplicate', 'Duplicate tab'),
-    entry('splitRight', 'Split right', why('row'), mac ? '⌘\\' : 'Ctrl+\\'),
-    entry('splitDown', 'Split down', why('column')),
+    entry('splitRight', 'Split right', lone, mac ? '⌘\\' : 'Ctrl+\\'),
+    entry('splitDown', 'Split down', lone),
     entry('popOutTab', 'Move to new window', popOutTabWhy(g)),
     'separator',
     entry('reveal', 'Reveal in Explorer', !doc && 'Only files, courses and quizzes are in the Explorer.'),
@@ -189,12 +182,13 @@ export function tabMenu(tab: Tab<TabData>, _docs: Docs, g: GroupContext, mac: bo
 export function groupMenu(g: GroupContext): MenuEntry[] {
   return [
     entry('duplicate', 'Duplicate tab', g.tabCount === 0 && 'No tab to duplicate.'),
-    entry('splitRight', 'Split right', splitWhy(g, 'row')),
-    entry('splitDown', 'Split down', splitWhy(g, 'column')),
+    entry('splitRight', 'Split right'),
+    entry('splitDown', 'Split down'),
     entry('join', 'Join with next group', !g.next && 'There is no group after this one.'),
     entry('popOut', 'Move group to new window', popOutWhy(g)),
     ...(g.inMain ? [] : [entry('dock', 'Dock')]),
     'separator',
     entry('closeAll', 'Close all', g.tabCount === 0 && 'No tabs to close.'),
+    entry('closeGroup', 'Close group', g.inMain && g.groupsInWindow === 1 && 'The main window keeps one group.'),
   ]
 }

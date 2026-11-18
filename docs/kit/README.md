@@ -26,7 +26,7 @@ nothing about the app it lives in. Data is ids and strings.
    The other modules are single files. Copy the test files next to them if you want the tests.
 2. If a module has a css file (`tabs.css`, `split.css`, `menu.css`, `tree.css`), copy it too; the component imports it itself.
 3. Keep the files in one folder: they import each other with relative paths. `Confetti.tsx` imports `confettiMath.ts`;
-   `TabStrip.tsx` and `SplitView.tsx` import `dnd.ts` (and `TabStrip.tsx` and `TreeView.tsx` `longPress.ts`), and `SplitView.tsx` imports types from `layout.ts`; `TreeView.tsx` imports `dnd`, `selection`, `shortcuts` and `tree`.
+   `TabStrip.tsx` and `SplitView.tsx` import `dnd.ts` (and `TabStrip.tsx` and `TreeView.tsx` `longPress.ts`), and `SplitView.tsx` imports types from `layout.ts`; `TreeView.tsx` imports `dnd`, `float`, `selection`, `shortcuts` and `tree`.
 4. `Confetti.tsx`, `TabStrip.tsx`, `SplitView.tsx`, `ContextMenu.tsx` (also `react-dom/client`) and `TreeView.tsx` need React. The rest are plain TypeScript.
 5. Map the `--kit-*` variables below in your own stylesheet. the four css files use them (the lists are in
    each module's page); the other modules use none.
@@ -75,6 +75,7 @@ This app maps them in the last block of `src/theme/tokens.css`, on `:root`:
 | Context menu | `ContextMenu.tsx`, `menu.css` | [menu.md](menu.md) |
 | Tree view | `TreeView.tsx`, `tree.css` | [treeview.md](treeview.md) |
 | Touch long press | `longPress.ts` | [longpress.md](longpress.md) |
+| A popup under a field | `float.ts` | [float.md](float.md) |
 | Popup windows | `windows.ts`, `Popout.tsx`, `public/popout.html` | [windows.md](windows.md) |
 
 ## Using the kit in another project

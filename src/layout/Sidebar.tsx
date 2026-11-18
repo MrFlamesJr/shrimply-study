@@ -5,13 +5,15 @@ import { comboLabel, isMac } from '../kit/shortcuts'
 import type { WorkspaceApi } from '../state/useWorkspace'
 import type { DocId } from '../logic/contentOps'
 import { statusText } from '../logic/autosave'
-import { ChevronsLeftIcon, CloudAlertIcon, CloudOffIcon, FolderIcon, OpenIcon, ShrimpIcon } from '../components/Icons'
+import { ChevronsLeftIcon, CloudAlertIcon, CloudOffIcon, FolderIcon, ShrimpIcon } from '../components/Icons'
+import { OpenLink } from '../components/OpenLink'
 import { Shortcut } from '../components/Shortcut'
 import type { DriveFiles } from '../state/useDriveFiles'
 import { FileTree } from './FileTree'
 import { ThemeSelect } from '../components/ThemeSelect'
 import { AccountBox } from './AccountBox'
 import type { ThemeId } from '../model'
+import { loadSidebarClosed, saveSidebarClosed } from '../storage/sidebarPref'
 
 // `current`: the id of the course or quiz the address tab shows.
 type Props = {
@@ -50,18 +52,24 @@ const isNarrow = () => !matchMedia(WIDE).matches
 const left = (el: Element) => (el.firstElementChild ?? el).getBoundingClientRect().left
 
 /**
- * Whether the sidebar is open. Crossing the breakpoint (resizing or zooming the window) gives it that size's default:
- * open beside the page on wide screens, closed on small ones, where it covers the page.
+ * Whether the sidebar is open. On wide screens it is beside the page, open unless the user closed it, which this
+ * browser remembers so a reload keeps it (asked for); on small screens it covers the page, so it starts closed there.
+ * Crossing the breakpoint (resizing or zooming the window) gives it that size's state.
  */
 export function useSidebarOpen() {
-  const [open, setOpen] = useState(() => matchMedia(WIDE).matches)
+  const wideOpen = () => matchMedia(WIDE).matches && !loadSidebarClosed()
+  const [open, setOpen] = useState(wideOpen)
   useEffect(() => {
     const wide = matchMedia(WIDE)
-    const onChange = () => setOpen(wide.matches)
+    const onChange = () => setOpen(wideOpen())
     wide.addEventListener('change', onChange)
     return () => wide.removeEventListener('change', onChange)
   }, [])
-  return [open, setOpen] as const
+  const set = (next: boolean) => {
+    if (matchMedia(WIDE).matches) saveSidebarClosed(!next)
+    setOpen(next)
+  }
+  return [open, set] as const
 }
 
 export function Sidebar({ ws, current, driveFiles, open, setOpen, theme, setTheme, onOpenDialog, onNewFile, onShare, onUpload, onNewCourseIn, onNewQuiz, onExplorer, onHome, onWhatsNew, onOpen }: Props) {
@@ -136,7 +144,7 @@ export function Sidebar({ ws, current, driveFiles, open, setOpen, theme, setThem
             type="button"
             className={badge === 'paused' ? 'corner-badge is-paused' : 'corner-badge'}
             aria-label={badge === 'paused' ? statusText(ws.doc(needy[0].id).status) : 'Not signed in. Sign in with Google'}
-            title={badge === 'paused' ? `${statusText(ws.doc(needy[0].id).status)}. Save now` : 'Not signed in: your libraries stay only in this browser. Sign in with Google'}
+            title={badge === 'paused' ? `${statusText(ws.doc(needy[0].id).status)}. Save now` : 'Not signed in. Sign in with Google to keep your libraries in your Google Drive'}
             onClick={() => {
               if (badge === 'paused') needy.forEach((d) => void ws.doc(d.id).saveNow())
               else void ws.drive.signIn()
@@ -189,23 +197,24 @@ export function Sidebar({ ws, current, driveFiles, open, setOpen, theme, setThem
           {/* The sidebar's footer, a slim darker strip at its very bottom (asked for): a small What's new link (every
               release's notes in a tab, as the empty page's What's new box has), then the theme, compact. */}
           <footer className="sidebar-bar">
-            <button
-              type="button"
-              className="link open-link sidebar-news"
-              title="Every release's notes, in a tab of their own"
-              onClick={() => {
+            <OpenLink
+              className="sidebar-news"
+              title="Every release's notes"
+              onOpen={() => {
                 onWhatsNew()
                 closeIfNarrow()
               }}
             >
-              What's new <OpenIcon />
-            </button>
+              What's new
+            </OpenLink>
             {/* One control: a click on its name opens the list too (a label alone would only focus it). */}
             <label
               className="theme-pick"
               onClick={(e) => {
                 const select = e.currentTarget.querySelector('select')
-                if (!select || e.target === select) return
+                // A click on the select itself, or on an option in its list (a customizable select's options are
+                // inside it), is the select's own: picking a theme closes the list, never opens it again (asked for).
+                if (!select || select.contains(e.target as Node)) return
                 try {
                   select.showPicker()
                 } catch {

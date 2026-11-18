@@ -305,7 +305,8 @@ button.quiet:hover:not(:disabled) {
 }
 .icon-btn svg,
 .sidebar-toggle svg,
-.info-box-chevron svg {
+.info-box-chevron svg,
+.toast-more svg {
   transition:
     width var(--dur) var(--spring),
     height var(--dur) var(--spring),
@@ -326,10 +327,12 @@ button.quiet:hover:not(:disabled) {
 }
 /* A fold chevron points the way its box will go: up while open, down once shut (group boxes, the info box). */
 .group-toggle svg,
-.info-box-chevron svg {
+.info-box-chevron svg,
+.toast-more svg {
   rotate: 180deg;
 }
 .group-toggle[aria-expanded='false'] svg,
+.toast-more[aria-expanded='false'] svg,
 .info-box-toggle[aria-expanded='false'] .info-box-chevron svg {
   rotate: none;
 }
@@ -396,6 +399,41 @@ button.link:hover:not(:disabled) > .link-text {
   .open-link {
     min-height: var(--tap);
   }
+}
+/* A short list of quiet links, one per line (the empty group page's, the welcome page's Start and Learn), under a
+   small muted label: each a link button led by its 16px icon, or an .open-link. A long name ends in an ellipsis. */
+.link-list {
+  display: flex;
+  flex-direction: column;
+  align-items: start;
+  gap: var(--space-1);
+  max-width: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.link-list li {
+  max-width: 100%;
+}
+/* Every entry the same height and starting at the label's left edge, a link button or an .open-link alike. */
+.link-list button.link,
+.link-list .open-link {
+  max-width: 100%;
+  padding: var(--space-1) 0;
+}
+.link-list button.link svg {
+  width: 16px;
+  height: 16px;
+}
+.link-list-label {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-body);
+  font-size: var(--text-xs-plus);
+  font-weight: var(--weight);
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: none;
 }
 /* Danger: bright red outline that fills solid red on hover. */
 button.danger {
@@ -516,6 +554,22 @@ textarea:focus {
   color: var(--bad);
   font-size: var(--text-sm);
   font-weight: var(--weight);
+}
+/* The reason in a small popup under its box (`popError`: a library's name in the sidebar), in the top layer so the
+   sidebar's edge never cuts it; placed by `kit/float` from the window's top left, inside the window, wrapping. */
+.auto-text-error.is-popped {
+  position: fixed;
+  inset: auto;
+  width: max-content;
+  max-width: min(20rem, calc(100vw - 2 * var(--space-3)));
+  margin: 0;
+  padding: var(--space-1) var(--space-2);
+  overflow: visible;
+  background: var(--popup);
+  border: var(--line) solid var(--border-strong);
+  border-radius: var(--radius);
+  font-size: var(--text-xs-plus);
+  white-space: normal;
 }
 /* Underlined text fields (no box): the card editor's, every field with a floating label, and list entries. A list
    entry's line rests fainter (`--underline`, set by the list). */
@@ -854,7 +908,7 @@ textarea:focus {
   bottom: var(--pad);
   left: var(--pad);
   width: calc((100% - 2 * var(--pad)) / var(--n));
-  background: var(--accent-soft);
+  background: var(--accent-chosen);
   /* The tint is see-through (it sits in group boxes and cards), so what is under it loses all but --tint-keep of its
      color first: over a group box or a ground of another hue the chosen segment still reads in the accent's hue, not
      grey (a color filter only, no blur; nothing in Calm). */
@@ -898,9 +952,46 @@ textarea:focus {
   opacity: var(--dim);
   cursor: not-allowed;
 }
+/* A compact bar among other controls on one line (a term card's side asked, in its head; asked for): its label for
+   screen readers only, smaller segments, and a segment's text cut short with an ellipsis (the whole text its tooltip). */
+.segmented-field.is-compact {
+  display: inline-flex;
+  min-width: 0;
+  max-width: min(18em, 100%);
+  font-weight: var(--weight);
+}
+.is-compact .segmented-label {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.is-compact .segmented {
+  display: grid;
+  grid-auto-columns: minmax(0, 1fr);
+  width: 100%;
+  min-width: 0;
+}
+.is-compact .segmented label {
+  min-width: 0;
+  min-height: 28px;
+  padding: 0 var(--space-2);
+  font-size: var(--text-sm);
+}
+.segmented-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 @media (max-width: 799px) {
   .segmented {
     display: grid;
+  }
+  .is-compact .segmented label {
+    min-height: var(--tap);
   }
   .segmented label {
     min-height: var(--tap);

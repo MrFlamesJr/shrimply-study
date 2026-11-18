@@ -1,6 +1,7 @@
-// Autosave (asked for): the user's own Drive file, and a library tied to a .shrimp file on this device, save themselves
-// a moment after the last edit, and say so quietly on their where line. When a save can't go through it pauses that
-// file and says why (a problem).
+// Autosave (asked for): the user's own Drive file saves itself a moment after the last edit, and says so quietly on its
+// where line. A library tied to a .shrimp file on this device saves only when asked (asked for: Save on its row, Ctrl+S),
+// and its where line says when it has unsaved changes. When a save can't go through it pauses that file and says why
+// (a problem).
 
 /** How long after the last edit the file saves (typing merges into one save). */
 export const AUTOSAVE_DELAY = 1500
@@ -68,12 +69,19 @@ const TEXT: Record<SaveStatus, string> = {
   missing: 'Moved or deleted: only in this browser now',
 }
 
+// A file on this device saves when asked: its changes wait for Save, and a failed save is not tried again by itself.
+const DEVICE_TEXT: Partial<Record<SaveStatus, string>> = {
+  pending: 'Unsaved changes',
+  conflict: 'Changed on this device',
+  error: 'Not saved',
+}
+
 /**
  * The status in words, for after the where line ("Your Google Drive · Saved"); none for a browser library. `where`: a
- * conflict is a change on Google Drive or on this device.
+ * file on this device words waiting and failing as a save that waits for the user, and a conflict as a change there.
  */
 export const statusText = (s: SaveStatus, where: 'drive' | 'device' | 'browser' = 'drive'): string =>
-  s === 'conflict' && where === 'device' ? 'Changed on this device' : TEXT[s]
+  (where === 'device' && DEVICE_TEXT[s]) || TEXT[s]
 
 /** Only a paused save needs the user: the tab's dot, the corner badge, the warn color. */
 export const needsAttention = (s: SaveStatus): s is SaveProblem =>

@@ -117,7 +117,8 @@
   width: 16px;
   height: 16px;
 }
-/* After a file's name: the unsaved dot (the sidebar's and the tabs'), and a quiet chip for a library not open. */
+/* After a file's name: the unsaved dot (the sidebar's and the tabs'), and an "Opened" chip for an open library, at
+   the row's right end in the accent (asked for). */
 .explorer .kit-row-desc {
   display: inline-flex;
   align-items: center;
@@ -128,17 +129,22 @@
 }
 .explorer-chip {
   flex: none;
+  margin-inline-start: auto;
   padding: 0 var(--space-1);
-  border: var(--line) solid currentColor;
+  /* The theme's own pop color (asked for): the accent, as the sidebar touches the active file with it. */
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: var(--line) solid var(--accent-line);
   border-radius: var(--radius);
   font-size: var(--text-xs);
   line-height: 1.4;
 }
 /* A file's where line (place and save status), shown while its row is pointed at or holds the keyboard focus. It
-   shrinks before the name does and ends in an ellipsis; the row never changes height. */
+   shrinks before the name does and ends in an ellipsis; the row never changes height. The part after the name takes
+   the rest of the row, so the chip sits at its end. */
 .kit-row-desc:has(> .explorer-where) {
   display: flex;
-  flex: 0 1000 auto;
+  flex: 1 1000 auto;
   align-items: center;
   gap: var(--space-1);
   min-width: 0;
@@ -198,6 +204,9 @@
   display: inline-flex;
   align-items: center;
   gap: var(--space-2);
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
 }
 .explorer-drive .link svg {
   width: 16px;

@@ -5,6 +5,7 @@ import { askConfirm } from '../../components/ConfirmDialog'
 import { ColorPicker } from '../../components/ColorPicker'
 import { ChevronDownIcon } from '../../components/Icons'
 import { IconButton } from '../../components/IconButton'
+import { useSectionDrop } from './SortableCard'
 
 type Props = {
   group: Group
@@ -18,10 +19,14 @@ type Props = {
   onEnter: () => void
 }
 
-/** The top row of a group box: collapse chevron, color, name, card count and Ungroup. */
+/**
+ * The top row of a group box: collapse chevron, color, name, card count and Ungroup. Collapsed, a card dragged onto it
+ * joins the group (asked for; an empty open group takes it on its Add box).
+ */
 export function GroupHead({ group, count, collapsed, onToggle, onPatch, onUngroup, onEnter }: Props) {
+  const dropRef = useSectionDrop(group.id, collapsed, 'head')
   return (
-    <div className="group-head">
+    <div ref={dropRef} className="group-head">
       <IconButton
         className="group-toggle"
         label={collapsed ? 'Expand group' : 'Collapse group'}

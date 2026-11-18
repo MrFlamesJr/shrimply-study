@@ -10,7 +10,7 @@
 //           "name": "Cells",
 //           "cards": [
 //             { "sides": ["Question", "Answer"], "term": "What makes ATP?", "definition": "Mitochondria" },
-//             { "term": "Mitochondria", "termImage": "1.webp", "definition": "Powerhouse of the cell", "explanation": "Makes most of the cell's ATP" },
+//             { "mixed": true, "term": "Mitochondria", "termImage": "1.webp", "definition": "Powerhouse of the cell", "explanation": "Makes most of the cell's ATP" },
 //             { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "image": "2.png", "explanation": ["Has its own DNA", "", ""] },
 //             { "type": "true-false", "statement": "Mitochondria have their own DNA.", "image": "3.png", "answer": true, "explanation": "They descend from bacteria" }
 //           ],
@@ -28,6 +28,8 @@
 // A group's "color" is optional when reading (a missing one gets the next unused color) and always written.
 // A card may name its two sides: "sides": ["Question", "Answer"], written first in the card. Two names, none empty;
 // without it they are Front and Back, and that pair is never written.
+// A term card may be "mixed": true (written right after "sides"): studying asks it from its front or its back at
+// random. Without it the front is asked first. Only true is accepted; false is never written.
 // "sideTypes" (optional, after "version") lists the user's own side types: [["Country", "Capital"]]. They are kept even
 // when no card uses them, and a card's pair that is not listed is added when the file is read.
 // A cloze (fill in the blank) card marks its blanks with { } in "statement"; \{ \} \\ are a literal { } \.
@@ -95,7 +97,7 @@ const cardJson = (c: Card, file: ImageFile): string =>
     ? `{ "type": "choice", "question": ${JSON.stringify(c.question)}${imageJson('image', c.image, file)}, "mode": ${JSON.stringify(c.mode)}, "right": ${textList(c.right)}, "wrong": ${textList(c.wrong)}${explanationJson(c.explanation)} }`
     : c.type === 'sequence'
     ? `{ "type": "sequence", "title": ${JSON.stringify(c.title)}${imageJson('image', c.image, file)}, "steps": ${textList(c.steps)}${explanationJson(c.explanation)} }`
-    : `{ ${sidesJson(c.sides)}"term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
+    : `{ ${sidesJson(c.sides)}${c.mixed ? '"mixed": true, ' : ''}"term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
         c.explanation?.trim() ? `, "explanation": ${JSON.stringify(c.explanation)}` : ''
       } }`
 
@@ -262,7 +264,7 @@ function checkCard(v: unknown, path: string, ids: Ids, image: ImageRead): Card {
     if (v.type === 'sequence') return checkSequence(v, path, ids, image, ['image', 'explanation', ...stored])
     throw new Error(`${at(path)}"type" must be "cloze", "true-false", "choice" or "sequence".`)
   }
-  const o = exactFields(v, path, ['term', 'definition'], ids, ['sides', 'termImage', 'definitionImage', 'explanation', ...stored])
+  const o = exactFields(v, path, ['term', 'definition'], ids, ['sides', 'mixed', 'termImage', 'definitionImage', 'explanation', ...stored])
   const card: TermCard = {
     id: idOf(o, path, ids),
     term: text(o, 'term', path).trim(),
@@ -271,6 +273,10 @@ function checkCard(v: unknown, path: string, ids: Ids, image: ImageRead): Card {
   if ('sides' in o) {
     const sides = toSides(namePair(o.sides, `${at(path)}"sides"`))
     if (sides) card.sides = sides
+  }
+  if ('mixed' in o) {
+    if (o.mixed !== true) throw new Error(`${at(path)}"mixed" must be true (leave it out to ask the front first).`)
+    card.mixed = true
   }
   if ('termImage' in o) card.termImage = image(o, 'termImage', path)
   if ('definitionImage' in o) card.definitionImage = image(o, 'definitionImage', path)

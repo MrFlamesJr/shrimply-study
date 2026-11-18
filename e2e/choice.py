@@ -122,7 +122,7 @@ def multiple_choice_checks(page, base, quiz):
     need(result(page) == 'Correct!', 'picking one of two correct answers should be Correct!')
     marked = page.eval_on_selector_all('.session-stack .choice.is-correct', LABELS_JS)
     need(sorted(marked) == ['2', '4'], f'both correct options should be marked, got {marked}')
-    ticks = page.locator('.session-stack .choice.is-correct [aria-label="Right answer"]').count()
+    ticks = page.locator('.session-stack .choice.is-correct [aria-label="Correct answer"]').count()
     need(ticks == 2, f'both correct options need a check mark, got {ticks}')
     # All that apply with one correct answer: a wrong set, then the correct set.
     study(page, base, quiz, 'choice')
@@ -176,7 +176,7 @@ def json_checks(page, base):
 
 def run(page, base):
     # Studied in the order of the cards, not shuffled. Set before the library loads: the options are read at start.
-    page.evaluate("localStorage.setItem('shrimply-study-options', JSON.stringify({ format: 'choice', side: 'term', shuffle: false }))")
+    page.evaluate("localStorage.setItem('shrimply-study-options', JSON.stringify({ format: 'choice', shuffle: false }))")
     page.reload()
     load_test_library(page, base)
     quiz = quiz_link(page, base)
