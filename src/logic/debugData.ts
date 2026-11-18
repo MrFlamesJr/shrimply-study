@@ -113,11 +113,14 @@ export function fakeQuiz(count: number): { cards: Card[]; groups: Group[] } {
       return { id: newId(), type: 'cloze', statement: `Fact ${i}: the answer is {answer ${i}}.`, explanation: [null], ...(group && { group }) }
     }
     if (i % 13 === 0) {
+      // In turn: pick one with one correct answer, select all with two, pick one with two, select all with one.
+      const n = (i / 13) % 4
       return {
         id: newId(),
         type: 'choice',
-        question: `Question ${i}: which are right?`,
-        right: i % 26 === 0 ? [`Right ${i}a`, `Right ${i}b`] : [`Right ${i}`],
+        question: `Question ${i}: which are correct?`,
+        mode: n === 1 || n === 3 ? 'one' : 'all',
+        right: n === 2 || n === 3 ? [`Right ${i}a`, `Right ${i}b`] : [`Right ${i}`],
         wrong: [`Wrong ${i}a`, `Wrong ${i}b`, `Wrong ${i}c`],
         ...(i % 26 === 0 && { explanation: `Explanation ${i}.` }),
         ...(group && { group }),

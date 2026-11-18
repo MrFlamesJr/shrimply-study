@@ -1,0 +1,281 @@
+/* The Explorer (src/layout/Explorer.tsx): the open files as a tree. The tree itself is the kit's (tree.css); this is
+   its head, search and the file rows' extras. Tokens only. */
+/* The container: a quiet see-through well in the theme's corners, a small gap from the pane's edges (so it never touches
+   the tab strip or the sides), the toolbar, tip and tree inside it with a little room. */
+.explorer {
+  display: flex;
+  flex-direction: column;
+  /* Fills its pane (the tree scrolls inside it, not the pane), a small gap from the pane's edges. */
+  position: absolute;
+  inset: var(--space-2);
+  box-sizing: border-box;
+  min-height: 0;
+  padding: var(--space-3);
+  gap: var(--space-2);
+  background: var(--well);
+  border-radius: var(--radius);
+}
+@media (max-width: 799px) {
+  .explorer {
+    padding: var(--space-2);
+  }
+}
+/* One toolbar: the action icons, then the search filling the rest of the row; under about 320px the search wraps below
+   the icons instead of squeezing. It starts right under the pane's tab strip. */
+.explorer-top {
+  /* Never squeezed by a long tree, in a narrow pane or a popped-out window: only the tree gives way and scrolls. */
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  /* The field keeps its floating label's room above it (--float-room), so the icons line up with the field's bottom,
+     not with the row's middle. */
+  align-items: flex-end;
+  gap: var(--space-1) var(--space-2);
+}
+.explorer-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  /* The first icon starts where the tree's chevrons do (the buttons are wider than their icons). */
+  margin-left: calc(var(--space-1) * -1.5);
+}
+.explorer-search {
+  flex: 1 1 7.5rem;
+  min-width: 0;
+}
+.explorer-tree {
+  flex: 1;
+  min-height: 0;
+}
+/* No files: a faded mark, a short title and one compact set of buttons (the empty pane's style). */
+/* A search with no match: one muted line in the tree's place (a long search wraps, never spills). */
+.explorer-no-match {
+  margin: 0;
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.explorer-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-6) var(--space-2);
+  color: var(--text-muted);
+  text-align: center;
+}
+.explorer-empty-mark {
+  /* One quiet tone (the muted text's), a watermark rather than a logo. */
+  --brand-shell: currentColor;
+  --brand-head: currentColor;
+  opacity: var(--dim-empty);
+}
+.explorer-empty-mark svg {
+  width: 96px;
+  height: 96px;
+}
+.explorer-empty-title {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+}
+.explorer-empty-actions {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: min(100%, 14rem);
+}
+.explorer-empty-actions button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+}
+.explorer-empty-actions button svg {
+  width: 16px;
+  height: 16px;
+}
+/* The first one is the way in when there is Google Drive: bolder, never a second gold button. */
+.explorer-empty-actions .is-lead {
+  border-color: var(--border-strong);
+  font-weight: var(--weight-bold);
+}
+.explorer .kit-row-desc {
+  flex: 0 100 auto;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.explorer-icon {
+  position: relative;
+  display: inline-flex;
+  color: var(--text-muted);
+}
+.explorer-icon svg {
+  width: 16px;
+  height: 16px;
+}
+/* After a file's name: the unsaved dot (the sidebar's and the tabs'), and an "Opened" chip for an open library, at
+   the row's right end in the accent (asked for). */
+.explorer .kit-row-desc {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+.explorer .file-dot {
+  color: var(--text);
+}
+.explorer-chip {
+  flex: none;
+  margin-inline-start: auto;
+  padding: 0 var(--space-1);
+  /* The theme's own pop color (asked for): the accent, as the sidebar touches the active file with it. */
+  color: var(--accent);
+  background: var(--accent-soft);
+  border: var(--line) solid var(--accent-line);
+  border-radius: var(--radius);
+  font-size: var(--text-xs);
+  line-height: 1.4;
+}
+/* A file's where line (place and save status), shown while its row is pointed at or holds the keyboard focus. It
+   shrinks before the name does and ends in an ellipsis; the row never changes height. The part after the name takes
+   the rest of the row, so the chip sits at its end. */
+.kit-row-desc:has(> .explorer-where) {
+  display: flex;
+  flex: 1 1000 auto;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+}
+.explorer-where {
+  min-width: 0;
+  flex-shrink: 1000;
+  overflow: hidden;
+  color: var(--text-muted);
+  font-size: var(--text-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity var(--dur) var(--ease);
+}
+.kit-row:is(:hover, :focus-visible) .explorer-where {
+  opacity: 1;
+}
+/* The status in words for a screen reader. */
+.explorer-sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+.explorer-dest {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.explorer-dest button {
+  width: 100%;
+  justify-content: flex-start;
+  text-align: left;
+}
+/* A closed library (a Google Drive one, or one kept in this browser) reads quieter than the open files. */
+.explorer .kit-row[data-id^="g:f:"] {
+  color: var(--text-muted);
+}
+/* The sign-in button and its line, and under the tree the choose-files link or the loading and failure line. */
+.explorer-drive {
+  flex: none;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-1) var(--space-2);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+/* Link buttons in the Explorer are the app's `.link`; their text lines up with the tree's rows. */
+.explorer-drive .link {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  text-align: left;
+  white-space: normal;
+}
+.explorer-drive .link svg {
+  width: 16px;
+  height: 16px;
+}
+/* What is inside a library that is not open (a look, read-only), and its loading and failure rows, read quieter. */
+.explorer .kit-row[data-id^="c:p-"],
+.explorer .kit-row[data-id^="q:p-"],
+.explorer .kit-row[data-id^="k:p-"],
+.explorer .kit-row[data-id^="g:l:"],
+.explorer .kit-row[data-id^="g:x:"] {
+  color: var(--text-muted);
+}
+/* The tip over the tree. */
+.explorer-tip {
+  flex: none;
+  margin: 0;
+  padding: 0 var(--space-1);
+  color: var(--text-muted);
+  font-size: var(--text-sm);
+}
+/* The (i): what the Explorer can do, popping out under it, solid like every popup (as the Drive dialog's). */
+.explorer-info-btn {
+  anchor-name: --explorer-info;
+}
+.explorer-info {
+  width: min(24rem, calc(100vw - 2 * var(--space-4)));
+  max-height: min(32rem, 70vh);
+  overflow: auto;
+  padding: var(--space-3) var(--space-4);
+  background: var(--popup);
+  border: var(--line) solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: var(--text-sm);
+}
+.explorer-info dl {
+  margin: 0;
+}
+.explorer-info dt {
+  font-weight: var(--weight-bold);
+}
+.explorer-info dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+.explorer-info dl > div + div {
+  margin-top: var(--space-3);
+}
+@supports (position-area: bottom) {
+  .explorer-info {
+    inset: auto;
+    margin: var(--space-1) 0 0;
+    position-anchor: --explorer-info;
+    position-area: bottom span-right;
+    position-try-fallbacks: flip-block;
+  }
+}
+/* The field's text sits a little above its box's middle on wide screens (smaller touch targets): level the icons with it. */
+@media (min-width: 800px) {
+  .explorer-head {
+    margin-bottom: calc(var(--space-1) / 2);
+  }
+}
+/* A group's color dot (the editor's group head's, from the theme's --group-<color> through [data-color]). */
+.explorer-group-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--group);
+}

@@ -14,7 +14,7 @@ function shuffled<T>(items: T[]): T[] {
 // The non-empty entries of a list, trimmed.
 const filled = (items: string[]): string[] => items.map((t) => t.trim()).filter(Boolean)
 
-// A choice card's right answers and all its options, each once: an answer typed twice is one option, not a pick-all.
+// A choice card's right answers and all its options, each once: an answer typed twice is one option, not two.
 function choiceOptions(card: ChoiceCard): { right: string[]; options: string[] } {
   const right = [...new Set(filled(card.right))]
   return { right, options: [...new Set([...right, ...filled(card.wrong)])] }
@@ -43,12 +43,16 @@ export const canChoose = (usable: Card[]): boolean =>
 
 const numbered = (steps: string[]): string => steps.map((s, i) => `${i + 1}. ${s}`).join(' ')
 
-/** A choice question: its own answers only. One right answer is picked (or typed); several are all picked. */
+/**
+ * A choice question: its own answers only. Mode 'all' selects every right answer from the options (also when only one is
+ * right, and also when typing). Mode 'one' picks (or types) one answer, and any of the right ones counts.
+ */
 function choiceQuestion(card: ChoiceCard, format: StudyOptions['format']): Question {
   const { right, options } = choiceOptions(card)
-  const question: Question = { cardId: card.id, prompt: card.question.trim(), answer: right.join(', ') }
-  if (right.length > 1) return { ...question, answers: right, ...(format !== 'flashcards' && { choices: shuffled(options) }) }
-  return format === 'choice' ? { ...question, choices: shuffled(options) } : question
+  const question: Question = { cardId: card.id, prompt: card.question.trim(), answer: right.join(', '), pick: card.mode }
+  if (card.mode === 'all') return { ...question, answers: right, ...(format !== 'flashcards' && { choices: shuffled(options) }) }
+  const several = right.length > 1 ? { answers: right } : {}
+  return format === 'choice' ? { ...question, ...several, choices: shuffled(options) } : { ...question, ...several }
 }
 
 /** A sequence asked as a whole: flashcards show the steps, multiple choice has them put in order (shuffled, never in order). */
@@ -119,10 +123,11 @@ export function refreshQuestions(questions: Question[], edited: Card): Question[
     if (edited.type === 'true-false') return trueFalseQuestion(edited)
     if (edited.type === 'choice') {
       const { right, options } = choiceOptions(edited)
-      const fresh: Question = { cardId: q.cardId, prompt: edited.question.trim(), answer: right.join(', ') }
-      // A question that was a list (or a pick) keeps its option order; a question with a single right answer typed stays typed.
-      if (right.length > 1) return { ...fresh, answers: right, choices: q.choices ? keepOrder(q.choices, options) : shuffled(options) }
-      return q.choices ? { ...fresh, choices: keepOrder(q.choices, options) } : fresh
+      const fresh: Question = { cardId: q.cardId, prompt: edited.question.trim(), answer: right.join(', '), pick: edited.mode }
+      // A question with options keeps their order; a question of mode 'one' that was typed stays typed.
+      if (edited.mode === 'all') return { ...fresh, answers: right, choices: q.choices ? keepOrder(q.choices, options) : shuffled(options) }
+      const several = right.length > 1 ? { ...fresh, answers: right } : fresh
+      return q.choices ? { ...several, choices: keepOrder(q.choices, options) } : several
     }
     if (edited.type === 'sequence') {
       const steps = filled(edited.steps)
@@ -163,7 +168,7 @@ export function buildRound(cards: Card[], options: StudyOptions, pool: Card[] = 
       const steps = filled(card.steps)
       return steps.map((_, i) => stepQuestion(card, steps, i))
     }
-    const side = options.side === 'mixed' ? (Math.random() < 0.5 ? 'term' : 'definition') : options.side
+    const side = card.mixed ? (Math.random() < 0.5 ? 'term' : 'definition') : 'term'
     const [promptSide, answerSide] =
       side === 'term' ? (['term', 'definition'] as const) : (['definition', 'term'] as const)
     const question: Question = { cardId: card.id, prompt: card[promptSide].trim(), answer: card[answerSide].trim(), side: promptSide }

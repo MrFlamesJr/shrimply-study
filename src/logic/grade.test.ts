@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest'
-import { orderCounts, pickCounts, rightOrder, sameOrder, samePicks } from './grade'
+import { anyRight, orderCounts, pickCounts, rightOrder, sameOrder, samePicks } from './grade'
+
+describe('anyRight', () => {
+  it('counts any one of the right answers', () => {
+    expect(anyRight('a', ['a', 'b'])).toBe(true)
+    expect(anyRight('b', ['a', 'b'])).toBe(true)
+    expect(anyRight('x', ['a', 'b'])).toBe(false)
+  })
+})
 
 describe('samePicks', () => {
   it('needs every right answer and nothing else, in any order', () => {

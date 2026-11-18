@@ -59,7 +59,7 @@ export function SequenceField({ title, steps, onTitle, onSteps, cardId, hint, st
     onSteps(arrayMove(shown, from, to))
   }
   const onKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>, i: number) => {
-    if (e.altKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+    if (e.altKey && !e.shiftKey && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
       e.preventDefault()
       const to = i + (e.key === 'ArrowUp' ? -1 : 1)
       if (to < 0 || to >= shown.length) return

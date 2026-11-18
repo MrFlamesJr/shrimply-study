@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 
-type Props = { flipped: boolean; onFlip: () => void; front: ReactNode; back: ReactNode; edit: ReactNode }
+type Props = { flipped: boolean; onFlip: () => void; front: ReactNode; back: ReactNode; edit?: ReactNode }
 
 /** The flashcard: one flip button with a face per side. */
 export function FlipCard({ flipped, onFlip, front, back, edit }: Props) {
@@ -23,14 +23,16 @@ export function FlipCard({ flipped, onFlip, front, back, edit }: Props) {
           </span>
         </span>
       </button>
-      <div className="flip-edit">
-        <div className="flip-edit-face" inert={flipped}>
-          {edit}
+      {edit && (
+        <div className="flip-edit">
+          <div className="flip-edit-face" inert={flipped}>
+            {edit}
+          </div>
+          <div className="flip-edit-face flip-back" inert={!flipped}>
+            {edit}
+          </div>
         </div>
-        <div className="flip-edit-face flip-back" inert={!flipped}>
-          {edit}
-        </div>
-      </div>
+      )}
     </div>
   )
 }

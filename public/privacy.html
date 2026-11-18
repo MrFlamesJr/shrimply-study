@@ -9,7 +9,7 @@
   </head>
   <body>
     <h1>Shrimply Study privacy</h1>
-    <p>Last updated November 6, 2026.</p>
+    <p>Last updated November 17, 2026.</p>
 
     <p>
       Shrimply Study is a study app that runs entirely in your browser. It has no server, no accounts of its own, no
@@ -19,8 +19,10 @@
 
     <h2>Your library</h2>
     <p>
-      Your courses, quizzes and cards stay in your browser (a backup in its storage) and in the .shrimp files you
-      download. They leave your device only when you save them to Google Drive.
+      Your courses, quizzes and cards stay in your browser (a backup in its storage), in the .shrimp files you download
+      and in the .shrimp files you open from your computer, which Shrimply Study saves back into when you select Save,
+      where your browser allows it (Chrome and Edge). They leave your device only when you put them in Google Drive, and then Shrimply
+      Study saves and syncs them for you automatically as you work.
     </p>
 
     <h2>Google Drive</h2>
@@ -33,21 +35,29 @@
     <ul>
       <li>
         save your library to your Drive as a .shrimp file, in a folder named Shrimply Study (made the first time), and
-        save it again into the same file;
+        save it again into the same file automatically, a moment after each change you make;
       </li>
-      <li>set that file to "Anyone with the link can view" when you ask for a share link;</li>
+      <li>
+        set that file to "Anyone with the link can view" when you ask for a share link, and back to private when you
+        stop sharing;
+      </li>
       <li>list the libraries Shrimply Study saved to your Drive, so you can open one, or move one to the bin when you ask;</li>
       <li>
         open Google's own file picker when you ask, to choose .shrimp files it did not save itself (uploaded, copied or
         sent to you); it can then see just the files you chose, and nothing else in your Drive;
       </li>
-      <li>check whether you can save to a file, and whether it changed since you last opened it;</li>
+      <li>
+        check whether you can save to a file, and whether it changed since you last opened it; a library shared with
+        you is checked about once a minute while the app is open, so it stays up to date (you can only view it);
+      </li>
       <li>show which Google account is signed in (your email address, read from Google Drive and shown only to you).</li>
     </ul>
     <p>
-      Your browser talks to Google directly. Each tab signs in on its own. The sign-in token lasts about an hour and is
-      kept only in that tab's session storage, so reloading the page keeps you signed in; it is gone when you close the
-      tab or sign out (in the Google Drive window), and it is never sent anywhere else. Shrimply Study does not keep, share or sell any data from your Google
+      Your browser talks to Google directly. Each browser tab signs in with its own Google account. The sign-in token
+      lasts about an hour and is kept in this browser's storage: in the tab's own session storage, so reloading the tab
+      keeps you signed in, and the account chosen last also in local storage, so a new tab starts with it. Signing out in
+      the sidebar forgets the account in that tab and closes its own Google Drive libraries there; it is never sent
+      anywhere else. Shrimply Study does not keep, share or sell any data from your Google
       account, and does not use it for anything other than the features above.
     </p>
     <p>

@@ -1,7 +1,7 @@
 import { strToU8, unzipSync, zipSync } from 'fflate'
 import { describe, expect, it } from 'vitest'
-import { FORMAT_VERSION, type Library, type TermCard } from '../model'
-import { checkLibrary, decodeLibrary, encodeLibrary, libraryFromJson, libraryToJson } from './format'
+import { FORMAT_VERSION, emptyLibrary, type Library, type TermCard } from '../model'
+import { checkLibrary, decodeLibrary, encodeLibrary, libraryFromJson, libraryToJson, sameLibrary } from './format'
 
 const library: Library = {
   version: FORMAT_VERSION,
@@ -34,6 +34,16 @@ const fromData = (data: unknown) => libraryFromJson(JSON.stringify(data))
 const withCard = (card: unknown) => ({
   version: FORMAT_VERSION,
   courses: [{ name: 'c', quizzes: [{ name: 'q', cards: [card] }] }],
+})
+
+describe('sameLibrary', () => {
+  it('compares content, not ids', () => {
+    const a = libraryFromJson(libraryToJson(emptyLibrary()))
+    const course = { id: 'x', name: 'Bio', quizzes: [] }
+    expect(sameLibrary({ ...a, courses: [course] }, { ...a, courses: [{ ...course, id: 'y' }] })).toBe(true)
+    expect(sameLibrary({ ...a, courses: [course] }, { ...a, courses: [{ ...course, name: 'Chem' }] })).toBe(false)
+    expect(sameLibrary(a, { ...a, courses: [course] })).toBe(false)
+  })
 })
 
 describe('library format', () => {
@@ -75,6 +85,24 @@ describe('library format', () => {
     expect(libraryToJson(lib)).not.toContain('sides')
     const card = fromData(withCard({ sides: [' Front ', 'Back'], term: 'a', definition: 'b' })).courses[0].quizzes[0].cards[0]
     expect((card as TermCard).sides).toBeUndefined()
+  })
+
+  it('writes a mixed card after its sides and reads it back; the default is not written', () => {
+    const lib = structuredClone(library)
+    expect(libraryToJson(lib)).not.toContain('mixed')
+    const card = lib.courses[0].quizzes[0].cards[0] as TermCard
+    card.sides = ['Question', 'Answer']
+    card.mixed = true
+    const json = libraryToJson(lib)
+    expect(json).toContain('{ "sides": ["Question", "Answer"], "mixed": true, "term": "cat"')
+    expect((libraryFromJson(json).courses[0].quizzes[0].cards[0] as TermCard).mixed).toBe(true)
+  })
+
+  it('rejects a "mixed" that is not true', () => {
+    const message = 'courses[0].quizzes[0].cards[0]: "mixed" must be true (leave it out to ask the front first).'
+    for (const mixed of [false, 'true', 1, null]) {
+      expect(() => fromData(withCard({ mixed, term: 'a', definition: 'b' }))).toThrow(message)
+    }
   })
 
   it('trims side names', () => {
@@ -586,9 +614,9 @@ describe('library format', () => {
 
     it('round-trip through the file and the backup', () => {
       const lib = stored([
-        { id: 'k', type: 'choice', question: 'Which are organelles?', image: png, right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall'], explanation: 'Why' },
+        { id: 'k', type: 'choice', question: 'Which are organelles?', image: png, mode: 'all', right: ['Nucleus', 'Ribosome'], wrong: ['Cell wall'], explanation: 'Why' },
         { id: 'l', type: 'sequence', title: 'Phases', image: png, steps: ['Prophase', 'Metaphase'], explanation: 'Order' },
-        { id: 'm', type: 'choice', question: 'Q', right: ['A'], wrong: ['B'] },
+        { id: 'm', type: 'choice', question: 'Q', mode: 'one', right: ['A'], wrong: ['B'] },
         { id: 'n', type: 'sequence', title: 'T', steps: ['1', '2'] },
       ])
       const back = decodeLibrary(encodeLibrary(lib))
@@ -602,16 +630,33 @@ describe('library format', () => {
     it('are written on one line, in field order, without empty entries or explanation', () => {
       const json = libraryToJson(
         stored([
-          { id: 'k', type: 'choice', question: 'Q', image: png, right: ['A', ' '], wrong: ['B', 'C', ''], explanation: 'E' },
-          { id: 'l', type: 'choice', question: 'Q2', right: [], wrong: [], explanation: ' ' },
+          { id: 'k', type: 'choice', question: 'Q', image: png, mode: 'one', right: ['A', ' '], wrong: ['B', 'C', ''], explanation: 'E' },
+          { id: 'l', type: 'choice', question: 'Q2', mode: 'all', right: [], wrong: [], explanation: ' ' },
           { id: 'm', type: 'sequence', title: 'T', image: png, steps: ['x', '', 'y'], explanation: 'E' },
           { id: 'n', type: 'sequence', title: 'T2', steps: [] },
         ]),
       )
-      expect(json).toContain('{ "type": "choice", "question": "Q", "image": "1.png", "right": ["A"], "wrong": ["B", "C"], "explanation": "E" }')
-      expect(json).toContain('{ "type": "choice", "question": "Q2", "right": [], "wrong": [] }')
+      expect(json).toContain('{ "type": "choice", "question": "Q", "image": "1.png", "mode": "one", "right": ["A"], "wrong": ["B", "C"], "explanation": "E" }')
+      expect(json).toContain('{ "type": "choice", "question": "Q2", "mode": "all", "right": [], "wrong": [] }')
       expect(json).toContain('{ "type": "sequence", "title": "T", "image": "1.png", "steps": ["x", "y"], "explanation": "E" }')
       expect(json).toContain('{ "type": "sequence", "title": "T2", "steps": [] }')
+    })
+
+    it('read the mode, and take "all" for several different right answers and "one" otherwise when a file leaves it out', () => {
+      const mode = (extra: object) => (cardOf(fromData(withCard({ type: 'choice', question: 'Q', wrong: [], ...extra }))) as { mode: string }).mode
+      expect(mode({ right: ['A'], mode: 'all' })).toBe('all')
+      expect(mode({ right: ['A', 'B'], mode: 'one' })).toBe('one')
+      expect(mode({ right: ['A', 'B'] })).toBe('all')
+      expect(mode({ right: ['A'] })).toBe('one')
+      expect(mode({ right: ['A', ' A ', ''] })).toBe('one')
+    })
+
+    it('require the mode in the backup, and reject any other mode, naming the spot', () => {
+      const card = { id: 'k', type: 'choice', question: 'Q', right: ['A'], wrong: [] }
+      const lib = (c: object) => ({ version: FORMAT_VERSION, courses: [{ id: 'a', name: 'c', quizzes: [{ id: 'b', name: 'q', groups: [], cards: [c] }] }] })
+      expect(() => checkLibrary(lib(card), 'stored')).toThrow('"mode" is missing.')
+      expect(() => checkLibrary(lib({ ...card, mode: 'many' }), 'stored')).toThrow('"mode" must be "one" or "all".')
+      expect(() => fromData(withCard({ type: 'choice', question: 'Q', mode: 'many', right: [], wrong: [] }))).toThrow(`${at}"mode" must be "one" or "all".`)
     })
 
     it('trim their texts and entries when read', () => {

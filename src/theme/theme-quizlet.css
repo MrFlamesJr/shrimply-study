@@ -6,8 +6,9 @@
    shadow; the cards are a richer twilight indigo than Quizlet's grey slate (#272f59, asked for), and the sidebar
    stays a faint step above the ground, like Quizlet's own navigation (asked for). The scheme is a blue monochrome
    with one complement: the action is Quizlet blue (the filled buttons, white text, their key hints unfaded) and its
-   periwinkle (the chosen option, the focus ring, lines and the progress bar, as the blue is too dark to read on the
-   navy), both analogous to the ground; Quizlet's sunset yellow, the blue's complement (h 90), marks only the
+   periwinkle (the focus ring, lines and the progress bar, as the blue is too dark to read on the navy), both
+   analogous to the ground; a chosen or selected thing, its tints and lines, takes the brighter blue of the text
+   selection (--chosen, asked for: the periwinkle tint read grey); Quizlet's sunset yellow, the blue's complement (h 90), marks only the
    shrimp's head (its shell is Quizlet blue, like its logo). Mint and cherry only mean right and wrong, sherbert
    orange is the warning, sky blue is info. DM Sans, a geometric sans close to Quizlet's own Hurme Geometric Sans,
    for titles. No glow and no backdrop; the cards cast Quizlet's faint grey-blue night shadow, and a hovered
@@ -34,6 +35,7 @@
   --accent-fill: #4255ff;
   --accent-ink: #ffffff;
   --selection-color: #7583ff;
+  --chosen: var(--selection-color);
   --ok: #59e8b5;
   --bad: #ff8b85;
   --ok-fill: var(--ok);
@@ -67,12 +69,15 @@
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
      --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
-     surfaces' first one unless the theme sets it apart. */
+     surfaces' first one unless the theme sets it apart. The sidebar tree's file blocks rise --lift-side-block above
+     the sidebar, the active file's --lift-side-active. */
   --lift-hue: 274;
   --lift-chroma: 0.04;
   --lift-sunken: -0.05;
   --lift-1: 0.15;
   --lift-sidebar: 0.035;
+  --lift-side-block: 0.03;
+  --lift-side-active: 0.06;
   --lift-2: 0.2;
   --lift-3: 0.245;
   --lift-border: 0.31;
@@ -97,11 +102,13 @@
   --tint: 14%;
   --tint-line: 70%;
   --tint-select: 45%;
+  --tint-chosen: 32%;
   --tint-danger: 14%;
   --tint-muted: 45%;
   --tint-rest: 0%;
   --role-solid: 0;
   --tint-keep: 0.3;
+  --tint-side-active: 7%;
   --role-chroma: 0.07;
   --role-turn: 12;
   --tint-pill: 40%;
@@ -123,10 +130,12 @@
   --glow-bad: none;
   --glow-text: none;
   --glow-info: none;
-  --glow-card: 0 4px 16px color-mix(in srgb, var(--text) 8%, transparent);
+  --glow-card:
+    inset 0 0 0 transparent,
+    0 4px 16px color-mix(in srgb, var(--text) 8%, transparent);
   --glow-card-hover:
-    inset 0 -4px 0 var(--accent),
-    0 8px 24px color-mix(in srgb, var(--text) 12%, transparent);
+    inset 0 -2px 0 color-mix(in srgb, var(--accent) 60%, transparent),
+    0 6px 20px color-mix(in srgb, var(--text) 10%, transparent);
 
   /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
      background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
@@ -144,8 +153,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "DM Sans", var(--font-body);
   --display-tracking: -0.01em;
   --display-case: none;
@@ -153,6 +162,7 @@
   --text-brand: 1.125rem;
   --text-score: 3rem;
   --text-info-title: 1.0625rem;
+  --text-side-title: 0.9375rem;
   --text-result: 1.625rem;
   --radius: 8px;
   --radius-pill: 999px;

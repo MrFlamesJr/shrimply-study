@@ -29,6 +29,7 @@
   --accent-fill: var(--accent);
   --accent-ink: var(--bg);
   --selection-color: #9d4dff;
+  --chosen: var(--accent);
   --ok: #39ff7a;
   --bad: #ff5a5a;
   --ok-fill: var(--ok);
@@ -62,12 +63,15 @@
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
      --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
-     surfaces' first one unless the theme sets it apart. */
+     surfaces' first one unless the theme sets it apart. The sidebar tree's file blocks rise --lift-side-block above
+     the sidebar, the active file's --lift-side-active. */
   --lift-hue: 297;
   --lift-chroma: 0.15;
   --lift-sunken: -0.033;
   --lift-1: 0.039;
   --lift-sidebar: var(--lift-1);
+  --lift-side-block: 0.024;
+  --lift-side-active: 0.05;
   --lift-2: 0.076;
   --lift-3: 0.112;
   --lift-border: 0.24;
@@ -92,11 +96,13 @@
   --tint: 14%;
   --tint-line: 55%;
   --tint-select: 50%;
+  --tint-chosen: 26%;
   --tint-danger: 16%;
   --tint-muted: 30%;
   --tint-rest: 10%;
   --role-solid: 0;
   --tint-keep: 0.5;
+  --tint-side-active: 7%;
   --role-chroma: 0.075;
   --role-turn: 8;
   --tint-pill: 40%;
@@ -154,8 +160,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "Jersey 15", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
@@ -163,6 +169,7 @@
   --text-brand: 1.25rem;
   --text-score: 3.5rem;
   --text-info-title: 1.3125rem;
+  --text-side-title: 1.1875rem;
   --text-result: 2rem;
   --radius: 2px;
   --radius-pill: var(--radius);

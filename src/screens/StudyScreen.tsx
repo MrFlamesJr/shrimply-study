@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import type { Card, Format, Question, StudyOptions } from '../model'
-import { redirect } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { Nav } from '../route'
+import type { LibraryApi } from '../state/useWorkspace'
 import { useKeydown } from '../hooks/useKeydown'
+import { quoteName } from '../logic/toastText'
 import { buildRound, canChoose, refreshQuestions, usableCards } from '../logic/buildRound'
 import { CrossIcon } from '../components/Icons'
 import { Shortcut } from '../components/Shortcut'
@@ -11,7 +12,9 @@ import { CardDialog } from '../components/CardDialog'
 import { StudyQuestion, type Result } from './study/Question'
 import { Results } from './study/Results'
 
-type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions }
+// `active`: the session is shown in the active group (another pane or window may hold another session); only then
+// do its keys work.
+type Props = { lib: LibraryApi; notify: Notify; quizId: string; format: Format; prefs: StudyOptions; nav: Nav; active?: boolean }
 
 const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 'Multiple choice', typing: 'Typing' }
 
@@ -19,8 +22,9 @@ const FORMAT_NAME: Record<Format, string> = { flashcards: 'Flashcards', choice: 
 // Never flashcards and never the hidden answer: a card's size must not give its answer away.
 const WIDE_TEXT = 400
 
-export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
+export function StudyScreen({ lib, notify, quizId, format, prefs, nav, active = true }: Props) {
   const found = lib.findQuiz(quizId)
+  const { redirect } = nav
   const usable = found ? usableCards(found.quiz.cards) : []
   const canStudy = usable.length > 0 && (format !== 'choice' || canChoose(usable))
   const options = { ...prefs, format }
@@ -44,7 +48,9 @@ export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
   useEffect(() => {
     if (!empty) return
     exit()
-    notify('info', 'Nothing to study in this round.')
+    notify('info', 'Nothing to study in this round.', {
+      detail: `None of the cards in ${quoteName(found!.quiz.name)} can be asked with these options. Try another mode, or finish them in Edit quiz.`,
+    })
   }, [empty])
 
   // `only` keeps just those questions of the round (a cloze card is asked once per blank).
@@ -72,7 +78,7 @@ export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
 
   useKeydown((e) => {
     // A dialog (the card editor, the image viewer) handles its own keys (Esc closes it, not the session).
-    if (editing || (e.target as HTMLElement).closest('dialog')) return
+    if (!active || editing || (e.target as HTMLElement).closest('dialog')) return
     // A field that already handled the key prevents its default.
     if (e.ctrlKey || e.metaKey || e.altKey || e.defaultPrevented) return
     if (e.key === 'Escape') exit()
@@ -115,7 +121,7 @@ export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
           usable={usable}
           onExit={exit}
           onBegin={begin}
-          onEdit={setEditing}
+          onEdit={lib.readOnly ? undefined : setEditing}
         />
         {cardDialog}
       </div>
@@ -136,10 +142,10 @@ export function StudyScreen({ lib, notify, quizId, format, prefs }: Props) {
         format={format}
         usable={usable}
         result={results[index]}
-        paused={editing !== null}
+        paused={editing !== null || !active}
         onRecord={record}
         onNext={next}
-        onEdit={setEditing}
+        onEdit={lib.readOnly ? undefined : setEditing}
       />
       {cardDialog}
     </div>

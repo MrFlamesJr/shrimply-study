@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type ReactNode } from 'react'
 import { IMAGE_TYPES } from '../model'
 import { IconButton } from './IconButton'
-import { CrossIcon, ImageIcon } from './Icons'
+import { CrossIcon, ImageIcon, SpinnerIcon } from './Icons'
 import { ZoomImage } from './ZoomImage'
 
 const TYPES = Object.values(IMAGE_TYPES)
@@ -108,7 +108,9 @@ export function ImageSlot({ src, label, onChange, children }: Props) {
         {children}
         {loading > 0 ? (
           <span className="image-loading" role="status" aria-label="Loading image" title="Loading image">
-            <span className="spinner" />
+            <span className="spinner">
+              <SpinnerIcon />
+            </span>
           </span>
         ) : src ? (
           <span className="image-set">

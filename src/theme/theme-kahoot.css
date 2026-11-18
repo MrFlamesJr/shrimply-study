@@ -12,8 +12,9 @@
    sidebar and dialogs cover them). Borders are a light violet. The structure is one purple hue (h 293) whose chroma
    falls with area: the ground the calmest, the cards rich, the lines the most vivid. The scheme is the four answer
    colors around the purple, a square: red (h 21), yellow (h 82), green (h 141) and blue (h 257). Kahoot's light grey
-   (#f2f2f2, softer than pure white on the dark) is the action, the chosen option and the focus ring (Kahoot's white
-   Start and PIN boxes); main text is a soft white too: its buttons carry Kahoot's dark grey text and a hard darker
+   (#f2f2f2, softer than pure white on the dark) is the action and the focus ring (Kahoot's white Start and PIN
+   boxes); Kahoot's blue is the text selection; a bright violet of its own purple (--chosen, h 295, more colorful than
+   the lines) is every chosen or selected thing, its tints and lines (asked for: the grey read dull, the blue clashed); main text is a soft white too: its buttons carry Kahoot's dark grey text and a hard darker
    edge along their bottom, the chunky 3D of Kahoot's buttons. Kahoot's correct green and incorrect red only mean
    right and wrong (the red a step lighter, so it reads on the purple cards, tinted or not); the right and wrong
    buttons are Kahoot's own green and red answer tiles, filled solid with white text and a hard darker bottom edge
@@ -44,6 +45,7 @@
   --accent-fill: var(--accent);
   --accent-ink: #333333;
   --selection-color: #1368ce;
+  --chosen: #a46bff;
   --ok: #66bf39;
   --bad: #ff7088;
   --ok-fill: #238209;
@@ -77,12 +79,15 @@
 
   /* Elevation: each surface and border is --bg made lighter by its --lift-* step (oklch lightness), gaining
      --lift-chroma color per step, in the hue --lift-hue. The sidebar has its own step (--lift-sidebar), the
-     surfaces' first one unless the theme sets it apart. */
+     surfaces' first one unless the theme sets it apart. The sidebar tree's file blocks rise --lift-side-block above
+     the sidebar, the active file's --lift-side-active. */
   --lift-hue: 293;
   --lift-chroma: 0.4;
   --lift-sunken: -0.03;
   --lift-1: 0.15;
   --lift-sidebar: 0.07;
+  --lift-side-block: 0.035;
+  --lift-side-active: 0.065;
   --lift-2: 0.19;
   --lift-3: 0.23;
   --lift-border: 0.3;
@@ -107,11 +112,13 @@
   --tint: 14%;
   --tint-line: 60%;
   --tint-select: 60%;
+  --tint-chosen: 24%;
   --tint-danger: 14%;
   --tint-muted: 70%;
   --tint-rest: 10%;
   --role-solid: 1;
   --tint-keep: 0.25;
+  --tint-side-active: 0%;
   --role-chroma: 0.07;
   --role-turn: 8;
   --tint-pill: 40%;
@@ -133,10 +140,12 @@
   --glow-bad: inset 0 calc(-1 * var(--glow-size)) 0 color-mix(in srgb, var(--bad) 55%, transparent);
   --glow-text: 0 2px 0 color-mix(in srgb, var(--ink) 30%, transparent);
   --glow-info: 0 2px 0 color-mix(in srgb, var(--ink) 30%, transparent);
-  --glow-card: 0 var(--glow-size) 0 color-mix(in srgb, var(--ink) 28%, transparent);
+  --glow-card:
+    0 0 0 0 transparent,
+    0 var(--glow-size) 0 color-mix(in srgb, var(--ink) 28%, transparent);
   --glow-card-hover:
-    0 0 0 2px var(--accent),
-    0 calc(var(--glow-size) * 1.5) 0 color-mix(in srgb, var(--ink) 34%, transparent);
+    0 0 0 1px color-mix(in srgb, var(--accent) 40%, transparent),
+    0 calc(var(--glow-size) * 1.25) 0 color-mix(in srgb, var(--ink) 30%, transparent);
 
   /* Backdrop, fixed to the window wherever the page ground shows (cards, the sidebar and dialogs cover it):
      background-image layers over --bg, or none. Over them the moving layer, or none: images that animate
@@ -154,8 +163,8 @@
   --backdrop-repeat: repeat;
 
   /* Type and shape: the display font is for titles, the brand and the score only (body and card text stay
-     Atkinson); the brand, the score, an info box's title and the feedback sheet's Correct! are sized to how
-     big the display font draws. */
+     Atkinson); the brand, the score, an info box's title, the sidebar's section titles and the feedback sheet's
+     Correct! are sized to how big the display font draws. */
   --font-display: "Montserrat", var(--font-body);
   --display-tracking: normal;
   --display-case: none;
@@ -163,6 +172,7 @@
   --text-brand: 1rem;
   --text-score: 3rem;
   --text-info-title: 1rem;
+  --text-side-title: 0.9375rem;
   --text-result: 1.75rem;
   --radius: 4px;
   --radius-pill: var(--radius);

@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { Card, ChoiceCard, SequenceCard } from '../model'
 import { isBlank, missingPart, tidyCard, tidyCards, unfinishedMessage } from './cardStatus'
 
-const choice = (extra: Partial<ChoiceCard> = {}): ChoiceCard => ({ id: 'c', type: 'choice', question: 'Q', right: ['A'], wrong: ['B'], ...extra })
+const choice = (extra: Partial<ChoiceCard> = {}): ChoiceCard => ({ id: 'c', type: 'choice', question: 'Q', mode: 'one', right: ['A'], wrong: ['B'], ...extra })
 const sequence = (extra: Partial<SequenceCard> = {}): SequenceCard => ({ id: 's', type: 'sequence', title: 'T', steps: ['a', 'b'], ...extra })
 const png = 'data:image/png;base64,AA'
 
@@ -60,18 +60,18 @@ describe('sequence status', () => {
 describe('unfinished message for the new types', () => {
   const half = (c: Card) => c
   it('names the missing part', () => {
-    expect(unfinishedMessage([half(choice({ question: '' , explanation: 'x' }))])).toBe('Card #1 needs a question.')
-    expect(unfinishedMessage([half(choice({ right: [] }))])).toBe('Card #1 needs a right answer.')
-    expect(unfinishedMessage([half(choice({ wrong: [] }))])).toBe('Card #1 needs a wrong answer.')
-    expect(unfinishedMessage([half(sequence({ title: '' }))])).toBe('Card #1 needs a title.')
-    expect(unfinishedMessage([half(sequence({ steps: ['a'] }))])).toBe('Card #1 needs two steps.')
+    expect(unfinishedMessage([half(choice({ question: '' , explanation: 'x' }))])?.text).toBe('Card #1 needs a question.')
+    expect(unfinishedMessage([half(choice({ right: [] }))])?.text).toBe('"Q" needs a correct answer.')
+    expect(unfinishedMessage([half(choice({ wrong: [] }))])?.text).toBe('"Q" needs a wrong answer.')
+    expect(unfinishedMessage([half(sequence({ title: '' }))])?.text).toBe('Card #1 needs a title.')
+    expect(unfinishedMessage([half(sequence({ steps: ['a'] }))])?.text).toBe('"T" needs two steps.')
   })
 
   it('lists the parts of several cards', () => {
-    expect(unfinishedMessage([choice({ right: [] }), sequence({ steps: ['a'] })])).toBe('Cards #1 and #2 need a right answer or two steps.')
-    expect(unfinishedMessage([sequence({ steps: ['a'] }), sequence({ steps: [] , title: 'T' })])).toBe('Cards #1 and #2 need two steps.')
-    expect(unfinishedMessage([choice({ wrong: [] }), choice({ question: '', explanation: 'x' })])).toBe(
-      'Cards #1 and #2 need a question or wrong answer.',
+    expect(unfinishedMessage([choice({ right: [] }), sequence({ steps: ['a'] })])?.text).toBe('2 cards need a correct answer or two steps.')
+    expect(unfinishedMessage([sequence({ steps: ['a'] }), sequence({ steps: [] , title: 'T' })])?.text).toBe('2 cards need two steps.')
+    expect(unfinishedMessage([choice({ wrong: [] }), choice({ question: '', explanation: 'x' })])?.text).toBe(
+      '2 cards need a question or wrong answer.',
     )
   })
 

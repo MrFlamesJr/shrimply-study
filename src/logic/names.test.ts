@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fileNameProblem, freeName, nameTaken, slug } from './names'
+import { fileNameProblem, freeName, nameTaken, slug, copyName } from './names'
 
 describe('fileNameProblem', () => {
   it('takes ordinary names, accents, dots inside and symbols files allow', () => {
@@ -52,5 +52,12 @@ describe('freeName', () => {
   it('numbers the name until no other counts as the same', () => {
     expect(freeName('New course', [])).toBe('New course')
     expect(freeName('New course', ['new course', 'New course 2'])).toBe('New course 3')
+  })
+})
+
+describe('copyName', () => {
+  it('keeps a free name and numbers a taken one in brackets', () => {
+    expect(copyName('Bio', ['Chem'])).toBe('Bio')
+    expect(copyName('Bio', ['bio', 'Bio (2)'])).toBe('Bio (3)')
   })
 })

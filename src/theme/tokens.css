@@ -18,9 +18,27 @@
   --row-line: color-mix(in srgb, var(--text) 6%, transparent);
   /* The sidebar: its own step, so a theme can keep it close to the ground while its cards stand well above it. */
   --surface-side: oklch(from var(--bg) calc(l + var(--lift-sidebar)) calc(c + var(--lift-sidebar) * var(--lift-chroma)) var(--lift-hue));
+  /* The sidebar tree's file blocks, solid (a file's row sticks over what scrolls under it): each a step above the
+     sidebar (--lift-side-block), the active file's a bigger one (--lift-side-active) touched with the accent
+     (--tint-side-active), all in the surfaces' own hue and chroma. */
+  --side-block: oklch(
+    from var(--bg) calc(l + var(--lift-sidebar) + var(--lift-side-block))
+      calc(c + (var(--lift-sidebar) + var(--lift-side-block)) * var(--lift-chroma)) var(--lift-hue)
+  );
+  --side-active: color-mix(
+    in oklch,
+    oklch(
+      from var(--bg) calc(l + var(--lift-sidebar) + var(--lift-side-active))
+        calc(c + (var(--lift-sidebar) + var(--lift-side-active)) * var(--lift-chroma)) var(--lift-hue)
+    ),
+    var(--accent) var(--tint-side-active)
+  );
   --surface: oklch(from var(--bg) calc(l + var(--lift-1)) calc(c + var(--lift-1) * var(--lift-chroma)) var(--lift-hue));
   --surface-2: oklch(from var(--bg) calc(l + var(--lift-2)) calc(c + var(--lift-2) * var(--lift-chroma)) var(--lift-hue));
   --surface-3: oklch(from var(--bg) calc(l + var(--lift-3)) calc(c + var(--lift-3) * var(--lift-chroma)) var(--lift-hue));
+  /* A quiet panel on the page, half a surface step above the ground (the info pages' sections): themed like the
+     surfaces, but low, so a page of them never glares. */
+  --surface-low: oklch(from var(--bg) calc(l + var(--lift-1) / 2) calc(c + var(--lift-1) / 2 * var(--lift-chroma)) var(--lift-hue));
   --border: oklch(from var(--bg) calc(l + var(--lift-border)) calc(c + var(--lift-border) * var(--lift-chroma)) var(--lift-hue));
   --border-strong: oklch(
     from var(--bg) calc(l + var(--lift-border-strong)) calc(c + var(--lift-border-strong) * var(--lift-chroma)) var(--lift-hue)
@@ -34,10 +52,14 @@
   /* The filled accent buttons: their text, and their fill while hovered. */
   --accent-text: var(--accent-ink);
   --accent-hover: oklch(from var(--accent-fill) calc(l + var(--hover-lift)) calc(c * var(--hover-chroma)) h);
-  --accent-soft: color-mix(in srgb, var(--accent) var(--tint), transparent);
-  --accent-line: color-mix(in srgb, var(--accent) var(--tint-line), transparent);
+  /* The accent's tints and lines (a selection, a chosen segment, a highlight) take --chosen: the accent itself, except
+     where its tint read grey (asked for): Kahoot's bright violet, Quizlet's brighter blue. */
+  --accent-soft: color-mix(in srgb, var(--chosen) var(--tint), transparent);
+  --accent-line: color-mix(in srgb, var(--chosen) var(--tint-line), transparent);
   /* The faint end of the pulse of a drop target's outline (it fades between --accent-line and this). */
-  --accent-faint: color-mix(in srgb, var(--accent) 20%, transparent);
+  --accent-faint: color-mix(in srgb, var(--chosen) 20%, transparent);
+  /* A chosen segment and a picked option (asked for: clearer than --accent-soft), each theme's own strength. */
+  --accent-chosen: color-mix(in srgb, var(--chosen) var(--tint-chosen), transparent);
   /* A hovered add pill's edges: the accent fades in from all round, the middle stays clear. */
   --pill-fade: color-mix(in srgb, var(--accent) var(--tint-pill), transparent);
   /* Under a role's tint (danger, info, a group box): the ground with only --tint-keep of its own color and no hue of
@@ -59,6 +81,9 @@
   --ok-tint: color-mix(in oklch, var(--ok-deep) var(--tint), var(--role-fill-ground));
   --bad-soft: color-mix(in oklch, var(--bad-deep) var(--tint-soft), var(--role-fill));
   --bad-tint: color-mix(in oklch, var(--bad-deep) var(--tint), var(--role-fill-ground));
+  /* Small text in the danger color (the sidebar's moved-or-deleted line, a danger menu item): --danger eased toward the
+     text so it keeps 4.5:1 on the surfaces in every theme. */
+  --danger-ink: color-mix(in oklch, var(--danger) 54%, var(--text));
   /* The danger zone: the shared glass (--glass-tile) tinted red, so editing the glass changes it too. */
   --danger-soft: color-mix(
     in oklch,
@@ -93,8 +118,6 @@
   --glass: color-mix(in srgb, var(--popup) 45%, transparent);
   --glass-line: color-mix(in srgb, var(--text) 16%, transparent);
   --glass-dense: color-mix(in srgb, var(--popup) 78%, transparent);
-  /* The top row's frosted glass: the ground, see-through enough to show that something is under it. */
-  --glass-bar: color-mix(in srgb, var(--bg) 72%, transparent);
   /* The new-quiz tile's glass: a faint frost at rest (never fully clear), denser once hovered. The rest glass is
      shared with the editor's "Add new card" box and, tinted red (--danger-soft), the danger zone, so one edit changes
      all three. */
@@ -115,7 +138,6 @@
   --weight: 400;
   --weight-bold: 700;
   /* Repeated text sizes. */
-  --text-2xs: 0.6875rem;
   --text-xs: 0.75rem;
   --text-xs-plus: 0.8125rem;
   --text-sm: 0.875rem;
@@ -145,17 +167,13 @@
   --dim-light: 0.7;
   /* Edit mode's dashed outline, dashes and words alike: as faint as the faint accent. */
   --dim-faint: 0.2;
-  /* The empty sidebar's tumbleweed and "Nothing to see here": barely there, fading into the sidebar (asked for). */
+  /* An empty place's drawing (the Explorer's, the empty pane's shrimp): barely there, fading into its ground (asked for). */
   --dim-empty: 0.3;
   --blank-line: 2px;
   --blank-gap: 4px;
   --glass-blur: 4px;
   --glass-blur-dense: 14px;
   --glass-stripe: 10px;
-  /* The top row's glass: blurred enough that nothing under it competes with the crumbs, and the fog fading out
-     over this much below its edge. */
-  --glass-bar-blur: 18px;
-  --glass-bar-fade: 20px;
   /* The new-quiz tile's blur: a light fog at rest (shared like --glass-tile), thicker once hovered. */
   --glass-tile-blur: 6px;
   --glass-tile-blur-hover: 16px;
@@ -211,11 +229,9 @@
   --thumb-h: 40px;
   --thumb-list-h: 56px;
   --sheet-room: 160px;
-  --topbar-h: 56px;
+  /* A study session's head (Exit, the title, the count). */
+  --session-head-h: 56px;
   --sidebar-w: 280px;
-  /* The corner (brand + toggle) while the sidebar is closed. */
-  --corner-w: 256px;
-  --toggle-size: 48px;
   --dialog-w: 880px;
   --dialog-narrow-w: 560px;
   /* The Google Drive dialog: between the two, so its panels and list have room (asked for: wider). */
@@ -230,4 +246,40 @@
   --sheet-max-h: 40dvh;
   /* On wide screens (1000px and up) the sheet is a panel from the right this wide; the question column keeps it free. */
   --sheet-side-w: clamp(340px, 28vw, 420px);
+}
+
+/* The reusable kit (src/kit/) styles itself only with --kit-* variables, so it carries no colors of its own.
+   This app maps them to its tokens here; another host maps them to its own. */
+:root {
+  --kit-ground: var(--bg);
+  --kit-surface: var(--surface);
+  --kit-surface-2: var(--surface-2);
+  --kit-popup: var(--popup);
+  --kit-text: var(--text);
+  --kit-muted: var(--text-muted);
+  --kit-border: var(--border);
+  --kit-border-strong: var(--border-strong);
+  --kit-accent: var(--accent);
+  --kit-accent-soft: var(--accent-soft);
+  --kit-accent-line: var(--accent-line);
+  --kit-focus: var(--focus);
+  --kit-danger: var(--danger);
+  /* A danger item's text. */
+  --kit-danger-ink: var(--danger-ink);
+  --kit-invalid: var(--bad);
+  --kit-radius: var(--radius);
+  --kit-font: var(--font-body);
+  --kit-text-sm: var(--text-sm);
+  --kit-text-xs: var(--text-xs);
+  --kit-weight-bold: var(--weight-bold);
+  --kit-line: var(--line);
+  --kit-line-thick: var(--line-thick);
+  --kit-dim: var(--dim);
+  --kit-space-1: var(--space-1);
+  --kit-space-2: var(--space-2);
+  --kit-space-3: var(--space-3);
+  --kit-space-4: var(--space-4);
+  --kit-tap: var(--tap);
+  --kit-dur: var(--dur-fast);
+  --kit-ease: var(--ease);
 }

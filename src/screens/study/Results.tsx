@@ -1,11 +1,28 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { Confetti } from '../../kit/Confetti'
 import type { Card, Question } from '../../model'
 import { BackToTop } from '../../components/BackToTop'
 import { Segmented } from '../../components/Segmented'
 import { CardRow } from '../../components/CardRow'
 import { CheckIcon, CrossIcon } from '../../components/Icons'
+import { ownWindow } from '../../components/ownWindow'
 import { MarkedBadge } from './Answers'
 import type { Result } from './Question'
+
+const CONFETTI_COLORS = ['lagoon', 'coral', 'sky', 'sand', 'moss', 'rose', 'clay', 'slate'].map((n) => `--group-${n}`)
+
+// The theme's tokens as plain color strings, which a canvas can use, read through a hidden probe.
+function themeColors(inside: HTMLElement, tokens: string[]): string[] {
+  const probe = inside.ownerDocument.createElement('span')
+  probe.style.display = 'none'
+  inside.appendChild(probe)
+  const colors = tokens.map((t) => {
+    probe.style.color = `var(${t})`
+    return ownWindow(probe).getComputedStyle(probe).color
+  })
+  probe.remove()
+  return colors
+}
 
 type Filter = 'all' | 'missed' | 'right' | 'marked'
 
@@ -16,7 +33,7 @@ type Props = {
   usable: Card[]
   onExit: () => void
   onBegin: (cards: Card[], only?: Question[]) => void
-  onEdit: (cardId: string) => void
+  onEdit?: (cardId: string) => void
 }
 
 export function Results({ questions, results, cards, usable, onExit, onBegin, onEdit }: Props) {
@@ -27,6 +44,13 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
   const total = questions.length
   const missed = questions.filter((_, i) => !results[i]?.ok)
   const right = total - missed.length
+  const perfect = total > 0 && missed.length === 0
+  // Only for a perfect round (asked for: none with a miss). Read once, when the results first show, so filtering
+  // the list never replays it.
+  const [confetti, setConfetti] = useState<string[]>()
+  useEffect(() => {
+    if (body && perfect && !confetti) setConfetti(themeColors(body, [...CONFETTI_COLORS, '--accent']))
+  }, [body])
   const markedCount = results.filter((r) => r?.marked).length
   const missedCards = usable.filter((c) => missed.some((m) => m.cardId === c.id))
   // Every question of the round in the order asked (a fill-in-the-blank card once per blank), each with the
@@ -44,7 +68,7 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
     ...(missed.length > 0 && right > 0
       ? [
           { value: 'missed' as const, label: `Missed (${missed.length})` },
-          { value: 'right' as const, label: `Right (${right})` },
+          { value: 'right' as const, label: `Correct (${right})` },
         ]
       : []),
     // One word like the others, so four still fit side by side on a phone.
@@ -54,12 +78,13 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
   ]
   return (
     <div className="session-main">
+      {confetti && <Confetti level="perfect" colors={confetti} />}
       <div ref={setBody} className="session-body results">
         <section className="results-summary" aria-label="Score">
           <div>
             <p className="score">{total ? Math.round((right / total) * 100) : 0}%</p>
             <p className="muted">
-              {missed.length === 0 ? `All ${total} right. Nice work.` : `${right} of ${total} right`}
+              {missed.length === 0 ? `All ${total} correct. Nice work.` : `${right} of ${total} correct`}
               {markedCount > 0 && ` · ${markedCount} marked by you`}
             </p>
           </div>
@@ -98,8 +123,8 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
                       <span
                         className={result?.ok ? 'row-mark' : 'row-mark is-missed'}
                         role="img"
-                        aria-label={result?.ok ? 'Right' : 'Missed'}
-                        title={result?.ok ? 'Right' : 'Missed'}
+                        aria-label={result?.ok ? 'Correct' : 'Missed'}
+                        title={result?.ok ? 'Correct' : 'Missed'}
                       >
                         {result?.ok ? <CheckIcon /> : <CrossIcon />}
                       </span>
@@ -114,7 +139,7 @@ export function Results({ questions, results, cards, usable, onExit, onBegin, on
                         </p>
                       )
                     }
-                    onEdit={() => onEdit(q.cardId)}
+                    onEdit={onEdit && (() => onEdit(q.cardId))}
                   />
                 ),
             )}

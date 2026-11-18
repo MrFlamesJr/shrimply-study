@@ -1,4 +1,15 @@
 /* Page content: title input, empty state, course tiles, quiz page options and card rows. */
+/* A library's home: the file's name after "Your courses", in the plain body font, muted and smaller, so it reads as
+   which file this is, not as part of the title (asked for). */
+.title-file {
+  font-family: var(--font-body);
+  font-size: var(--text-lg);
+  font-weight: var(--weight);
+  letter-spacing: normal;
+  text-transform: none;
+  text-shadow: none;
+  color: var(--text-muted);
+}
 /* Title input (looks like an h1) */
 .title-input {
   padding: 0;
@@ -36,113 +47,72 @@
 .empty .actions {
   justify-content: center;
 }
-/* First visit (HomeScreen): the shrimp, the title, three numbered step tiles side by side (a list, number
-   beside the text, when the page is narrow), the actions. Numbers stay in the body font and take the theme's
-   corners; no accent here but the one gold button. */
+/* A hidden file's tab (PaneScreen): a faded cloud over why it is hidden. */
+.hidden-file > svg {
+  width: 48px;
+  height: 48px;
+  color: var(--text-muted);
+}
+/* The welcome page (HomeScreen): read like any page, left-aligned from the top, never a centered hero. The shrimp
+   beside the title and its one line, the one gold button, then two short lists of quiet links side by side (stacked
+   when narrow): Start (what to do) and Learn (what to read, each a tab of its own); last, a muted line on where new
+   libraries are kept. */
 .welcome {
-  max-width: 760px;
   container: welcome / inline-size;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-5);
+  max-width: 640px;
+  padding-block: var(--space-6);
 }
-.welcome > svg {
-  display: block;
-  width: 56px;
-  height: 56px;
-  margin-inline: auto;
+.welcome-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  max-width: 100%;
 }
-.welcome h1 {
-  text-wrap: balance;
+.welcome-head > svg {
+  flex: none;
+  width: 48px;
+  height: 48px;
 }
-.welcome > .welcome-lead {
-  margin-top: var(--space-2);
-  font-size: var(--text-lg);
+.welcome-head > div {
+  min-width: 0;
 }
-.welcome > .steps {
-  margin-top: var(--space-5);
+.welcome-head h1 {
+  margin: 0;
+  overflow-wrap: anywhere;
 }
-.welcome > .actions {
-  margin-top: var(--space-6);
+.welcome-head p {
+  margin: var(--space-1) 0 0;
 }
-/* Learn more under the steps (HomeScreen): a link button, underlined at rest since it stands alone. */
-.welcome > button.link {
-  text-decoration-color: currentColor;
+.welcome-lists {
+  display: grid;
+  gap: var(--space-5);
+  width: 100%;
 }
-/* What's new, always on home (HomeScreen): the tips box's notes, read left-aligned on the centered welcome page. */
-.welcome > .info-box {
-  margin-top: var(--space-6);
-  text-align: left;
+.welcome-lists > section {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  min-width: 0;
 }
-.welcome > .info-box.is-min {
-  margin-inline: auto;
+.welcome-lists > section > h2 {
+  margin: 0;
 }
-/* What's new's way to every release's notes, under this release's: a link like Learn more (small, muted, and
-   underlined at rest since it stands alone), lighting up to the text color on hover. */
+@container welcome (min-width: 440px) {
+  .welcome-lists {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+.welcome > p {
+  margin: 0;
+}
+/* What's new's way to its tab (the empty group page's box), under this release's notes: the shared .open-link
+   (base.css), as in the sidebar. */
 .info-box-content > .all-changes {
   margin-top: var(--space-4);
-  font-size: var(--text-sm);
-}
-.all-changes a {
-  color: var(--text-muted);
-  text-decoration-color: currentColor;
-  transition: color var(--dur-fast) var(--ease);
-}
-.all-changes a:hover {
-  color: var(--text);
-}
-/* Every release's notes (ChangelogScreen.tsx): a page of its own, full screen outside the app shell, in the
-   same centered column as the app's pages (the shell sets --page-pad on .app, so it is set again here). */
-.changelog {
-  --page-pad: max(var(--space-7), calc((100% - var(--content-w)) / 2));
-  min-height: 100dvh;
-}
-@media (max-width: 799px) {
-  .changelog {
-    --page-pad: var(--space-4);
-  }
-}
-.steps {
-  display: grid;
-  gap: var(--space-3);
-  padding: 0;
-  list-style: none;
-  counter-reset: step;
-  text-align: left;
-}
-.steps li {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-content: start;
-  gap: var(--space-1) var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background: var(--surface);
-  border-radius: var(--radius);
-}
-.steps li::before {
-  counter-increment: step;
-  content: counter(step);
-  grid-row: span 2;
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border: var(--line) solid var(--border-strong);
-  border-radius: var(--radius);
-  font-weight: var(--weight-bold);
-}
-.steps strong {
-  font-weight: var(--weight-bold);
-}
-@container welcome (min-width: 600px) {
-  .steps {
-    grid-template-columns: repeat(3, 1fr);
-  }
-  .steps li {
-    grid-template-columns: 1fr;
-    padding: var(--space-5);
-  }
-  .steps li::before {
-    grid-row: auto;
-    margin-bottom: var(--space-2);
-  }
 }
 
 /* Courses and tiles. Each course is its own band, set apart by space. */
@@ -164,7 +134,7 @@
 }
 .tiles {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(220px, 100%), 1fr));
   gap: var(--space-4);
 }
 .tile {
@@ -260,8 +230,8 @@
 .options {
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  padding: var(--space-4) var(--space-5);
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
   background: var(--sunken);
   border-radius: var(--radius);
 }
@@ -275,7 +245,7 @@
   .options {
     display: grid;
     grid-template-columns: max-content max-content minmax(0, 1fr);
-    gap: var(--space-3) var(--space-5);
+    gap: var(--space-2) var(--space-4);
   }
   .options .segmented-field {
     display: grid;
@@ -292,24 +262,100 @@
     margin: 0;
   }
 }
-/* How studying works (StudyTips.tsx), an InfoBox under the options with the page's gap on both sides: short notes
-   in columns. Newspaper columns, filled top to bottom and evened out, so a short note never leaves a hole beside a long one. */
+/* The quiz page's way to the How studying works tab, under the study options: the shared .open-link (base.css). */
+.study-tips-link {
+  margin: 0;
+}
+/* A view-only library's line under the page title (ViewOnlyNote.tsx): what it is, then Make a copy. */
+.view-only {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+.view-only p {
+  margin: 0;
+}
+/* A library kept only in this browser can be lost (asked for): the line says so in the warning color. */
+.view-only.is-browser p {
+  color: var(--warn);
+}
+/* A reference list (How studying works, Saving and sharing, What's new, the empty page's What's new box): each entry's
+   name in a column of its own beside its text, like a table (asked for), the name level with its text's first line.
+   Where it is narrow (a narrow pane, the box) the name goes above its text. */
 .tips-list {
-  columns: 15rem 3;
-  column-gap: var(--space-5);
+  container: tips / inline-size;
+  margin: 0;
   font-size: var(--text-sm);
 }
 .tips-list > div {
-  break-inside: avoid;
+  display: grid;
+  align-items: start;
+  gap: var(--space-1) var(--space-5);
+  padding-block: var(--space-2);
 }
-.tips-list > div + div {
-  margin-top: var(--space-3);
+@container tips (min-width: 520px) {
+  .tips-list > div {
+    grid-template-columns: 12rem minmax(0, 1fr);
+  }
 }
 .tips-list dt {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
   font-weight: var(--weight-bold);
 }
-.tips-list dd {
+.tips-list dt > svg {
+  flex: none;
+  width: 16px;
+  height: 16px;
   color: var(--text-muted);
+}
+.tips-list dd {
+  margin: 0;
+  color: var(--text-muted);
+}
+/* On a page each section is a panel of its own under its title, so where one ends and the next begins is plain (asked
+   for), quiet but in the theme's own color (asked for: full surface steps read far too bright in a wall of them, in
+   Quizlet and Kahoot most, and a panel below the ground far too dark): the panel half a surface step up
+   (`--surface-low`, solid, so the backdrop stays out of the reading), its entries a grid (asked for: not a list) of
+   tiles touched with the text's own faint light (`--surface-clear`), its name over its text, as many across as fit;
+   tiles in a row share its height. Set apart by tone and space, never lines. The title is
+   a title: the display font. */
+.tips-section {
+  padding: var(--space-4);
+  background: var(--surface-low);
+  border-radius: var(--radius);
+}
+.page .tips-section > h2,
+.tips-section > .release-head h2 {
+  margin: 0 0 var(--space-3);
+  font-family: var(--font-display);
+  font-size: var(--text-info-title);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+  text-shadow: var(--glow-text);
+}
+.tips-section > .release-head {
+  margin-bottom: var(--space-3);
+}
+.tips-section > .release-head h2 {
+  margin: 0;
+}
+.tips-section .tips-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(15rem, 100%), 1fr));
+  gap: var(--space-3);
+}
+.tips-section .tips-list > div {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  padding: var(--space-3) var(--space-4);
+  background: var(--surface-clear);
+  border-radius: var(--radius);
 }
 section > h3 {
   margin-top: var(--space-6);
@@ -342,9 +388,9 @@ section > .group-box + div {
   color: var(--bad);
   font-weight: var(--weight);
 }
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .options {
-    padding: var(--space-4);
+    padding: var(--space-3);
   }
   .card-list li {
     grid-template-columns: 1fr;
@@ -407,20 +453,31 @@ section > .group-box + div {
 .row-blanks .row-note + .row-note {
   border-top: var(--line) solid var(--row-line);
 }
+/* The card list's head: its title, and Add cards (quiet: the page's one gold button is Start). */
+.list-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
 /* The pencil takes no more height than a line of text, so it never makes a row taller. */
 .row-edit {
   align-self: start;
   margin-block: calc(-1 * var(--space-2));
 }
 @media (hover: hover) {
-  .row-edit {
+  .row-edit,
+  .row-delete {
     opacity: 0;
     transition:
       opacity var(--dur-fast) var(--ease),
       color var(--dur-fast) var(--ease);
   }
   .card-rows li:hover .row-edit,
-  .row-edit:focus-visible {
+  .card-rows li:hover .row-delete,
+  .row-edit:focus-visible,
+  .row-delete:focus-visible {
     opacity: 1;
   }
 }
@@ -430,7 +487,7 @@ section > .group-box + div {
   font-weight: var(--weight);
 }
 /* Narrow: the definition goes under the term, the pencil stays top right. */
-@media (max-width: 799px) {
+@container page (max-width: 559px) {
   .card-rows li {
     grid-template-columns: var(--lead-w) minmax(0, 1fr) auto;
     column-gap: var(--space-3);
@@ -473,7 +530,14 @@ section > .group-box + div {
   align-self: center;
   margin: 0 0 0 auto;
 }
-@media (max-width: 799px) {
+/* Delete card (trash) sits after the pencil and turns red on hover, as in the editor's head. */
+.row-head .row-delete {
+  align-self: center;
+}
+.row-head .row-delete:hover:not(:disabled) {
+  color: var(--bad);
+}
+@container page (max-width: 559px) {
   .quiz-rows li {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -506,6 +570,10 @@ section > .group-box + div {
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3) var(--space-5);
+}
+.danger-row button {
+  max-width: 100%;
+  white-space: normal;
 }
 .danger-row p {
   flex: 1 1 16rem;

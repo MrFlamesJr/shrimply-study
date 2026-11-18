@@ -1,0 +1,111 @@
+"""Popup windows (kit Popout) on #/_workbench: styles and theme, shared state, dialog, popover, resize, dock, close, a reload kept in the popup, watchdog."""
+import os
+import sys
+import time
+
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from helpers import set_theme  # noqa: E402
+
+LOOK = 'd => { const c = getComputedStyle(document.body); return c.fontFamily + "|" + c.backgroundColor + "|" + c.color }'
+
+
+def alive(pop):
+    try:
+        pop.evaluate('1')
+        return True
+    except Exception:
+        return False
+
+
+def wait_gone(pop, seconds):
+    t = time.time()
+    while alive(pop) and time.time() - t < seconds:
+        time.sleep(0.1)
+    return not alive(pop)
+
+
+def pop_out(page):
+    with page.context.expect_page() as info:
+        page.get_by_role('button', name='Pop out').click()
+    pop = info.value
+    pop.wait_for_selector('[data-testid=panel]')
+    return pop
+
+
+def docked(page, seconds=3):
+    try:
+        page.wait_for_selector('[data-testid=panel]', timeout=seconds * 1000)
+        return True
+    except Exception:
+        return False
+
+
+def run(page, base):
+    page.goto(base + '#/_workbench')
+    page.get_by_role('button', name='Pop out').wait_for()
+    pop = pop_out(page)
+    assert pop.url.endswith('popout.html'), f'popup url is {pop.url}'
+
+    assert pop.evaluate(LOOK) == page.evaluate(LOOK), 'popup styles differ from the main window'
+    sheets = 'document.head.querySelectorAll("style, link[rel~=stylesheet]").length'
+    assert pop.evaluate(sheets) == page.evaluate(sheets) > 0, 'popup does not hold each stylesheet of the main window once'
+    assert pop.evaluate('document.head.querySelectorAll("script").length') == 1, 'popup should hold exactly one watchdog script'
+    assert pop.evaluate('document.body.children.length') == 1, 'popup should hold exactly one root element'
+    assert 'Atkinson' in pop.evaluate(LOOK), 'app font not applied in the popup'
+    set_theme(page, 'arcade')
+    pop.wait_for_function('document.documentElement.dataset.theme === "arcade"', timeout=2000)
+    assert pop.evaluate(LOOK) == page.evaluate(LOOK), 'popup did not follow the theme change'
+    set_theme(page, 'calm')
+
+    pop.get_by_test_id('count').click()
+    pop.get_by_test_id('count').click()
+    assert pop.get_by_test_id('count').inner_text() == 'Count 2', 'counter did not update in the popup'
+    pop.get_by_test_id('text').fill('hello')
+    assert pop.get_by_test_id('echo').inner_text() == 'Text: hello', 'typed text not echoed in the popup'
+
+    pop.get_by_role('button', name='Show dialog').click()
+    assert pop.evaluate('document.querySelector("[data-testid=dialog]").matches(":modal")'), 'dialog not modal in the popup'
+    pop.get_by_role('button', name='Close').click()
+    pop.get_by_role('button', name='Popover').click()
+    assert pop.evaluate('document.querySelector("[data-testid=pop]").matches(":popover-open")'), 'popover not open in the popup'
+    pop.keyboard.press('Escape')
+
+    before = pop.get_by_test_id('width').inner_text()
+    pop.set_viewport_size({'width': 700, 'height': 500})
+    pop.wait_for_timeout(500)
+    after = pop.get_by_test_id('width').inner_text()
+    # The popup's own width (a scrollbar's room, when the page keeps one, comes off it).
+    width = int(''.join(c for c in after if c.isdigit()) or 0)
+    assert before != after and 680 <= width <= 700, f'ResizeObserver width did not follow the resize: {before} -> {after}'
+
+    pop.get_by_role('button', name='Dock').click()
+    assert docked(page), 'Dock did not bring the panel back'
+    assert page.get_by_test_id('count').inner_text() == 'Count 2', 'counter lost when docked'
+    assert page.get_by_test_id('text').input_value() == 'hello', 'text lost when docked'
+    assert wait_gone(pop, 3), 'popup stayed open after Dock'
+
+    pop = pop_out(page)
+    pop.evaluate('window.close()')
+    assert docked(page), 'closing the popup did not dock the panel'
+
+    # A reload keeps the panel in the popup: taken over again, one watchdog, one root, nothing docked.
+    pop = pop_out(page)
+    pop.get_by_test_id('count').click()
+    assert pop.get_by_test_id('count').inner_text() == 'Count 3'
+    pop.reload()
+    pop.wait_for_selector('[data-testid=panel]', timeout=8000)
+    assert not docked(page, 1), 'reloading the popup docked the panel'
+    assert pop.url.endswith('popout.html'), f'popup url after its reload is {pop.url}'
+    assert pop.evaluate(LOOK) == page.evaluate(LOOK), 'reloaded popup lost the main window styles'
+    assert pop.evaluate('document.head.querySelectorAll("script").length') == 1, 'reloaded popup should hold exactly one watchdog script'
+    assert pop.evaluate('document.body.children.length') == 1, 'reloaded popup should hold exactly one root element'
+    pop.get_by_test_id('count').click()
+    assert pop.get_by_test_id('count').inner_text() == 'Count 4', 'reloaded popup does not follow the shared state'
+    pop.get_by_role('button', name='Dock').click()
+    assert docked(page), 'Dock did not work after a reload'
+    assert wait_gone(pop, 3), 'popup stayed open after Dock following a reload'
+
+    pop = pop_out(page)
+    page.reload()
+    assert wait_gone(pop, 1.5), 'popup did not close itself after the main page reloaded'
+    assert not page.errors, f'page errors: {page.errors}'

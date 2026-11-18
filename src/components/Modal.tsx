@@ -12,6 +12,17 @@ export const goOnInDialog = (from: HTMLElement) => {
   else dialog.querySelector<HTMLButtonElement>('.actions .primary:enabled')?.click()
 }
 
+/**
+ * Counts the open modals on their document's <html> (`data-modals`), so the page behind stays still (dialogs.css)
+ * without a `:has()` rule that every change on the page would recheck.
+ */
+function countOpen(dialog: HTMLDialogElement, by: 1 | -1) {
+  const html = dialog.ownerDocument.documentElement
+  const n = Number(html.dataset.modals ?? 0) + by
+  if (n > 0) html.dataset.modals = String(n)
+  else delete html.dataset.modals
+}
+
 /** A press on the backdrop: the dialog itself is the target (no child) and the point is outside its box. */
 const onBackdrop = (e: MouseEvent<HTMLDialogElement>) => {
   const box = e.currentTarget.getBoundingClientRect()
@@ -48,6 +59,12 @@ export function Modal({
   // A click outside closes it only when the press also started outside, so selecting text and letting go
   // past the edge doesn't.
   const pressedOutside = useRef(false)
+  // The dialog while it is counted as open on its document (see countOpen); kept apart, as `ref` is cleared first.
+  const counted = useRef<HTMLDialogElement | null>(null)
+  const uncount = () => {
+    if (counted.current) countOpen(counted.current, -1)
+    counted.current = null
+  }
 
   // The open check covers StrictMode running this twice. showModal focuses the ✕ (first in order),
   // so the first text field takes focus after it.
@@ -55,15 +72,30 @@ export function Modal({
     const dialog = ref.current
     if (!dialog || dialog.open) return
     dialog.showModal()
+    countOpen(dialog, 1)
+    counted.current = dialog
     dialog.querySelector<HTMLElement>('textarea, input')?.focus()
   }, [])
+  // Taken away without closing: no longer counted. Not on StrictMode's pretend unmount, which leaves it in the page.
+  useEffect(
+    () => () => {
+      if (!counted.current?.isConnected) uncount()
+    },
+    [],
+  )
 
   return (
     <dialog
       ref={ref}
       className={compact ? 'dialog is-compact' : narrow ? 'dialog is-narrow' : 'dialog'}
       aria-labelledby={titleId}
-      onClose={onClose}
+      onClose={(e) => {
+        // React passes a dialog's close on to the dialogs around it in its tree (a sides type's naming dialog inside
+        // the card dialog): only this one's own close closes it, so Esc or a click outside closes the top one alone.
+        if (e.target !== e.currentTarget) return
+        uncount()
+        onClose()
+      }}
       onPointerDown={(e) => (pressedOutside.current = onBackdrop(e))}
       onClick={(e) => pressedOutside.current && onBackdrop(e) && ref.current?.close()}
       onKeyDown={(e) => {

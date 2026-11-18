@@ -2,19 +2,20 @@ import { useState } from 'react'
 import type { Question } from '../../model'
 import { useKeydown } from '../../hooks/useKeydown'
 import { samePicks } from '../../logic/grade'
+import { CheckIcon } from '../../components/Icons'
 import { Shortcut } from '../../components/Shortcut'
 import { Mark } from './Answers'
 import type { Result } from './Question'
 
 type Props = {
-  // A question with several right `answers` among its `choices`.
+  // A choice question that selects all that apply: its right `answers` among its `choices`.
   question: Question
   result: Result | undefined
   paused: boolean
   onRecord: (result: Result) => void
 }
 
-/** Pick all that are right: toggle options (click or keys 1 to 9), then Check. Right only for exactly the right set. */
+/** Select all that apply: toggle options (click or keys 1 to 9), each a check box, then Check. Right only for exactly the right set. */
 export function PickAll({ question, result, paused, onRecord }: Props) {
   const choices = question.choices!
   const right = question.answers!
@@ -35,7 +36,7 @@ export function PickAll({ question, result, paused, onRecord }: Props) {
   useKeydown((e) => {
     const target = e.target as HTMLElement
     if (paused || checked || target.closest('dialog') || e.ctrlKey || e.metaKey || e.altKey) return
-    if (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement) return
+    if (target.nodeName === 'INPUT' || target.nodeName === 'TEXTAREA') return
     if (e.key === 'Enter') {
       // On an option, Enter checks instead of toggling it again. On any other button (Check, the pencil, an image)
       // the click does it.
@@ -65,7 +66,7 @@ export function PickAll({ question, result, paused, onRecord }: Props) {
                 ? 'is-missed'
                 : 'is-dim'
           // The mark and its word carry the meaning, the colors only agree.
-          const mark = checked && (picked ? isRight ? 'Picked, right' : 'Picked, wrong' : isRight ? 'Missed' : undefined)
+          const mark = checked && (picked ? isRight ? 'Picked, correct' : 'Picked, wrong' : isRight ? 'Missed' : undefined)
           return (
             <button
               key={i}
@@ -76,6 +77,7 @@ export function PickAll({ question, result, paused, onRecord }: Props) {
               onClick={() => toggle(i)}
             >
               <span className="choice-key">{i + 1}</span>
+              <span className="choice-box">{picked && <CheckIcon />}</span>
               {choice}
               {mark === 'Missed' ? (
                 <span className="choice-mark" role="img" aria-label={mark} title={mark}>

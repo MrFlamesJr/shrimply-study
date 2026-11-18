@@ -2,6 +2,9 @@
 /* Study session: exactly one screen high. The page never scrolls (so nothing sliding in can flash a
    scrollbar); .session-body scrolls inside .session-main, and the feedback sheet sits below it. */
 .session {
+  /* Two names: the session answers to @container session, and shared lists (card rows, the results) written for
+     the page answer to @container page here too. */
+  container: session page / inline-size;
   display: flex;
   flex-direction: column;
   height: 100dvh;
@@ -20,7 +23,7 @@
   grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: var(--space-3);
-  height: var(--topbar-h);
+  height: var(--session-head-h);
   padding: 0 var(--space-4);
 }
 .session-head button {
@@ -84,8 +87,8 @@
    narrowing once even that is too tight; it glides there by transform (FeedbackSheet). Padding's 100% is
    .session-main, the whole width. Nothing comes up from below, so the content takes the whole height (no
    --sheet-room). */
-@media (min-width: 1000px) {
-  .session {
+@container session (min-width: 1000px) {
+  .session-main {
     --sheet-room: var(--space-6);
   }
   .session-main:has(> .sheet.is-docked) > .session-body {
@@ -485,10 +488,39 @@
   gap: var(--space-4);
 }
 .choice.is-picked {
-  background: var(--accent-soft);
+  background: var(--accent-chosen);
   /* See .segmented::before: the ground under the see-through tint loses its color, so the pick reads in the accent's hue. */
   backdrop-filter: saturate(var(--tint-keep));
-  border-color: var(--accent);
+  border-color: var(--chosen);
+}
+/* The check box before an option's text when all that apply are selected (PickAll): an empty outline, the accent filled
+   with a check once picked. Checked, it keeps the pick in the option's own color (the mark at the end says right or wrong). */
+.choice-box {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: var(--line) solid var(--text-muted);
+  border-radius: var(--radius);
+  color: var(--accent-ink);
+}
+.choice-box svg {
+  width: 14px;
+  height: 14px;
+}
+.choice.is-picked .choice-box {
+  background: var(--chosen);
+  border-color: var(--chosen);
+  /* --chosen is light enough in every theme for the ground's dark to carry the check. */
+  color: var(--bg);
+}
+.choice.is-correct .choice-box,
+.choice.is-wrong .choice-box,
+.choice.is-missed .choice-box {
+  border-color: currentColor;
+  color: currentColor;
 }
 /* After Check, a right answer that was not picked: the warning color (yellow or orange in every theme, asked for) as a
    dashed outline, and the word "Missed". */
@@ -621,7 +653,7 @@ span.entry-grip {
   stroke: var(--bad);
 }
 /* Narrow: smaller text, and less room for the gap, the numbers and the marks, so each step keeps room to read. */
-@media (max-width: 799px) {
+@container session (max-width: 639px) {
   .order-check {
     column-gap: var(--space-5);
     font-size: var(--text-sm);

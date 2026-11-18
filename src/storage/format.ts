@@ -1,7 +1,7 @@
 // A .shrimp file is a zip holding library.json and an images/ folder. There are no ids in the file:
 //
 // {
-//   "version": 2,
+//   "version": 3,
 //   "courses": [
 //     {
 //       "name": "Biology",
@@ -10,7 +10,7 @@
 //           "name": "Cells",
 //           "cards": [
 //             { "sides": ["Question", "Answer"], "term": "What makes ATP?", "definition": "Mitochondria" },
-//             { "term": "Mitochondria", "termImage": "1.webp", "definition": "Powerhouse of the cell", "explanation": "Makes most of the cell's ATP" },
+//             { "mixed": true, "term": "Mitochondria", "termImage": "1.webp", "definition": "Powerhouse of the cell", "explanation": "Makes most of the cell's ATP" },
 //             { "type": "cloze", "statement": "The {mitochondria} is the {powerhouse of the {cell}}.", "image": "2.png", "explanation": ["Has its own DNA", "", ""] },
 //             { "type": "true-false", "statement": "Mitochondria have their own DNA.", "image": "3.png", "answer": true, "explanation": "They descend from bacteria" }
 //           ],
@@ -28,12 +28,15 @@
 // A group's "color" is optional when reading (a missing one gets the next unused color) and always written.
 // A card may name its two sides: "sides": ["Question", "Answer"], written first in the card. Two names, none empty;
 // without it they are Front and Back, and that pair is never written.
+// A term card may be "mixed": true (written right after "sides"): studying asks it from its front or its back at
+// random. Without it the front is asked first. Only true is accepted; false is never written.
 // "sideTypes" (optional, after "version") lists the user's own side types: [["Country", "Capital"]]. They are kept even
 // when no card uses them, and a card's pair that is not listed is added when the file is read.
 // A cloze (fill in the blank) card marks its blanks with { } in "statement"; \{ \} \\ are a literal { } \.
 // Its "explanation" is optional: plain text when there is one blank, otherwise a list with one entry per blank.
 // A true-false card has a "statement" and an "answer" that is true or false; "image" and "explanation" are optional.
-// A choice card has a "question", a list of "right" answers and a list of "wrong" ones; a sequence card a "title" and
+// A choice card has a "question", a "mode" ("one": pick one answer and any right one counts; "all": select all that
+// apply), a list of "right" answers and a list of "wrong" ones; a sequence card a "title" and
 // its "steps" in order. Both may have "image" and "explanation". Entries are trimmed, and empty ones are not written.
 // Images are optional: "termImage", "definitionImage" and a cloze, true-false, choice or sequence card's "image" name a file in images/ ("1.webp" is
 // images/1.webp) whose extension is one of IMAGE_TYPES. Cards with the same image share one file; files no card
@@ -91,10 +94,10 @@ const cardJson = (c: Card, file: ImageFile): string =>
         c.explanation?.trim() ? `, "explanation": ${JSON.stringify(c.explanation)}` : ''
       } }`
     : c.type === 'choice'
-    ? `{ "type": "choice", "question": ${JSON.stringify(c.question)}${imageJson('image', c.image, file)}, "right": ${textList(c.right)}, "wrong": ${textList(c.wrong)}${explanationJson(c.explanation)} }`
+    ? `{ "type": "choice", "question": ${JSON.stringify(c.question)}${imageJson('image', c.image, file)}, "mode": ${JSON.stringify(c.mode)}, "right": ${textList(c.right)}, "wrong": ${textList(c.wrong)}${explanationJson(c.explanation)} }`
     : c.type === 'sequence'
     ? `{ "type": "sequence", "title": ${JSON.stringify(c.title)}${imageJson('image', c.image, file)}, "steps": ${textList(c.steps)}${explanationJson(c.explanation)} }`
-    : `{ ${sidesJson(c.sides)}"term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
+    : `{ ${sidesJson(c.sides)}${c.mixed ? '"mixed": true, ' : ''}"term": ${JSON.stringify(c.term)}${imageJson('termImage', c.termImage, file)}, "definition": ${JSON.stringify(c.definition)}${imageJson('definitionImage', c.definitionImage, file)}${
         c.explanation?.trim() ? `, "explanation": ${JSON.stringify(c.explanation)}` : ''
       } }`
 
@@ -143,6 +146,13 @@ export function libraryToJson(library: Library, images = new Map<string, string>
     ? `  "sideTypes": [${library.sideTypes.map((t) => `[${t.map((n) => JSON.stringify(n)).join(', ')}]`).join(', ')}],\n`
     : ''
   return `{\n  "version": ${FORMAT_VERSION},\n${types}  "courses": ${list(library.courses.map((c) => courseJson(c, file)), '  ')}\n}\n`
+}
+
+/** Whether two libraries hold the same content, ids aside: they write as the same file. */
+export function sameLibrary(a: Library, b: Library): boolean {
+  const imagesA = new Map<string, string>()
+  const imagesB = new Map<string, string>()
+  return libraryToJson(a, imagesA) === libraryToJson(b, imagesB) && [...imagesA.keys()].join('|') === [...imagesB.keys()].join('|')
 }
 
 /** Parses library.json text. `files` is the rest of the zip, where images are looked up. Throws an Error naming the spot that is wrong. */
@@ -254,7 +264,7 @@ function checkCard(v: unknown, path: string, ids: Ids, image: ImageRead): Card {
     if (v.type === 'sequence') return checkSequence(v, path, ids, image, ['image', 'explanation', ...stored])
     throw new Error(`${at(path)}"type" must be "cloze", "true-false", "choice" or "sequence".`)
   }
-  const o = exactFields(v, path, ['term', 'definition'], ids, ['sides', 'termImage', 'definitionImage', 'explanation', ...stored])
+  const o = exactFields(v, path, ['term', 'definition'], ids, ['sides', 'mixed', 'termImage', 'definitionImage', 'explanation', ...stored])
   const card: TermCard = {
     id: idOf(o, path, ids),
     term: text(o, 'term', path).trim(),
@@ -263,6 +273,10 @@ function checkCard(v: unknown, path: string, ids: Ids, image: ImageRead): Card {
   if ('sides' in o) {
     const sides = toSides(namePair(o.sides, `${at(path)}"sides"`))
     if (sides) card.sides = sides
+  }
+  if ('mixed' in o) {
+    if (o.mixed !== true) throw new Error(`${at(path)}"mixed" must be true (leave it out to ask the front first).`)
+    card.mixed = true
   }
   if ('termImage' in o) card.termImage = image(o, 'termImage', path)
   if ('definitionImage' in o) card.definitionImage = image(o, 'definitionImage', path)
@@ -332,13 +346,18 @@ function texts(o: Record<string, unknown>, key: string, path: string): string[] 
 }
 
 // A choice question: right and wrong answers are lists of texts. Completeness is the editor's business.
+// "mode" is "one" or "all". A file may leave it out (for a hand-written one): it is "all" with more than one distinct
+// right answer, else "one", as for a file of version 2 (upgrade.ts). Stored data always has it.
 function checkChoice(v: object, path: string, ids: Ids, image: ImageRead, optional: string[]): ChoiceCard {
-  const o = exactFields(v, path, ['type', 'question', 'right', 'wrong'], ids, optional)
+  const o = exactFields(v, path, ids === 'stored' ? ['type', 'question', 'mode', 'right', 'wrong'] : ['type', 'question', 'right', 'wrong'], ids, ids === 'stored' ? optional : ['mode', ...optional])
+  const right = texts(o, 'right', path)
+  if ('mode' in o && o.mode !== 'one' && o.mode !== 'all') throw new Error(`${at(path)}"mode" must be "one" or "all".`)
   const card: ChoiceCard = {
     id: idOf(o, path, ids),
     type: 'choice',
     question: text(o, 'question', path).trim(),
-    right: texts(o, 'right', path),
+    mode: (o.mode as ChoiceCard['mode'] | undefined) ?? (new Set(right.filter(Boolean)).size > 1 ? 'all' : 'one'),
+    right,
     wrong: texts(o, 'wrong', path),
   }
   if ('image' in o) card.image = image(o, 'image', path)

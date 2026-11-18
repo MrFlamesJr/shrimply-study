@@ -7,6 +7,8 @@ export type TermCard = {
   type?: never
   // The names of the two sides; absent means the default pair (SIDE_PRESETS[0]), which is never stored.
   sides?: Sides
+  // Asked from a random side each time it comes up; absent means its front side first.
+  mixed?: true
   term: string
   termImage?: string
   definition: string
@@ -31,13 +33,15 @@ export const SIDE_NAME_MAX = 30
 export type ClozeCard = { id: string; type: 'cloze'; statement: string; image?: string; explanation: (string | null)[]; group?: string }
 // True or false. The student says whether `statement` is true; `answer` is the right one. `image` belongs to the statement.
 export type TrueFalseCard = { id: string; type: 'true-false'; statement: string; answer: boolean; image?: string; explanation?: string; group?: string }
-// Choice question: your own multiple choice. `right` holds the right answers (one or more) and `wrong` the wrong ones;
-// with several right answers the student must pick all of them. `image` belongs to the question.
+// Choice question: your own multiple choice. `right` holds the right answers (one or more) and `wrong` the wrong ones.
+// `mode` is how it is answered: 'one' picks one answer and any right answer counts, 'all' selects all that apply
+// (every right answer and no wrong one, also when only one is right). `image` belongs to the question.
 export type ChoiceCard = {
   id: string
   type: 'choice'
   question: string
   image?: string
+  mode: 'one' | 'all'
   right: string[]
   wrong: string[]
   explanation?: string
@@ -84,12 +88,14 @@ export const THEMES = [
   { id: 'kahoot', name: 'Kahoot' },
 ] as const
 export type ThemeId = (typeof THEMES)[number]['id']
+/** One answer button of a question with several (ConfirmDialog's `askChoice`, the workspace's Save / Don't save). */
+export type Choice<V> = { label: string; value: V; primary?: boolean; danger?: boolean }
 // Longest group name you can type (a file may hold a longer one; it opens as is).
 export const GROUP_NAME_MAX = 50
 export type Quiz = { id: string; name: string; groups: Group[]; cards: Card[] }
 export type Course = { id: string; name: string; quizzes: Quiz[] }
 // The library format's current version. Raise it only together with a step in storage/upgrade.ts.
-export const FORMAT_VERSION = 2
+export const FORMAT_VERSION = 3
 // In memory `version` is always FORMAT_VERSION (older data is upgraded on reading).
 // `sideTypes` are the user's own side names, never a preset: shared by every course, kept until deleted.
 // Every card pair that is not a preset is in the list.
@@ -98,17 +104,18 @@ export type Library = { version: number; courses: Course[]; sideTypes?: Sides[] 
 export const newId = (): string => crypto.randomUUID()
 export const emptyLibrary = (): Library => ({ version: FORMAT_VERSION, courses: [] })
 
-// Study options. `side` is the side shown as the prompt.
-export type Side = 'term' | 'definition' | 'mixed'
+// Study options.
 export const FORMATS = ['flashcards', 'choice', 'typing'] as const
 export type Format = (typeof FORMATS)[number]
-export type StudyOptions = { side: Side; format: Format; shuffle: boolean }
+export type StudyOptions = { format: Format; shuffle: boolean }
 
 // One question in a round. `choices` is only set for the 'choice' format and always contains `answer`.
 // `side` is the side of a term card shown as the prompt (unset for blanks).
 // `blank` is set for fill-in-the-blank cards: the index of the blank being asked.
-// `answers` is set when the answer is a list: a choice question's right answers (when there are several, all of them
-// must be picked from `choices`) or a sequence's steps in order; `answer` then holds the same as plain text.
+// `answers` is set when the answer is a list: a choice question's right answers (several, or any when `pick` is 'all')
+// or a sequence's steps in order; `answer` then holds the same as plain text.
+// `pick` is set for a choice question: 'one' (any of `answers` counts, when there are several) or 'all' (every one of
+// `answers` must be selected from `choices`, and no other).
 // `arrange` is set for a sequence asked as a whole: its shuffled steps are in `choices`, to be placed in order.
 // `step` is set for a sequence asked one step at a time: the index of the step asked.
 export type Question = {
@@ -119,6 +126,7 @@ export type Question = {
   side?: 'term' | 'definition'
   blank?: number
   answers?: string[]
+  pick?: 'one' | 'all'
   arrange?: boolean
   step?: number
 }

@@ -1,0 +1,194 @@
+// What the Workbench shows and lets the user do, decided as data: tab titles and paths, the tab and group menus with
+// their disabled reasons, which tabs stay mounted, and whether a group may split. All pure; the component carries
+// them out.
+import { MAIN, groupsIn, type Group, type Layout, type Tab } from '../kit/layout'
+import { resolve, type Route } from './routes'
+import { plural } from './plural'
+import type { Library } from '../model'
+
+/**
+ * What a tab shows (the workspace's tabs hold these): a page of a file, the Explorer, or one of the app's own pages
+ * (`AppPage`: What's new, every release's notes; the welcome page; How studying works; Saving and sharing), one tab at most each.
+ */
+export type TabData = { kind: 'doc'; doc: string; route: Route } | { kind: 'explorer'; view?: ExplorerView } | { kind: AppPage }
+/**
+ * An Explorer tab's own view (asked for: duplicated Explorers show different parts side by side): its open nodes and
+ * selection. A tab without one shows the workspace's.
+ */
+export type ExplorerView = {
+  expanded: string[]
+  selection: { ids: string[]; anchor: string | null; focus: string | null }
+  /** The search text and the tree's scroll place of this Explorer tab. */
+  search?: string
+  scroll?: number
+}
+export type AppPage = 'changelog' | 'welcome' | 'studyTips' | 'learnMore'
+/** The app's own pages' tab titles. */
+export const APP_PAGE_TITLE: Record<AppPage, string> = { changelog: "What's new", welcome: 'Welcome', studyTips: 'How studying works', learnMore: 'Saving and sharing' }
+export type WorkbenchDoc = { name: string; dirty: boolean; library: Library }
+export type Docs = Record<string, WorkbenchDoc>
+
+/** The size a pane keeps for the Explorer to open beside it on its own. */
+export const MIN_PANE = { width: 320, height: 240 }
+/** The least a pane keeps before its window shows one pane at a time. */
+export const PANE_FLOOR = { width: 200, height: 160 }
+/** The sash between two panes (kit/split.css). */
+const SASH = 4
+/** Hidden tabs kept alive in a group besides the shown one. */
+export const KEPT_ALIVE = 7
+
+type Place = { doc: WorkbenchDoc; course?: string; quiz?: string }
+
+/**
+ * The course and quiz names a doc tab shows, as the host finds them: while a course or quiz is being renamed the
+ * tab's route still holds the old name (it follows 300ms after the typing pauses), and the host finds the page again
+ * by id, so the title never falls back to the file's name in between.
+ */
+export type FindPlace = (tab: Tab<TabData>) => { course?: string; quiz?: string } | null
+
+// The file a doc tab shows and the course and quiz its route names, as far as they exist.
+function placeOf(tab: Tab<TabData>, docs: Docs, find?: FindPlace): Place | null {
+  const data = tab.data
+  if (data.kind !== 'doc') return null
+  const doc = docs[data.doc]
+  if (!doc) return null
+  const found = find?.(tab)
+  if (found) return { doc, ...found }
+  const { course, quiz } = resolve(doc.library, data.route)
+  return { doc, course: course?.name, quiz: quiz?.name }
+}
+
+/** A tab's title: for a document its page (the quiz or course name, the file's name at its home). */
+export function tabTitle(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string {
+  const d = tab.data
+  if (d.kind === 'explorer') return 'Explorer'
+  if (d.kind !== 'doc') return APP_PAGE_TITLE[d.kind]
+  const place = placeOf(tab, docs, find)
+  return place ? (place.quiz ?? place.course ?? place.doc.name) : 'Missing file'
+}
+
+/** The popped-out windows that have their popup (`open`), oldest first, each with its tabs in reading order. */
+export function poppedOut<D>(l: Layout<D>, open: (win: string) => boolean): { win: string; tabs: string[] }[] {
+  return Object.keys(l.windows)
+    .filter((w) => w !== MAIN && open(w))
+    .map((win) => ({ win, tabs: groupsIn(l, win).flatMap((g) => l.groups[g]?.tabs ?? []) }))
+}
+
+/** "2 tabs in other windows" (`is`: "2 tabs are in other windows"). */
+export function elsewhereText(count: number, is = false): string {
+  const verb = is ? (count === 1 ? ' is' : ' are') : ''
+  return `${plural(count, 'tab')}${verb} in ${count === 1 ? 'another window' : 'other windows'}`
+}
+
+/** The muted text after a title: the file's name when the tab is not at its home. */
+export function tabDescription(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string | undefined {
+  const place = placeOf(tab, docs, find)
+  return place && (place.course !== undefined || place.quiz !== undefined) ? place.doc.name : undefined
+}
+
+/** "Biology.shrimp/Cell Biology/Quiz 1": the file, then its course and quiz as far as the tab shows them. Null for a tab with no file. */
+export function copyPathText(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string | null {
+  const place = placeOf(tab, docs, find)
+  return place && [place.doc.name, place.course, place.quiz].filter((p) => p !== undefined).join('/')
+}
+
+export function tabDirty(tab: Tab<TabData>, docs: Docs): boolean {
+  return tab.data.kind === 'doc' && !!docs[tab.data.doc]?.dirty
+}
+
+/** A tab's native tooltip: its path, and whether the file has unsaved changes. */
+export function tabTooltip(tab: Tab<TabData>, docs: Docs, find?: FindPlace): string {
+  const path = copyPathText(tab, docs, find)
+  if (path === null) return tabTitle(tab, docs, find)
+  return tabDirty(tab, docs) ? `${path} (unsaved changes)` : path
+}
+
+/** The tabs to keep mounted in a group: the shown one and the most recent hidden ones, in tab order. */
+export function mountedTabs(g: Group): Set<string> {
+  const keep = new Set<string>()
+  if (g.active !== null) keep.add(g.active)
+  for (const id of g.mru) {
+    if (keep.size > KEPT_ALIVE) break
+    if (g.tabs.includes(id)) keep.add(id)
+  }
+  return keep
+}
+
+/** Whether a pane of this size splits into two of at least MIN_PANE (the Explorer then opens beside it on its own). */
+export function canSplit(size: { width: number; height: number }, dir: 'row' | 'column'): boolean {
+  const half = (n: number) => (n - SASH) / 2
+  return dir === 'row'
+    ? half(size.width) >= MIN_PANE.width && size.height >= MIN_PANE.height
+    : half(size.height) >= MIN_PANE.height && size.width >= MIN_PANE.width
+}
+
+export type MenuAction =
+  | 'close' | 'closeOthers' | 'closeAll' | 'splitRight' | 'splitDown' | 'popOut' | 'popOutTab' | 'dock' | 'duplicate' | 'reveal' | 'copyPath'
+  | 'join' | 'closeGroup'
+export type MenuEntry = 'separator' | { action: MenuAction; label: string; shortcut?: string; disabled?: boolean; reason?: string }
+
+/** What a menu needs to know about the group it belongs to. */
+export type GroupContext = {
+  tabCount: number
+  /** Groups in this group's window, and whether it is the main window. */
+  groupsInWindow: number
+  inMain: boolean
+  /** The group that Join with next group would join into (the one after in reading order), if any. */
+  next: boolean
+  canPopOut: boolean
+}
+
+const entry = (action: MenuAction, label: string, why?: string | false | null, shortcut?: string): MenuEntry =>
+  why ? { action, label, shortcut, disabled: true, reason: why } : { action, label, shortcut }
+
+const NARROW = 'Needs a wider screen with a mouse.'
+
+// The main window's only group may go too: the main window then shows an empty group.
+function popOutWhy(g: GroupContext): string | null {
+  if (!g.canPopOut) return NARROW
+  if (g.tabCount === 0) return 'No tabs to move.'
+  return !g.inMain && g.groupsInWindow === 1 ? 'This group is already alone in its window.' : null
+}
+
+// One tab goes in a group of its own; the rest of its group stays.
+function popOutTabWhy(g: GroupContext): string | null {
+  if (!g.canPopOut) return NARROW
+  return !g.inMain && g.groupsInWindow === 1 && g.tabCount === 1 ? 'This tab is already alone in its window.' : null
+}
+
+/**
+ * The menu of a tab. Split shows a copy of a file's tab in the new group; a tab of another kind (the Explorer, of
+ * which there is one) moves instead, which would leave an empty group, so it needs a second tab beside it.
+ */
+export function tabMenu(tab: Tab<TabData>, _docs: Docs, g: GroupContext, mac: boolean): MenuEntry[] {
+  const doc = tab.data.kind === 'doc'
+  const lone = !doc && g.tabCount < 2 && 'It is the only tab in its group.'
+  return [
+    entry('close', 'Close'),
+    entry('closeOthers', 'Close others', g.tabCount < 2 && 'No other tabs in this group.'),
+    entry('closeAll', 'Close all'),
+    'separator',
+    entry('duplicate', 'Duplicate tab'),
+    entry('splitRight', 'Split right', lone, mac ? '⌘\\' : 'Ctrl+\\'),
+    entry('splitDown', 'Split down', lone),
+    entry('popOutTab', 'Move to new window', popOutTabWhy(g)),
+    'separator',
+    entry('reveal', 'Reveal in Explorer', !doc && 'Only files, courses and quizzes are in the Explorer.'),
+    entry('copyPath', 'Copy path', !doc && 'Only files, courses and quizzes have a path.'),
+  ]
+}
+
+/** The menu of a group (its More button). */
+export function groupMenu(g: GroupContext): MenuEntry[] {
+  return [
+    entry('duplicate', 'Duplicate tab', g.tabCount === 0 && 'No tab to duplicate.'),
+    entry('splitRight', 'Split right'),
+    entry('splitDown', 'Split down'),
+    entry('join', 'Join with next group', !g.next && 'There is no group after this one.'),
+    entry('popOut', 'Move group to new window', popOutWhy(g)),
+    ...(g.inMain ? [] : [entry('dock', 'Dock')]),
+    'separator',
+    entry('closeAll', 'Close all', g.tabCount === 0 && 'No tabs to close.'),
+    entry('closeGroup', 'Close group', g.inMain && g.groupsInWindow === 1 && 'The main window keeps one group.'),
+  ]
+}

@@ -1,3 +1,4 @@
+import { ownWindow } from '../../components/ownWindow'
 import { useEffect, useRef, useState } from 'react'
 import { spinCurve } from '../../logic/spinCurve'
 
@@ -29,43 +30,46 @@ export function EditOutline() {
 
   useEffect(() => {
     const svg = ref.current!
+    const view = ownWindow(svg)
+    const doc = svg.ownerDocument
     const path = pathRef.current!
     const measure = () => {
       const { width: w, height: h } = svg.getBoundingClientRect()
-      const r = Math.min(parseFloat(getComputedStyle(svg).getPropertyValue('--radius')) || 0, w / 2, h / 2)
+      const r = Math.min(parseFloat(view.getComputedStyle(svg).getPropertyValue('--radius')) || 0, w / 2, h / 2)
       // Letter spacing also follows the last letter; leave it out, so the gaps on both sides of the word match.
-      const text = measureRef.current!
-      const word = text.getComputedTextLength() - (parseFloat(getComputedStyle(text).letterSpacing) || 0)
+      const text = measureRef.current
+      if (!text) return // unmounted while the observer's last call was queued
+      const word = text.getComputedTextLength() - (parseFloat(view.getComputedStyle(text).letterSpacing) || 0)
       setBox((b) => (b.w === w && b.h === h && b.r === r && b.word === word ? b : { w, h, r, word }))
     }
     let frame = 0
     let started = 0
     const follow = (now: number) => {
-      setShift(-parseFloat(getComputedStyle(path).strokeDashoffset) || 0)
+      setShift(-parseFloat(view.getComputedStyle(path).strokeDashoffset) || 0)
       // Keep going while the dashes move (and a moment longer, in case the transition hasn't started yet).
-      frame = path.getAnimations().length > 0 || now - started < 100 ? requestAnimationFrame(follow) : 0
+      frame = path.getAnimations().length > 0 || now - started < 100 ? view.requestAnimationFrame(follow) : 0
     }
     const move = () => {
-      cancelAnimationFrame(frame)
+      view.cancelAnimationFrame(frame)
       started = performance.now()
-      frame = requestAnimationFrame(follow)
+      frame = view.requestAnimationFrame(follow)
     }
     followRef.current = move
     measure()
     move()
-    const resize = new ResizeObserver(measure)
+    const resize = new view.ResizeObserver(measure)
     resize.observe(svg)
-    const theme = new MutationObserver(measure)
-    theme.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
-    document.fonts.addEventListener('loadingdone', measure)
+    const theme = new view.MutationObserver(measure)
+    theme.observe(doc.documentElement, { attributes: true, attributeFilter: ['data-theme'] })
+    doc.fonts.addEventListener('loadingdone', measure)
     const host = svg.parentElement!
     host.addEventListener('pointerenter', move)
     host.addEventListener('pointerleave', move)
     return () => {
-      cancelAnimationFrame(frame)
+      view.cancelAnimationFrame(frame)
       resize.disconnect()
       theme.disconnect()
-      document.fonts.removeEventListener('loadingdone', measure)
+      doc.fonts.removeEventListener('loadingdone', measure)
       host.removeEventListener('pointerenter', move)
       host.removeEventListener('pointerleave', move)
     }
@@ -101,9 +105,10 @@ export function EditOutline() {
 
   const spin = () => {
     const path = pathRef.current!
-    if (matchMedia('(prefers-reduced-motion: reduce)').matches || path.getAnimations().some((a) => a.id === 'spin')) return
+    const view = ownWindow(path)
+    if (view.matchMedia('(prefers-reduced-motion: reduce)').matches || path.getAnimations().some((a) => a.id === 'spin')) return
     // The build may write the token in seconds ("1.8s") or ms.
-    const token = getComputedStyle(path).getPropertyValue('--dur-edit-spin').trim()
+    const token = view.getComputedStyle(path).getPropertyValue('--dur-edit-spin').trim()
     const duration = parseFloat(token) * (token.endsWith('ms') ? 1 : 1000)
     // Two whole repeats of the pattern: a short spin that ends looking just as it started.
     const distance = 2 * period

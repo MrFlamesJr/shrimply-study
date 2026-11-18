@@ -1,10 +1,27 @@
 // What's new in each release, newest first, written for users (plain, short, sentence case, like all UI text).
 // Only the few new things a student will use and care about (a new way to make or study cards), never polish,
-// fixes or rewordings. A new entry at the top shows the welcome page once more; the newest entry's notes are
-// always on home under "What's new [<name>]", and every entry is on the changelog page (`#/_changelog`). `name`
+// fixes or rewordings. A new entry at the top opens the Welcome tab once more; the newest entry's notes are
+// on an empty group's page under "What's new [<name>]", and every entry is in the What's new tab (`#/_changelog`). `name`
 // is the release's branch name exactly as written in Git, unique: App remembers the last one shown in this browser.
 // `date` is the day it went out (merged into main), as YYYY-MM-DD; shown with the name wherever the notes are.
 export const RELEASES: { name: string; date: string; notes: [string, string][] }[] = [
+  {
+    name: 'Release-RubberDuck',
+    date: '2026-11-18',
+    notes: [
+      ['Move cards', 'Drag a card by its grip to move it, also into or out of a group.'],
+      ['Explorer', 'Every library in one tree, open or closed. Copy, cut, paste or drag courses, quizzes and cards, also from one library to another. Ctrl+Shift+E opens it.'],
+      ['Several libraries in one sidebar', 'Open as many as you like. Each shows its courses and quizzes, where it is saved, and its own Share, Download a copy and Close. Double-click a name to rename it.'],
+      ['Undo', 'Ctrl+Z takes back your last change, in any library. Ctrl+Shift+Z brings it back.'],
+      ['Saved as you work', 'Sign in with Google and your libraries save to your Google Drive by themselves, a moment after each change. Ctrl+S saves at once.'],
+      ['Share with a link', "Share on a library's row, then Copy link: anyone with the link can study it, with no sign-in, and always sees your latest version. Stop sharing turns the link off."],
+      ['Libraries shared with you', 'They open view only and stay in sync by themselves. Make a copy to get one of your own to change.'],
+      ['Files on this device', 'In Chrome and Edge, a .shrimp file you open from your computer stays tied to that file: Save on its row, or Ctrl+S, writes your changes back into it. Other browsers open a copy in this browser.'],
+      ['Tabs, split view and windows', 'Open pages in tabs, put two side by side or one above the other, or move one into a window of its own. A popped-out window keeps its page when you reload it.'],
+      ['Ask a card from either side', 'Set a front and back card to Random in Edit quiz and it is asked from a random side each time. This replaces the question side in the study options.'],
+      ['One answer or all that apply', 'Choose for each choice question whether students pick one answer or select all that apply.'],
+    ],
+  },
   {
     name: 'Release-CrispyBacon',
     date: '2026-11-07',

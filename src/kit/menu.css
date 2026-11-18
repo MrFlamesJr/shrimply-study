@@ -1,0 +1,58 @@
+.kit-menu {
+  position: fixed;
+  inset: auto;
+  margin: 0;
+  min-width: 180px;
+  max-width: 320px;
+  padding: var(--kit-space-1);
+  background: var(--kit-popup);
+  color: var(--kit-text);
+  border: var(--kit-line) solid var(--kit-border-strong);
+  border-radius: var(--kit-radius);
+  font: var(--kit-text-sm) / 1.3 var(--kit-font);
+  overflow: visible;
+}
+.kit-menu-item {
+  display: flex;
+  align-items: center;
+  gap: var(--kit-space-3);
+  min-height: 32px;
+  box-sizing: border-box;
+  /* One rhythm: the same inset left and right. */
+  padding: 0 var(--kit-space-3);
+  border-radius: var(--kit-radius);
+  cursor: default;
+  outline: none;
+  position: relative;
+  transition: background var(--kit-dur) var(--kit-ease);
+}
+.kit-menu.has-check > .kit-menu-item { padding-left: calc(var(--kit-space-3) + 16px + var(--kit-space-2)); }
+.kit-menu-item:hover:not([aria-disabled="true"]),
+.kit-menu-item:focus:not([aria-disabled="true"]) {
+  background: var(--kit-accent-soft);
+}
+.kit-menu-item:focus-visible { outline: var(--kit-line-thick) solid var(--kit-focus); outline-offset: -2px; }
+.kit-menu-item[aria-disabled="true"] { opacity: var(--kit-dim); }
+.kit-menu-item.is-danger { color: var(--kit-danger-ink); }
+.kit-menu-item.is-danger:hover:not([aria-disabled="true"]),
+.kit-menu-item.is-danger:focus:not([aria-disabled="true"]) { background: var(--kit-ground); }
+.kit-menu-label { flex: 1; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.kit-menu-shortcut, .kit-menu-arrow { color: var(--kit-muted); font-size: var(--kit-text-xs); white-space: nowrap; }
+.kit-menu-check, .kit-menu-arrow { display: inline-flex; width: 16px; height: 16px; }
+.kit-menu-check { position: absolute; left: var(--kit-space-3); top: calc(50% - 8px); }
+.kit-menu-shortcut, .kit-menu-arrow { flex: none; }
+/* Items keep one even rhythm (asked for): a separator in the data adds no space, as uneven gaps read as
+   inconsistent spacing and the app draws no divider lines. The order of the items still groups them. */
+.kit-menu-gap { display: none; }
+/* A disabled item's reason is its tooltip; where there is no hover (touch, narrow windows) it is written under the label. */
+.kit-menu-reason { display: none; flex-basis: 100%; color: var(--kit-muted); font-size: var(--kit-text-xs); white-space: normal; }
+@media (pointer: coarse), (hover: none), (max-width: 799px) {
+  .kit-menu-item.has-reason { flex-wrap: wrap; align-content: center; padding-block: var(--kit-space-2); }
+  .kit-menu-item.has-reason .kit-menu-reason { display: block; }
+}
+@media (pointer: coarse) {
+  .kit-menu-item { min-height: var(--kit-tap); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .kit-menu-item { transition: none; }
+}

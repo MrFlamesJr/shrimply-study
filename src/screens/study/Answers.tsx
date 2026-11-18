@@ -36,13 +36,13 @@ type TypedProps = {
   typed: string
   ok: boolean
   marked: boolean | undefined
-  answer: string
+  answers: string[]
   answerImage: string | undefined
 }
 
 /** A typed answer once checked, in place of its field and styled like the choices: what was typed, right or wrong,
- * then the answer itself whenever it reads any other way. */
-export function TypedAnswer({ typed, ok, marked, answer, answerImage }: TypedProps) {
+ * then each correct answer that reads any other way (one, or several when any of them counts). */
+export function TypedAnswer({ typed, ok, marked, answers, answerImage }: TypedProps) {
   return (
     <div className="typed">
       <p className={ok ? 'choice is-correct' : 'choice is-wrong'}>
@@ -50,13 +50,15 @@ export function TypedAnswer({ typed, ok, marked, answer, answerImage }: TypedPro
         {marked && <MarkedBadge />}
         <Mark ok={ok} label={ok ? 'Your answer, right' : 'Your answer, wrong'} />
       </p>
-      {typed.trim() !== answer.trim() && (
-        <p className="choice is-correct">
-          <Thumb src={answerImage} alt={answer || 'Image for the answer'} />
-          {answer}
-          <Mark ok label="Right answer" />
-        </p>
-      )}
+      {answers
+        .filter((answer) => typed.trim() !== answer.trim())
+        .map((answer, i) => (
+          <p key={i} className="choice is-correct">
+            <Thumb src={answerImage} alt={answer || 'Image for the answer'} />
+            {answer}
+            <Mark ok label="Correct answer" />
+          </p>
+        ))}
     </div>
   )
 }

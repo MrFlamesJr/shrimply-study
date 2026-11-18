@@ -2,14 +2,17 @@ import { useEffect, useRef, useState, type ComponentProps, type KeyboardEvent, t
 import { AutoText } from './AutoText'
 import { CheckIcon, CrossIcon, PlusIcon } from './Icons'
 import { ImageSlot } from './ImageSlot'
+import { Segmented } from './Segmented'
 
 type List = 'right' | 'wrong'
 
 type Props = Omit<ComponentProps<typeof AutoText>, 'value' | 'onChange' | 'placeholder' | 'label'> & {
   question: string
+  mode: 'one' | 'all'
   right: string[]
   wrong: string[]
   onQuestion: (question: string) => void
+  onMode: (mode: 'one' | 'all') => void
   onList: (list: List, entries: string[]) => void
   /** The card's id: every answer gets `data-card` and `data-field="right-0"`, `"wrong-1"`, … so the editor can focus it. */
   cardId?: string
@@ -23,13 +26,13 @@ type Props = Omit<ComponentProps<typeof AutoText>, 'value' | 'onChange' | 'place
 }
 
 const LISTS = {
-  right: { title: 'Right answers', add: 'Right answer', Icon: CheckIcon, tone: 'is-ok' },
+  right: { title: 'Correct answers', add: 'Correct answer', Icon: CheckIcon, tone: 'is-ok' },
   wrong: { title: 'Wrong answers', add: 'Wrong answer', Icon: CrossIcon, tone: 'is-bad' },
 } as const
 
-/** The choice-question editor: the question with its image, then a list of right answers and a list of wrong ones,
+/** The choice-question editor: the question with its image, how it is answered, then a list of correct answers and a list of wrong ones,
  * side by side where there is room. */
-export function ChoiceField({ question, right, wrong, onQuestion, onList, cardId, hint, rightHint, wrongHint, image, ...rest }: Props) {
+export function ChoiceField({ question, mode, right, wrong, onQuestion, onMode, onList, cardId, hint, rightHint, wrongHint, image, ...rest }: Props) {
   const wrap = useRef<HTMLDivElement>(null)
   // The answer to focus once the list has re-rendered (a new one, or the one before a removed one).
   const pending = useRef<string | null>(null)
@@ -77,6 +80,15 @@ export function ChoiceField({ question, right, wrong, onQuestion, onList, cardId
       <ImageSlot {...image}>
         <AutoText {...rest} label={hint ?? 'Question'} value={question} onChange={onQuestion} />
       </ImageSlot>
+      <Segmented
+        label="Answered by"
+        options={[
+          { value: 'one', label: 'One answer', hint: 'Pick one. Any correct answer counts.' },
+          { value: 'all', label: 'All that apply', hint: 'Pick every correct answer, then Check.' },
+        ]}
+        value={mode}
+        onChange={onMode}
+      />
       <div className="choice-lists">
         {(['right', 'wrong'] as const).map((list) => {
           const { title, add: addLabel, Icon, tone } = LISTS[list]

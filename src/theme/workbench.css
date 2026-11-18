@@ -1,0 +1,359 @@
+/* Workbench (src/layout/Workbench.tsx): tab groups side by side or stacked, each its own scroller under its tab strip.
+   Groups are told apart by tone and a small gap (the kit's 4px sash), not divider lines: the frame is the sidebar's
+   tone and each pane the ground. The kit's --kit-* variables (tokens.css) give the tab strip, sashes and drop zones
+   their colors. */
+.workbench {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  height: 100%;
+  flex-direction: column;
+}
+/* The frame between groups is the sidebar's tone; the panes show the page ground, the theme's backdrop too. */
+.workbench .kit-sash {
+  background: var(--surface-side);
+}
+.workbench.is-popup {
+  height: 100dvh;
+}
+.wb-win {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+}
+
+.wb-group {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+/* The tab strip has no fill of its own: the pane's ground and the theme's backdrop show through it. The active tab is
+   marked by its line (the accent while its group has the focus) and its full text color, its own fill a see-through
+   step (--surface-clear), so the backdrop shows there too. */
+.wb-group > .kit-tabstrip {
+  flex: none;
+  padding-inline: var(--space-2);
+}
+.wb-group > .kit-tabstrip .kit-tab.is-active {
+  background: var(--surface-clear);
+}
+/* The main window's top-left tab strip makes room for the corner (the shrimp and the sidebar toggle) while the sidebar
+   is closed, and always on phones, where the corner sits over the shown group (shell.css). */
+.app.is-side-closed .wb-cell .wb-group.is-corner > .kit-tabstrip {
+  padding-left: calc(var(--corner-closed) + var(--space-2));
+}
+@media (max-width: 799px) {
+  .wb-cell .wb-group.is-shown > .kit-tabstrip,
+  .app.is-side-closed .wb-cell .wb-group.is-corner > .kit-tabstrip {
+    padding-left: calc(var(--corner-closed) + var(--space-2));
+  }
+}
+.wb-group .kit-tabs-actions .icon-btn {
+  width: 32px;
+  height: 32px;
+  min-height: 0;
+}
+/* The main window's count of tabs in popped-out windows (its top-right strip, beside Split and More): the pop-out
+   mark, in a fixed cell so its hover pop moves nothing, then the number, quiet like the strip's icon buttons. */
+.wb-group .kit-tabs-actions .icon-btn.wb-elsewhere {
+  width: auto;
+  gap: 0;
+  padding-inline: var(--space-1) var(--space-2);
+  font-size: var(--text-sm);
+}
+.wb-elsewhere-mark {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+}
+.wb-elsewhere-count {
+  font-variant-numeric: tabular-nums;
+}
+/* A pane: its breadcrumbs on top, then what scrolls. Its width is what the breadcrumbs and its page answer to
+   (@container pane, and the page pad in cqw), not the window's. */
+.wb-pane {
+  container: pane / inline-size;
+  --page-pad: max(var(--space-7), calc((100cqw - var(--content-w)) / 2));
+  position: relative;
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+}
+/* The pane's scroller. contain keeps fixed-position children inside it. */
+.pane-body {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  contain: layout paint;
+}
+/* Back to top sits on the pane, not in what scrolls. */
+.wb-pane > .back-to-top {
+  position: absolute;
+}
+/* A study session fills its pane, exactly (its own parts scroll inside it). */
+.pane-session {
+  position: absolute;
+  inset: 0;
+}
+.pane-session > .session {
+  height: 100%;
+}
+/* An empty group: a calm page in the style of the empty sidebar. A large shrimp faded far into the ground like a
+   watermark (not text to read), a quiet title in the theme's display font, then what can go here as quiet links (the
+   Explorer with its key, a new or opened file, each open file's home). One column, centered; it fits a narrow pane. */
+.wb-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-7) var(--space-4);
+  color: var(--text-muted);
+  text-align: center;
+}
+.wb-empty-mark {
+  /* One quiet tone, the muted text's (the brand's own colors would make it a logo, not a watermark). */
+  --brand-shell: currentColor;
+  --brand-head: currentColor;
+  opacity: var(--dim-empty);
+}
+.wb-empty-mark svg {
+  width: 120px;
+  height: 120px;
+}
+.wb-empty-title {
+  margin: 0;
+  color: var(--text-muted);
+  font-family: var(--font-display);
+  font-size: var(--text-lg);
+  font-weight: var(--weight-bold);
+  letter-spacing: var(--display-tracking);
+  text-transform: var(--display-case);
+}
+/* The open files sit together on a darker box (asked for), like the study options' sunken panel. */
+.wb-empty-files {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: var(--space-2);
+  max-width: 100%;
+  margin-top: var(--space-3);
+  padding: var(--space-3) var(--space-5);
+  border-radius: var(--radius);
+  background: var(--sunken);
+}
+/* Its links are the shared .link-list (base.css), centered here. */
+.wb-empty .link-list {
+  align-items: center;
+}
+.wb-empty-name {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.wb-empty .shortcut {
+  margin-left: var(--space-1);
+}
+/* Tabs in popped-out windows: a muted line, then its two links (Show them, Dock all), underlined at rest
+   as they sit in a line of text. */
+.wb-empty-elsewhere {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-1) var(--space-2);
+  margin: var(--space-2) 0 0;
+  font-size: var(--text-sm);
+}
+.wb-empty-elsewhere button.link {
+  text-decoration-color: currentColor;
+}
+/* What's new (asked for: here, not on home), last: the info box read left-aligned, no wider than a page's column;
+   minimized, its chip stays centered. */
+.wb-empty > .info-box {
+  max-width: min(100%, var(--content-w));
+  margin-top: var(--space-5);
+  text-align: left;
+}
+@container pane (max-width: 359px) {
+  .wb-empty-mark svg {
+    width: 80px;
+    height: 80px;
+  }
+}
+
+/* The pane head: a compact, plain row of breadcrumbs on the pane's own ground, the top of the pane (nothing scrolls
+   under it, so it needs no glass), slim (asked for: 24px, small text; 44px to touch below 800px). It starts at the
+   pane's left (asked for), in line with the first tab's text above it (the strip's inset plus the tab's own: kit
+   tabs.css), in every pane, popup and width. */
+.pane-head {
+  display: flex;
+  flex: none;
+  align-items: center;
+  height: 24px;
+  padding-inline: calc(var(--space-2) + var(--kit-space-3)) var(--space-3);
+  font-size: var(--text-xs-plus);
+  white-space: nowrap;
+}
+.pane-crumbs {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  color: var(--text-muted);
+}
+.pane-crumbs li {
+  display: flex;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+.pane-crumbs li:not(.is-current) {
+  max-width: 14rem;
+}
+.pane-crumbs li > :not(.pane-sep) {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.pane-crumbs li.is-current {
+  color: var(--text);
+}
+.pane-crumb-text {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The root's mark: where the file lives (as on its sidebar row), small and muted whatever the crumb's color. */
+.pane-icon {
+  display: flex;
+  flex: none;
+  color: var(--text-muted);
+}
+.pane-icon svg {
+  width: 12px;
+  height: 12px;
+}
+/* The app's own pages: the shrimp in the same one muted tone. */
+.pane-icon.is-app {
+  --brand-shell: currentColor;
+  --brand-head: currentColor;
+}
+.pane-sep {
+  flex: none;
+  margin: 0 var(--space-2);
+}
+.pane-crumbs a {
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-underline-offset: var(--underline-offset);
+  transition:
+    color var(--dur-fast) var(--ease),
+    text-decoration-color var(--dur-fast) var(--ease);
+}
+.pane-crumbs a:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+/* A narrow pane (as on phones): one "‹ parent" link instead of the trail, when the page has one. */
+.pane-parent {
+  display: none;
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--text-muted);
+  text-decoration: underline;
+  text-decoration-color: transparent;
+  text-overflow: ellipsis;
+  text-underline-offset: var(--underline-offset);
+  transition:
+    color var(--dur-fast) var(--ease),
+    text-decoration-color var(--dur-fast) var(--ease);
+}
+.pane-parent:hover {
+  color: var(--text);
+  text-decoration-color: currentColor;
+}
+@container pane (max-width: 479px) {
+  .pane-head.has-parent .pane-crumbs {
+    display: none;
+  }
+  .pane-head.has-parent .pane-parent {
+    display: block;
+  }
+}
+
+/* Crowded (the window, not the pane: under 800px, or the groups do not fit at their least sizes, which Workbench.tsx
+   decides): only the shown group has room. The others stay mounted, so nothing is lost. */
+.wb-win.is-crowded {
+  flex-direction: column;
+}
+.wb-win.is-crowded .kit-split,
+.wb-win.is-crowded .kit-leaf {
+  display: contents;
+}
+.wb-win.is-crowded .kit-sash,
+.wb-win.is-crowded .wb-group:not(.is-shown) {
+  display: none;
+}
+/* The shown group's list of the hidden ones: a quiet text button like the strip's icon buttons. */
+.wb-group .kit-tabs-actions .wb-panes {
+  flex: none;
+  height: 32px;
+  padding-inline: var(--space-2);
+  border: 0;
+  border-radius: var(--radius);
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: var(--text-sm);
+  white-space: nowrap;
+  cursor: pointer;
+}
+.wb-group .kit-tabs-actions .wb-panes:hover {
+  color: var(--text);
+}
+@media (max-width: 799px) {
+  .workbench,
+  .wb-pane {
+    --page-pad: var(--space-4);
+  }
+  .wb-group .kit-tabs-actions .wb-panes {
+    height: var(--tap);
+  }
+  .wb-group .kit-tabs-actions .icon-btn {
+    width: var(--tap);
+    height: var(--tap);
+  }
+  .pane-head {
+    height: var(--tap);
+  }
+  /* 44px touch targets: the kit's own rules key on a coarse pointer, a narrow window gets them too. */
+  .wb-group .kit-tab {
+    height: var(--tap);
+  }
+  .wb-group .kit-tab-close {
+    width: var(--tap);
+    margin-right: calc(-1 * var(--space-2));
+  }
+  /* Only the active tab (or one with unsaved changes) shows its close button, so a tab scrolled half out of the
+     strip never shows a lone close button; the others close from their menu. */
+  .wb-group .kit-tab:not(.is-active):not(.is-dirty) .kit-tab-close {
+    display: none;
+  }
+  .kit-menu-item {
+    min-height: var(--tap);
+  }
+}

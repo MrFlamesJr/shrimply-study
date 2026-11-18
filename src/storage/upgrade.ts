@@ -19,6 +19,25 @@ export const STEPS: Step[] = [
     changes: 'Cards may be "true-false". Term cards may name their sides ("sides"). A library may list its own side types ("sideTypes"). Cards may be "choice" (your own right and wrong answers) or "sequence" (steps in order).',
     up: (data) => data,
   },
+  {
+    to: 3,
+    changes: 'Choice cards have a "mode": "one" (pick one answer, any right answer counts) or "all" (select all that apply). Before, a card with several right answers was "all" and any other "one". Term cards may be "mixed": asked from either side at random.',
+    up: (data) => {
+      // Not shared with other code, so this step never changes with it. Malformed data is left for checkLibrary to report.
+      const isObject = (v: unknown): v is Data => typeof v === 'object' && v !== null && !Array.isArray(v)
+      const withMode = (card: unknown): unknown => {
+        if (!isObject(card) || card.type !== 'choice' || !Array.isArray(card.right)) return card
+        const right = new Set(card.right.filter((t): t is string => typeof t === 'string').map((t) => t.trim()).filter(Boolean))
+        return { ...card, mode: right.size > 1 ? 'all' : 'one' }
+      }
+      const eachCards = (list: unknown): unknown => (Array.isArray(list) ? list.map((o) => (isObject(o) && Array.isArray(o.cards) ? { ...o, cards: o.cards.map(withMode) } : o)) : list)
+      const quiz = (q: unknown): unknown => {
+        if (!isObject(q)) return q
+        return { ...q, ...(Array.isArray(q.cards) && { cards: q.cards.map(withMode) }), ...('groups' in q && { groups: eachCards(q.groups) }) }
+      }
+      return { ...data, ...(Array.isArray(data.courses) && { courses: data.courses.map((c) => (isObject(c) && Array.isArray(c.quizzes) ? { ...c, quizzes: c.quizzes.map(quiz) } : c)) }) }
+    },
+  },
 ]
 
 /** `data` brought up to the last step's version (FORMAT_VERSION). Throws when its version is not a whole number or is newer than this app. */

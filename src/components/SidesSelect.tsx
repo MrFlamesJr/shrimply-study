@@ -1,8 +1,8 @@
-import { Fragment, useId, useState, type KeyboardEvent } from 'react'
+import { Fragment, useId, useRef, useState, type KeyboardEvent } from 'react'
 import { SIDE_NAME_MAX, SIDE_PRESETS, type Sides } from '../model'
 import { isPreset, samePair, sidePairs, sideTypeUses, toSides } from '../logic/sides'
 import { plural } from '../logic/plural'
-import type { LibraryApi } from '../state/useLibrary'
+import type { LibraryApi } from '../state/useWorkspace'
 import { AutoText } from './AutoText'
 import { askConfirm } from './ConfirmDialog'
 import { IconButton } from './IconButton'
@@ -33,7 +33,8 @@ export function SidesSelect({
   const id = useId()
   const [naming, setNaming] = useState<Naming | null>(null)
   const current = value ?? SIDE_PRESETS[0]
-  const close = () => document.getElementById(id)?.hidePopover()
+  const menu = useRef<HTMLDivElement>(null)
+  const close = () => menu.current?.hidePopover()
 
   const pick = (pair: Sides) => {
     onChange(toSides(pair))
@@ -68,7 +69,7 @@ export function SidesSelect({
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return
     e.preventDefault()
     const stops = [...e.currentTarget.querySelectorAll<HTMLElement>('[data-stop]')]
-    const at = stops.indexOf(document.activeElement as HTMLElement)
+    const at = stops.indexOf(e.currentTarget.ownerDocument.activeElement as HTMLElement)
     const next = e.key === 'ArrowDown' ? at + 1 : at - 1
     stops[(next + stops.length) % stops.length]?.focus()
   }
@@ -82,10 +83,11 @@ export function SidesSelect({
         aria-label={`${label}: ${name(current)}`}
         title="Name this card's sides"
       >
-        {name(current)}
+        <span className="sides-name">{name(current)}</span>
         <ChevronDownIcon />
       </button>
       <div
+        ref={menu}
         id={id}
         popover="auto"
         className="sides-menu"

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { emptyLibrary } from '../model'
 import { encodeLibrary } from './format'
-import { DriveError, driveNow, problem, readDriveFile } from './googleDrive'
+import { DriveError, driveNow, problem, problemHelp, readDriveFile } from './googleDrive'
 
 // Answers each fetch in turn: a status and a JSON body, or bytes for a download.
 const answers = (...list: (Response | Error)[]) => {
@@ -24,7 +24,9 @@ describe('problem', () => {
     expect(problem(429, '')).toMatch(/busy/)
     expect(problem(403, 'downloadQuotaExceeded')).toMatch(/busy/)
     expect(problem(503, '')).toMatch(/having trouble/)
-    expect(problem(403, 'forbidden')).toBe('Google Drive refused this (403).')
+    expect(problem(403, 'forbidden')).toBe("This file isn't shared with you, or it doesn't exist.")
+    expect(problem(400, 'badRequest')).toBe("This file isn't shared with you, or it doesn't exist.")
+    expect(problem(409, 'conflict')).toBe('Google Drive refused this (409).')
   })
 })
 
@@ -44,6 +46,38 @@ describe('driveNow', () => {
     await expect(driveNow('f1')).rejects.toThrow(/Couldn't reach Google Drive/)
     answers(error(403, 'rateLimitExceeded'))
     await expect(driveNow('f1')).rejects.toBeInstanceOf(DriveError)
+  })
+})
+
+describe('DriveError', () => {
+  it('keeps the raw error and the help', async () => {
+    answers(new TypeError('Failed to fetch'))
+    const err = await driveNow('f1').catch((e) => e)
+    expect(err.original).toBe('TypeError: Failed to fetch')
+    expect(err.status).toBe(0)
+    expect(err.help).toMatch(/back online/)
+    answers(error(503, 'backendError'))
+    const down = await driveNow('f1').catch((e) => e)
+    expect(down.status).toBe(503)
+    expect(down.reason).toBe('backendError')
+    expect(down.original).toMatch(/^503 backendError/)
+    expect(down.help).toBe(problemHelp(503, 'backendError'))
+  })
+
+  it('defaults its fields', () => {
+    const err = new DriveError('x')
+    expect([err.status, err.reason, err.original, err.help]).toEqual([0, '', undefined, undefined])
+  })
+})
+
+describe('problemHelp', () => {
+  it('helps with what to do, or says nothing', () => {
+    expect(problemHelp(429, '')).toMatch(/limits how often/)
+    expect(problemHelp(403, 'rateLimitExceeded')).toMatch(/limits how often/)
+    for (const status of [400, 403, 404]) expect(problemHelp(status, '')).toMatch(/Anyone with the link/)
+    expect(problemHelp(401, '')).toMatch(/Sign in again/)
+    expect(problemHelp(500, '')).toMatch(/Google's side/)
+    expect(problemHelp(418, '')).toBeUndefined()
   })
 })
 
@@ -81,7 +115,7 @@ describe('listDriveFiles', () => {
     // Signed in in this tab: a fresh token, as kept over a reload.
     vi.resetModules()
     const kept = JSON.stringify({ token: { value: 't', until: Date.now() + 60_000 } })
-    vi.stubGlobal('sessionStorage', { getItem: () => kept, setItem: () => undefined, removeItem: () => undefined })
+    vi.stubGlobal('localStorage', { getItem: () => kept, setItem: () => undefined, removeItem: () => undefined })
     const { listDriveFiles } = await import('./googleDrive')
     const file = (id: string, name: string, mimeType = 'application/zip') => ({ id, name, mimeType, modifiedTime: '2026-11-07T12:00:00Z' })
     const fetch = answers(

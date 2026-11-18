@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react'
-import { emptyLibrary } from '../../model'
+import { emptyLibrary, type Library } from '../../model'
 import { fakeQuiz, libraryProblems, libraryStats } from '../../logic/debugData'
 import { freeName } from '../../logic/names'
 import { plural } from '../../logic/plural'
 import { backupSize, readBrokenBackup, storageUse } from '../../storage/browserBackup'
 import { fetchLibrary } from '../../storage/fileStorage'
 import { checkLibrary, decodeLibrary, libraryToJson } from '../../storage/format'
-import type { LibraryApi } from '../../state/useLibrary'
+import type { LibraryApi } from '../../state/useWorkspace'
 import type { Notify } from '../../components/Toasts'
 import edgeCasesUrl from '../../../samples/edge-cases.shrimp?url'
 import guideUrl from '../../../samples/how-to-use.shrimp?url'
@@ -19,15 +19,26 @@ const size = (bytes: number) => {
   return `${value.toFixed(1)} ${unit}`
 }
 
-export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notify }) {
+const NO_LIBRARY = emptyLibrary()
+
+type Props = {
+  lib: LibraryApi | null
+  ensureDoc: () => LibraryApi
+  openLibrary: (load: () => Promise<Library>, name: string) => Promise<unknown>
+  newDoc: () => void
+  notify: Notify
+}
+
+export function LibrarySection({ lib, ensureDoc, openLibrary, newDoc, notify }: Props) {
+  const library = lib?.library ?? NO_LIBRARY
   // Only when the library changes, not on every toast (App re-renders the page for each one).
   const { stats, jsonBytes, problems } = useMemo(
     () => ({
-      stats: libraryStats(lib.library),
-      jsonBytes: new TextEncoder().encode(libraryToJson(lib.library)).length,
-      problems: libraryProblems(lib.library).length,
+      stats: libraryStats(library),
+      jsonBytes: new TextEncoder().encode(libraryToJson(library)).length,
+      problems: libraryProblems(library).length,
     }),
-    [lib.library],
+    [library],
   )
   const [backup, setBackup] = useState<number>()
   const [storage, setStorage] = useState<{ used: number; quota: number } | null>()
@@ -38,7 +49,7 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
       void storageUse().then(setStorage)
     }, 500)
     return () => clearTimeout(timer)
-  }, [lib.library])
+  }, [library])
 
   const [broken, setBroken] = useState<string | null>(null)
   useEffect(() => {
@@ -56,24 +67,25 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
     setTimeout(() => URL.revokeObjectURL(url), 1000)
   }
 
-  const load = async (url: string, message: string) => {
-    if (await lib.open(() => fetchLibrary(url))) notify('info', message)
+  const load = async (url: string, name: string, message: string) => {
+    if (await openLibrary(() => fetchLibrary(url), name)) notify('info', message)
   }
   const addStress = () => {
-    const course = lib.addCourse()
-    lib.renameCourse(course.id, freeName('Stress test', lib.library.courses.map((c) => c.name))) // names are unique
+    const into = ensureDoc()
+    const course = into.addCourse()
+    into.renameCourse(course.id, freeName('Stress test', into.library.courses.map((c) => c.name))) // names are unique
     for (const n of [100, 500, 2000]) {
-      const quiz = lib.addQuiz(course.id)
-      lib.renameQuiz(quiz.id, `${n} cards`)
+      const quiz = into.addQuiz(course.id)
+      into.renameQuiz(quiz.id, `${n} cards`)
       const fake = fakeQuiz(n)
-      lib.setCards(quiz.id, fake.cards, fake.groups)
+      into.setCards(quiz.id, fake.cards, fake.groups)
     }
     notify('info', 'Added the stress course.')
   }
   const check = () => {
-    const problems = libraryProblems(lib.library)
+    const problems = libraryProblems(library)
     try {
-      checkLibrary(lib.library, 'stored')
+      checkLibrary(library, 'stored')
     } catch (err) {
       problems.push(err instanceof Error ? err.message : String(err))
     }
@@ -85,7 +97,9 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
   return (
     <section className="debug-section">
       <h2>Library</h2>
-      <p className="muted">What is in the library now, and ways to replace it.</p>
+      <p className="muted">
+        {lib ? `What is in "${lib.name}", the open file, and ways to open others beside it.` : 'No file is open. Ways to open one:'}
+      </p>
       {/* Two columns on wide screens, filled row by row: each row pairs two related numbers. */}
       <dl className="debug-stats">
         <dt>Courses</dt>
@@ -139,7 +153,7 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
         <dt title="Everything this site keeps in the browser, of what the browser allows">Browser storage</dt>
         <dd>{storage === undefined ? '...' : storage ? `${size(storage.used)} of ${size(storage.quota)}` : 'Unknown'}</dd>
         <dt>Unsaved changes</dt>
-        <dd>{lib.hasChanges ? 'Yes' : 'No'}</dd>
+        <dd>{lib?.hasChanges ? 'Yes' : 'No'}</dd>
         <dt title="Found by Check library, which lists them">Problems</dt>
         <dd>{problems}</dd>
         <dt>Build</dt>
@@ -148,22 +162,22 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
       <div className="actions">
         <button
           type="button"
-          title="Replace the library with samples/edge-cases.shrimp"
-          onClick={() => void load(edgeCasesUrl, 'Loaded the test library.')}
+          title="Open samples/edge-cases.shrimp as a file of its own"
+          onClick={() => void load(edgeCasesUrl, 'Test library', 'Loaded the test library.')}
         >
           Load test library
         </button>
         <button
           type="button"
-          title="Replace the library with samples/how-to-use.shrimp"
-          onClick={() => void load(guideUrl, 'Loaded the guide.')}
+          title="Open samples/how-to-use.shrimp as a file of its own"
+          onClick={() => void load(guideUrl, 'Guide', 'Loaded the guide.')}
         >
           Load guide
         </button>
         <button
           type="button"
-          title="Replace the library with an empty one, to see the first visit"
-          onClick={() => void lib.open(async () => emptyLibrary())}
+          title="Open an empty library beside the others"
+          onClick={newDoc}
         >
           Empty library
         </button>
@@ -173,7 +187,7 @@ export function LibrarySection({ lib, notify }: { lib: LibraryApi; notify: Notif
         <button
           type="button"
           title="Shows the error for a file that is not a .shrimp"
-          onClick={() => void lib.open(async () => decodeLibrary(new TextEncoder().encode('not a zip')))}
+          onClick={() => void openLibrary(async () => decodeLibrary(new TextEncoder().encode('not a zip')), 'Broken file')}
         >
           Open a broken file
         </button>

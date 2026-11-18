@@ -1,5 +1,6 @@
 import { useId, useState } from 'react'
 import { AddPill } from './AddPill'
+import { useSectionDrop } from './SortableCard'
 
 export type CardKind = 'term' | 'cloze' | 'true-false' | 'choice' | 'sequence'
 
@@ -16,11 +17,14 @@ const REST = 'Choose the kind of card to add.'
  * Under a section's cards: a dashed box titled "Add new card" on its top edge, with a pill per kind of card.
  * The pointed or focused pill's description shows on the line under the pills, which always keeps its room.
  */
-export function AddRow({ onAdd }: { onAdd: (kind: CardKind) => void }) {
+export function AddRow({ onAdd, drop }: { onAdd: (kind: CardKind) => void; drop?: { group: string | null; enabled: boolean } }) {
+  // An empty section's Add box takes a card dragged there (asked for: cards move in and out of groups).
+  const dropRef = useSectionDrop(drop?.group ?? null, !!drop?.enabled, 'add')
   const id = useId()
   const [shown, setShown] = useState<CardKind | null>(null)
   return (
     <fieldset
+      ref={dropRef}
       className="add-new"
       onMouseLeave={() => setShown(null)}
       onBlur={(e) => {

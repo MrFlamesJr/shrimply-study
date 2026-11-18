@@ -1,15 +1,17 @@
-import { Fragment, useEffect, useRef, useState } from 'react'
+import { Fragment, useEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { isMac } from '../kit/shortcuts'
 import { newId, type Card, type Group } from '../model'
-import { go, takeCreated } from '../route'
-import type { LibraryApi } from '../state/useLibrary'
+import type { Nav } from '../route'
+import type { LibraryApi } from '../state/useWorkspace'
 import type { ParsedCard } from '../logic/parseCards'
-import { isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
-import { inGroupOrder, nextColor, sections, withCollapsed } from '../logic/groups'
+import { cardName, isBlank, missingPart, tidyCards, unfinishedMessage } from '../logic/cardStatus'
+import { inGroupOrder, moveToSection, moveWithinSection, nextColor, sections, withCollapsed } from '../logic/groups'
 import { plural } from '../logic/plural'
+import { cardRef, fromLine, isCut, trail, undoHint } from '../logic/toastText'
 import { lastSides } from '../logic/sides'
 import { nameTaken } from '../logic/names'
 import { AutoText } from '../components/AutoText'
-import { EditCard, type CardPatch, type Field } from '../components/EditCard'
+import type { CardPatch, Field } from '../components/EditCard'
 import { ImportDialog } from '../components/ImportDialog'
 import { DangerZone, PageHead } from '../components/Page'
 import type { Notify } from '../components/Toasts'
@@ -17,6 +19,8 @@ import { AddPill } from './edit/AddPill'
 import { AddRow, type CardKind } from './edit/AddRow'
 import { EditOutline } from './edit/EditOutline'
 import { GroupHead } from './edit/GroupHead'
+import { EditorCard, type CardActions } from './edit/EditorCard'
+import { CardSortables, SectionSortable, type Into } from './edit/SortableCard'
 
 // What to focus after the next write: a card's field (or its group select) by card id, or a group's name by group id.
 type Focus = { card: string; field: Field | 'blank' | 'group' } | { groupName: string }
@@ -27,10 +31,17 @@ type Props = {
   notify: Notify
   collapsed: ReadonlySet<string>
   setCollapsed: (collapsed: ReadonlySet<string>) => void
+  nav: Nav
+  /**
+   * The deleted-card toast's Undo: called right after the delete, it gives the function that undoes that step only
+   * (the workspace's `undoLater`). Without it the toast names Ctrl+Z.
+   */
+  undoLater?: () => () => void
 }
 
-export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Props) {
+export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed, nav, undoLater }: Props) {
   const found = lib.findQuiz(quizId)
+  const { go, takeCreated } = nav
   const [importOpen, setImportOpen] = useState(false)
   // Half-filled cards are only marked after a blocked Done.
   const [triedDone, setTriedDone] = useState(false)
@@ -40,8 +51,19 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   const listRef = useRef<HTMLDivElement>(null)
   // Only right after "+ New quiz" is the name selected, never on a later visit.
   const [created] = useState(() => takeCreated(quizId))
+  // Only right after the quiz page's "Add cards": the top Add box gets the focus, once.
+  const [adding] = useState(() => takeCreated(`add:${quizId}`))
+  // The box a card move should give the focus back to: moving a card in the page takes its box out and puts it back.
+  const refocus = useRef<HTMLElement | null>(null)
   const cards = found?.quiz.cards
   const groups = found?.quiz.groups
+  // The cards are memoized (EditorCard): they get the latest actions through this ref and the library through a stand-in
+  // that always reads the latest, so their props stay the same until the card itself changes.
+  const actions = useRef<CardActions | null>(null)
+  const latestLib = useRef(lib)
+  latestLib.current = lib
+  const libNow = useMemo(() => new Proxy({} as LibraryApi, { get: (_, key) => latestLib.current[key as keyof LibraryApi] }), [])
+  const numbers = useMemo(() => new Map(cards?.map((c, i) => [c.id, i])), [cards])
 
   const focusCell = (id: string, field: Field | 'blank' | 'group') =>
     listRef.current?.querySelector<HTMLElement>(`[data-card="${id}"][data-field="${field}"]`)?.focus()
@@ -72,6 +94,15 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   }
 
   useEffect(() => {
+    if (adding) listRef.current?.querySelector<HTMLElement>('.add-new button')?.focus()
+  }, [adding])
+
+  useEffect(() => {
+    refocus.current?.focus()
+    refocus.current = null
+  }, [cards])
+
+  useEffect(() => {
     const target = pendingFocus.current
     if (!target) return
     pendingFocus.current = null
@@ -84,6 +115,9 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
     }
   }, [cards, groups, collapsed])
 
+  // The cards as they would be while one is dragged into another section (see dragInto), until the drop.
+  const [preview, setPreview] = useState<Card[] | null>(null)
+  const previewNow = useRef<Card[] | null>(null)
   if (!found || !cards || !groups) return null
   const { course, quiz } = found
 
@@ -95,7 +129,8 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
   const patchGroup = (id: string, patch: Partial<Group>) =>
     put(cards, groups.map((g) => (g.id === id ? { ...g, ...patch } : g)))
 
-  const addCard = (group?: string, kind: CardKind = 'term') => {
+  // New cards go to the end of their section, or (`top`, the ungrouped Add box above the cards) to the start of the page.
+  const addCard = (group?: string, kind: CardKind = 'term', top = false) => {
     const sides = lastSides(cards)
     const card: Card =
       kind === 'cloze'
@@ -103,12 +138,12 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
         : kind === 'true-false'
           ? { id: newId(), type: 'true-false', statement: '', answer: true, ...(group && { group }) }
           : kind === 'choice'
-            ? { id: newId(), type: 'choice', question: '', right: [''], wrong: ['', ''], ...(group && { group }) }
+            ? { id: newId(), type: 'choice', question: '', mode: 'one', right: [''], wrong: ['', ''], ...(group && { group }) }
             : kind === 'sequence'
               ? { id: newId(), type: 'sequence', title: '', steps: ['', '', ''], ...(group && { group }) }
               : { id: newId(), term: '', definition: '', ...(sides && { sides }), ...(group && { group }) }
     pendingFocus.current = { card: card.id, field: firstField(card) }
-    put([...cards, card])
+    put(top ? [card, ...cards] : [...cards, card])
   }
 
   // Focuses the first card of a section, or adds one when it is empty.
@@ -146,26 +181,71 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
     else addCard(card.group, card.type ?? 'term')
   }
 
+  // A card dropped on another card of its section takes its place.
+  const reorder = (id: string, to: string) => {
+    const next = moveWithinSection(cards, groups, id, to)
+    if (next !== cards) put(next)
+  }
+
+  // While a card is dragged into another section (asked for: in and out of groups), the cards as they would be: the
+  // card already there, so that section makes way. Kept here until the drop, which writes it as one undo step.
+  const showPreview = (next: Card[] | null) => {
+    previewNow.current = next
+    setPreview(next)
+  }
+  const dragInto = (id: string, into: Into) => showPreview(moveToSection(previewNow.current ?? cards, groups, id, into))
+  // The drop: its place in the section it is in now, or the end of a collapsed group (opened, so it shows there).
+  const dropCard = (id: string, at: { to?: string; group?: string }) => {
+    let next = previewNow.current ?? cards
+    if (at.to) next = moveWithinSection(next, groups, id, at.to)
+    if (at.group) next = moveToSection(next, groups, id, { group: at.group })
+    showPreview(null)
+    if (next !== cards) put(next)
+    if (at.group && collapsed.has(at.group)) setCollapsed(withCollapsed(collapsed, [at.group], false))
+  }
+
+  // Alt+Shift+Up or Down: one place within the section, the focus staying in the same box.
+  const shift = (card: Card, by: -1 | 1) => {
+    const section = cards.filter((c) => c.group === card.group)
+    const other = section[section.indexOf(card) + by]
+    if (!other) return
+    const active = listRef.current?.ownerDocument.activeElement
+    refocus.current = active && 'focus' in active ? (active as HTMLElement) : null
+    reorder(card.id, other.id)
+  }
+
   // Blank cards are dropped and empty explanation fields closed, then groups left without cards.
   // Half-filled cards keep you here, with every error shown.
   const done = () => {
     const { cards: kept, groups: keptGroups, changed: tidied } = tidyCards(cards, groups)
     const firstBad = kept.findIndex((c) => missingPart(c))
+    // Dropping blank cards is said, with a way back.
+    const tidyPut = () => {
+      put(kept, keptGroups)
+      const dropped = cards.length - kept.length
+      if (dropped === 0) return
+      const undo = undoLater?.()
+      notify('info', `Removed ${plural(dropped, 'empty card')}.`, {
+        detail: [`${dropped === 1 ? 'It had' : 'They had'} no text or image. ${fromLine(trail(lib.name, course.name, quiz.name))}`, undoHint(isMac(navigator.platform), dropped)],
+        action: undo ? { label: 'Undo', run: undo } : undefined,
+      })
+    }
     if (firstBad === -1) {
-      if (tidied) put(kept, keptGroups)
+      if (tidied) tidyPut()
       go({ name: 'quiz', course: course.name, quiz: quiz.name })
       return
     }
     setTriedDone(true)
     setNudge((n) => n + 1)
-    notify('error', unfinishedMessage(kept)!)
+    const unfinished = unfinishedMessage(kept)!
+    notify('error', unfinished.text, { detail: unfinished.detail })
     // Open every group that holds a half-filled card, so the red marks show.
     const flaggedGroups = kept.flatMap((c) => (c.group && missingPart(c) ? [c.group] : []))
     const target = { card: kept[firstBad].id, field: partField(kept[firstBad], missingPart(kept[firstBad])!) }
     if (tidied) {
       pendingFocus.current = target
       setCollapsed(withCollapsed(collapsed, flaggedGroups, false))
-      put(kept, keptGroups)
+      tidyPut()
     } else if (flaggedGroups.some((id) => collapsed.has(id))) {
       pendingFocus.current = target
       setCollapsed(withCollapsed(collapsed, flaggedGroups, false))
@@ -183,25 +263,43 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
     put([...kept, ...added], group && !groups.some((g) => g.id === group.id) ? [...groups, group] : groups)
   }
 
+  actions.current = {
+    patch: patchCard,
+    remove: (id) => {
+      const gone = cards.find((c) => c.id === id)
+      put(cards.filter((c) => c.id !== id))
+      if (!gone) return
+      const undo = undoLater?.()
+      const name = cardName(gone)
+      notify('info', `Deleted ${cardRef(gone)}.`, {
+        detail: [
+          isCut(name) && `The full name is "${name}".`,
+          fromLine(trail(lib.name, course.name, quiz.name), groups?.find((g) => g.id === gone.group)?.name),
+          undoHint(isMac(navigator.platform)),
+        ],
+        action: undo ? { label: 'Undo', run: undo } : undefined,
+      })
+    },
+    move,
+    advance,
+    shift,
+  }
   const renderCard = (card: Card) => (
-    <EditCard
+    <EditorCard
       key={card.id}
       card={card}
-      index={cards.indexOf(card)}
-      lib={lib}
-      onPatch={(patch) => patchCard(card.id, patch)}
-      editor={{
-        groups,
-        flagged: triedDone ? missingPart(card) : null,
-        nudge,
-        onMove: (group) => move(card, group),
-        onDelete: () => put(cards.filter((c) => c.id !== card.id)),
-        onAdvance: () => advance(card),
-      }}
+      index={numbers.get(card.id)!}
+      groups={groups}
+      lib={libNow}
+      flagged={triedDone ? missingPart(card) : null}
+      nudge={nudge}
+      actions={actions as RefObject<CardActions>}
     />
   )
 
-  const addRow = (group?: string) => <AddRow onAdd={(kind) => addCard(group, kind)} />
+  const addRow = (group: string | undefined, empty: boolean, top = false) => (
+    <AddRow onAdd={(kind) => addCard(group, kind, top)} drop={{ group: group ?? null, enabled: empty }} />
+  )
 
   return (
     <>
@@ -226,6 +324,7 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
               <>
                 <button
                   type="button"
+                  className="quiet"
                   aria-haspopup="dialog"
                   title="Paste cards from Quizlet or a spreadsheet"
                   onClick={() => setImportOpen(true)}
@@ -242,32 +341,34 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
           {importOpen && <ImportDialog groups={groups} sides={lastSides(cards.filter((c) => !isBlank(c)))} onImport={importCards} onClose={() => setImportOpen(false)} />}
 
           <div ref={listRef} className="pairs">
-            {sections(cards, groups).map(({ group, cards: members }) =>
-              group ? (
-                <section key={group.id} className={collapsed.has(group.id) ? 'group-box is-collapsed' : 'group-box'} data-color={group.color}>
-                  <GroupHead
-                    group={group}
-                    count={members.length}
-                    collapsed={collapsed.has(group.id)}
-                    onToggle={() => setCollapsed(withCollapsed(collapsed, [group.id], !collapsed.has(group.id)))}
-                    onPatch={(patch) => patchGroup(group.id, patch)}
-                    onUngroup={() => ungroup(group.id)}
-                    onEnter={() => enterSection(group.id)}
-                  />
-                  <div className="group-body">
-                    <div>
-                      {members.map(renderCard)}
-                      {addRow(group.id)}
+            <CardSortables onPreview={dragInto} onDrop={dropCard} onCancel={() => showPreview(null)}>
+              {sections(preview ?? cards, groups).map(({ group, cards: members }) =>
+                group ? (
+                  <section key={group.id} className={collapsed.has(group.id) ? 'group-box is-collapsed' : 'group-box'} data-color={group.color}>
+                    <GroupHead
+                      group={group}
+                      count={members.length}
+                      collapsed={collapsed.has(group.id)}
+                      onToggle={() => setCollapsed(withCollapsed(collapsed, [group.id], !collapsed.has(group.id)))}
+                      onPatch={(patch) => patchGroup(group.id, patch)}
+                      onUngroup={() => ungroup(group.id)}
+                      onEnter={() => enterSection(group.id)}
+                    />
+                    <div className="group-body">
+                      <div>
+                        <SectionSortable group={group.id} ids={members.map((c) => c.id)}>{members.map(renderCard)}</SectionSortable>
+                        {addRow(group.id, members.length === 0)}
+                      </div>
                     </div>
-                  </div>
-                </section>
-              ) : (
-                <Fragment key="ungrouped">
-                  {members.map(renderCard)}
-                  {addRow()}
-                </Fragment>
-              ),
-            )}
+                  </section>
+                ) : (
+                  <Fragment key="ungrouped">
+                    {addRow(undefined, members.length === 0, true)}
+                    <SectionSortable group={null} ids={members.map((c) => c.id)}>{members.map(renderCard)}</SectionSortable>
+                  </Fragment>
+                ),
+              )}
+            </CardSortables>
             <div className="new-group">
               <AddPill onClick={addGroup}>New group</AddPill>
               <span className="muted">Multiple choice takes wrong answers from the same group first.</span>
@@ -279,7 +380,7 @@ export function EditScreen({ lib, quizId, notify, collapsed, setCollapsed }: Pro
 
       <DangerZone
         label="Delete quiz"
-        detail={`Deletes this quiz and its ${plural(cards.length, 'card')}. You can't undo this.`}
+        detail={`Deletes this quiz and its ${plural(cards.length, 'card')}. Ctrl+Z brings it back.`}
         question={`Delete "${quiz.name}" and its ${plural(cards.length, 'card')}?`}
         onDelete={() => {
           lib.deleteQuiz(quiz.id)
